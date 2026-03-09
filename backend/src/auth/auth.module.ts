@@ -12,7 +12,7 @@ import { User } from '../users/user.entity';
     TypeOrmModule.forFeature([User]),
     PassportModule,
     JwtModule.register({
-      secret: 'your-secret-key', // В продакшене использовать env
+      secret: process.env.JWT_SECRET || 'fallback-dev-key-change-me',
       signOptions: { expiresIn: '6h' },
     }),
   ],

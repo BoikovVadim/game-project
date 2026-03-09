@@ -12,7 +12,7 @@ import { JwtModule } from '@nestjs/jwt';
   imports: [
     TypeOrmModule.forFeature([User, WithdrawalRequest, Transaction]),
     UsersModule,
-    JwtModule.register({ secret: 'your-secret-key', signOptions: { expiresIn: '6h' } }),
+    JwtModule.register({ secret: process.env.JWT_SECRET || 'fallback-dev-key-change-me', signOptions: { expiresIn: '6h' } }),
   ],
   controllers: [AdminController],
   providers: [AdminService],

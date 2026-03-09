@@ -15,18 +15,47 @@ process.on('unhandledRejection', (reason, promise) => {
 
 import { NestFactory } from '@nestjs/core';
 import { ExpressAdapter } from '@nestjs/platform-express';
+import { ValidationPipe } from '@nestjs/common';
+import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { StatsExceptionFilter } from './common/stats-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, new ExpressAdapter());
   app.useGlobalFilters(new StatsExceptionFilter());
+
+  app.use(helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+  }));
+
+  const isProd = process.env.NODE_ENV === 'production';
+  const allowedOrigins = process.env.CORS_ORIGINS
+    ? process.env.CORS_ORIGINS.split(',').map(s => s.trim())
+    : [];
+
   app.enableCors({
-    origin: (origin, callback) => callback(null, origin || true),
+    origin: isProd
+      ? (origin, callback) => {
+          if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+          } else {
+            callback(new Error('CORS blocked'));
+          }
+        }
+      : (origin, callback) => callback(null, origin || true),
     credentials: true,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     allowedHeaders: 'Content-Type,Authorization',
   });
+
+  app.useGlobalPipes(new ValidationPipe({
+    whitelist: true,
+    forbidNonWhitelisted: false,
+    transform: true,
+    transformOptions: { enableImplicitConversion: true },
+  }));
+
   const port = parseInt(process.env.PORT || '3000', 10);
   await app.listen(port, '0.0.0.0');
 }

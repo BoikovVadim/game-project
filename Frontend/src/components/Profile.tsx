@@ -2130,11 +2130,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     try {
       await axios.post(
         '/auth/change-password',
-        {
-          email: user.email,
-          oldPassword,
-          newPassword,
-        },
+        { oldPassword, newPassword },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setSuccess('Пароль успешно изменён');

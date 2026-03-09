@@ -1,6 +1,7 @@
 import { Controller, Post, Get, Body, Param, Query, UseGuards, Request, ParseIntPipe } from '@nestjs/common';
 import { TournamentsService } from './tournaments.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { AdminGuard } from '../auth/admin.guard';
 
 @Controller('tournaments')
 export class TournamentsController {
@@ -71,6 +72,7 @@ export class TournamentsController {
   }
 
   @Post('create')
+  @UseGuards(JwtAuthGuard, AdminGuard)
   async create(@Body() body: { userId: number }) {
     return this.tournamentsService.createTournament(body.userId);
   }
@@ -89,6 +91,7 @@ export class TournamentsController {
   }
 
   @Post('backfill-entries')
+  @UseGuards(JwtAuthGuard, AdminGuard)
   async backfillEntries() {
     return this.tournamentsService.backfillTournamentEntries();
   }

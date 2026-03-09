@@ -2,19 +2,16 @@ import { Controller, Get, Post, Body, UseGuards, Request, Param, ParseIntPipe, Q
 import { UsersService } from './users.service';
 import { User } from './user.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { AdminGuard } from '../auth/admin.guard';
 
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @Get()
   findAll(): Promise<User[]> {
     return this.usersService.findAll();
-  }
-
-  @Post()
-  create(@Body() userData: { username: string; email: string; password: string }): Promise<User> {
-    return this.usersService.create(userData);
   }
 
   @UseGuards(JwtAuthGuard)
@@ -194,13 +191,13 @@ export class UsersController {
     }
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @Post('update-balance')
   updateBalance(@Body() body: { userId: number; newBalance: number }, @Request() req: any) {
     return this.usersService.updateBalance(body.userId, body.newBalance);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @Post('add-balance')
   addBalance(@Body() body: { amount: number; userId?: number }, @Request() req: any) {
     const userId = body.userId ?? req.user.id;
@@ -226,9 +223,4 @@ export class UsersController {
     return created;
   }
 
-  @UseGuards(JwtAuthGuard)
-  @Post('import-from-file')
-  importFromFile(@Body() body: { filePath: string }) {
-    return this.usersService.importFromFile(body.filePath);
-  }
 }

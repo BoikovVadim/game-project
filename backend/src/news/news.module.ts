@@ -10,7 +10,7 @@ import { UsersModule } from '../users/users.module';
   imports: [
     TypeOrmModule.forFeature([News]),
     UsersModule,
-    JwtModule.register({ secret: 'your-secret-key', signOptions: { expiresIn: '6h' } }),
+    JwtModule.register({ secret: process.env.JWT_SECRET || 'fallback-dev-key-change-me', signOptions: { expiresIn: '6h' } }),
   ],
   controllers: [NewsController],
   providers: [NewsService],

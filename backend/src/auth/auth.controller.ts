@@ -1,6 +1,11 @@
 import { Controller, Get, Post, Body, Query, UseGuards, Request, UnauthorizedException, InternalServerErrorException } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import { RegisterDto } from './dto/register.dto';
+import { LoginDto } from './dto/login.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
+import { ForgotPasswordDto, ResetPasswordDto } from './dto/reset-password.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -12,10 +17,9 @@ export class AuthController {
     return this.authService.refresh(req.user.id);
   }
 
+  @Throttle({ short: { ttl: 60000, limit: 5 } })
   @Post('register')
-  async register(
-    @Body() body: { username: string; email: string; password: string; referralCode?: string },
-  ) {
+  async register(@Body() body: RegisterDto) {
     return this.authService.register(
       body.username,
       body.email,
@@ -29,18 +33,20 @@ export class AuthController {
     return this.authService.verifyEmail(token ?? '');
   }
 
+  @Throttle({ short: { ttl: 60000, limit: 3 } })
   @Post('forgot-password')
-  async forgotPassword(@Body() body: { email: string }) {
+  async forgotPassword(@Body() body: ForgotPasswordDto) {
     return this.authService.forgotPassword(body?.email ?? '');
   }
 
   @Post('reset-password')
-  async resetPassword(@Body() body: { token: string; newPassword: string }) {
+  async resetPassword(@Body() body: ResetPasswordDto) {
     return this.authService.resetPassword(body?.token ?? '', body?.newPassword ?? '');
   }
 
+  @Throttle({ short: { ttl: 60000, limit: 10 } })
   @Post('login')
-  async login(@Body() body: { email: string; password: string }) {
+  async login(@Body() body: LoginDto) {
     try {
       return await this.authService.login(body?.email ?? '', body?.password ?? '');
     } catch (e) {
@@ -54,9 +60,9 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @Post('change-password')
   async changePassword(
-    @Body() body: { email: string; oldPassword: string; newPassword: string },
-    @Request() req: any
+    @Body() body: ChangePasswordDto,
+    @Request() req: { user: { id: number } }
   ) {
-    return this.authService.changePassword(body.email, body.oldPassword, body.newPassword);
+    return this.authService.changePassword(req.user.id, body.oldPassword, body.newPassword);
   }
 }

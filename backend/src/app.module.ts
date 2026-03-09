@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { ScheduleModule } from '@nestjs/schedule';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { join, resolve } from 'path';
 import * as fs from 'fs';
 import { AppController } from './app.controller';
@@ -37,6 +39,15 @@ console.log('[AppModule] database path:', databasePath, '| cwd:', process.cwd())
 @Module({
   imports: [
     ScheduleModule.forRoot(),
+    ThrottlerModule.forRoot([{
+      name: 'short',
+      ttl: 60000,
+      limit: 30,
+    }, {
+      name: 'long',
+      ttl: 600000,
+      limit: 200,
+    }]),
     ServeStaticModule.forRoot({
       rootPath: frontendBuild,
       serveStaticOptions: {
@@ -63,6 +74,8 @@ console.log('[AppModule] database path:', databasePath, '| cwd:', process.cwd())
     NewsModule,
   ],
   controllers: [AppController],
-  providers: [],
+  providers: [
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+  ],
 })
 export class AppModule {}

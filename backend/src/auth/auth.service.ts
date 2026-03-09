@@ -124,8 +124,8 @@ export class AuthService {
     };
   }
 
-  async changePassword(email: string, oldPassword: string, newPassword: string): Promise<{ message: string }> {
-    const user = await this.userRepository.findOneBy({ email });
+  async changePassword(userId: number, oldPassword: string, newPassword: string): Promise<{ message: string }> {
+    const user = await this.userRepository.findOneBy({ id: userId });
     if (!user || !(await bcrypt.compare(oldPassword, user.password))) {
       throw new UnauthorizedException('Invalid current password');
     }
