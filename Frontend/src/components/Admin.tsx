@@ -863,7 +863,15 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
               )}
             </div>
           )}
-          {section === 'statistics' && (
+          {section === 'statistics' && (() => {
+            const totals = statsData.reduce((acc, d) => ({
+              registrations: acc.registrations + d.registrations,
+              withdrawals: acc.withdrawals + d.withdrawals,
+              topups: acc.topups + d.topups,
+              gameIncome: acc.gameIncome + d.gameIncome,
+            }), { registrations: 0, withdrawals: 0, topups: 0, gameIncome: 0 });
+            const fmt = (n: number) => n.toLocaleString('ru-RU');
+            return (
             <div className="admin-stats-section">
               <div className="admin-stats-controls">
                 <label>
@@ -887,24 +895,80 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                   </select>
                 </label>
               </div>
-              <div className="admin-stats-chart">
-                <ResponsiveContainer width="100%" height={400}>
-                  <BarChart data={statsData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="period" />
-                    <YAxis yAxisId="left" />
-                    <YAxis yAxisId="right" orientation="right" />
-                    <Tooltip formatter={(value: number, name: string) => [typeof value === 'number' ? value.toLocaleString('ru-RU') : value, name]} />
-                    <Legend />
-                    <Bar yAxisId="left" dataKey="registrations" name="Регистрации" fill="#8884d8" />
-                    <Bar yAxisId="right" dataKey="withdrawals" name="Выводы (₽)" fill="#ff7c7c" />
-                    <Bar yAxisId="right" dataKey="topups" name="Пополнения (₽)" fill="#82ca9d" />
-                    <Bar yAxisId="right" dataKey="gameIncome" name="Доход игры (₽)" fill="#ffc658" />
-                  </BarChart>
-                </ResponsiveContainer>
+              <div className="admin-stats-kpi">
+                <div className="admin-stats-kpi-card" style={{ borderColor: '#8884d8' }}>
+                  <div className="admin-stats-kpi-value">{fmt(totals.registrations)}</div>
+                  <div className="admin-stats-kpi-label">Регистрации</div>
+                </div>
+                <div className="admin-stats-kpi-card" style={{ borderColor: '#82ca9d' }}>
+                  <div className="admin-stats-kpi-value">{fmt(totals.topups)} ₽</div>
+                  <div className="admin-stats-kpi-label">Пополнения</div>
+                </div>
+                <div className="admin-stats-kpi-card" style={{ borderColor: '#ff7c7c' }}>
+                  <div className="admin-stats-kpi-value">{fmt(totals.withdrawals)} ₽</div>
+                  <div className="admin-stats-kpi-label">Выводы</div>
+                </div>
+                <div className="admin-stats-kpi-card" style={{ borderColor: '#ffc658' }}>
+                  <div className="admin-stats-kpi-value">{fmt(totals.gameIncome)} ₽</div>
+                  <div className="admin-stats-kpi-label">Доход игры</div>
+                </div>
               </div>
+              {statsData.length === 0 ? (
+                <p className="admin-stats-empty">Нет данных за выбранный период</p>
+              ) : (
+                <>
+                  <div className="admin-stats-chart">
+                    <ResponsiveContainer width="100%" height={400}>
+                      <BarChart data={statsData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="period" />
+                        <YAxis yAxisId="left" />
+                        <YAxis yAxisId="right" orientation="right" />
+                        <Tooltip formatter={(value: number, name: string) => [typeof value === 'number' ? value.toLocaleString('ru-RU') : value, name]} />
+                        <Legend />
+                        <Bar yAxisId="left" dataKey="registrations" name="Регистрации" fill="#8884d8" />
+                        <Bar yAxisId="right" dataKey="withdrawals" name="Выводы (₽)" fill="#ff7c7c" />
+                        <Bar yAxisId="right" dataKey="topups" name="Пополнения (₽)" fill="#82ca9d" />
+                        <Bar yAxisId="right" dataKey="gameIncome" name="Доход игры (₽)" fill="#ffc658" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="admin-table-wrap">
+                    <table className="admin-table">
+                      <thead>
+                        <tr>
+                          <th>Период</th>
+                          <th>Регистрации</th>
+                          <th>Пополнения (₽)</th>
+                          <th>Выводы (₽)</th>
+                          <th>Доход игры (₽)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {statsData.map((d) => (
+                          <tr key={d.period}>
+                            <td>{d.period}</td>
+                            <td>{fmt(d.registrations)}</td>
+                            <td>{fmt(d.topups)}</td>
+                            <td>{fmt(d.withdrawals)}</td>
+                            <td>{fmt(d.gameIncome)}</td>
+                          </tr>
+                        ))}
+                        <tr className="admin-stats-totals-row">
+                          <td><strong>Итого</strong></td>
+                          <td><strong>{fmt(totals.registrations)}</strong></td>
+                          <td><strong>{fmt(totals.topups)} ₽</strong></td>
+                          <td><strong>{fmt(totals.withdrawals)} ₽</strong></td>
+                          <td><strong>{fmt(totals.gameIncome)} ₽</strong></td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
             </div>
-          )}
+            );
+          })()}
         </section>
       )}
       </div>
