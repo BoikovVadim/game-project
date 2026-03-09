@@ -676,6 +676,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   const [nameDraft, setNameDraft] = useState('');
   const [gender, setGender] = useState<string | null>(null);
   const [birthDate, setBirthDate] = useState<string | null>(null);
+  const [hasSupportUnread, setHasSupportUnread] = useState(false);
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -1061,6 +1062,18 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
       /* ignore */
     }
   }, [user?.id, notifications]);
+
+  useEffect(() => {
+    if (!token) return;
+    const check = () => {
+      axios.get<{ unread: boolean }>('/support/unread', { headers: { Authorization: `Bearer ${token}` } })
+        .then((r) => setHasSupportUnread(r.data.unread))
+        .catch(() => {});
+    };
+    check();
+    const iv = setInterval(check, 10000);
+    return () => clearInterval(iv);
+  }, [token]);
 
   const addNotification = React.useCallback((n: Omit<NotificationItem, 'id' | 'createdAt' | 'read'>) => {
     const now = Date.now();
@@ -2357,6 +2370,19 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                 </div>
               )}
             </div>
+            <button
+              type="button"
+              className="cabinet-header-chat"
+              onClick={() => navigate('/support')}
+              aria-label="Тех. поддержка"
+            >
+              <span className="cabinet-header-chat-icon-wrap">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                </svg>
+                {hasSupportUnread && <span className="cabinet-header-bell-badge" />}
+              </span>
+            </button>
             <button
               type="button"
               className={`cabinet-header-news ${section === 'news' ? 'active' : ''}`}

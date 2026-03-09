@@ -8,6 +8,7 @@ import VerifyEmail from './components/VerifyEmail.tsx';
 import ForgotPassword from './components/ForgotPassword.tsx';
 import ResetPassword from './components/ResetPassword.tsx';
 import Admin from './components/Admin.tsx';
+import SupportChat from './components/SupportChat.tsx';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 import './App.css';
 
@@ -102,8 +103,9 @@ function AppContent() {
 
   const isProfile = location.pathname === '/profile' && hasToken;
   const isAdmin = location.pathname === '/admin' && hasToken;
+  const isSupport = location.pathname === '/support' && hasToken;
   const isRedirecting = hasToken && (location.pathname === '/' || location.pathname === '/login');
-  const hideTopNav = isProfile || isAdmin || isRedirecting;
+  const hideTopNav = isProfile || isAdmin || isSupport || isRedirecting;
   return (
     <ErrorBoundary>
       <div className={`App${isProfile ? ' cabinet-open' : ''}${isAdmin ? ' admin-open' : ''}`}>
@@ -133,6 +135,7 @@ function AppContent() {
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/profile" element={hasToken ? <ErrorBoundary><Profile token={token} onLogout={handleLogout} /></ErrorBoundary> : <Navigate to="/" replace />} />
+            <Route path="/support" element={hasToken ? <SupportChat token={token} /> : <Navigate to="/" replace />} />
             <Route path="/admin" element={hasToken ? <Admin token={token} onLogout={handleLogout} /> : <Navigate to="/login" replace />} />
             <Route path="*" element={<Navigate to={hasToken ? '/profile' : '/'} replace />} />
           </Routes>

@@ -42,8 +42,8 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
   const [userSortBy, setUserSortBy] = useState<'id' | 'username' | 'email' | 'balance' | 'balanceRubles' | 'isAdmin'>('id');
   const [userSortDir, setUserSortDir] = useState<'asc' | 'desc'>('asc');
   const [userSearch, setUserSearch] = useState('');
-  const [section, setSection] = useState<'withdrawals' | 'users' | 'credit'>(() =>
-    tabFromUrl === 'users' ? 'users' : tabFromUrl === 'credit' ? 'credit' : 'withdrawals'
+  const [section, setSection] = useState<'withdrawals' | 'users' | 'credit' | 'support'>(() =>
+    tabFromUrl === 'users' ? 'users' : tabFromUrl === 'credit' ? 'credit' : tabFromUrl === 'support' ? 'support' : 'withdrawals'
   );
   const [usersLoading, setUsersLoading] = useState(false);
   const [creditUserId, setCreditUserId] = useState('');
@@ -54,19 +54,27 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
   const [creditHistory, setCreditHistory] = useState<{ id: number; userId: number; username: string; userEmail: string; amount: number; adminUsername: string; adminEmail: string; createdAt: string }[]>([]);
   const [creditHistoryLoaded, setCreditHistoryLoaded] = useState(false);
 
+  const [supportConversations, setSupportConversations] = useState<any[]>([]);
+  const [supportUnreadCount, setSupportUnreadCount] = useState(0);
+  const [supportOpenUserId, setSupportOpenUserId] = useState<number | null>(null);
+  const [supportMessages, setSupportMessages] = useState<any[]>([]);
+  const [supportReply, setSupportReply] = useState('');
+  const [supportSending, setSupportSending] = useState(false);
+
   // Восстановить вкладку и фильтр статуса из URL при загрузке/обновлении
   useEffect(() => {
     const tab = searchParams.get('tab');
     const status = searchParams.get('status');
     if (tab === 'users') setSection('users');
     else if (tab === 'credit') setSection('credit');
+    else if (tab === 'support') setSection('support');
     else if (tab === 'withdrawals') setSection('withdrawals');
     if (status === 'pending' || status === 'approved' || status === 'rejected' || status === '') {
       setWithdrawalStatusFilter(status);
     }
   }, [searchParams]);
 
-  const setSectionAndUrl = (next: 'withdrawals' | 'users' | 'credit') => {
+  const setSectionAndUrl = (next: 'withdrawals' | 'users' | 'credit' | 'support') => {
     setSection(next);
     setSearchParams((prev) => {
       const nextParams = new URLSearchParams(prev);
@@ -75,6 +83,9 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
         nextParams.delete('status');
       } else if (next === 'credit') {
         nextParams.set('tab', 'credit');
+        nextParams.delete('status');
+      } else if (next === 'support') {
+        nextParams.set('tab', 'support');
         nextParams.delete('status');
       } else {
         nextParams.delete('tab');
@@ -257,6 +268,58 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
     if (!creditHistoryLoaded) fetchCreditHistory();
   }, [isAdmin, token, section, creditHistoryLoaded, fetchCreditHistory]);
 
+  const fetchSupportConversations = React.useCallback(() => {
+    if (!token) return;
+    axios.get('/support/admin/conversations', { headers })
+      .then((r) => setSupportConversations(Array.isArray(r.data) ? r.data : []))
+      .catch(() => {});
+  }, [token, headers]);
+
+  const fetchSupportUnread = React.useCallback(() => {
+    if (!token) return;
+    axios.get<{ count: number }>('/support/admin/unread-count', { headers })
+      .then((r) => setSupportUnreadCount(r.data.count ?? 0))
+      .catch(() => {});
+  }, [token, headers]);
+
+  useEffect(() => {
+    if (!isAdmin || !token) return;
+    fetchSupportUnread();
+    const iv = setInterval(fetchSupportUnread, 5000);
+    return () => clearInterval(iv);
+  }, [isAdmin, token, fetchSupportUnread]);
+
+  useEffect(() => {
+    if (!isAdmin || !token || section !== 'support') return;
+    fetchSupportConversations();
+    const iv = setInterval(fetchSupportConversations, 5000);
+    return () => clearInterval(iv);
+  }, [isAdmin, token, section, fetchSupportConversations]);
+
+  const openSupportDialog = async (userId: number) => {
+    setSupportOpenUserId(userId);
+    setSupportMessages([]);
+    try {
+      const r = await axios.get(`/support/admin/conversations/${userId}`, { headers });
+      setSupportMessages(Array.isArray(r.data) ? r.data : []);
+      fetchSupportConversations();
+      fetchSupportUnread();
+    } catch {}
+  };
+
+  const sendSupportReply = async () => {
+    if (!supportOpenUserId || !supportReply.trim() || supportSending) return;
+    setSupportSending(true);
+    try {
+      await axios.post(`/support/admin/conversations/${supportOpenUserId}/messages`, { text: supportReply.trim() }, { headers });
+      setSupportReply('');
+      const r = await axios.get(`/support/admin/conversations/${supportOpenUserId}`, { headers });
+      setSupportMessages(Array.isArray(r.data) ? r.data : []);
+      fetchSupportConversations();
+    } catch {}
+    setSupportSending(false);
+  };
+
   const handleCreditBalance = async () => {
     const uid = parseInt(creditUserId.trim(), 10);
     const amt = parseFloat(creditAmount.trim());
@@ -387,6 +450,14 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
           </button>
           <button type="button" className={section === 'credit' ? 'active' : ''} onClick={() => setSectionAndUrl('credit')}>
             Начисление
+          </button>
+          <button type="button" className={section === 'support' ? 'active' : ''} onClick={() => setSectionAndUrl('support')}>
+            Тех. поддержка
+            {supportUnreadCount > 0 && (
+              <span className="admin-tab-badge" aria-label={`Непрочитано: ${supportUnreadCount}`}>
+                {supportUnreadCount}
+              </span>
+            )}
           </button>
         </div>
       </nav>
@@ -628,6 +699,81 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+        </section>
+      )}
+      {section === 'support' && (
+        <section className="admin-section">
+          {supportOpenUserId ? (
+            <div className="admin-support-dialog">
+              <div className="admin-support-dialog-header">
+                <button type="button" className="admin-support-back" onClick={() => { setSupportOpenUserId(null); fetchSupportConversations(); }}>
+                  ← К диалогам
+                </button>
+                <span className="admin-support-dialog-title">Диалог #{supportOpenUserId}</span>
+              </div>
+              <div className="admin-support-messages">
+                {supportMessages.length === 0 && <div className="admin-support-empty">Нет сообщений</div>}
+                {supportMessages.map((m: any) => (
+                  <div key={m.id} className={`admin-support-msg ${m.senderRole === 'user' ? 'admin-support-msg--user' : 'admin-support-msg--admin'}`}>
+                    <div className="admin-support-msg-bubble">
+                      <div className="admin-support-msg-sender">{m.senderRole === 'user' ? 'Игрок' : 'Поддержка'}</div>
+                      <div className="admin-support-msg-text">{m.text}</div>
+                      <div className="admin-support-msg-time">{m.createdAt ? new Date(m.createdAt).toLocaleString('ru-RU') : ''}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="admin-support-reply-wrap">
+                <textarea
+                  className="admin-support-reply-input"
+                  placeholder="Ответить..."
+                  value={supportReply}
+                  onChange={(e) => setSupportReply(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendSupportReply(); } }}
+                  rows={2}
+                />
+                <button type="button" className="admin-support-reply-btn" disabled={!supportReply.trim() || supportSending} onClick={sendSupportReply}>
+                  Отправить
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <h3>Диалоги с игроками</h3>
+              {supportConversations.length === 0 ? (
+                <p>Обращений пока нет</p>
+              ) : (
+                <div className="admin-table-wrap">
+                  <table className="admin-table">
+                    <thead>
+                      <tr>
+                        <th>ID</th>
+                        <th>Игрок</th>
+                        <th>Email</th>
+                        <th>Последнее сообщение</th>
+                        <th>Дата</th>
+                        <th>Непрочитано</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {supportConversations.map((c: any) => (
+                        <tr key={c.userId} className={Number(c.unreadCount) > 0 ? 'admin-support-row-unread' : ''}>
+                          <td>{c.userId}</td>
+                          <td>{c.nickname || c.username || '—'}</td>
+                          <td>{c.email || '—'}</td>
+                          <td className="admin-support-last-text">{c.lastText?.slice(0, 60)}{c.lastText?.length > 60 ? '…' : ''}</td>
+                          <td>{c.lastMessageAt ? new Date(c.lastMessageAt).toLocaleString('ru-RU') : '—'}</td>
+                          <td>{Number(c.unreadCount) > 0 ? <span className="admin-tab-badge">{c.unreadCount}</span> : '—'}</td>
+                          <td><button type="button" className="admin-support-open-btn" onClick={() => openSupportDialog(c.userId)}>Открыть</button></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
         </section>

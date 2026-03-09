@@ -647,3 +647,179 @@
 .admin-transfer-card-btn:hover {
   background: #1b5e20;
 }
+
+/* ---------- Support chat in admin ---------- */
+.admin-support-dialog {
+  display: flex;
+  flex-direction: column;
+  height: 60vh;
+  min-height: 350px;
+}
+
+.admin-support-dialog-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e0e0e0;
+  margin-bottom: 10px;
+}
+
+.admin-support-back {
+  background: none;
+  border: none;
+  color: #7c4dff;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+
+.admin-support-back:hover {
+  background: #f3f0ff;
+}
+
+.admin-support-dialog-title {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.admin-support-messages {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 0;
+}
+
+.admin-support-empty {
+  text-align: center;
+  color: #999;
+  margin-top: 40px;
+}
+
+.admin-support-msg {
+  display: flex;
+}
+
+.admin-support-msg--user {
+  justify-content: flex-start;
+}
+
+.admin-support-msg--admin {
+  justify-content: flex-end;
+}
+
+.admin-support-msg-bubble {
+  max-width: 70%;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.admin-support-msg--user .admin-support-msg-bubble {
+  background: #f0f0f0;
+  color: #333;
+  border-bottom-left-radius: 3px;
+}
+
+.admin-support-msg--admin .admin-support-msg-bubble {
+  background: linear-gradient(135deg, #7c4dff 0%, #651fff 100%);
+  color: #fff;
+  border-bottom-right-radius: 3px;
+}
+
+.admin-support-msg-sender {
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 2px;
+  opacity: 0.7;
+}
+
+.admin-support-msg-text {
+  white-space: pre-wrap;
+}
+
+.admin-support-msg-time {
+  font-size: 10px;
+  margin-top: 3px;
+  opacity: 0.5;
+  text-align: right;
+}
+
+.admin-support-reply-wrap {
+  display: flex;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid #e0e0e0;
+  margin-top: 8px;
+}
+
+.admin-support-reply-input {
+  flex: 1;
+  resize: none;
+  border: 1.5px solid #d0d0d0;
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.admin-support-reply-input:focus {
+  border-color: #7c4dff;
+}
+
+.admin-support-reply-btn {
+  padding: 8px 18px;
+  background: linear-gradient(135deg, #7c4dff 0%, #651fff 100%);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  align-self: flex-end;
+}
+
+.admin-support-reply-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.admin-support-reply-btn:not(:disabled):hover {
+  opacity: 0.85;
+}
+
+.admin-support-row-unread {
+  background: #f3f0ff;
+}
+
+.admin-support-last-text {
+  max-width: 250px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-support-open-btn {
+  padding: 4px 12px;
+  background: #7c4dff;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.admin-support-open-btn:hover {
+  opacity: 0.85;
+}

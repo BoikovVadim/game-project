@@ -428,6 +428,29 @@
   position: relative;
 }
 
+.cabinet-header-chat {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 6px;
+  background: transparent;
+  color: #666;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s;
+}
+
+.cabinet-header-chat:hover {
+  color: #333;
+  background: #f0f0f0;
+}
+
+.cabinet-header-chat-icon-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
 .cabinet-header-bell {
   display: inline-flex;
   align-items: center;
@@ -4327,7 +4350,7 @@ body.partner-modal-open {
 .user-info-label {
   color: #666;
   flex-shrink: 0;
-  width: 48px;
+  white-space: nowrap;
 }
 
 .user-info-value {
@@ -5248,14 +5271,14 @@ button.bracket-player-name-btn:active {
 }
 
 .gender-btn--active {
-  border-color: #7c4dff;
-  background: linear-gradient(135deg, #7c4dff 0%, #651fff 100%);
+  border-color: #66bb6a;
+  background: linear-gradient(135deg, #81c784 0%, #66bb6a 100%);
   color: #fff;
-  box-shadow: 0 2px 8px rgba(124, 77, 255, 0.25);
+  box-shadow: 0 2px 8px rgba(102, 187, 106, 0.25);
 }
 
 .gender-btn--active:hover {
-  background: linear-gradient(135deg, #9a6dff 0%, #7c4dff 100%);
+  background: linear-gradient(135deg, #a5d6a7 0%, #81c784 100%);
   color: #fff;
 }
 

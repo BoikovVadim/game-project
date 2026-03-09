@@ -52,6 +52,11 @@ export class AppController {
     sendIndex(res);
   }
 
+  @Get('support')
+  serveSupport(@Res() res: Response) {
+    sendIndex(res);
+  }
+
   @Get('forgot-password')
   serveForgotPassword(@Res() res: Response) {
     sendIndex(res);
