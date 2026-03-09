@@ -3898,9 +3898,9 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
             );
           }
           return (
-            <div className="cabinet-finance">
+            <div className="cabinet-finance" style={{ width: '100%', maxWidth: '100%', padding: 24, boxSizing: 'border-box' }}>
               <h2>Финансы</h2>
-              <div className="cabinet-finance-top-row">
+              <div className="cabinet-finance-top-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 28 }}>
                 <div className="cabinet-finance-balance-panel">
                   <h4>Баланс</h4>
                   <div className="cabinet-finance-balance-lines">

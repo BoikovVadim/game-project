@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { formatMoscowDateTimeFull } from './dateUtils.ts';
 import './Admin.css';
 
@@ -42,8 +43,8 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
   const [userSortBy, setUserSortBy] = useState<'id' | 'username' | 'email' | 'balance' | 'balanceRubles' | 'isAdmin'>('id');
   const [userSortDir, setUserSortDir] = useState<'asc' | 'desc'>('asc');
   const [userSearch, setUserSearch] = useState('');
-  const [section, setSection] = useState<'withdrawals' | 'users' | 'credit' | 'support'>(() =>
-    tabFromUrl === 'users' ? 'users' : tabFromUrl === 'credit' ? 'credit' : tabFromUrl === 'support' ? 'support' : 'withdrawals'
+  const [section, setSection] = useState<'withdrawals' | 'users' | 'credit' | 'support' | 'statistics'>(() =>
+    tabFromUrl === 'users' ? 'users' : tabFromUrl === 'credit' ? 'credit' : tabFromUrl === 'support' ? 'support' : tabFromUrl === 'statistics' ? 'statistics' : 'withdrawals'
   );
   const [usersLoading, setUsersLoading] = useState(false);
   const [creditUserId, setCreditUserId] = useState('');
@@ -62,20 +63,28 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
   const [supportReply, setSupportReply] = useState('');
   const [supportSending, setSupportSending] = useState(false);
 
+  const [statsGroupBy, setStatsGroupBy] = useState<'day' | 'week' | 'month' | 'all'>('day');
+  const [statsData, setStatsData] = useState<{ period: string; registrations: number; withdrawals: number; topups: number; gameIncome: number }[]>([]);
+
   // Восстановить вкладку и фильтр статуса из URL при загрузке/обновлении
   useEffect(() => {
     const tab = searchParams.get('tab');
     const status = searchParams.get('status');
+    const groupBy = searchParams.get('statsGroupBy');
     if (tab === 'users') setSection('users');
     else if (tab === 'credit') setSection('credit');
     else if (tab === 'support') setSection('support');
+    else if (tab === 'statistics') setSection('statistics');
     else if (tab === 'withdrawals') setSection('withdrawals');
     if (status === 'pending' || status === 'approved' || status === 'rejected' || status === '') {
       setWithdrawalStatusFilter(status);
     }
+    if (groupBy === 'day' || groupBy === 'week' || groupBy === 'month' || groupBy === 'all') {
+      setStatsGroupBy(groupBy);
+    }
   }, [searchParams]);
 
-  const setSectionAndUrl = (next: 'withdrawals' | 'users' | 'credit' | 'support') => {
+  const setSectionAndUrl = (next: 'withdrawals' | 'users' | 'credit' | 'support' | 'statistics') => {
     setSection(next);
     setSearchParams((prev) => {
       const nextParams = new URLSearchParams(prev);
@@ -87,6 +96,10 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
         nextParams.delete('status');
       } else if (next === 'support') {
         nextParams.set('tab', 'support');
+        nextParams.delete('status');
+      } else if (next === 'statistics') {
+        nextParams.set('tab', 'statistics');
+        nextParams.set('statsGroupBy', statsGroupBy);
         nextParams.delete('status');
       } else {
         nextParams.delete('tab');
@@ -339,6 +352,21 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
     } catch {}
   };
 
+  const fetchStats = React.useCallback(() => {
+    if (!token) return;
+    axios.get<{ data: { period: string; registrations: number; withdrawals: number; topups: number; gameIncome: number }[] }>(
+      `/admin/stats?groupBy=${statsGroupBy}`,
+      { headers },
+    )
+      .then((r) => setStatsData(r.data.data || []))
+      .catch(() => setStatsData([]));
+  }, [token, headers, statsGroupBy]);
+
+  useEffect(() => {
+    if (!isAdmin || !token || section !== 'statistics') return;
+    fetchStats();
+  }, [isAdmin, token, section, fetchStats]);
+
   const handleCreditBalance = async () => {
     const uid = parseInt(creditUserId.trim(), 10);
     const amt = parseFloat(creditAmount.trim());
@@ -478,6 +506,9 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
               </span>
             )}
           </button>
+          <button type="button" className={section === 'statistics' ? 'active' : ''} onClick={() => setSectionAndUrl('statistics')}>
+            Статистика
+          </button>
         </div>
       </nav>
       {error && <p className="admin-error">{error}</p>}
@@ -562,15 +593,15 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
               {sortedWithdrawals.map((w) => (
                 <tr key={w.id}>
                   <td>{w.id}</td>
-                  <td>{w.user ? `${w.user.username} (${w.user.email || '—'})` : `#${w.userId}`}</td>
+                  <td className="admin-td-left">{w.user ? `${w.user.username} (${w.user.email || '—'})` : `#${w.userId}`}</td>
                   <td>{w.amount} ₽</td>
-                  <td>{w.details || '—'}</td>
+                  <td className="admin-td-left">{w.details || '—'}</td>
                   <td>
                     <span className={`admin-withdrawal-status admin-withdrawal-status--${w.status}`}>
                       {getWithdrawalStatusLabel(w.status)}
                     </span>
                   </td>
-                  <td>
+                  <td className="admin-td-left">
                     {w.processedByAdminUsername != null || w.processedByAdminEmail != null
                       ? [w.processedByAdminUsername || '', w.processedByAdminEmail ? `(${w.processedByAdminEmail})` : ''].filter(Boolean).join(' ')
                       : '—'}
@@ -617,8 +648,8 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                   {sortedUsers.map((u) => (
                     <tr key={u.id}>
                       <td>{u.id}</td>
-                      <td>{u.username}{u.isAdmin ? ' (админ)' : ''}</td>
-                      <td>{u.email}</td>
+                      <td className="admin-td-left">{u.username}{u.isAdmin ? ' (админ)' : ''}</td>
+                      <td className="admin-td-left">{u.email}</td>
                       <td>{u.balance}</td>
                       <td>{u.balanceRubles} ₽</td>
                       <td className="admin-table-actions">
@@ -704,12 +735,12 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                     <tr key={ch.id}>
                       <td>{ch.id}</td>
                       <td>{ch.userId}</td>
-                      <td className="admin-credit-cell-name">
+                      <td className="admin-credit-cell-name admin-td-left">
                         <span>{ch.username || '—'}</span>
                         {ch.userEmail && <span className="admin-credit-cell-email">{ch.userEmail}</span>}
                       </td>
                       <td>+{Number(ch.amount).toFixed(2)} ₽</td>
-                      <td className="admin-credit-cell-name">
+                      <td className="admin-credit-cell-name admin-td-left">
                         <span>{ch.adminUsername || '—'}</span>
                         {ch.adminEmail && <span className="admin-credit-cell-email">{ch.adminEmail}</span>}
                       </td>
@@ -813,8 +844,8 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                       {supportTickets.map((t: any) => (
                         <tr key={t.id} className={Number(t.unreadCount) > 0 ? 'admin-support-row-unread' : ''}>
                           <td>{t.id}</td>
-                          <td>{t.nickname || t.username || '—'}</td>
-                          <td>{t.email || '—'}</td>
+                          <td className="admin-td-left">{t.nickname || t.username || '—'}</td>
+                          <td className="admin-td-left">{t.email || '—'}</td>
                           <td>
                             <span className={`admin-support-ticket-status admin-support-ticket-status--${t.status}`}>
                               {t.status === 'open' ? 'Открыт' : 'Закрыт'}
@@ -830,6 +861,48 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                   </table>
                 </div>
               )}
+            </div>
+          )}
+          {section === 'statistics' && (
+            <div className="admin-stats-section">
+              <div className="admin-stats-controls">
+                <label>
+                  Период:
+                  <select
+                    value={statsGroupBy}
+                    onChange={(e) => {
+                      const v = e.target.value as 'day' | 'week' | 'month' | 'all';
+                      setStatsGroupBy(v);
+                      setSearchParams((prev) => {
+                        const p = new URLSearchParams(prev);
+                        p.set('statsGroupBy', v);
+                        return p;
+                      }, { replace: true });
+                    }}
+                  >
+                    <option value="day">По дням</option>
+                    <option value="week">По неделям</option>
+                    <option value="month">По месяцам</option>
+                    <option value="all">За всё время</option>
+                  </select>
+                </label>
+              </div>
+              <div className="admin-stats-chart">
+                <ResponsiveContainer width="100%" height={400}>
+                  <BarChart data={statsData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="period" />
+                    <YAxis yAxisId="left" />
+                    <YAxis yAxisId="right" orientation="right" />
+                    <Tooltip formatter={(value: number, name: string) => [typeof value === 'number' ? value.toLocaleString('ru-RU') : value, name]} />
+                    <Legend />
+                    <Bar yAxisId="left" dataKey="registrations" name="Регистрации" fill="#8884d8" />
+                    <Bar yAxisId="right" dataKey="withdrawals" name="Выводы (₽)" fill="#ff7c7c" />
+                    <Bar yAxisId="right" dataKey="topups" name="Пополнения (₽)" fill="#82ca9d" />
+                    <Bar yAxisId="right" dataKey="gameIncome" name="Доход игры (₽)" fill="#ffc658" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           )}
         </section>

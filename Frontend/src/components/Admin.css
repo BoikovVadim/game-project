@@ -286,6 +286,8 @@
   overflow-x: auto;
   overflow-y: visible;
   margin-top: 8px;
+  margin-left: auto;
+  margin-right: auto;
   -webkit-overflow-scrolling: touch;
   width: 100%;
 }
@@ -327,24 +329,21 @@
   width: 100%;
 }
 
-.admin-table-wrap--withdrawals .admin-table {
-  width: 100%;
-  min-width: 900px;
-  table-layout: auto;
-}
-
 .admin-table th,
 .admin-table td {
   border: 1px solid #ddd;
   padding: 3px 6px;
-  text-align: left;
   line-height: 1.25;
+  white-space: nowrap;
 }
 
 .admin-table th {
   background: #f5f5f5;
   font-weight: 600;
-  white-space: nowrap;
+  text-align: center;
+}
+
+.admin-table td {
   text-align: center;
 }
 
@@ -363,24 +362,9 @@
   opacity: 0.9;
 }
 
-.admin-table td {
-  word-break: break-word;
+.admin-table td.admin-td-left {
+  text-align: left;
 }
-
-.admin-table th:nth-child(1),
-.admin-table td:nth-child(1) { text-align: center; }
-
-/* Таблица заявок на вывод */
-.admin-table--withdrawals th,
-.admin-table--withdrawals td { text-align: center; box-sizing: border-box; }
-.admin-table--withdrawals th:nth-child(1),
-.admin-table--withdrawals td:nth-child(1) { width: 1%; white-space: nowrap; }
-.admin-table--withdrawals th:nth-child(3),
-.admin-table--withdrawals td:nth-child(3) { width: 1%; white-space: nowrap; }
-.admin-table--withdrawals th:nth-child(7),
-.admin-table--withdrawals td:nth-child(7) { white-space: nowrap; }
-.admin-table--withdrawals th:nth-child(8),
-.admin-table--withdrawals td:nth-child(8) { white-space: nowrap; }
 
 .admin-table-actions {
   text-align: left;
@@ -562,13 +546,7 @@
   cursor: not-allowed;
 }
 
-.admin-table--credit {
-  width: 100%;
-}
-
-.admin-table--credit th,
 .admin-table--credit td {
-  text-align: center;
   vertical-align: middle;
 }
 
@@ -928,4 +906,38 @@
 .admin-support-close-btn:hover,
 .admin-support-reopen-btn:hover {
   opacity: 0.85;
+}
+
+/* ---------- Statistics tab ---------- */
+.admin-stats-section {
+  padding: 20px 0;
+}
+
+.admin-stats-controls {
+  margin-bottom: 24px;
+}
+
+.admin-stats-controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.admin-stats-controls select {
+  padding: 8px 12px;
+  font-size: 14px;
+  border: 1px solid #d0d0d0;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.admin-stats-chart {
+  min-height: 400px;
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
 }

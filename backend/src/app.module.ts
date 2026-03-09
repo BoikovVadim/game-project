@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ServeStaticModule } from '@nestjs/serve-static';
+import { ScheduleModule } from '@nestjs/schedule';
 import { join, resolve } from 'path';
 import * as fs from 'fs';
 import { AppController } from './app.controller';
@@ -33,6 +34,7 @@ console.log('[AppModule] database path:', databasePath, '| cwd:', process.cwd())
 
 @Module({
   imports: [
+    ScheduleModule.forRoot(),
     ServeStaticModule.forRoot({
       rootPath: frontendBuild,
       serveStaticOptions: {

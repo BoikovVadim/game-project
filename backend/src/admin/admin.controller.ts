@@ -55,6 +55,11 @@ export class AdminController {
     return this.adminService.getCreditHistory();
   }
 
+  @Get('stats')
+  getStats(@Query('groupBy') groupBy?: 'day' | 'week' | 'month' | 'all') {
+    return this.adminService.getStats(groupBy || 'day');
+  }
+
   @Post('users/:id/set-admin')
   setUserAdmin(
     @Param('id', ParseIntPipe) id: number,

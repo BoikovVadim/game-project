@@ -232,6 +232,93 @@ export class AdminService {
     }
   }
 
+  /** Статистика для админки: регистрации, выводы, пополнения, доход игры. groupBy: day|week|month|all */
+  async getStats(groupBy: 'day' | 'week' | 'month' | 'all' = 'day'): Promise<{
+    data: { period: string; registrations: number; withdrawals: number; topups: number; gameIncome: number }[];
+  }> {
+    const dateExpr = groupBy === 'day'
+      ? `date(u.createdAt)`
+      : groupBy === 'week'
+        ? `strftime('%Y-%W', u.createdAt)`
+        : groupBy === 'month'
+          ? `strftime('%Y-%m', u.createdAt)`
+          : `'all'`;
+    const dateExprW = groupBy === 'day'
+      ? `date(w.processedAt)`
+      : groupBy === 'week'
+        ? `strftime('%Y-%W', w.processedAt)`
+        : groupBy === 'month'
+          ? `strftime('%Y-%m', w.processedAt)`
+          : `'all'`;
+    const dateExprT = groupBy === 'day'
+      ? `date(t.createdAt)`
+      : groupBy === 'week'
+        ? `strftime('%Y-%W', t.createdAt)`
+        : groupBy === 'month'
+          ? `strftime('%Y-%m', t.createdAt)`
+          : `'all'`;
+
+    try {
+      const hasUserCreatedAt = await this.dataSource.query(
+        `SELECT 1 FROM pragma_table_info('user') WHERE name='createdAt'`,
+      ).then((r: any[]) => r.length > 0);
+
+      let regRows: { period: string; cnt: number }[] = [];
+      if (hasUserCreatedAt) {
+        regRows = await this.dataSource.query(
+          `SELECT ${dateExpr} AS period, COUNT(*) AS cnt FROM "user" u WHERE u.createdAt IS NOT NULL GROUP BY ${dateExpr} ORDER BY period`,
+        );
+      }
+
+      const wRows = await this.dataSource.query(
+        `SELECT ${dateExprW} AS period, COALESCE(SUM(w.amount), 0) AS amt FROM withdrawal_request w
+         WHERE w.status = 'approved' AND w.processedAt IS NOT NULL GROUP BY ${dateExprW} ORDER BY period`,
+      );
+
+      const topupRows = await this.dataSource.query(
+        `SELECT ${dateExprT} AS period, COALESCE(SUM(t.amount), 0) AS amt FROM "transaction" t
+         WHERE t.category = 'topup' GROUP BY ${dateExprT} ORDER BY period`,
+      );
+
+      const gamePeriodExpr = groupBy === 'day' ? 'date(tr.createdAt)' : groupBy === 'week' ? "strftime('%Y-%W', tr.createdAt)" : groupBy === 'month' ? "strftime('%Y-%m', tr.createdAt)" : "'all'";
+      const gameIncomeRows = await this.dataSource.query(
+        `SELECT period, SUM(income) AS income FROM (
+          SELECT ${gamePeriodExpr} AS period,
+            COALESCE(4 * (SELECT leagueAmount FROM tournament WHERE id = tr.tournamentId), 0) -
+            COALESCE(tr.amount, 0) -
+            COALESCE((SELECT SUM(amount) FROM "transaction" WHERE category = 'referral' AND tournamentId = tr.tournamentId), 0) AS income
+          FROM "transaction" tr
+          WHERE tr.category = 'win' AND tr.tournamentId IS NOT NULL
+        ) GROUP BY period ORDER BY period`,
+      );
+
+      const periods = new Set<string>();
+      for (const r of regRows || []) periods.add(String(r.period));
+      for (const r of wRows || []) periods.add(String(r.period));
+      for (const r of topupRows || []) periods.add(String(r.period));
+      for (const r of gameIncomeRows || []) periods.add(String(r.period));
+
+      const regMap = new Map((regRows || []).map((r: any) => [String(r.period), Number(r.cnt)]));
+      const wMap = new Map((wRows || []).map((r: any) => [String(r.period), Number(r.amt)]));
+      const topupMap = new Map((topupRows || []).map((r: any) => [String(r.period), Number(r.amt)]));
+      const gameMap = new Map((gameIncomeRows || []).map((r: any) => [String(r.period), Number(r.income)]));
+
+      const sorted = [...periods].sort();
+      const data: { period: string; registrations: number; withdrawals: number; topups: number; gameIncome: number }[] = sorted.map((p) => ({
+        period: p,
+        registrations: Number(regMap.get(p) ?? 0),
+        withdrawals: Number(wMap.get(p) ?? 0),
+        topups: Number(topupMap.get(p) ?? 0),
+        gameIncome: Number(gameMap.get(p) ?? 0),
+      }));
+
+      return { data };
+    } catch (e) {
+      console.error('[AdminService.getStats]', e);
+      return { data: [] };
+    }
+  }
+
   /** Выдать JWT от имени пользователя (вход «под пользователем») */
   async getImpersonationToken(adminId: number, targetUserId: number): Promise<{ access_token: string }> {
     const admin = await this.userRepository.findOne({ where: { id: adminId }, select: ['id', 'isAdmin'] });

@@ -1,6 +1,7 @@
-import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { Tournament, TournamentStatus, GAME_DEADLINE_HOURS } from './tournament.entity';
 import { Question } from './question.entity';
 import { QUESTION_POOL, CATEGORIES, QuestionCategory } from './questions-pool';
@@ -76,9 +77,20 @@ export class TournamentsService {
     private readonly usersService: UsersService,
   ) {}
 
+  private readonly logger = new Logger(TournamentsService.name);
+
   private getDeadline(from: Date): string {
     const deadline = new Date(from.getTime() + GAME_DEADLINE_HOURS * 60 * 60 * 1000);
     return deadline.toISOString();
+  }
+
+  @Cron(CronExpression.EVERY_MINUTE)
+  async handleExpiredEscrowsCron(): Promise<void> {
+    try {
+      await this.processAllExpiredEscrows();
+    } catch (err) {
+      this.logger.error('[Cron] processAllExpiredEscrows failed', err);
+    }
   }
 
   /** Находит все турниры за деньги с эскроу в статусе held и дедлайном в прошлом, обрабатывает их (возврат или выплата). */
