@@ -863,7 +863,11 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
               )}
             </div>
           )}
-          {section === 'statistics' && (() => {
+        </section>
+      )}
+      {section === 'statistics' && (
+        <section className="admin-section">
+          {(() => {
             const totals = statsData.reduce((acc, d) => ({
               registrations: acc.registrations + d.registrations,
               withdrawals: acc.withdrawals + d.withdrawals,
