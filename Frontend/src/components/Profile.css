@@ -3418,7 +3418,7 @@ body.partner-modal-open {
   overflow: hidden;
   width: 100%;
   max-width: 520px;
-  align-self: stretch;
+  align-self: center;
 }
 
 .confrontation-league-loading {
@@ -3529,7 +3529,7 @@ body.partner-modal-open {
   width: 100%;
   max-width: 520px;
   box-sizing: border-box;
-  align-self: stretch;
+  align-self: center;
   display: flex;
   flex-direction: column;
 }
