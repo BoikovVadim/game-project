@@ -3331,7 +3331,6 @@ body.partner-modal-open {
 
 /* Тренировка */
 .training-panel {
-  max-width: 520px;
   width: 100%;
   margin: 0 auto;
   display: flex;
@@ -3767,9 +3766,9 @@ body.partner-modal-open {
   margin-top: 24px;
   padding-top: 20px;
   border-top: 1px solid rgba(0, 0, 0, 0.08);
-  width: 100% !important;
-  max-width: 100% !important;
-  align-self: stretch !important;
+  width: 100%;
+  max-width: 100%;
+  align-self: stretch;
   box-sizing: border-box;
 }
 
