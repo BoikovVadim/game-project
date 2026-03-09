@@ -13,8 +13,9 @@ const ForgotPassword: React.FC = () => {
     try {
       await axios.post('/auth/forgot-password', { email: email.trim() });
       setSent(true);
-    } catch (err) {
-      setError('Не удалось отправить запрос. Попробуйте позже.');
+    } catch (err: any) {
+      const msg = err?.response?.data?.message;
+      setError(Array.isArray(msg) ? msg.join('. ') : (msg || 'Не удалось отправить запрос. Попробуйте позже.'));
     }
   };
 

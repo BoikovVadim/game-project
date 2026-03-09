@@ -1,7 +1,9 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, JoinColumn, Index } from 'typeorm';
 import { User } from '../users/user.entity';
 
 @Entity('support_ticket')
+@Index('IDX_ticket_userId', ['userId'])
+@Index('IDX_ticket_status', ['status'])
 export class SupportTicket {
   @PrimaryGeneratedColumn()
   id!: number;

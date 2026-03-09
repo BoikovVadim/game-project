@@ -1,5 +1,7 @@
-import { BadRequestException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
 import { DataSource, In, MoreThanOrEqual, Repository } from 'typeorm';
 import { generateReferralCode } from '../common/referral';
 import { User } from './user.entity';
@@ -52,6 +54,7 @@ export class UsersService implements OnModuleInit {
     @InjectRepository(WithdrawalRequest)
     private readonly withdrawalRepository: Repository<WithdrawalRequest>,
     private readonly dataSource: DataSource,
+    @Inject(CACHE_MANAGER) private readonly cache: Cache,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -457,75 +460,97 @@ export class UsersService implements OnModuleInit {
     return this.transactionRepository.save(transaction);
   }
 
-  /** Добавляет сумму на баланс L (для игр) и создаёт транзакцию. */
+  /** Добавляет сумму на баланс L (для игр) и создаёт транзакцию. Атомарно через DB-транзакцию. */
   async addToBalanceL(userId: number, amount: number, description: string, category: 'win' | 'other' | 'referral' | 'refund' = 'win', tournamentId?: number): Promise<User> {
     if (amount <= 0) throw new BadRequestException('Сумма должна быть положительной');
-    const user = await this.userRepository.findOne({ where: { id: userId } });
-    if (!user) throw new NotFoundException('User not found');
-    user.balance = Number(user.balance ?? 0) + amount;
-    await this.userRepository.save(user);
-    await this.addTransaction(userId, amount, description, category, tournamentId);
-    return user;
+    return this.dataSource.transaction(async (manager) => {
+      const user = await manager.findOne(User, { where: { id: userId } });
+      if (!user) throw new NotFoundException('User not found');
+      user.balance = Number(user.balance ?? 0) + amount;
+      await manager.save(user);
+      const tx = manager.create(Transaction, { userId, amount, description, category, ...(tournamentId != null && { tournamentId }) });
+      await manager.save(tx);
+      return user;
+    });
   }
 
-  /** Добавляет сумму на баланс в рублях (пополнение) и создаёт транзакцию. */
+  /** Добавляет сумму на баланс в рублях (пополнение) и создаёт транзакцию. Атомарно через DB-транзакцию. */
   async addToBalance(userId: number, amount: number, description: string = 'Пополнение баланса'): Promise<User> {
     if (amount <= 0) throw new BadRequestException('Сумма должна быть положительной');
-    const user = await this.userRepository.findOne({ where: { id: userId } });
-    if (!user) throw new NotFoundException('User not found');
-    user.balanceRubles = Number(user.balanceRubles ?? 0) + amount;
-    await this.userRepository.save(user);
-    await this.addTransaction(userId, amount, description, 'topup');
-    return user;
+    return this.dataSource.transaction(async (manager) => {
+      const user = await manager.findOne(User, { where: { id: userId } });
+      if (!user) throw new NotFoundException('User not found');
+      user.balanceRubles = Number(user.balanceRubles ?? 0) + amount;
+      await manager.save(user);
+      const tx = manager.create(Transaction, { userId, amount, description, category: 'topup' });
+      await manager.save(tx);
+      return user;
+    });
   }
 
-  /** Конвертирует рубли в L или L в рубли. */
+  /** Конвертирует рубли в L или L в рубли. Атомарно через DB-транзакцию. */
   async convertCurrency(userId: number, amount: number, direction: 'rubles_to_l' | 'l_to_rubles'): Promise<{ balance: number; balanceRubles: number }> {
     const amt = Number(amount);
     if (!amt || amt <= 0) throw new BadRequestException('Сумма должна быть положительной');
-    const user = await this.userRepository.findOne({ where: { id: userId } });
-    if (!user) throw new NotFoundException('User not found');
-    const balanceL = Number(user.balance ?? 0);
-    const balanceRubles = Number(user.balanceRubles ?? 0);
-    let newBalanceL: number;
-    let newBalanceRubles: number;
-    if (direction === 'rubles_to_l') {
-      if (balanceRubles < amt) throw new BadRequestException('Недостаточно рублей для конвертации');
-      newBalanceL = balanceL + amt;
-      newBalanceRubles = balanceRubles - amt;
-      await this.addTransaction(userId, amt, `${amt} ₽ → ${amt} L`, 'convert');
-    } else {
-      if (balanceL < amt) throw new BadRequestException('Недостаточно L для конвертации');
-      newBalanceL = balanceL - amt;
-      newBalanceRubles = balanceRubles + amt;
-      await this.addTransaction(userId, -amt, `${amt} L → ${amt} ₽`, 'convert');
-    }
-    await this.userRepository.update(userId, { balance: newBalanceL, balanceRubles: newBalanceRubles });
-    return { balance: newBalanceL, balanceRubles: newBalanceRubles };
+    return this.dataSource.transaction(async (manager) => {
+      const user = await manager.findOne(User, { where: { id: userId } });
+      if (!user) throw new NotFoundException('User not found');
+      const balanceL = Number(user.balance ?? 0);
+      const balanceRubles = Number(user.balanceRubles ?? 0);
+      let newBalanceL: number;
+      let newBalanceRubles: number;
+      let txAmount: number;
+      let txDesc: string;
+      if (direction === 'rubles_to_l') {
+        if (balanceRubles < amt) throw new BadRequestException('Недостаточно рублей для конвертации');
+        newBalanceL = balanceL + amt;
+        newBalanceRubles = balanceRubles - amt;
+        txAmount = amt;
+        txDesc = `${amt} ₽ → ${amt} L`;
+      } else {
+        if (balanceL < amt) throw new BadRequestException('Недостаточно L для конвертации');
+        newBalanceL = balanceL - amt;
+        newBalanceRubles = balanceRubles + amt;
+        txAmount = -amt;
+        txDesc = `${amt} L → ${amt} ₽`;
+      }
+      user.balance = newBalanceL;
+      user.balanceRubles = newBalanceRubles;
+      await manager.save(user);
+      const tx = manager.create(Transaction, { userId, amount: txAmount, description: txDesc, category: 'convert' });
+      await manager.save(tx);
+      return { balance: newBalanceL, balanceRubles: newBalanceRubles };
+    });
   }
 
-  /** Списывает сумму с баланса L и создаёт транзакцию. Бросает, если баланса недостаточно. */
+  /** Списывает сумму с баланса L и создаёт транзакцию. Атомарно через DB-транзакцию. */
   async deductBalance(userId: number, amount: number, description: string, category: 'loss' | 'withdraw' = 'loss', tournamentId?: number): Promise<User> {
-    const user = await this.userRepository.findOne({ where: { id: userId } });
-    if (!user) throw new NotFoundException('User not found');
-    if (user.balance < amount) throw new BadRequestException('Недостаточно средств на балансе');
-    user.balance -= amount;
-    await this.userRepository.save(user);
-    await this.addTransaction(userId, -amount, description, category, tournamentId);
-    return user;
+    return this.dataSource.transaction(async (manager) => {
+      const user = await manager.findOne(User, { where: { id: userId } });
+      if (!user) throw new NotFoundException('User not found');
+      if (user.balance < amount) throw new BadRequestException('Недостаточно средств на балансе');
+      user.balance -= amount;
+      await manager.save(user);
+      const tx = manager.create(Transaction, { userId, amount: -amount, description, category, ...(tournamentId != null && { tournamentId }) });
+      await manager.save(tx);
+      return user;
+    });
   }
 
-  /** Списывает рубли с баланса в рублях (вывод средств) и создаёт транзакцию. */
+  /** Списывает рубли с баланса в рублях (вывод средств) и создаёт транзакцию. Атомарно через DB-транзакцию. */
   async deductBalanceRubles(userId: number, amount: number, description: string): Promise<User> {
     if (amount <= 0) throw new BadRequestException('Сумма должна быть положительной');
-    const user = await this.userRepository.findOne({ where: { id: userId } });
-    if (!user) throw new NotFoundException('User not found');
-    const rubles = Number(user.balanceRubles ?? 0);
-    if (rubles < amount) throw new BadRequestException('Недостаточно средств на балансе в рублях');
-    user.balanceRubles = rubles - amount;
-    await this.userRepository.save(user);
-    await this.addTransaction(userId, -amount, description, 'withdraw');
-    return user;
+    return this.dataSource.transaction(async (manager) => {
+      const user = await manager.findOne(User, { where: { id: userId } });
+      if (!user) throw new NotFoundException('User not found');
+      const rubles = Number(user.balanceRubles ?? 0);
+      if (rubles < amount) throw new BadRequestException('Недостаточно средств на балансе в рублях');
+      user.balanceRubles = rubles - amount;
+      await manager.save(user);
+      const tx = manager.create(Transaction, { userId, amount: -amount, description, category: 'withdraw' });
+      await manager.save(tx);
+      return user;
+    });
   }
 
   /** Снять рубли с баланса без записи транзакции (резерв при подаче заявки на вывод). */
@@ -689,11 +714,10 @@ export class UsersService implements OnModuleInit {
       maxLeagueName: null as string | null,
     };
     try {
-    // Сыграно игр = сколько турниров, где пользователь участник.
-    // Тренировка: gameType='training' или null (старые записи — до появления gameType, считаем тренировкой).
-    // За деньги: только gameType='money'.
-    // Победы = сколько турниров помечены как "пройден" (passed=1).
-    // Верные ответы = сумма correctAnswersCount по прогрессу.
+    const cacheKey = `user:stats:${userId}`;
+    const cached = await this.cache.get<typeof empty>(cacheKey);
+    if (cached) return cached;
+
     const manager = this.userRepository.manager;
 
     const gamesPlayedRow = await manager.query(
@@ -924,7 +948,7 @@ export class UsersService implements OnModuleInit {
       // игнорируем ошибки
     }
 
-    return {
+    const result = {
       gamesPlayed,
       gamesPlayedTraining,
       gamesPlayedMoney,
@@ -944,6 +968,8 @@ export class UsersService implements OnModuleInit {
       maxLeague,
       maxLeagueName,
     };
+    await this.cache.set(cacheKey, result, 15000);
+    return result;
     } catch (err) {
       console.error('[getStats]', err);
       return empty;
@@ -1024,16 +1050,24 @@ export class UsersService implements OnModuleInit {
     }
 
     try {
-      const rows = (await manager.query(query)) as { userId: number; displayName: string; val: number }[];
-      const rankings = rows.map((r, i) => ({
-        rank: i + 1,
-        userId: r.userId,
-        displayName: String(r.displayName || `Игрок ${r.userId}`).trim() || `Игрок ${r.userId}`,
-        value: Number(r.val) || 0,
-        valueFormatted: metric === 'totalWinnings' ? `${Number(r.val).toLocaleString('ru-RU')} L`
-          : metric === 'totalWithdrawn' ? `${Number(r.val).toLocaleString('ru-RU')} ₽`
-          : String(Number(r.val).toLocaleString('ru-RU')),
-      }));
+      const cacheKey = `rankings:${metric}`;
+      let rankings: { rank: number; userId: number; displayName: string; value: number; valueFormatted: string }[];
+      const cached = await this.cache.get<typeof rankings>(cacheKey);
+      if (cached) {
+        rankings = cached;
+      } else {
+        const rows = (await manager.query(query)) as { userId: number; displayName: string; val: number }[];
+        rankings = rows.map((r, i) => ({
+          rank: i + 1,
+          userId: r.userId,
+          displayName: String(r.displayName || `Игрок ${r.userId}`).trim() || `Игрок ${r.userId}`,
+          value: Number(r.val) || 0,
+          valueFormatted: metric === 'totalWinnings' ? `${Number(r.val).toLocaleString('ru-RU')} L`
+            : metric === 'totalWithdrawn' ? `${Number(r.val).toLocaleString('ru-RU')} ₽`
+            : String(Number(r.val).toLocaleString('ru-RU')),
+        }));
+        await this.cache.set(cacheKey, rankings, 60000);
+      }
       let myEntry = rankings.find((r) => r.userId === userId);
       let myRank: number | null = myEntry ? myEntry.rank : null;
       let myValue: number | null = myEntry ? myEntry.value : null;

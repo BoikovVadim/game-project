@@ -1,5 +1,7 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
 import { Repository } from 'typeorm';
 import { execSync } from 'child_process';
 import { resolve, join } from 'path';
@@ -157,10 +159,16 @@ const OUTROS = [
 export class NewsService {
   constructor(
     @InjectRepository(News) private readonly repo: Repository<News>,
+    @Inject(CACHE_MANAGER) private readonly cache: Cache,
   ) {}
 
   async findAll(): Promise<News[]> {
-    return this.repo.find({ where: { published: true }, order: { createdAt: 'DESC' } });
+    const key = 'news:published';
+    const cached = await this.cache.get<News[]>(key);
+    if (cached) return cached;
+    const result = await this.repo.find({ where: { published: true }, order: { createdAt: 'DESC' } });
+    await this.cache.set(key, result, 60000);
+    return result;
   }
 
   async findAllAdmin(): Promise<News[]> {
@@ -174,7 +182,9 @@ export class NewsService {
       hash = execSync('git rev-parse HEAD', { cwd: repoRoot, encoding: 'utf-8', timeout: 3000 }).trim() || null;
     } catch {}
     const item = this.repo.create({ topic, body, published: true, commitHash: hash });
-    return this.repo.save(item);
+    const saved = await this.repo.save(item);
+    await this.cache.del('news:published');
+    return saved;
   }
 
   async update(id: number, data: { topic?: string; body?: string; published?: boolean }): Promise<News | null> {
@@ -183,11 +193,14 @@ export class NewsService {
     if (data.topic !== undefined) item.topic = data.topic;
     if (data.body !== undefined) item.body = data.body;
     if (data.published !== undefined) item.published = data.published;
-    return this.repo.save(item);
+    const saved = await this.repo.save(item);
+    await this.cache.del('news:published');
+    return saved;
   }
 
   async remove(id: number): Promise<boolean> {
     const res = await this.repo.delete(id);
+    await this.cache.del('news:published');
     return (res.affected ?? 0) > 0;
   }
 

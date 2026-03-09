@@ -83,9 +83,6 @@ nav {
 .App.cabinet-open > nav,
 .App.admin-open > nav {
   display: none;
-  margin-left: 70px;
-  margin-bottom: 0;
-  padding: 0;
 }
 
 /* Кабинет: main растёт по контенту, чтобы при длинном контенте (тренировки и т.д.) работала прокрутка страницы */

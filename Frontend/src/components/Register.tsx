@@ -74,8 +74,9 @@ const Register: React.FC = () => {
       await axios.post('/auth/register', { username, email, password, referralCode });
       alert('Регистрация прошла успешно! На вашу почту отправлено письмо со ссылкой для подтверждения. Перейдите по ссылке, затем войдите в систему.');
       navigate('/login');
-    } catch (err) {
-      setError('Не удалось зарегистрироваться');
+    } catch (err: any) {
+      const msg = err?.response?.data?.message;
+      setError(Array.isArray(msg) ? msg.join('. ') : (msg || 'Не удалось зарегистрироваться'));
     }
   };
 

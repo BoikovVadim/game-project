@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { Payment } from './payment.entity';
 import { YooKassaService } from './yookassa.service';
 import { RobokassaService } from './robokassa.service';
@@ -13,6 +13,7 @@ export class PaymentsService {
     private readonly paymentRepository: Repository<Payment>,
     private readonly yookassa: YooKassaService,
     private readonly robokassa: RobokassaService,
+    private readonly dataSource: DataSource,
     private readonly usersService: UsersService,
   ) {}
 
@@ -68,7 +69,7 @@ export class PaymentsService {
     return { paymentUrl, paymentId: saved.id };
   }
 
-  /** Обработка успешного уведомления от ЮKassa (webhook) */
+  /** Обработка успешного уведомления от ЮKassa (webhook). Идемпотентно через DB-транзакцию. */
   async handleYooKassaNotification(payload: { object?: { id?: string; status?: string; metadata?: { orderId?: string }; amount?: { value?: string } } }): Promise<void> {
     const obj = payload?.object;
     if (!obj || obj.status !== 'succeeded') return;
@@ -76,27 +77,33 @@ export class PaymentsService {
     if (!orderId || !orderId.startsWith('pay-')) return;
     const paymentId = parseInt(orderId.replace('pay-', ''), 10);
     if (Number.isNaN(paymentId)) return;
-    const payment = await this.paymentRepository.findOne({ where: { id: paymentId, provider: 'yookassa', status: 'pending' } });
-    if (!payment) return;
-    const amount = parseFloat(obj.amount?.value ?? '0') || Number(payment.amount);
-    payment.status = 'succeeded';
-    payment.externalId = obj.id || payment.externalId;
-    await this.paymentRepository.save(payment);
-    await this.usersService.addToBalance(payment.userId, amount, `Пополнение через ЮKassa`);
+    const credited = await this.dataSource.transaction(async (manager) => {
+      const payment = await manager.findOne(Payment, { where: { id: paymentId, provider: 'yookassa', status: 'pending' } });
+      if (!payment) return false;
+      const amount = parseFloat(obj.amount?.value ?? '0') || Number(payment.amount);
+      payment.status = 'succeeded';
+      payment.externalId = obj.id || payment.externalId;
+      await manager.save(payment);
+      return { userId: payment.userId, amount };
+    });
+    if (credited) await this.usersService.addToBalance(credited.userId, credited.amount, `Пополнение через ЮKassa`);
   }
 
-  /** Обработка Result URL от Robokassa (GET с OutSum, InvId, SignatureValue) */
+  /** Обработка Result URL от Robokassa. Идемпотентно через DB-транзакцию. */
   async handleRobokassaResult(outSum: string, invId: string, signatureValue: string): Promise<boolean> {
     if (!this.robokassa.verifyResultSignature(outSum, invId, signatureValue)) return false;
     const paymentId = parseInt(invId, 10);
     if (Number.isNaN(paymentId)) return false;
-    const payment = await this.paymentRepository.findOne({ where: { id: paymentId, provider: 'robokassa', status: 'pending' } });
-    if (!payment) return true; // уже обработан — отвечаем OK
-    const amount = parseFloat(outSum) || Number(payment.amount);
-    payment.status = 'succeeded';
-    payment.externalId = invId;
-    await this.paymentRepository.save(payment);
-    await this.usersService.addToBalance(payment.userId, amount, `Пополнение через Robokassa`);
+    const credited = await this.dataSource.transaction(async (manager) => {
+      const payment = await manager.findOne(Payment, { where: { id: paymentId, provider: 'robokassa', status: 'pending' } });
+      if (!payment) return false;
+      const amount = parseFloat(outSum) || Number(payment.amount);
+      payment.status = 'succeeded';
+      payment.externalId = invId;
+      await manager.save(payment);
+      return { userId: payment.userId, amount };
+    });
+    if (credited) await this.usersService.addToBalance(credited.userId, credited.amount, `Пополнение через Robokassa`);
     return true;
   }
 

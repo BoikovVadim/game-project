@@ -1,17 +1,17 @@
-import React, { useState, useEffect, useLayoutEffect } from 'react';
+import React, { Suspense, useState, useEffect, useLayoutEffect } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
 import Register from './components/Register.tsx';
 import Login from './components/Login.tsx';
-import Home from './components/Home.tsx';
-import Profile from './components/Profile.tsx';
 import VerifyEmail from './components/VerifyEmail.tsx';
 import ForgotPassword from './components/ForgotPassword.tsx';
 import ResetPassword from './components/ResetPassword.tsx';
-import Admin from './components/Admin.tsx';
-import SupportChat from './components/SupportChat.tsx';
-import Offer from './components/Offer.tsx';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 import './App.css';
+
+const Profile = React.lazy(() => import('./components/Profile.tsx'));
+const Admin = React.lazy(() => import('./components/Admin.tsx'));
+const SupportChat = React.lazy(() => import('./components/SupportChat.tsx'));
+const Offer = React.lazy(() => import('./components/Offer.tsx'));
 
 function getToken(): string {
   try {
@@ -128,6 +128,7 @@ function AppContent() {
           </nav>
         )}
         <main className="app-main" style={{ flex: 1, padding: hideTopNav ? 0 : 24 }}>
+          <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 200 }}><span style={{ fontSize: 16, color: '#888' }}>Загрузка...</span></div>}>
           <Routes>
             <Route path="/" element={hasToken ? <Navigate to="/profile" replace /> : <Login onLogin={handleLogin} />} />
             <Route path="/login" element={<Navigate to={hasToken ? '/profile' : '/'} replace />} />
@@ -141,6 +142,7 @@ function AppContent() {
             <Route path="/admin" element={hasToken ? <Admin token={token} onLogout={handleLogout} /> : <Navigate to="/login" replace />} />
             <Route path="*" element={<Navigate to={hasToken ? '/profile' : '/'} replace />} />
           </Routes>
+          </Suspense>
         </main>
       </div>
     </ErrorBoundary>

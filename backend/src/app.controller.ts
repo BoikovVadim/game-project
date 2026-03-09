@@ -17,11 +17,11 @@ function sendIndex(res: Response): void {
     );
     return;
   }
-  try {
-    res.sendFile(INDEX_PATH);
-  } catch (e) {
-    res.status(500).type('text/plain').send('Ошибка отдачи index.html');
-  }
+  res.sendFile(INDEX_PATH, (err) => {
+    if (err && !res.headersSent) {
+      res.status(500).type('text/plain').send('Ошибка отдачи index.html');
+    }
+  });
 }
 
 /** SPA: для всех страниц приложения отдаём index.html (API — в других контроллерах). */

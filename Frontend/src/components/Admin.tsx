@@ -1090,24 +1090,6 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                   </select>
                 </label>
               </div>
-              <div className="admin-stats-kpi">
-                <div className="admin-stats-kpi-card" style={{ borderColor: '#8884d8' }}>
-                  <div className="admin-stats-kpi-value">{fmt(totals.registrations)}</div>
-                  <div className="admin-stats-kpi-label">Регистрации</div>
-                </div>
-                <div className="admin-stats-kpi-card" style={{ borderColor: '#82ca9d' }}>
-                  <div className="admin-stats-kpi-value">{fmt(totals.topups)} ₽</div>
-                  <div className="admin-stats-kpi-label">Пополнения</div>
-                </div>
-                <div className="admin-stats-kpi-card" style={{ borderColor: '#ff7c7c' }}>
-                  <div className="admin-stats-kpi-value">{fmt(totals.withdrawals)} ₽</div>
-                  <div className="admin-stats-kpi-label">Выводы</div>
-                </div>
-                <div className="admin-stats-kpi-card" style={{ borderColor: '#ffc658' }}>
-                  <div className="admin-stats-kpi-value">{fmt(totals.gameIncome)} ₽</div>
-                  <div className="admin-stats-kpi-label">Доход игры</div>
-                </div>
-              </div>
               {(() => {
                 const metrics: { key: string; label: string; color: string; yAxisId: string }[] = [
                   { key: 'registrations', label: 'Регистрации', color: '#8884d8', yAxisId: 'left' },
@@ -1128,6 +1110,24 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                 const needRightAxis = active.some((m) => m.yAxisId === 'right');
                 return (
                   <>
+                    <div className="admin-stats-kpi">
+                      <div className="admin-stats-kpi-card" style={{ borderColor: '#8884d8' }}>
+                        <div className="admin-stats-kpi-value">{fmt(totals.registrations)}</div>
+                        <div className="admin-stats-kpi-label">Регистрации</div>
+                      </div>
+                      <div className="admin-stats-kpi-card" style={{ borderColor: '#82ca9d' }}>
+                        <div className="admin-stats-kpi-value">{fmt(totals.topups)} ₽</div>
+                        <div className="admin-stats-kpi-label">Пополнения</div>
+                      </div>
+                      <div className="admin-stats-kpi-card" style={{ borderColor: '#ff7c7c' }}>
+                        <div className="admin-stats-kpi-value">{fmt(totals.withdrawals)} ₽</div>
+                        <div className="admin-stats-kpi-label">Выводы</div>
+                      </div>
+                      <div className="admin-stats-kpi-card" style={{ borderColor: '#ffc658' }}>
+                        <div className="admin-stats-kpi-value">{fmt(totals.gameIncome)} ₽</div>
+                        <div className="admin-stats-kpi-label">Доход игры</div>
+                      </div>
+                    </div>
                     <div className="admin-stats-metrics-toggle">
                       {metrics.map((m) => (
                         <button

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 import './SupportChat.css';
@@ -41,7 +41,7 @@ export default function SupportChat({ token }: { token: string }) {
   const [sending, setSending] = useState(false);
   const [userName, setUserName] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
-  const headers = { Authorization: `Bearer ${token}` };
+  const headers = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
 
   useEffect(() => {
     axios.get<{ nickname?: string; username?: string }>('/users/profile', { headers })
@@ -53,7 +53,7 @@ export default function SupportChat({ token }: { token: string }) {
     axios.get<Ticket[]>('/support/tickets', { headers })
       .then((r) => setTickets(r.data))
       .catch(() => {});
-  }, [token]);
+  }, [headers]);
 
   useEffect(() => {
     fetchTickets();
@@ -66,7 +66,7 @@ export default function SupportChat({ token }: { token: string }) {
     axios.get<Message[]>(`/support/tickets/${openTicketId}/messages`, { headers })
       .then((r) => setMessages(r.data))
       .catch(() => {});
-  }, [token, openTicketId]);
+  }, [headers, openTicketId]);
 
   useEffect(() => {
     if (openTicketId) {

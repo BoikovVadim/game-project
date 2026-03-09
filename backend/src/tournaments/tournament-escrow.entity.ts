@@ -1,8 +1,11 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn, Index } from 'typeorm';
 import { User } from '../users/user.entity';
 
 /** Буфер: взнос игрока в турнир. При отсутствии победы/поражения (время вышло) — возврат. */
 @Entity()
+@Index('IDX_escrow_tournamentId', ['tournamentId'])
+@Index('IDX_escrow_userId', ['userId'])
+@Index('IDX_escrow_status', ['status'])
 export class TournamentEscrow {
   @PrimaryGeneratedColumn()
   id!: number;

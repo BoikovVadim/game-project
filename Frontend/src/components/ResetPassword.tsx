@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 
@@ -10,6 +10,11 @@ const ResetPassword: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const redirectTimer = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => { if (redirectTimer.current) clearTimeout(redirectTimer.current); };
+  }, []);
 
   useEffect(() => {
     if (!token) setError('Неверная ссылка. Запросите восстановление пароля заново.');
@@ -29,7 +34,7 @@ const ResetPassword: React.FC = () => {
     try {
       await axios.post('/auth/reset-password', { token, newPassword });
       setSuccess(true);
-      setTimeout(() => navigate('/login'), 2000);
+      redirectTimer.current = window.setTimeout(() => navigate('/login'), 2000);
     } catch (err: unknown) {
       const ax = err && typeof err === 'object' && 'isAxiosError' in err && (err as { isAxiosError?: boolean }).isAxiosError;
       const res = ax && err && typeof err === 'object' && 'response' in err ? (err as { response?: { data?: { message?: string } } }).response : undefined;

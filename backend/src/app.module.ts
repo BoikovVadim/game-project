@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
+import { CacheModule } from '@nestjs/cache-manager';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { ScheduleModule } from '@nestjs/schedule';
@@ -38,22 +39,27 @@ console.log('[AppModule] database path:', databasePath, '| cwd:', process.cwd())
 
 @Module({
   imports: [
+    CacheModule.register({ isGlobal: true, ttl: 30000, max: 200 }),
     ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([{
       name: 'short',
       ttl: 60000,
-      limit: 30,
+      limit: 120,
     }, {
       name: 'long',
       ttl: 600000,
-      limit: 200,
+      limit: 800,
     }]),
     ServeStaticModule.forRoot({
       rootPath: frontendBuild,
       serveStaticOptions: {
         fallthrough: true,
-        setHeaders: (res) => {
-          res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+        setHeaders: (res, filePath) => {
+          if (filePath.endsWith('.html') || filePath.endsWith('/')) {
+            res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+          } else {
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          }
         },
       },
     }),
@@ -61,7 +67,7 @@ console.log('[AppModule] database path:', databasePath, '| cwd:', process.cwd())
       type: 'sqlite',
       database: databasePath,
       entities: [User, Tournament, Question, TournamentEntry, TournamentResult, TournamentProgress, TournamentEscrow, Transaction, Payment, WithdrawalRequest, SupportMessage, SupportTicket, News],
-      synchronize: true,
+      synchronize: process.env.NODE_ENV !== 'production',
       logging: process.env.NODE_ENV !== 'production',
     }),
     MailModule,

@@ -521,16 +521,11 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   const [searchParams] = useSearchParams();
   const forceSection = (forceSectionProp && (VALID_SECTIONS as readonly string[]).includes(forceSectionProp)) ? forceSectionProp as CabinetSection : undefined;
 
-  // При обновлении страницы остаёмся на том же месте: инициализация только из hash и localStorage (не из searchParams — они могут быть не готовы при первом рендере)
   const [section, setSection] = useState<CabinetSection>(() => {
     if (forceSection) return forceSection;
     const hash = typeof window !== 'undefined' ? window.location.hash.replace(/^#/, '') : '';
     const fromHash = getSectionFromHashQuery(hash);
     if (fromHash) return fromHash;
-    try {
-      const stored = typeof window !== 'undefined' ? localStorage.getItem(SECTION_STORAGE_KEY) : null;
-      if (stored && (VALID_SECTIONS as readonly string[]).includes(stored)) return stored as CabinetSection;
-    } catch (_e) {}
     return 'news';
   });
   const [gameMode, setGameModeState] = useState<GameMode>(() => {
@@ -545,17 +540,12 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     return null;
   });
 
-  // Тот же порядок, что и в useState: hash → searchParams → localStorage → news (чтобы при обновлении не сбрасывать в news)
   const sectionFromUrl = (() => {
     const rawHash = typeof window !== 'undefined' ? window.location.hash.replace(/^#/, '') : '';
     const fromHash = getSectionFromHashQuery(rawHash);
     if (fromHash) return fromHash;
     const fromSearch = getSectionFromSearchParams(searchParams);
     if (fromSearch) return fromSearch;
-    try {
-      const stored = typeof window !== 'undefined' ? localStorage.getItem(SECTION_STORAGE_KEY) : null;
-      if (stored && (VALID_SECTIONS as readonly string[]).includes(stored)) return stored as CabinetSection;
-    } catch (_e) {}
     return forceSection || 'news';
   })();
 

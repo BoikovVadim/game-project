@@ -1,6 +1,9 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index } from 'typeorm';
 
 @Entity()
+@Index('IDX_payment_userId', ['userId'])
+@Index('IDX_payment_externalId', ['externalId'])
+@Index('IDX_payment_status', ['status'])
 export class Payment {
   @PrimaryGeneratedColumn()
   id!: number;

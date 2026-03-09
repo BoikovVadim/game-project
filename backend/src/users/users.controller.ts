@@ -156,6 +156,7 @@ export class UsersController {
         correctAnswersMoney: 0,
         totalQuestionsMoney: 0,
         totalWinnings: 0,
+        totalWithdrawn: 0,
         maxLeague: null,
         maxLeagueName: null,
       };
@@ -185,6 +186,7 @@ export class UsersController {
         correctAnswersMoney: 0,
         totalQuestionsMoney: 0,
         totalWinnings: 0,
+        totalWithdrawn: 0,
         maxLeague: null,
         maxLeagueName: null,
       };

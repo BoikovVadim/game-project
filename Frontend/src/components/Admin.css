@@ -1034,6 +1034,7 @@
   padding: 20px 0;
 }
 
+
 .admin-stats-controls {
   margin-bottom: 24px;
 }
@@ -1056,16 +1057,19 @@
 }
 
 .admin-stats-kpi {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  display: flex;
+  flex-wrap: nowrap;
   gap: 16px;
   margin-bottom: 24px;
+  overflow-x: auto;
 }
 
 .admin-stats-kpi-card {
+  flex: 1 1 0;
+  min-width: 0;
   background: #fff;
   border-radius: 12px;
-  padding: 20px 16px;
+  padding: 16px 20px;
   text-align: center;
   box-shadow: 0 1px 3px rgba(0,0,0,0.08);
   border-left: 4px solid #ccc;
@@ -1175,11 +1179,8 @@
 }
 
 @media (max-width: 640px) {
-  .admin-stats-kpi {
-    grid-template-columns: repeat(2, 1fr);
-  }
-  .admin-stats-metrics-toggle {
-    gap: 6px;
+  .admin-stats-kpi-card {
+    min-width: 0;
   }
   .admin-stats-metric-btn {
     font-size: 12px;

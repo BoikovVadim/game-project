@@ -1,8 +1,9 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, JoinColumn, Index } from 'typeorm';
 import { User } from '../users/user.entity';
 import { SupportTicket } from './support-ticket.entity';
 
 @Entity('support_message')
+@Index('IDX_msg_ticketId', ['ticketId'])
 export class SupportMessage {
   @PrimaryGeneratedColumn()
   id!: number;

@@ -1,5 +1,7 @@
-import { Injectable, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, ForbiddenException, NotFoundException, BadRequestException, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { CACHE_MANAGER } from '@nestjs/cache-manager';
+import { Cache } from 'cache-manager';
 import { DataSource, Repository } from 'typeorm';
 import { User } from '../users/user.entity';
 import { WithdrawalRequest } from '../users/withdrawal-request.entity';
@@ -25,6 +27,7 @@ export class AdminService {
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly dataSource: DataSource,
+    @Inject(CACHE_MANAGER) private readonly cache: Cache,
   ) {}
 
   /** Список заявок на вывод. Явный SQL с джойном на админа, чтобы гарантированно отдавать логин и почту того, кто принял решение. */
@@ -237,6 +240,10 @@ export class AdminService {
   async getStats(groupBy: 'day' | 'week' | 'month' | 'all' = 'day'): Promise<{
     data: { period: string; registrations: number; withdrawals: number; topups: number; gameIncome: number }[];
   }> {
+    const cacheKey = `admin:stats:${groupBy}`;
+    const cached = await this.cache.get<{ data: any[] }>(cacheKey);
+    if (cached) return cached;
+
     const dateExpr = groupBy === 'day'
       ? `date(u.createdAt)`
       : groupBy === 'week'
@@ -314,7 +321,9 @@ export class AdminService {
         gameIncome: Number(gameMap.get(p) ?? 0),
       }));
 
-      return { data };
+      const result = { data };
+      await this.cache.set(cacheKey, result, 30000);
+      return result;
     } catch (e) {
       console.error('[AdminService.getStats]', e);
       return { data: [] };

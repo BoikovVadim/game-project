@@ -31,15 +31,19 @@ class RootErrorBoundary extends Component<{ children: ReactNode }, { hasError: b
   }
 }
 
-// Сессия: обновление токена при активности (после монтирования)
+// Сессия: обновление токена при активности (дебаунс — не чаще раза в 5 минут)
 function setupAxiosInterceptor() {
+  let lastRefresh = 0;
+  const REFRESH_INTERVAL = 5 * 60 * 1000;
   try {
     axios.interceptors.response.use(
       (response) => {
         try {
           const url = String(response.config?.url || '');
           const token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : null;
-          if (token && !url.includes('auth/login') && !url.includes('auth/register') && !url.includes('auth/refresh') && !url.includes('withdrawal-request')) {
+          const now = Date.now();
+          if (token && now - lastRefresh > REFRESH_INTERVAL && !url.includes('auth/login') && !url.includes('auth/register') && !url.includes('auth/refresh') && !url.includes('withdrawal-request')) {
+            lastRefresh = now;
             axios.get('/auth/refresh', { headers: { Authorization: `Bearer ${token}` } })
               .then((r) => {
                 try {

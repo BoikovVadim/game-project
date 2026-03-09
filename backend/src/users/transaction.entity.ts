@@ -1,7 +1,11 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn, Index } from 'typeorm';
 import { User } from './user.entity';
 
 @Entity()
+@Index('IDX_transaction_userId', ['userId'])
+@Index('IDX_transaction_category', ['category'])
+@Index('IDX_transaction_createdAt', ['createdAt'])
+@Index('IDX_transaction_userId_category', ['userId', 'category'])
 export class Transaction {
   @PrimaryGeneratedColumn()
   id!: number;

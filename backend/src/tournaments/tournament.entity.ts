@@ -1,4 +1,4 @@
-import { Entity, PrimaryGeneratedColumn, Column, OneToMany, ManyToMany, JoinTable, CreateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, OneToMany, ManyToMany, JoinTable, CreateDateColumn, Index } from 'typeorm';
 import { User } from '../users/user.entity';
 import { Question } from './question.entity';
 
@@ -11,6 +11,9 @@ export enum TournamentStatus {
 export const GAME_DEADLINE_HOURS = 24;
 
 @Entity()
+@Index('IDX_tournament_status', ['status'])
+@Index('IDX_tournament_gameType', ['gameType'])
+@Index('IDX_tournament_createdAt', ['createdAt'])
 export class Tournament {
   @PrimaryGeneratedColumn()
   id!: number;

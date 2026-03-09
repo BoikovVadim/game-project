@@ -17,6 +17,7 @@ import { NestFactory } from '@nestjs/core';
 import { ExpressAdapter } from '@nestjs/platform-express';
 import { ValidationPipe } from '@nestjs/common';
 import helmet from 'helmet';
+import compression from 'compression';
 import { AppModule } from './app.module';
 import { StatsExceptionFilter } from './common/stats-exception.filter';
 
@@ -24,6 +25,7 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, new ExpressAdapter());
   app.useGlobalFilters(new StatsExceptionFilter());
 
+  app.use(compression());
   app.use(helmet({
     contentSecurityPolicy: false,
     crossOriginEmbedderPolicy: false,

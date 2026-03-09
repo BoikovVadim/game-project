@@ -1,6 +1,9 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn, Index } from 'typeorm';
 
 @Entity('user')
+@Index('IDX_user_email', ['email'])
+@Index('IDX_user_username', ['username'])
+@Index('IDX_user_referrerId', ['referrerId'])
 export class User {
   @PrimaryGeneratedColumn()
   id!: number;

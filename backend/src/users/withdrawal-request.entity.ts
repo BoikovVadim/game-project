@@ -1,7 +1,9 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn, Index } from 'typeorm';
 import { User } from './user.entity';
 
 @Entity()
+@Index('IDX_withdrawal_userId', ['userId'])
+@Index('IDX_withdrawal_status', ['status'])
 export class WithdrawalRequest {
   @PrimaryGeneratedColumn()
   id!: number;
