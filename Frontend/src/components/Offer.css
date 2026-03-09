@@ -1,0 +1,88 @@
+.offer-page {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 32px 24px 60px;
+}
+
+.offer-container {
+  background: #fff;
+  border-radius: 16px;
+  padding: 40px 36px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+}
+
+.offer-container h1 {
+  font-size: 24px;
+  font-weight: 700;
+  color: #222;
+  margin: 0 0 8px;
+  text-align: center;
+}
+
+.offer-date {
+  text-align: center;
+  color: #888;
+  font-size: 13px;
+  margin: 0 0 32px;
+}
+
+.offer-container section {
+  margin-bottom: 28px;
+}
+
+.offer-container h2 {
+  font-size: 17px;
+  font-weight: 600;
+  color: #333;
+  margin: 0 0 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #eee;
+}
+
+.offer-container p {
+  font-size: 14px;
+  line-height: 1.65;
+  color: #444;
+  margin: 0 0 8px;
+  text-align: justify;
+}
+
+.offer-container ul {
+  margin: 8px 0 12px;
+  padding-left: 24px;
+}
+
+.offer-container li {
+  font-size: 14px;
+  line-height: 1.65;
+  color: #444;
+  margin-bottom: 4px;
+}
+
+.offer-back {
+  margin-top: 32px;
+  text-align: center;
+}
+
+.offer-back a {
+  color: #1a73e8;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.offer-back a:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 640px) {
+  .offer-page {
+    padding: 16px 12px 40px;
+  }
+  .offer-container {
+    padding: 24px 18px;
+  }
+  .offer-container h1 {
+    font-size: 20px;
+  }
+}

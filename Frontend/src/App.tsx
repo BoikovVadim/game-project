@@ -9,6 +9,7 @@ import ForgotPassword from './components/ForgotPassword.tsx';
 import ResetPassword from './components/ResetPassword.tsx';
 import Admin from './components/Admin.tsx';
 import SupportChat from './components/SupportChat.tsx';
+import Offer from './components/Offer.tsx';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
 import './App.css';
 
@@ -131,6 +132,7 @@ function AppContent() {
             <Route path="/" element={hasToken ? <Navigate to="/profile" replace /> : <Login onLogin={handleLogin} />} />
             <Route path="/login" element={<Navigate to={hasToken ? '/profile' : '/'} replace />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/offer" element={<Offer />} />
             <Route path="/verify-email" element={<VerifyEmail />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
