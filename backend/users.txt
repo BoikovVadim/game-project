@@ -1,0 +1,4 @@
+1,testuser,test@example.com,0
+2,user2,user2@example.com,0
+3,newuser,new@example.com,0
+4,тест,1@mail.ru,100

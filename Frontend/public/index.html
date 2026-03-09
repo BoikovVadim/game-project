@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <title>Game Project</title>
+    <style>
+      html, body { margin: 0; background: #f0f0f0; color: #222; font-family: system-ui, sans-serif; }
+      #root { min-height: 100vh; background: #f0f0f0; }
+    </style>
+  </head>
+  <body>
+    <script>if (!window.location.hash || window.location.hash === '#') { window.location.hash = '#/'; }</script>
+    <!-- Экран загрузки: повторяет layout приложения (сайдбар + контент), скрывается после монтирования React -->
+    <div id="loading-screen" style="position:fixed;top:0;left:0;right:0;bottom:0;z-index:99999;background:#f0f0f0;display:flex;">
+      <div style="width:70px;min-height:100vh;background:#000;flex-shrink:0;"></div>
+      <div style="flex:1;display:flex;align-items:center;justify-content:center;">
+        <div style="width:28px;height:28px;border:3px solid rgba(201,162,39,0.2);border-top-color:#d4af37;border-radius:50%;animation:ls-spin .8s linear infinite;"></div>
+      </div>
+      <style>@keyframes ls-spin{to{transform:rotate(360deg)}}</style>
+    </div>
+    <div id="root"></div>
+    <noscript><p style="padding:24px;text-align:center;">Для работы сайта включите JavaScript.</p></noscript>
+    <script>
+      (function() {
+        if (typeof window === 'undefined' || !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/.test(window.location.href)) return;
+        var last = null;
+        setInterval(function() {
+          fetch('/api/last-rebuild').then(function(r) { return r.text(); }).then(function(ts) {
+            if (last === null) { last = ts || '0'; return; }
+            if (ts && ts !== last) { last = ts; location.reload(); }
+          }).catch(function() {});
+        }, 2000);
+      })();
+    </script>
+  </body>
+</html>

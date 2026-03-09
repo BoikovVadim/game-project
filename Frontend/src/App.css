@@ -1,0 +1,169 @@
+/* Резервируем место под скроллбар — убирает дерганье при появлении тултипов */
+html {
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+body {
+  background-color: #f0f0f0;
+}
+
+#root {
+  min-height: 100vh;
+  background-color: #f0f0f0;
+}
+
+/* Золото: единая палитра и градиент для всех золотых элементов (кнопки, бейджи, выделение).
+   Для новых элементов: класс .gold-bg или переменные --gold-gradient, --gold-gradient-hover. */
+:root {
+  --gold-shine: #fffdf5;
+  --gold-light: #fff0a8;
+  --gold-mid: #e8c547;
+  --gold-rich: #ddb82a;
+  --gold-dark: #c9a227;
+  --gold-shadow: #b8860b;
+  --gold-border: #ddb82a;
+  --gold-glow: rgba(232, 197, 71, 0.45);
+  --gold-gradient: linear-gradient(180deg, #fffdf5 0%, #fff0a8 12%, #f0d654 28%, #e8c547 50%, #ddb82a 75%, #c9a227 100%);
+  --gold-gradient-hover: linear-gradient(180deg, #fffbf0 0%, #ffe066 15%, #e8c547 40%, #ddb82a 70%, #c9a227 100%);
+}
+
+/* Утилиты для золотых элементов — один стиль по всей игре */
+.gold-bg {
+  background: var(--gold-gradient);
+  color: #fff;
+}
+.gold-bg:hover {
+  background: var(--gold-gradient-hover);
+  box-shadow: 0 4px 12px var(--gold-glow);
+}
+.gold-text { color: var(--gold-mid); }
+.gold-border { border-color: var(--gold-border); }
+
+.App {
+  text-align: center;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-main {
+  flex: 1;
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0 16px;
+  background-color: #f5f5f5;
+  min-height: 60vh;
+}
+
+@media (min-width: 768px) {
+  .app-main {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 0 24px;
+  }
+
+  .App.cabinet-open .app-main {
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    width: 100%;
+  }
+}
+
+nav {
+  margin-bottom: 20px;
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
+.App.cabinet-open > nav,
+.App.admin-open > nav {
+  display: none;
+  margin-left: 70px;
+  margin-bottom: 0;
+  padding: 0;
+}
+
+/* Кабинет: main растёт по контенту, чтобы при длинном контенте (тренировки и т.д.) работала прокрутка страницы */
+.App.cabinet-open .app-main {
+  flex: none;
+  min-height: 100vh;
+}
+
+.App.admin-open .app-main {
+  padding: 0;
+  margin: 0;
+  max-width: none;
+  width: 100%;
+}
+
+.app-main--admin {
+  padding: 0;
+  margin: 0;
+  max-width: none;
+}
+
+nav a, nav button {
+  text-decoration: none;
+  color: black;
+  background: none;
+  border: none;
+  font: inherit;
+  cursor: pointer;
+  padding: 4px 0;
+  transition: color 0.2s ease, opacity 0.2s ease;
+}
+
+nav a:hover, nav button:hover {
+  color: #333;
+  text-decoration: underline;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  max-width: 300px;
+  margin: 0 auto;
+}
+
+input {
+  margin-bottom: 10px;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+  transition: box-shadow 0.3s ease;
+}
+
+input:focus {
+  outline: none;
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.1);
+}
+
+input:hover {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+button {
+  padding: 10px;
+  background: var(--gold-gradient);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  font-weight: bold;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+  transition: box-shadow 0.25s ease;
+}
+
+button:hover {
+  background: var(--gold-gradient-hover);
+  box-shadow: 0 4px 12px var(--gold-glow);
+}
+
+button:active {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}

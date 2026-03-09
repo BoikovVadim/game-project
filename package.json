@@ -1,0 +1,30 @@
+{
+  "name": "game-project-main",
+  "version": "1.0.0",
+  "workspaces": [
+    "backend"
+  ],
+  "scripts": {
+    "dev:kill-ports": "npx kill-port 3000 3001 2>/dev/null; sleep 1; true",
+    "dev:open": "node scripts/open-browser.js",
+    "dev": "npm run dev:kill-ports && cd Frontend && cross-env NODE_OPTIONS=--max-old-space-size=4096 npm run build && cd ../backend && npm run build && node -e \"require('fs').writeFileSync(require('path').join(process.cwd(),'..','.last-rebuild'), String(Date.now()))\" && cross-env NODE_OPTIONS=--max-old-space-size=2048 node dist/main.js",
+    "start": "npm run dev:auto",
+    "backup-db": "cp backend/db.sqlite backend/db.sqlite.backup 2>/dev/null || echo 'База не найдена'",
+    "dev:full": "npm run dev:kill-ports && cd Frontend && cross-env NODE_OPTIONS=--max-old-space-size=4096 CI=true npm run build && cd .. && npx concurrently \"npm run start:dev -w backend\" \"npx wait-on -t 30000 http://localhost:3000 && npm run dev:open\"",
+    "dev:backend": "npm run dev:kill-ports && cd backend && npm run build && cross-env NODE_OPTIONS=--max-old-space-size=2048 node dist/main.js",
+    "dev:build": "cd Frontend && cross-env NODE_OPTIONS=--max-old-space-size=4096 CI=true npm run build",
+    "dev:hot": "npm run dev:kill-ports && cd backend && npm run build && npx concurrently \"cross-env PORT=3001 NODE_OPTIONS=--max-old-space-size=2048 node dist/main.js\" \"cd ../Frontend && npm run start\"",
+    "dev:live": "npm run dev:kill-ports && cd backend && npm run build && cd .. && npx concurrently \"sh -c 'cd backend && cross-env PORT=3001 NODE_OPTIONS=--max-old-space-size=2048 node dist/main.js'\" \"sh -c 'cd Frontend && npm run start'\"",
+    "start:simple": "npm run dev:kill-ports && cd Frontend && CI= npm run build && cd ../backend && npm run build && node -e \"require('fs').writeFileSync(require('path').join(process.cwd(),'..','.last-rebuild'), String(Date.now()))\" && npx concurrently \"cross-env PORT=3000 NODE_OPTIONS=--max-old-space-size=2048 node dist/main.js\" \"npx wait-on -t 120000 http://localhost:3000 && node ../scripts/open-browser.js\"",
+    "start:server": "cd backend && cross-env PORT=3000 NODE_OPTIONS=--max-old-space-size=2048 node dist/main.js",
+    "dev:auto": "npm run dev:kill-ports && cd Frontend && cross-env NODE_OPTIONS=--max-old-space-size=4096 CI=true npm run build && cd ../backend && npm run build && node -e \"require('fs').writeFileSync(require('path').join(process.cwd(),'..','.last-rebuild'), String(Date.now()))\" && npx concurrently \"cross-env NODE_OPTIONS=--max-old-space-size=2048 node dist/main.js\" \"cross-env NODE_OPTIONS=--max-old-space-size=4096 node ../scripts/dev-watch.js\""
+  },
+  "devDependencies": {
+    "chokidar": "^3.6.0",
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3",
+    "kill-port": "^2.0.1",
+    "open": "^10.0.0",
+    "wait-on": "^7.2.0"
+  }
+}

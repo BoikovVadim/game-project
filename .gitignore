@@ -1,0 +1,23 @@
+node_modules/
+dist/
+build/
+.DS_Store
+*.log
+npm-debug.log*
+.env
+.env.*local
+
+# Database
+backend/db.sqlite
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
+
+# Temp
+.temp
+.tmp
+node_modules

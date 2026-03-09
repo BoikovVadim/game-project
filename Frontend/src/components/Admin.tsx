@@ -1,0 +1,639 @@
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { formatMoscowDateTimeFull } from './dateUtils.ts';
+import './Admin.css';
+
+interface AdminProps {
+  token: string;
+  onLogout?: () => void;
+}
+
+type WithdrawalRequestRow = {
+  id: number;
+  amount: number;
+  details: string | null;
+  status: string;
+  createdAt: string;
+  processedAt?: string | null;
+  userId: number;
+  user?: { id: number; username: string; email?: string };
+  processedByAdminUsername?: string | null;
+  processedByAdminEmail?: string | null;
+};
+
+type UserRow = { id: number; username: string; email: string; balance: number; balanceRubles: number; isAdmin: boolean };
+
+const Admin: React.FC<AdminProps> = ({ token }) => {
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabFromUrl = searchParams.get('tab');
+  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const [withdrawals, setWithdrawals] = useState<WithdrawalRequestRow[]>([]);
+  const [pendingWithdrawalsCount, setPendingWithdrawalsCount] = useState(0);
+  const [withdrawalStatusFilter, setWithdrawalStatusFilter] = useState<string>(() => {
+    const s = searchParams.get('status');
+    if (s === 'pending' || s === 'approved' || s === 'rejected' || s === '') return s;
+    return 'pending';
+  });
+  const [withdrawalSortBy, setWithdrawalSortBy] = useState<'id' | 'user' | 'amount' | 'details' | 'status' | 'admin' | 'processedAt' | 'createdAt'>('createdAt');
+  const [withdrawalSortDir, setWithdrawalSortDir] = useState<'asc' | 'desc'>('desc');
+  const [users, setUsers] = useState<UserRow[]>([]);
+  const [userSortBy, setUserSortBy] = useState<'id' | 'username' | 'email' | 'balance' | 'balanceRubles' | 'isAdmin'>('id');
+  const [userSortDir, setUserSortDir] = useState<'asc' | 'desc'>('asc');
+  const [userSearch, setUserSearch] = useState('');
+  const [section, setSection] = useState<'withdrawals' | 'users' | 'credit'>(() =>
+    tabFromUrl === 'users' ? 'users' : tabFromUrl === 'credit' ? 'credit' : 'withdrawals'
+  );
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [creditUserId, setCreditUserId] = useState('');
+  const [creditAmount, setCreditAmount] = useState('');
+  const [creditLoading, setCreditLoading] = useState(false);
+  const [creditError, setCreditError] = useState('');
+  const [creditSuccess, setCreditSuccess] = useState('');
+  const [creditHistory, setCreditHistory] = useState<{ id: number; userId: number; username: string; userEmail: string; amount: number; adminUsername: string; adminEmail: string; createdAt: string }[]>([]);
+  const [creditHistoryLoaded, setCreditHistoryLoaded] = useState(false);
+
+  // Восстановить вкладку и фильтр статуса из URL при загрузке/обновлении
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    const status = searchParams.get('status');
+    if (tab === 'users') setSection('users');
+    else if (tab === 'credit') setSection('credit');
+    else if (tab === 'withdrawals') setSection('withdrawals');
+    if (status === 'pending' || status === 'approved' || status === 'rejected' || status === '') {
+      setWithdrawalStatusFilter(status);
+    }
+  }, [searchParams]);
+
+  const setSectionAndUrl = (next: 'withdrawals' | 'users' | 'credit') => {
+    setSection(next);
+    setSearchParams((prev) => {
+      const nextParams = new URLSearchParams(prev);
+      if (next === 'users') {
+        nextParams.set('tab', 'users');
+        nextParams.delete('status');
+      } else if (next === 'credit') {
+        nextParams.set('tab', 'credit');
+        nextParams.delete('status');
+      } else {
+        nextParams.delete('tab');
+        nextParams.set('status', withdrawalStatusFilter);
+      }
+      return nextParams;
+    }, { replace: true });
+  };
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [actionSuccessMsg, setActionSuccessMsg] = useState('');
+  const [approvedTransfer, setApprovedTransfer] = useState<{ id: number; amount: number; details: string | null; username: string; email: string } | null>(null);
+  const headers = React.useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
+
+  const getWithdrawalStatusLabel = (status: string) => {
+    switch (status) {
+      case 'pending': return 'Ожидает решения';
+      case 'approved': return 'Одобрена';
+      case 'rejected': return 'Отклонена';
+      default: return status;
+    }
+  };
+
+  const getWithdrawalSortValue = React.useCallback((w: WithdrawalRequestRow, key: typeof withdrawalSortBy): string | number => {
+    switch (key) {
+      case 'id': return w.id;
+      case 'user': return w.user ? `${w.user.username} ${w.user.email || ''}`.toLowerCase() : '';
+      case 'amount': return Number(w.amount);
+      case 'details': return (w.details || '').toLowerCase();
+      case 'status': return w.status;
+      case 'admin': return (w.processedByAdminUsername || '').toLowerCase();
+      case 'processedAt': return w.processedAt ? new Date(w.processedAt).getTime() : 0;
+      case 'createdAt': return new Date(w.createdAt || 0).getTime();
+      default: return '';
+    }
+  }, []);
+
+  const sortedWithdrawals = React.useMemo(() => {
+    const list = [...withdrawals];
+    const dir = withdrawalSortDir === 'asc' ? 1 : -1;
+    list.sort((a, b) => {
+      const va = getWithdrawalSortValue(a, withdrawalSortBy);
+      const vb = getWithdrawalSortValue(b, withdrawalSortBy);
+      if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir;
+      return String(va).localeCompare(String(vb), 'ru') * dir;
+    });
+    return list;
+  }, [withdrawals, withdrawalSortBy, withdrawalSortDir, getWithdrawalSortValue]);
+
+  const handleWithdrawalSort = (key: typeof withdrawalSortBy) => {
+    if (withdrawalSortBy === key) {
+      setWithdrawalSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setWithdrawalSortBy(key);
+      setWithdrawalSortDir('desc');
+    }
+  };
+
+  const SortableTh = ({ sortKey, children }: { sortKey: typeof withdrawalSortBy; children: React.ReactNode }) => (
+    <th className="admin-table-th-sortable" onClick={() => handleWithdrawalSort(sortKey)}>
+      {children}
+      {withdrawalSortBy === sortKey && <span className="admin-table-sort-icon" aria-hidden>{withdrawalSortDir === 'asc' ? ' ↑' : ' ↓'}</span>}
+    </th>
+  );
+
+  const sortedUsers = React.useMemo(() => {
+    const isSearchingById = userSearch.trim() && /^\d+$/.test(userSearch.trim());
+    if (isSearchingById) return users;
+    const list = [...users];
+    const dir = userSortDir === 'asc' ? 1 : -1;
+    list.sort((a, b) => {
+      let va: string | number; let vb: string | number;
+      switch (userSortBy) {
+        case 'id': va = a.id; vb = b.id; return (va - vb) * dir;
+        case 'username': va = (a.username || '').toLowerCase(); vb = (b.username || '').toLowerCase(); return String(va).localeCompare(String(vb), 'ru') * dir;
+        case 'email': va = (a.email || '').toLowerCase(); vb = (b.email || '').toLowerCase(); return String(va).localeCompare(String(vb), 'ru') * dir;
+        case 'balance': va = Number(a.balance); vb = Number(b.balance); return (va - vb) * dir;
+        case 'balanceRubles': va = Number(a.balanceRubles); vb = Number(b.balanceRubles); return (va - vb) * dir;
+        case 'isAdmin': va = a.isAdmin ? 1 : 0; vb = b.isAdmin ? 1 : 0; return (va - vb) * dir;
+        default: return 0;
+      }
+    });
+    return list;
+  }, [users, userSortBy, userSortDir, userSearch]);
+
+  const handleUserSort = (key: typeof userSortBy) => {
+    if (userSortBy === key) {
+      setUserSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setUserSortBy(key);
+      setUserSortDir('asc');
+    }
+  };
+
+  const UserSortableTh = ({ sortKey, children }: { sortKey: typeof userSortBy; children: React.ReactNode }) => (
+    <th className="admin-table-th-sortable" onClick={() => handleUserSort(sortKey)}>
+      {children}
+      {userSortBy === sortKey && <span className="admin-table-sort-icon" aria-hidden>{userSortDir === 'asc' ? ' ↑' : ' ↓'}</span>}
+    </th>
+  );
+
+  useEffect(() => {
+    axios.get('/users/profile', { headers })
+      .then((res) => {
+        const idAdmin = res.data?.id === 1;
+        const isAdmin = idAdmin || res.data?.isAdmin === true || res.data?.isAdmin === 1 || res.data?.isAdmin === '1' || !!res.data?.isAdmin;
+        setIsAdmin(!!isAdmin);
+      })
+      .catch(() => setIsAdmin(false));
+  }, [token, headers]);
+
+  const fetchWithdrawals = React.useCallback(() => {
+    if (!token) return;
+    const status = withdrawalStatusFilter ? String(withdrawalStatusFilter) : undefined;
+    axios.get<WithdrawalRequestRow[]>(`/admin/withdrawal-requests${status ? `?status=${status}` : ''}`, { headers })
+      .then((res) => {
+        const list = Array.isArray(res.data) ? res.data : [];
+        setWithdrawals(list);
+        if (!status) setPendingWithdrawalsCount(list.filter((r) => r.status === 'pending').length);
+        else if (status === 'pending') setPendingWithdrawalsCount(list.length);
+      })
+      .catch(() => setWithdrawals([]));
+  }, [token, withdrawalStatusFilter, headers]);
+
+  useEffect(() => {
+    if (!isAdmin || !token) return;
+    if (section === 'withdrawals') {
+      fetchWithdrawals();
+      const interval = setInterval(fetchWithdrawals, 2000);
+      return () => clearInterval(interval);
+    }
+  }, [isAdmin, token, section, fetchWithdrawals]);
+
+  useEffect(() => {
+    if (!isAdmin || !token || section !== 'users') return;
+    const loadPending = () => {
+      axios.get<WithdrawalRequestRow[]>(`/admin/withdrawal-requests?status=pending`, { headers })
+        .then((res) => setPendingWithdrawalsCount(Array.isArray(res.data) ? res.data.length : 0))
+        .catch(() => setPendingWithdrawalsCount(0));
+    };
+    loadPending();
+    const interval = setInterval(loadPending, 2000);
+    return () => clearInterval(interval);
+  }, [isAdmin, token, section, headers]);
+
+  useEffect(() => {
+    if (!isAdmin || !token || section !== 'users') return;
+    const params = new URLSearchParams();
+    params.set('limit', '500');
+    if (userSearch.trim()) params.set('search', userSearch.trim());
+    const query = params.toString() ? `?${params.toString()}` : '';
+    setError('');
+    if (users.length === 0) setUsersLoading(true);
+    axios.get<UserRow[]>(`/admin/users${query}`, { headers })
+      .then((res) => {
+        const data = res.data;
+        const list = Array.isArray(data) ? data : (data && Array.isArray((data as any).data) ? (data as any).data : (data && Array.isArray((data as any).users) ? (data as any).users : []));
+        const sorted = userSearch.trim() ? list : [...list].sort((a, b) => (a.id ?? 0) - (b.id ?? 0));
+        setUsers(sorted);
+      })
+      .catch((err) => {
+        setUsers([]);
+        setError(err?.response?.data?.message || err?.message || 'Не удалось загрузить список пользователей');
+      })
+      .finally(() => setUsersLoading(false));
+  }, [isAdmin, token, section, userSearch, headers]);
+
+  const fetchCreditHistory = React.useCallback(() => {
+    if (!token) return;
+    axios.get<{ id: number; userId: number; username: string; userEmail: string; amount: number; adminUsername: string; adminEmail: string; createdAt: string }[]>(
+      '/admin/credit-history', { headers },
+    )
+      .then((res) => setCreditHistory(Array.isArray(res.data) ? res.data : []))
+      .catch(() => setCreditHistory([]))
+      .finally(() => setCreditHistoryLoaded(true));
+  }, [token, headers]);
+
+  useEffect(() => {
+    if (!isAdmin || !token || section !== 'credit') return;
+    if (!creditHistoryLoaded) fetchCreditHistory();
+  }, [isAdmin, token, section, creditHistoryLoaded, fetchCreditHistory]);
+
+  const handleCreditBalance = async () => {
+    const uid = parseInt(creditUserId.trim(), 10);
+    const amt = parseFloat(creditAmount.trim());
+    if (!uid || uid <= 0) { setCreditError('Введите корректный ID пользователя'); return; }
+    if (!amt || amt <= 0) { setCreditError('Введите корректную сумму (> 0)'); return; }
+    setCreditLoading(true);
+    setCreditError('');
+    setCreditSuccess('');
+    try {
+      const res = await axios.post<{ success: boolean; newBalanceRubles: number }>(
+        '/admin/credit-balance',
+        { userId: uid, amount: amt },
+        { headers },
+      );
+      setCreditSuccess(`Начислено ${amt} ₽ пользователю ID ${uid}. Новый баланс рублей: ${res.data.newBalanceRubles} ₽`);
+      setCreditUserId('');
+      setCreditAmount('');
+      fetchCreditHistory();
+    } catch (e: any) {
+      setCreditError(e?.response?.data?.message || e?.message || 'Не удалось начислить');
+    } finally {
+      setCreditLoading(false);
+    }
+  };
+
+  const handleApprove = async (id: number) => {
+    setLoading(true);
+    setError('');
+    setActionSuccessMsg('');
+    setApprovedTransfer(null);
+    try {
+      await axios.post(`/admin/withdrawal-requests/${id}/approve`, {}, { headers });
+      const req = withdrawals.find((w) => w.id === id);
+      setApprovedTransfer({
+        id,
+        amount: req?.amount ?? 0,
+        details: req?.details ?? null,
+        username: req?.user?.username ?? `#${req?.userId ?? '?'}`,
+        email: req?.user?.email ?? '',
+      });
+      setPendingWithdrawalsCount((c) => Math.max(0, c - 1));
+      await fetchWithdrawals();
+    } catch (e: any) {
+      setError(e?.response?.data?.message || 'Ошибка одобрения');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleReject = async (id: number) => {
+    setLoading(true);
+    setError('');
+    setActionSuccessMsg('');
+    try {
+      await axios.post(`/admin/withdrawal-requests/${id}/reject`, {}, { headers });
+      setActionSuccessMsg(`Заявка #${id} отклонена. Решение сохранено.`);
+      setTimeout(() => setActionSuccessMsg(''), 8000);
+      setPendingWithdrawalsCount((c) => Math.max(0, c - 1));
+      await fetchWithdrawals();
+    } catch (e: any) {
+      setError(e?.response?.data?.message || 'Ошибка отклонения');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSetAdmin = async (userId: number, value: boolean) => {
+    setError('');
+    try {
+      await axios.post(`/admin/users/${userId}/set-admin`, { isAdmin: value }, { headers });
+      setUsers((prev) => prev.map((u) => u.id === userId ? { ...u, isAdmin: value } : u));
+    } catch (e: any) {
+      setError(e?.response?.data?.message || 'Ошибка');
+    }
+  };
+
+  const handleImpersonate = async (userId: number) => {
+    setError('');
+    try {
+      const res = await axios.post<{ access_token: string }>('/admin/impersonate', { userId }, { headers });
+      const newToken = res.data?.access_token;
+      if (newToken) {
+        localStorage.setItem('token', newToken);
+        window.dispatchEvent(new CustomEvent('token-refresh', { detail: newToken }));
+        navigate('/profile');
+        window.location.reload();
+      }
+    } catch (e: any) {
+      setError(e?.response?.data?.message || 'Не удалось войти под пользователем');
+    }
+  };
+
+  if (isAdmin === null) return <div className="admin-loading" />;
+  if (isAdmin === false) {
+    return (
+      <div className="admin-forbidden">
+        <p>Доступ запрещён. Требуются права администратора.</p>
+        <Link to="/profile">Вернуться в кабинет</Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="admin-panel">
+      <header className="admin-panel-header cabinet-header">
+        <div className="cabinet-header-left">
+          <span className="admin-header-title">Админ-панель</span>
+        </div>
+        <div className="cabinet-header-center" />
+        <div className="cabinet-header-right">
+          <Link to="/profile" className="admin-header-cabinet-link">Вернуться в кабинет</Link>
+        </div>
+      </header>
+      <div className="admin-work-area">
+      <nav className="admin-tabs">
+        <div className="admin-tabs-left">
+          <button type="button" className={section === 'users' ? 'active' : ''} onClick={() => setSectionAndUrl('users')}>
+            Пользователи
+          </button>
+          <button type="button" className={section === 'withdrawals' ? 'active' : ''} onClick={() => setSectionAndUrl('withdrawals')}>
+            Заявки на вывод
+            {pendingWithdrawalsCount > 0 && (
+              <span className="admin-tab-badge" aria-label={`Ожидают: ${pendingWithdrawalsCount}`}>
+                {pendingWithdrawalsCount}
+              </span>
+            )}
+          </button>
+          <button type="button" className={section === 'credit' ? 'active' : ''} onClick={() => setSectionAndUrl('credit')}>
+            Начисление
+          </button>
+        </div>
+      </nav>
+      {error && <p className="admin-error">{error}</p>}
+      {actionSuccessMsg && <p className="admin-success admin-action-saved">{actionSuccessMsg}</p>}
+      {section === 'withdrawals' && approvedTransfer && (
+        <div className="admin-transfer-card">
+          <h3>Переведите средства игроку</h3>
+          <div className="admin-transfer-card-details">
+            <div className="admin-transfer-card-row">
+              <span className="admin-transfer-card-label">Заявка</span>
+              <span className="admin-transfer-card-value">#{approvedTransfer.id}</span>
+            </div>
+            <div className="admin-transfer-card-row">
+              <span className="admin-transfer-card-label">Игрок</span>
+              <span className="admin-transfer-card-value">{approvedTransfer.username}{approvedTransfer.email ? ` (${approvedTransfer.email})` : ''}</span>
+            </div>
+            <div className="admin-transfer-card-row">
+              <span className="admin-transfer-card-label">Сумма</span>
+              <span className="admin-transfer-card-value admin-transfer-card-amount">{approvedTransfer.amount} ₽</span>
+            </div>
+            <div className="admin-transfer-card-row">
+              <span className="admin-transfer-card-label">Реквизиты</span>
+              <span className="admin-transfer-card-value">{approvedTransfer.details || '—'}</span>
+            </div>
+          </div>
+          <button
+            type="button"
+            className="admin-transfer-card-btn"
+            onClick={() => {
+              setApprovedTransfer(null);
+              setWithdrawalStatusFilter('pending');
+              setSearchParams((prev) => {
+                const nextParams = new URLSearchParams(prev);
+                nextParams.set('status', 'pending');
+                return nextParams;
+              }, { replace: true });
+            }}
+          >
+            Перевод исполнен
+          </button>
+        </div>
+      )}
+      {section === 'withdrawals' && !approvedTransfer && (
+        <section className="admin-section admin-section-withdrawals">
+          <label>
+            Статус:{' '}
+            <select
+              value={withdrawalStatusFilter}
+              onChange={(e) => {
+                const v = e.target.value;
+                setWithdrawalStatusFilter(v);
+                setSearchParams((prev) => {
+                  const nextParams = new URLSearchParams(prev);
+                  // Всегда пишем статус в URL (в т.ч. '' для «Все»), чтобы при обновлении страницы выбор сохранялся
+                  nextParams.set('status', v);
+                  return nextParams;
+                }, { replace: true });
+              }}
+            >
+              <option value="">Все</option>
+              <option value="pending">Ожидают</option>
+              <option value="approved">Одобрены</option>
+              <option value="rejected">Отклонены</option>
+            </select>
+          </label>
+          <div className="admin-table-wrap admin-table-wrap--withdrawals">
+          <table className="admin-table admin-table--withdrawals">
+            <thead>
+              <tr>
+                <SortableTh sortKey="id">ID</SortableTh>
+                <SortableTh sortKey="user">Пользователь</SortableTh>
+                <SortableTh sortKey="amount">Сумма</SortableTh>
+                <SortableTh sortKey="details">Реквизиты</SortableTh>
+                <SortableTh sortKey="status">Статус</SortableTh>
+                <SortableTh sortKey="admin">Админ</SortableTh>
+                <SortableTh sortKey="processedAt">Обработано</SortableTh>
+                <SortableTh sortKey="createdAt">Дата заявки</SortableTh>
+                <th>Действия</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedWithdrawals.map((w) => (
+                <tr key={w.id}>
+                  <td>{w.id}</td>
+                  <td>{w.user ? `${w.user.username} (${w.user.email || '—'})` : `#${w.userId}`}</td>
+                  <td>{w.amount} ₽</td>
+                  <td>{w.details || '—'}</td>
+                  <td>
+                    <span className={`admin-withdrawal-status admin-withdrawal-status--${w.status}`}>
+                      {getWithdrawalStatusLabel(w.status)}
+                    </span>
+                  </td>
+                  <td>
+                    {w.processedByAdminUsername != null || w.processedByAdminEmail != null
+                      ? [w.processedByAdminUsername || '', w.processedByAdminEmail ? `(${w.processedByAdminEmail})` : ''].filter(Boolean).join(' ')
+                      : '—'}
+                  </td>
+                  <td>{w.processedAt ? formatMoscowDateTimeFull(w.processedAt) : '—'}</td>
+                  <td>{w.createdAt ? formatMoscowDateTimeFull(w.createdAt) : '—'}</td>
+                  <td>
+                    {w.status === 'pending' && (
+                      <>
+                        <button type="button" className="admin-btn-approve" onClick={() => handleApprove(w.id)} disabled={loading}>Одобрить</button>
+                        <button type="button" className="admin-btn-reject" onClick={() => handleReject(w.id)} disabled={loading}>Отклонить</button>
+                      </>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          </div>
+          {withdrawals.length === 0 && <p>Заявок нет</p>}
+        </section>
+      )}
+      {section === 'users' && (
+        <section className="admin-section admin-section-users">
+          <label>
+            Поиск: <input type="text" value={userSearch} onChange={(e) => setUserSearch(e.target.value)} placeholder="ID, логин или email" />
+          </label>
+          {usersLoading && <p className="admin-loading">Загрузка списка…</p>}
+          {!usersLoading && (
+            <>
+              <div className="admin-table-wrap">
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <UserSortableTh sortKey="id">ID</UserSortableTh>
+                    <UserSortableTh sortKey="username">Логин</UserSortableTh>
+                    <UserSortableTh sortKey="email">Email</UserSortableTh>
+                    <UserSortableTh sortKey="balance">Баланс L</UserSortableTh>
+                    <UserSortableTh sortKey="balanceRubles">Баланс ₽</UserSortableTh>
+                    <th>Действия</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedUsers.map((u) => (
+                    <tr key={u.id}>
+                      <td>{u.id}</td>
+                      <td>{u.username}{u.isAdmin ? ' (админ)' : ''}</td>
+                      <td>{u.email}</td>
+                      <td>{u.balance}</td>
+                      <td>{u.balanceRubles} ₽</td>
+                      <td className="admin-table-actions">
+                        <div className="admin-table-actions-inner">
+                          <button type="button" onClick={() => handleImpersonate(u.id)}>Войти как пользователь</button>
+                          {!u.isAdmin && (
+                            <button type="button" className="admin-btn-make-admin" onClick={() => handleSetAdmin(u.id, true)}>Сделать админом</button>
+                          )}
+                          {u.isAdmin && (
+                            <button type="button" className="admin-btn-remove-admin" onClick={() => handleSetAdmin(u.id, false)}>Снять админа</button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              </div>
+              {users.length === 0 && !error && <p>Пользователей не найдено</p>}
+            </>
+          )}
+        </section>
+      )}
+      {section === 'credit' && (
+        <section className="admin-section admin-section-credit">
+          <div className="admin-credit-form">
+            <h3>Начисление</h3>
+            {creditError && <p className="admin-error">{creditError}</p>}
+            {creditSuccess && <p className="admin-success">{creditSuccess}</p>}
+            <div className="admin-credit-fields">
+              <label>
+                ID игрока
+                <input
+                  type="number"
+                  min="1"
+                  placeholder="Например: 5"
+                  value={creditUserId}
+                  onChange={(e) => setCreditUserId(e.target.value)}
+                />
+              </label>
+              <label>
+                Сумма (₽)
+                <input
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  placeholder="100"
+                  value={creditAmount}
+                  onChange={(e) => setCreditAmount(e.target.value)}
+                />
+              </label>
+              <button
+                type="button"
+                className="admin-credit-submit"
+                disabled={creditLoading}
+                onClick={handleCreditBalance}
+              >
+                {creditLoading ? 'Начисляю...' : 'Начислить'}
+              </button>
+            </div>
+          </div>
+
+          <h3 style={{ marginTop: 32 }}>История начислений</h3>
+          {!creditHistoryLoaded ? (
+            <p>Загрузка...</p>
+          ) : creditHistory.length === 0 ? (
+            <p>Начислений пока нет</p>
+          ) : (
+            <div className="admin-table-wrap">
+              <table className="admin-table admin-table--credit">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Игрок (ID)</th>
+                    <th>Игрок</th>
+                    <th>Сумма (₽)</th>
+                    <th>Админ</th>
+                    <th>Дата</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {creditHistory.map((ch) => (
+                    <tr key={ch.id}>
+                      <td>{ch.id}</td>
+                      <td>{ch.userId}</td>
+                      <td className="admin-credit-cell-name">
+                        <span>{ch.username || '—'}</span>
+                        {ch.userEmail && <span className="admin-credit-cell-email">{ch.userEmail}</span>}
+                      </td>
+                      <td>+{Number(ch.amount).toFixed(2)} ₽</td>
+                      <td className="admin-credit-cell-name">
+                        <span>{ch.adminUsername || '—'}</span>
+                        {ch.adminEmail && <span className="admin-credit-cell-email">{ch.adminEmail}</span>}
+                      </td>
+                      <td>{ch.createdAt ? formatMoscowDateTimeFull(ch.createdAt) : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+      </div>
+    </div>
+  );
+};
+
+export default Admin;
