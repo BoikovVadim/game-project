@@ -95,6 +95,7 @@ function AppContent() {
 
   const handleLogout = () => {
     localStorage.removeItem('token');
+    localStorage.removeItem('adminToken');
     setToken('');
     window.location.hash = '#/';
   };

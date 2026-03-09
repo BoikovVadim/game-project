@@ -4591,7 +4591,8 @@ body.partner-modal-open {
 
 .cabinet-confirm-modal {
   max-width: 380px;
-  width: 100%;
+  width: auto;
+  min-height: auto;
 }
 
 .cabinet-confirm-text {
@@ -5206,10 +5207,10 @@ button.bracket-player-name-btn:active {
   font-size: 12px;
   font-weight: 700;
   color: #fff;
-  background: #1976d2;
+  background: var(--gold-gradient);
   border-radius: 4px;
   vertical-align: middle;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+  box-shadow: 0 1px 4px rgba(186,149,55,0.35);
 }
 .questions-review-no-answer-badge {
   display: inline-block;
@@ -5222,4 +5223,131 @@ button.bracket-player-name-btn:active {
   border-radius: 4px;
   vertical-align: middle;
   box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+}
+
+/* ---------- Gender & Birthdate ---------- */
+.user-info-row-gender,
+.user-info-row-birthdate {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.gender-selector {
+  display: flex;
+  gap: 6px;
+}
+
+.gender-btn {
+  padding: 4px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 1.5px solid #d0d0d0;
+  border-radius: 8px;
+  background: transparent;
+  color: #555;
+  cursor: pointer;
+  transition: all 0.18s;
+}
+
+.gender-btn:hover {
+  border-color: #b388ff;
+  color: #7c4dff;
+}
+
+.gender-btn--active {
+  border-color: #7c4dff;
+  background: linear-gradient(135deg, #7c4dff 0%, #651fff 100%);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(124, 77, 255, 0.25);
+}
+
+.gender-btn--active:hover {
+  background: linear-gradient(135deg, #9a6dff 0%, #7c4dff 100%);
+  color: #fff;
+}
+
+.birthdate-input {
+  padding: 4px 10px;
+  font-size: 13px;
+  border: 1.5px solid #d0d0d0;
+  border-radius: 8px;
+  background: #fafafa;
+  color: #333;
+  outline: none;
+  transition: border-color 0.18s;
+  font-family: inherit;
+}
+
+.birthdate-input:focus {
+  border-color: #7c4dff;
+  background: #fff;
+}
+
+@media (max-width: 767px) {
+  .user-info-row-gender,
+  .user-info-row-birthdate {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  .gender-btn {
+    font-size: 12px;
+    padding: 3px 12px;
+  }
+  .birthdate-input {
+    font-size: 12px;
+  }
+}
+
+/* Плашка импeрсонации (админ вошёл как пользователь) */
+.impersonate-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, #ff6f00 0%, #e65100 100%);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 10px 10px 0 0;
+  box-shadow: 0 2px 8px rgba(230, 81, 0, 0.3);
+  flex-wrap: wrap;
+}
+
+.impersonate-banner-text {
+  white-space: nowrap;
+}
+
+.impersonate-banner-text strong {
+  font-weight: 700;
+}
+
+.impersonate-banner-btn {
+  padding: 5px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #e65100;
+  background: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, box-shadow 0.15s;
+}
+
+.impersonate-banner-btn:hover {
+  background: #fff3e0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+@media (max-width: 767px) {
+  .impersonate-banner {
+    font-size: 12px;
+    padding: 6px 12px;
+    gap: 10px;
+    border-radius: 0;
+  }
 }

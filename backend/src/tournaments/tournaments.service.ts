@@ -1445,11 +1445,17 @@ export class TournamentsService {
   }
 
   private normalizeAnswersChosen(val: unknown): number[] {
-    if (Array.isArray(val)) return val.map((a) => (typeof a === 'number' && !Number.isNaN(a) ? Math.max(0, Math.floor(a)) : 0));
+    const mapFn = (a: unknown): number => {
+      if (typeof a === 'number' && !Number.isNaN(a)) {
+        return a < 0 ? -1 : Math.floor(a);
+      }
+      return -1;
+    };
+    if (Array.isArray(val)) return val.map(mapFn);
     if (typeof val === 'string') {
       try {
         const parsed = JSON.parse(val) as unknown;
-        return Array.isArray(parsed) ? parsed.map((a) => (typeof a === 'number' && !Number.isNaN(a) ? Math.max(0, Math.floor(a)) : 0)) : [];
+        return Array.isArray(parsed) ? parsed.map(mapFn) : [];
       } catch {
         return [];
       }

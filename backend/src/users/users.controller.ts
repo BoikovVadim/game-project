@@ -42,6 +42,15 @@ export class UsersController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Post('profile/personal')
+  updatePersonal(
+    @Body() body: { gender?: string | null; birthDate?: string | null },
+    @Request() req: any,
+  ) {
+    return this.usersService.updatePersonal(req.user.id, body.gender, body.birthDate);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Get('transactions')
   getTransactions(@Request() req: any) {
     return this.usersService.getTransactions(req.user.id);

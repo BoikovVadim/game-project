@@ -633,6 +633,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   };
   const [user, setUser] = useState<any>(null);
   const [showAdminLink, setShowAdminLink] = useState(false);
+  const [isImpersonating] = useState(() => !!localStorage.getItem('adminToken'));
   const [transactions, setTransactions] = useState<any[]>([]);
   const [transactionsLoaded, setTransactionsLoaded] = useState(false);
   const [avatar, setAvatar] = useState<string | null>(() => {
@@ -673,6 +674,8 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   });
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState('');
+  const [gender, setGender] = useState<string | null>(null);
+  const [birthDate, setBirthDate] = useState<string | null>(null);
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -684,6 +687,16 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [logoutDropdownOpen, setLogoutDropdownOpen] = useState(false);
   const logoutDropdownRef = useRef<HTMLDivElement>(null);
+
+  const returnToAdmin = () => {
+    const adminToken = localStorage.getItem('adminToken');
+    if (!adminToken) return;
+    localStorage.removeItem('adminToken');
+    localStorage.setItem('token', adminToken);
+    window.dispatchEvent(new CustomEvent('token-refresh', { detail: adminToken }));
+    navigate('/admin');
+    window.location.reload();
+  };
   const [showStartGameConfirm, setShowStartGameConfirm] = useState(false);
   const [pendingStartGameAction, setPendingStartGameAction] = useState<(() => void) | null>(null);
   const [, setHashVersion] = useState(0);
@@ -703,16 +716,16 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
 
-  // Пинг «в личном кабинете» для подсчёта онлайн по лигам (только когда пользователь в кабинете)
+  // Пинг «в личном кабинете» для подсчёта онлайн по лигам (пропускаем при импeрсонации админом)
   useEffect(() => {
-    if (!token) return;
+    if (!token || isImpersonating) return;
     const ping = () => {
       axios.post('/users/me/cabinet-ping', {}, { headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
     };
     ping();
     const interval = setInterval(ping, 60 * 1000);
     return () => clearInterval(interval);
-  }, [token]);
+  }, [token, isImpersonating]);
 
   // Общая статистика для хедера (онлайн) и вкладки «Общая» — один источник данных, обновляется раз в минуту
   useEffect(() => {
@@ -1098,6 +1111,8 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         const savedNickname = backendNick ?? (data.id != null ? localStorage.getItem(`nickname_${data.id}`) : null);
         setNickname(savedNickname ?? '');
         if (savedAvatar) setAvatar(savedAvatar);
+        if (data.gender) setGender(data.gender);
+        if (data.birthDate) setBirthDate(data.birthDate);
       } catch (err: unknown) {
         const ax = err && typeof err === 'object' && 'isAxiosError' in err && (err as { isAxiosError?: boolean }).isAxiosError;
         const status = ax && err && typeof err === 'object' && 'response' in err ? (err as { response?: { status?: number } }).response?.status : undefined;
@@ -2272,6 +2287,16 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         </div>
       )}
       <div className="cabinet-main-wrap" ref={cabinetMainWrapRef}>
+        {isImpersonating && (
+          <div className="impersonate-banner">
+            <span className="impersonate-banner-text">
+              Вы вошли как <strong>{user?.nickname || user?.username || `#${user?.id}`}</strong>
+            </span>
+            <button type="button" className="impersonate-banner-btn" onClick={returnToAdmin}>
+              ← Вернуться в админку
+            </button>
+          </div>
+        )}
         <header className="cabinet-header">
           <div className="cabinet-header-left">
             <div className="cabinet-notifications-wrap" ref={notificationsRef}>
@@ -2571,6 +2596,43 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
             <span className="user-info-label">Лига:</span>{' '}
             <span className="user-info-value">{stats?.maxLeagueName ?? (stats === null && !statsError ? '…' : '—')}</span>
           </p>
+          <div className="user-info-row user-info-row-gender">
+            <span className="user-info-label">Пол:</span>
+            <div className="gender-selector">
+              {(['male', 'female'] as const).map((g) => (
+                <button
+                  key={g}
+                  type="button"
+                  className={`gender-btn ${gender === g ? 'gender-btn--active' : ''}`}
+                  onClick={async () => {
+                    const next = gender === g ? null : g;
+                    setGender(next);
+                    try {
+                      await axios.post('/users/profile/personal', { gender: next }, { headers: { Authorization: `Bearer ${token}` } });
+                    } catch (_) {}
+                  }}
+                >
+                  {g === 'male' ? 'Мужской' : 'Женский'}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="user-info-row user-info-row-birthdate">
+            <span className="user-info-label">Дата рождения:</span>
+            <input
+              type="date"
+              className="birthdate-input"
+              value={birthDate ?? ''}
+              max={new Date().toISOString().split('T')[0]}
+              onChange={async (e) => {
+                const val = e.target.value || null;
+                setBirthDate(val);
+                try {
+                  await axios.post('/users/profile/personal', { birthDate: val }, { headers: { Authorization: `Bearer ${token}` } });
+                } catch (_) {}
+              }}
+            />
+          </div>
         </div>
       </div>
     </div>
@@ -2913,9 +2975,11 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                             onClick={() => {
                               const first = gameHistory?.active?.find((t) => t.userStatus === 'not_passed');
                               const allAnswered = first && first.resultLabel === 'Ожидание соперника';
-                              if (first && !allAnswered) continueTraining(first.id);
-                              else if (!first) {
-                                setPendingStartGameAction(() => { startTraining(); });
+                              if (first && !allAnswered) {
+                                setPendingStartGameAction(() => () => { continueTraining(first.id); });
+                                setShowStartGameConfirm(true);
+                              } else if (!first) {
+                                setPendingStartGameAction(() => () => { startTraining(); });
                                 setShowStartGameConfirm(true);
                               }
                             }}
@@ -3261,7 +3325,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                   type="button"
                                   className="confrontation-start-btn"
                                   onClick={() => {
-                                    setPendingStartGameAction(() => { joinTournament(selectedLeague ?? 5); });
+                                    setPendingStartGameAction(() => () => { joinTournament(selectedLeague ?? 5); });
                                     setShowStartGameConfirm(true);
                                   }}
                                   disabled={
@@ -3310,7 +3374,10 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                         type="button"
                                         className="confrontation-continue-btn"
                                         onClick={() => {
-                                          if (first) continueTournament(first.id);
+                                          if (first) {
+                                            setPendingStartGameAction(() => () => { continueTournament(first.id); });
+                                            setShowStartGameConfirm(true);
+                                          }
                                         }}
                                         disabled={continueTournamentLoading !== null || allWaitingForOpponent}
                                         title={allWaitingForOpponent ? 'Все вопросы отвечены, ожидание соперника' : undefined}
@@ -4653,7 +4720,8 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                 const ac = Array.isArray(raw)
                   ? raw.map((a) => {
                       const n = typeof a === 'number' && !Number.isNaN(a) ? a : (typeof a === 'string' ? Number(a) : NaN);
-                      return typeof n === 'number' && !Number.isNaN(n) && n >= 0 ? Math.max(0, Math.floor(n)) : -1;
+                      if (typeof n !== 'number' || Number.isNaN(n)) return -1;
+                      return n < 0 ? -1 : Math.floor(n);
                     })
                   : [];
                 const hasChoices = ac.length > 0;
@@ -4665,7 +4733,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                 const startIndex = isSemi
                   ? (userSemiIdx === 0 ? 0 : threeRounds ? 10 : 0)
                   : (threeRounds ? 20 : 10);
-                const countInRound = isSemi
+                const answeredInRound = isSemi
                   ? (userSemiIdx === 0 ? Math.min(10, n) : Math.min(10, Math.max(0, n - 10)))
                   : Math.min(10, Math.max(0, n - (threeRounds ? 20 : 10)));
                 const title = isSemi ? (userSemiIdx === 0 ? 'Полуфинал 1' : 'Полуфинал 2') : 'Финал';
@@ -4673,17 +4741,18 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                 const questions = isSemi
                   ? (userSemiIdx === 0 ? questionsReviewData.questionsSemi1 : questionsReviewData.questionsSemi2)
                   : (threeRounds ? questionsReviewData.questionsFinal : questionsReviewData.questionsSemi2);
-                const questionsToShow = questions.slice(0, countInRound);
+                const questionsToShow = questions.slice(0, answeredInRound);
+                const countInRound = questions.length;
                 const semiCorrect = questionsReviewData.semiFinalCorrectCount ?? (n <= 10 ? questionsReviewData.correctAnswersCount : 0);
                 const finalCorrect = n > 10 ? Math.max(0, questionsReviewData.correctAnswersCount - semiCorrect) : 0;
                 const correctInRound = isSemi ? semiCorrect : finalCorrect;
                 return (
                   <div className="questions-review-body">
                     <p className="questions-review-stats">
-                      {title}: вы ответили верно на <strong>{correctInRound}</strong> из <strong>{countInRound}</strong> вопросов. Ниже — правильный ответ и ваш вариант (бейдж «Мой ответ»).
+                      {title}: вы ответили верно на <strong>{correctInRound}</strong> из <strong>{answeredInRound}</strong> вопросов{answeredInRound < countInRound ? ` (отвечено ${answeredInRound} из ${countInRound})` : ''}. Ниже — только те вопросы, на которые вы отвечали.
                     </p>
                     {questionsToShow.length === 0 ? (
-                      <p className="questions-review-empty">В этом раунде нет отыгранных вопросов.</p>
+                      <p className="questions-review-empty">Вы не ответили ни на один вопрос в этом раунде.</p>
                     ) : (
                       <div className="questions-review-round">
                         <h4>{title}</h4>

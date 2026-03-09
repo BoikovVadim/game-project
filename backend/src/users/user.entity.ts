@@ -54,6 +54,14 @@ export class User {
   @Column({ type: 'datetime', nullable: true })
   lastCabinetSeenAt!: Date | null;
 
+  /** Пол: 'male' | 'female' | null (не указан) */
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  gender!: string | null;
+
+  /** Дата рождения (YYYY-MM-DD) */
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  birthDate!: string | null;
+
   /** Доступ в админ-панель и расширенные действия */
   @Column({ type: 'boolean', default: false })
   isAdmin!: boolean;

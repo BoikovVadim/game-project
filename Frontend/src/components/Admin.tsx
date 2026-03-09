@@ -339,6 +339,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
       const res = await axios.post<{ access_token: string }>('/admin/impersonate', { userId }, { headers });
       const newToken = res.data?.access_token;
       if (newToken) {
+        localStorage.setItem('adminToken', token);
         localStorage.setItem('token', newToken);
         window.dispatchEvent(new CustomEvent('token-refresh', { detail: newToken }));
         navigate('/profile');

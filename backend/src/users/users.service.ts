@@ -241,6 +241,8 @@ export class UsersService implements OnModuleInit {
       referralCode: userAfter.referralCode ?? null,
       referrerId: userAfter.referrerId ?? null,
       isAdmin: !!isAdmin,
+      gender: userAfter.gender ?? null,
+      birthDate: userAfter.birthDate ?? null,
     };
   }
 
@@ -251,6 +253,27 @@ export class UsersService implements OnModuleInit {
     user.nickname = trimmed || null;
     await this.userRepository.save(user);
     return { nickname: user.nickname };
+  }
+
+  async updatePersonal(
+    userId: number,
+    gender?: string | null,
+    birthDate?: string | null,
+  ): Promise<{ gender: string | null; birthDate: string | null }> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+    if (gender !== undefined) {
+      user.gender = gender === 'male' || gender === 'female' ? gender : null;
+    }
+    if (birthDate !== undefined) {
+      if (birthDate && /^\d{4}-\d{2}-\d{2}$/.test(birthDate)) {
+        user.birthDate = birthDate;
+      } else {
+        user.birthDate = null;
+      }
+    }
+    await this.userRepository.save(user);
+    return { gender: user.gender ?? null, birthDate: user.birthDate ?? null };
   }
 
   /** Обновляет время последнего нахождения в личном кабинете (для подсчёта «онлайн»). */
