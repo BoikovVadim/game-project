@@ -99,8 +99,13 @@ export class SupportService {
     return this.msgRepo.save(msg);
   }
 
-  /** Закрыть тикет */
+  /** Закрыть тикет (с прощальным сообщением игроку) */
   async closeTicket(ticketId: number): Promise<SupportTicket> {
+    const ticket = await this.ticketRepo.findOne({ where: { id: ticketId } });
+    if (!ticket) return null as any;
+    const farewell = 'Хорошей игры и настроения, всего доброго!';
+    const msg = this.msgRepo.create({ ticketId, userId: ticket.userId, senderRole: 'admin', text: farewell, unreadByAdmin: false, unreadByUser: true });
+    await this.msgRepo.save(msg);
     await this.ticketRepo.update(ticketId, { status: 'closed', closedAt: new Date() });
     return (await this.ticketRepo.findOne({ where: { id: ticketId } }))!;
   }

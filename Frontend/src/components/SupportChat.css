@@ -75,11 +75,14 @@
   cursor: pointer;
   text-align: left;
   transition: border-color 0.15s, box-shadow 0.15s;
+  /* сброс глобальных стилей button из App.css */
+  box-shadow: none;
 }
 
 .support-ticket-card:hover {
+  background: #fff;
   border-color: var(--gold-dark, #c9a227);
-  box-shadow: 0 2px 8px rgba(201, 162, 39, 0.12);
+  box-shadow: 0 0 0 2px rgba(201, 162, 39, 0.3);
 }
 
 .support-ticket-card-top {
