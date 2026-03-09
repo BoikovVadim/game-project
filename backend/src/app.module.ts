@@ -51,7 +51,7 @@ console.log('[AppModule] database path:', databasePath, '| cwd:', process.cwd())
       database: databasePath,
       entities: [User, Tournament, Question, TournamentEntry, TournamentResult, TournamentProgress, TournamentEscrow, Transaction, Payment, WithdrawalRequest, SupportMessage, SupportTicket, News],
       synchronize: true,
-      logging: true,
+      logging: process.env.NODE_ENV !== 'production',
     }),
     MailModule,
     UsersModule,

@@ -1141,7 +1141,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         if (status === 401) {
           setProfileError('Сессия истекла. Выйдите и войдите снова.');
         } else if (msg === 'Network Error' || !status) {
-          setProfileError('Сервер недоступен. Убедитесь, что бэкенд запущен (npm run dev) и откройте сайт по тому же адресу, что и раньше (например http://localhost:3000).');
+          setProfileError('Сервер временно недоступен. Попробуйте обновить страницу или зайти позже.');
         } else {
           setProfileError(`Не удалось загрузить профиль. Ошибка: ${status || msg}. Проверьте соединение или попробуйте позже.`);
         }
