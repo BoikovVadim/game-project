@@ -668,7 +668,7 @@
 .admin-support-back {
   background: none;
   border: none;
-  color: #7c4dff;
+  color: var(--gold-dark, #c9a227);
   cursor: pointer;
   font-size: 14px;
   font-weight: 500;
@@ -678,7 +678,7 @@
 }
 
 .admin-support-back:hover {
-  background: #f3f0ff;
+  background: rgba(201, 162, 39, 0.1);
 }
 
 .admin-support-dialog-title {
@@ -713,8 +713,39 @@
   justify-content: flex-end;
 }
 
-.admin-support-msg-bubble {
+.admin-support-msg-col {
+  display: flex;
+  flex-direction: column;
   max-width: 70%;
+}
+
+.admin-support-msg--user .admin-support-msg-col {
+  align-items: flex-start;
+}
+
+.admin-support-msg--admin .admin-support-msg-col {
+  align-items: flex-end;
+}
+
+.admin-support-msg-sender {
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 2px;
+  padding-left: 4px;
+  color: var(--gold-dark, #c9a227);
+  text-align: left;
+  align-self: flex-start;
+}
+
+.admin-support-msg--admin .admin-support-msg-sender {
+  color: rgba(255,255,255,0.6);
+}
+
+.admin-support-msg--user .admin-support-msg-sender {
+  color: #999;
+}
+
+.admin-support-msg-bubble {
   padding: 8px 12px;
   border-radius: 12px;
   font-size: 13px;
@@ -729,27 +760,36 @@
 }
 
 .admin-support-msg--admin .admin-support-msg-bubble {
-  background: linear-gradient(135deg, #7c4dff 0%, #651fff 100%);
+  background: #1a1a1a;
   color: #fff;
   border-bottom-right-radius: 3px;
 }
 
-.admin-support-msg-sender {
-  font-size: 11px;
-  font-weight: 600;
-  margin-bottom: 2px;
-  opacity: 0.7;
+.admin-support-date-sep {
+  text-align: center;
+  font-size: 12px;
+  color: #999;
+  padding: 10px 0 6px;
+  font-weight: 500;
+}
+
+.admin-support-msg-body {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
 }
 
 .admin-support-msg-text {
   white-space: pre-wrap;
+  flex: 1;
 }
 
 .admin-support-msg-time {
   font-size: 10px;
-  margin-top: 3px;
-  opacity: 0.5;
-  text-align: right;
+  opacity: 0.55;
+  white-space: nowrap;
+  flex-shrink: 0;
+  line-height: 1.6;
 }
 
 .admin-support-reply-wrap {
@@ -773,12 +813,12 @@
 }
 
 .admin-support-reply-input:focus {
-  border-color: #7c4dff;
+  border-color: var(--gold-dark, #c9a227);
 }
 
 .admin-support-reply-btn {
   padding: 8px 18px;
-  background: linear-gradient(135deg, #7c4dff 0%, #651fff 100%);
+  background: var(--gold-dark, #c9a227);
   color: #fff;
   border: none;
   border-radius: 10px;
@@ -799,7 +839,7 @@
 }
 
 .admin-support-row-unread {
-  background: #f3f0ff;
+  background: rgba(201, 162, 39, 0.08);
 }
 
 .admin-support-last-text {
@@ -811,7 +851,7 @@
 
 .admin-support-open-btn {
   padding: 4px 12px;
-  background: #7c4dff;
+  background: #1a1a1a;
   color: #fff;
   border: none;
   border-radius: 6px;
@@ -821,5 +861,71 @@
 }
 
 .admin-support-open-btn:hover {
+  opacity: 0.85;
+}
+
+.admin-support-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.admin-support-filter-row h3 {
+  margin: 0;
+}
+
+.admin-support-filter-select {
+  padding: 4px 10px;
+  font-size: 13px;
+  border: 1.5px solid #d0d0d0;
+  border-radius: 8px;
+  background: #fafafa;
+  outline: none;
+  font-family: inherit;
+}
+
+.admin-support-ticket-status {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
+.admin-support-ticket-status--open {
+  background: rgba(76, 175, 80, 0.12);
+  color: #2e7d32;
+}
+
+.admin-support-ticket-status--closed {
+  background: rgba(0, 0, 0, 0.06);
+  color: #999;
+}
+
+.admin-support-close-btn,
+.admin-support-reopen-btn {
+  margin-left: auto;
+  padding: 4px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.admin-support-close-btn {
+  background: #e53935;
+  color: #fff;
+}
+
+.admin-support-reopen-btn {
+  background: var(--gold-dark, #c9a227);
+  color: #fff;
+}
+
+.admin-support-close-btn:hover,
+.admin-support-reopen-btn:hover {
   opacity: 0.85;
 }

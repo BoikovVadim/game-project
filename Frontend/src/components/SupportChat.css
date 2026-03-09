@@ -44,22 +44,144 @@
   font-weight: 600;
   margin: 0;
   color: #fff;
+  flex: 1;
 }
 
-.support-chat-messages {
+.support-ticket-header-status {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 10px;
+}
+
+/* --- Ticket list --- */
+.support-tickets-list {
   flex: 1;
   overflow-y: auto;
-  padding: 18px 14px;
+  padding: 14px;
   display: flex;
   flex-direction: column;
+  gap: 10px;
+}
+
+.support-ticket-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.support-ticket-card:hover {
+  border-color: var(--gold-dark, #c9a227);
+  box-shadow: 0 2px 8px rgba(201, 162, 39, 0.12);
+}
+
+.support-ticket-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.support-ticket-card-id {
+  font-weight: 600;
+  font-size: 14px;
+  color: #333;
+}
+
+.support-ticket-status--open {
+  background: rgba(76, 175, 80, 0.12);
+  color: #2e7d32;
+}
+
+.support-ticket-status--closed {
+  background: rgba(0, 0, 0, 0.06);
+  color: #999;
+}
+
+.support-ticket-card .support-ticket-status--open,
+.support-ticket-card .support-ticket-status--closed {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 8px;
+}
+
+.support-ticket-card-text {
+  font-size: 13px;
+  color: #666;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.support-ticket-card-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.support-ticket-card-date {
+  font-size: 11px;
+  color: #999;
+}
+
+.support-ticket-card-badge {
+  background: #e53935;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 5px;
+}
+
+/* --- New ticket input --- */
+.support-new-ticket-wrap {
+  display: flex;
+  align-items: flex-end;
   gap: 8px;
+  padding: 10px 14px;
+  background: #fff;
+  border-top: 1px solid #e8e8e8;
+  position: sticky;
+  bottom: 0;
 }
 
 .support-chat-empty {
   text-align: center;
   color: #999;
   font-size: 15px;
-  margin-top: 40%;
+  margin-top: 30%;
+}
+
+/* --- Date separator --- */
+.support-date-separator {
+  text-align: center;
+  font-size: 12px;
+  color: #999;
+  padding: 10px 0 6px;
+  font-weight: 500;
+}
+
+/* --- Messages --- */
+.support-chat-messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .support-msg {
@@ -74,10 +196,37 @@
   justify-content: flex-start;
 }
 
-.support-msg-bubble {
+.support-msg-col {
+  display: flex;
+  flex-direction: column;
   max-width: 75%;
-  padding: 10px 14px;
-  border-radius: 16px;
+}
+
+.support-msg--user .support-msg-col {
+  align-items: flex-end;
+}
+
+.support-msg--admin .support-msg-col {
+  align-items: flex-start;
+}
+
+.support-msg-name {
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 2px;
+  padding-left: 4px;
+  color: var(--gold-dark, #c9a227);
+  text-align: left;
+  align-self: flex-start;
+}
+
+.support-msg--admin .support-msg-name {
+  color: #999;
+}
+
+.support-msg-bubble {
+  padding: 8px 12px;
+  border-radius: 14px;
   font-size: 14px;
   line-height: 1.45;
   word-break: break-word;
@@ -96,17 +245,26 @@
   border-bottom-left-radius: 4px;
 }
 
+.support-msg-body {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
 .support-msg-text {
   white-space: pre-wrap;
+  flex: 1;
 }
 
 .support-msg-time {
-  font-size: 11px;
-  margin-top: 4px;
-  opacity: 0.6;
-  text-align: right;
+  font-size: 10px;
+  opacity: 0.55;
+  white-space: nowrap;
+  flex-shrink: 0;
+  line-height: 1.6;
 }
 
+/* --- Input --- */
 .support-chat-input-wrap {
   display: flex;
   align-items: flex-end;
@@ -164,6 +322,9 @@
     padding: 12px 8px;
   }
   .support-msg-bubble {
+    max-width: 85%;
+  }
+  .support-msg-col {
     max-width: 85%;
   }
 }

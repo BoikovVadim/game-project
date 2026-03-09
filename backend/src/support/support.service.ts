@@ -1,65 +1,121 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { SupportTicket } from './support-ticket.entity';
 import { SupportMessage } from './support-message.entity';
 
 @Injectable()
 export class SupportService {
   constructor(
+    @InjectRepository(SupportTicket)
+    private readonly ticketRepo: Repository<SupportTicket>,
     @InjectRepository(SupportMessage)
     private readonly msgRepo: Repository<SupportMessage>,
   ) {}
 
-  async sendUserMessage(userId: number, text: string): Promise<SupportMessage> {
-    const msg = this.msgRepo.create({ userId, senderRole: 'user', text, unreadByAdmin: true, unreadByUser: false });
+  /** Игрок отправляет первое сообщение → создаётся тикет + сообщение */
+  async createTicket(userId: number, text: string): Promise<{ ticket: SupportTicket; message: SupportMessage }> {
+    const ticket = this.ticketRepo.create({ userId, status: 'open' });
+    const saved = await this.ticketRepo.save(ticket);
+    const msg = this.msgRepo.create({ ticketId: saved.id, userId, senderRole: 'user', text, unreadByAdmin: true, unreadByUser: false });
+    const savedMsg = await this.msgRepo.save(msg);
+    return { ticket: saved, message: savedMsg };
+  }
+
+  /** Игрок отправляет сообщение в существующий тикет */
+  async sendUserMessage(ticketId: number, userId: number, text: string): Promise<SupportMessage> {
+    const msg = this.msgRepo.create({ ticketId, userId, senderRole: 'user', text, unreadByAdmin: true, unreadByUser: false });
     return this.msgRepo.save(msg);
   }
 
-  async getMessagesForUser(userId: number): Promise<SupportMessage[]> {
-    return this.msgRepo.find({ where: { userId }, order: { createdAt: 'ASC' } });
+  /** Тикеты игрока */
+  async getTicketsForUser(userId: number): Promise<any[]> {
+    const tickets = await this.ticketRepo.find({ where: { userId }, order: { createdAt: 'DESC' } });
+    const result: any[] = [];
+    for (const t of tickets) {
+      const lastMsg = await this.msgRepo.findOne({ where: { ticketId: t.id }, order: { createdAt: 'DESC' } });
+      const unreadCount = await this.msgRepo.count({ where: { ticketId: t.id, unreadByUser: true } });
+      result.push({ ...t, lastText: lastMsg?.text ?? '', lastMessageAt: lastMsg?.createdAt ?? t.createdAt, unreadCount });
+    }
+    return result;
   }
 
-  async markReadByUser(userId: number): Promise<void> {
-    await this.msgRepo.update({ userId, unreadByUser: true }, { unreadByUser: false });
+  /** Сообщения в тикете */
+  async getTicketMessages(ticketId: number): Promise<SupportMessage[]> {
+    return this.msgRepo.find({ where: { ticketId }, order: { createdAt: 'ASC' } });
   }
 
+  /** Пометить сообщения как прочитанные пользователем */
+  async markReadByUser(ticketId: number): Promise<void> {
+    await this.msgRepo.update({ ticketId, unreadByUser: true }, { unreadByUser: false });
+  }
+
+  /** Есть ли непрочитанные у пользователя (по всем тикетам) */
   async hasUnreadForUser(userId: number): Promise<boolean> {
     const count = await this.msgRepo.count({ where: { userId, unreadByUser: true } });
     return count > 0;
   }
 
-  /** Все диалоги (для админки) — последнее сообщение и счётчик непрочитанных */
-  async getConversations(): Promise<any[]> {
-    const rows = await this.msgRepo.query(`
-      SELECT m.userId,
-             u.username,
-             u.nickname,
-             u.email,
-             (SELECT COUNT(*) FROM support_message WHERE userId = m.userId AND unreadByAdmin = 1) AS unreadCount,
-             (SELECT text FROM support_message WHERE userId = m.userId ORDER BY createdAt DESC LIMIT 1) AS lastText,
-             (SELECT createdAt FROM support_message WHERE userId = m.userId ORDER BY createdAt DESC LIMIT 1) AS lastMessageAt
-      FROM support_message m
-      LEFT JOIN user u ON u.id = m.userId
-      GROUP BY m.userId
-      ORDER BY lastMessageAt DESC
-    `);
-    return rows;
+  /** Получить тикет */
+  async getTicket(ticketId: number): Promise<SupportTicket | null> {
+    return this.ticketRepo.findOne({ where: { id: ticketId } });
   }
 
-  async getMessagesForAdmin(userId: number): Promise<SupportMessage[]> {
-    return this.msgRepo.find({ where: { userId }, order: { createdAt: 'ASC' } });
+  // --- Admin ---
+
+  /** Все тикеты (для админки) с фильтром по статусу */
+  async getTicketsForAdmin(status?: string): Promise<any[]> {
+    const where: any = {};
+    if (status === 'open' || status === 'closed') where.status = status;
+    const tickets = await this.ticketRepo.find({ where, order: { createdAt: 'DESC' } });
+    const result: any[] = [];
+    for (const t of tickets) {
+      const user = await this.ticketRepo.query(
+        `SELECT id, username, nickname, email FROM user WHERE id = ?`, [t.userId],
+      );
+      const lastMsg = await this.msgRepo.findOne({ where: { ticketId: t.id }, order: { createdAt: 'DESC' } });
+      const unreadCount = await this.msgRepo.count({ where: { ticketId: t.id, unreadByAdmin: true } });
+      result.push({
+        ...t,
+        username: user[0]?.username ?? '',
+        nickname: user[0]?.nickname ?? '',
+        email: user[0]?.email ?? '',
+        lastText: lastMsg?.text ?? '',
+        lastMessageAt: lastMsg?.createdAt ?? t.createdAt,
+        unreadCount,
+      });
+    }
+    return result;
   }
 
-  async markReadByAdmin(userId: number): Promise<void> {
-    await this.msgRepo.update({ userId, unreadByAdmin: true }, { unreadByAdmin: false });
+  /** Пометить сообщения тикета как прочитанные админом */
+  async markReadByAdmin(ticketId: number): Promise<void> {
+    await this.msgRepo.update({ ticketId, unreadByAdmin: true }, { unreadByAdmin: false });
   }
 
-  async sendAdminMessage(userId: number, text: string): Promise<SupportMessage> {
-    const msg = this.msgRepo.create({ userId, senderRole: 'admin', text, unreadByAdmin: false, unreadByUser: true });
+  /** Админ отвечает в тикет */
+  async sendAdminMessage(ticketId: number, userId: number, text: string): Promise<SupportMessage> {
+    const msg = this.msgRepo.create({ ticketId, userId, senderRole: 'admin', text, unreadByAdmin: false, unreadByUser: true });
     return this.msgRepo.save(msg);
   }
 
+  /** Закрыть тикет */
+  async closeTicket(ticketId: number): Promise<SupportTicket> {
+    await this.ticketRepo.update(ticketId, { status: 'closed', closedAt: new Date() });
+    return (await this.ticketRepo.findOne({ where: { id: ticketId } }))!;
+  }
+
+  /** Переоткрыть тикет */
+  async reopenTicket(ticketId: number): Promise<SupportTicket> {
+    await this.ticketRepo.update(ticketId, { status: 'open', closedAt: null as any });
+    return (await this.ticketRepo.findOne({ where: { id: ticketId } }))!;
+  }
+
+  /** Количество открытых тикетов с непрочитанными */
   async totalUnreadForAdmin(): Promise<number> {
-    return this.msgRepo.count({ where: { unreadByAdmin: true } });
+    const rows = await this.msgRepo.query(
+      `SELECT COUNT(DISTINCT ticketId) as cnt FROM support_message WHERE unreadByAdmin = 1`,
+    );
+    return Number(rows[0]?.cnt ?? 0);
   }
 }

@@ -1,10 +1,14 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, ManyToOne, JoinColumn } from 'typeorm';
 import { User } from '../users/user.entity';
+import { SupportTicket } from './support-ticket.entity';
 
 @Entity('support_message')
 export class SupportMessage {
   @PrimaryGeneratedColumn()
   id!: number;
+
+  @Column()
+  ticketId!: number;
 
   @Column()
   userId!: number;
@@ -16,16 +20,18 @@ export class SupportMessage {
   @Column({ type: 'text' })
   text!: string;
 
-  /** true если админ ещё не видел (для бейджа) */
   @Column({ type: 'boolean', default: false })
   unreadByAdmin!: boolean;
 
-  /** true если пользователь ещё не видел (для бейджа) */
   @Column({ type: 'boolean', default: false })
   unreadByUser!: boolean;
 
   @CreateDateColumn()
   createdAt!: Date;
+
+  @ManyToOne(() => SupportTicket, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'ticketId' })
+  ticket?: SupportTicket;
 
   @ManyToOne(() => User, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'userId' })

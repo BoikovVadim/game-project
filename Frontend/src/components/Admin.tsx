@@ -54,9 +54,10 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
   const [creditHistory, setCreditHistory] = useState<{ id: number; userId: number; username: string; userEmail: string; amount: number; adminUsername: string; adminEmail: string; createdAt: string }[]>([]);
   const [creditHistoryLoaded, setCreditHistoryLoaded] = useState(false);
 
-  const [supportConversations, setSupportConversations] = useState<any[]>([]);
+  const [supportTickets, setSupportTickets] = useState<any[]>([]);
   const [supportUnreadCount, setSupportUnreadCount] = useState(0);
-  const [supportOpenUserId, setSupportOpenUserId] = useState<number | null>(null);
+  const [supportStatusFilter, setSupportStatusFilter] = useState<string>('open');
+  const [supportOpenTicketId, setSupportOpenTicketId] = useState<number | null>(null);
   const [supportMessages, setSupportMessages] = useState<any[]>([]);
   const [supportReply, setSupportReply] = useState('');
   const [supportSending, setSupportSending] = useState(false);
@@ -268,12 +269,13 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
     if (!creditHistoryLoaded) fetchCreditHistory();
   }, [isAdmin, token, section, creditHistoryLoaded, fetchCreditHistory]);
 
-  const fetchSupportConversations = React.useCallback(() => {
+  const fetchSupportTickets = React.useCallback(() => {
     if (!token) return;
-    axios.get('/support/admin/conversations', { headers })
-      .then((r) => setSupportConversations(Array.isArray(r.data) ? r.data : []))
+    const q = supportStatusFilter ? `?status=${supportStatusFilter}` : '';
+    axios.get(`/support/admin/tickets${q}`, { headers })
+      .then((r) => setSupportTickets(Array.isArray(r.data) ? r.data : []))
       .catch(() => {});
-  }, [token, headers]);
+  }, [token, headers, supportStatusFilter]);
 
   const fetchSupportUnread = React.useCallback(() => {
     if (!token) return;
@@ -291,33 +293,50 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
 
   useEffect(() => {
     if (!isAdmin || !token || section !== 'support') return;
-    fetchSupportConversations();
-    const iv = setInterval(fetchSupportConversations, 5000);
+    fetchSupportTickets();
+    const iv = setInterval(fetchSupportTickets, 5000);
     return () => clearInterval(iv);
-  }, [isAdmin, token, section, fetchSupportConversations]);
+  }, [isAdmin, token, section, fetchSupportTickets]);
 
-  const openSupportDialog = async (userId: number) => {
-    setSupportOpenUserId(userId);
+  const openSupportTicket = async (ticketId: number) => {
+    setSupportOpenTicketId(ticketId);
     setSupportMessages([]);
     try {
-      const r = await axios.get(`/support/admin/conversations/${userId}`, { headers });
+      const r = await axios.get(`/support/admin/tickets/${ticketId}/messages`, { headers });
       setSupportMessages(Array.isArray(r.data) ? r.data : []);
-      fetchSupportConversations();
+      fetchSupportTickets();
       fetchSupportUnread();
     } catch {}
   };
 
   const sendSupportReply = async () => {
-    if (!supportOpenUserId || !supportReply.trim() || supportSending) return;
+    if (!supportOpenTicketId || !supportReply.trim() || supportSending) return;
     setSupportSending(true);
     try {
-      await axios.post(`/support/admin/conversations/${supportOpenUserId}/messages`, { text: supportReply.trim() }, { headers });
+      await axios.post(`/support/admin/tickets/${supportOpenTicketId}/messages`, { text: supportReply.trim() }, { headers });
       setSupportReply('');
-      const r = await axios.get(`/support/admin/conversations/${supportOpenUserId}`, { headers });
+      const r = await axios.get(`/support/admin/tickets/${supportOpenTicketId}/messages`, { headers });
       setSupportMessages(Array.isArray(r.data) ? r.data : []);
-      fetchSupportConversations();
+      fetchSupportTickets();
     } catch {}
     setSupportSending(false);
+  };
+
+  const closeSupportTicket = async () => {
+    if (!supportOpenTicketId) return;
+    try {
+      await axios.post(`/support/admin/tickets/${supportOpenTicketId}/close`, {}, { headers });
+      fetchSupportTickets();
+      setSupportOpenTicketId(null);
+    } catch {}
+  };
+
+  const reopenSupportTicket = async () => {
+    if (!supportOpenTicketId) return;
+    try {
+      await axios.post(`/support/admin/tickets/${supportOpenTicketId}/reopen`, {}, { headers });
+      fetchSupportTickets();
+    } catch {}
   };
 
   const handleCreditBalance = async () => {
@@ -705,25 +724,48 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
       )}
       {section === 'support' && (
         <section className="admin-section">
-          {supportOpenUserId ? (
+          {supportOpenTicketId ? (() => {
+            const ticket = supportTickets.find((t: any) => t.id === supportOpenTicketId);
+            return (
             <div className="admin-support-dialog">
               <div className="admin-support-dialog-header">
-                <button type="button" className="admin-support-back" onClick={() => { setSupportOpenUserId(null); fetchSupportConversations(); }}>
-                  ← К диалогам
+                <button type="button" className="admin-support-back" onClick={() => { setSupportOpenTicketId(null); fetchSupportTickets(); }}>
+                  ← К тикетам
                 </button>
-                <span className="admin-support-dialog-title">Диалог #{supportOpenUserId}</span>
+                <span className="admin-support-dialog-title">Тикет #{supportOpenTicketId} — {ticket?.nickname || ticket?.username || 'Игрок'}</span>
+                <span className={`admin-support-ticket-status admin-support-ticket-status--${ticket?.status || 'open'}`}>
+                  {ticket?.status === 'closed' ? 'Закрыт' : 'Открыт'}
+                </span>
+                {ticket?.status === 'open' ? (
+                  <button type="button" className="admin-support-close-btn" onClick={closeSupportTicket}>Закрыть тикет</button>
+                ) : (
+                  <button type="button" className="admin-support-reopen-btn" onClick={reopenSupportTicket}>Переоткрыть</button>
+                )}
               </div>
               <div className="admin-support-messages">
                 {supportMessages.length === 0 && <div className="admin-support-empty">Нет сообщений</div>}
-                {supportMessages.map((m: any) => (
-                  <div key={m.id} className={`admin-support-msg ${m.senderRole === 'user' ? 'admin-support-msg--user' : 'admin-support-msg--admin'}`}>
-                    <div className="admin-support-msg-bubble">
-                      <div className="admin-support-msg-sender">{m.senderRole === 'user' ? 'Игрок' : 'Поддержка'}</div>
-                      <div className="admin-support-msg-text">{m.text}</div>
-                      <div className="admin-support-msg-time">{m.createdAt ? new Date(m.createdAt).toLocaleString('ru-RU') : ''}</div>
-                    </div>
-                  </div>
-                ))}
+                {(() => { let lastD = ''; return supportMessages.map((m: any) => {
+                  const d = m.createdAt ? new Date(m.createdAt) : null;
+                  const dk = d ? `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}` : '';
+                  const showDate = dk !== lastD;
+                  if (showDate) lastD = dk;
+                  return (
+                    <React.Fragment key={m.id}>
+                      {showDate && d && <div className="admin-support-date-sep">{d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' })}</div>}
+                      <div className={`admin-support-msg ${m.senderRole === 'user' ? 'admin-support-msg--user' : 'admin-support-msg--admin'}`}>
+                        <div className="admin-support-msg-col">
+                          <div className="admin-support-msg-sender">{m.senderRole === 'user' ? (ticket?.nickname || ticket?.username || 'Игрок') : 'Поддержка'}</div>
+                          <div className="admin-support-msg-bubble">
+                            <div className="admin-support-msg-body">
+                              <div className="admin-support-msg-text">{m.text}</div>
+                              <span className="admin-support-msg-time">{d ? d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : ''}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </React.Fragment>
+                  );
+                }); })()}
               </div>
               <div className="admin-support-reply-wrap">
                 <textarea
@@ -739,19 +781,28 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                 </button>
               </div>
             </div>
-          ) : (
+            );
+          })() : (
             <div>
-              <h3>Диалоги с игроками</h3>
-              {supportConversations.length === 0 ? (
+              <div className="admin-support-filter-row">
+                <h3>Обращения</h3>
+                <select className="admin-support-filter-select" value={supportStatusFilter} onChange={(e) => setSupportStatusFilter(e.target.value)}>
+                  <option value="">Все</option>
+                  <option value="open">Открытые</option>
+                  <option value="closed">Закрытые</option>
+                </select>
+              </div>
+              {supportTickets.length === 0 ? (
                 <p>Обращений пока нет</p>
               ) : (
                 <div className="admin-table-wrap">
                   <table className="admin-table">
                     <thead>
                       <tr>
-                        <th>ID</th>
+                        <th>#</th>
                         <th>Игрок</th>
                         <th>Email</th>
+                        <th>Статус</th>
                         <th>Последнее сообщение</th>
                         <th>Дата</th>
                         <th>Непрочитано</th>
@@ -759,15 +810,20 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                       </tr>
                     </thead>
                     <tbody>
-                      {supportConversations.map((c: any) => (
-                        <tr key={c.userId} className={Number(c.unreadCount) > 0 ? 'admin-support-row-unread' : ''}>
-                          <td>{c.userId}</td>
-                          <td>{c.nickname || c.username || '—'}</td>
-                          <td>{c.email || '—'}</td>
-                          <td className="admin-support-last-text">{c.lastText?.slice(0, 60)}{c.lastText?.length > 60 ? '…' : ''}</td>
-                          <td>{c.lastMessageAt ? new Date(c.lastMessageAt).toLocaleString('ru-RU') : '—'}</td>
-                          <td>{Number(c.unreadCount) > 0 ? <span className="admin-tab-badge">{c.unreadCount}</span> : '—'}</td>
-                          <td><button type="button" className="admin-support-open-btn" onClick={() => openSupportDialog(c.userId)}>Открыть</button></td>
+                      {supportTickets.map((t: any) => (
+                        <tr key={t.id} className={Number(t.unreadCount) > 0 ? 'admin-support-row-unread' : ''}>
+                          <td>{t.id}</td>
+                          <td>{t.nickname || t.username || '—'}</td>
+                          <td>{t.email || '—'}</td>
+                          <td>
+                            <span className={`admin-support-ticket-status admin-support-ticket-status--${t.status}`}>
+                              {t.status === 'open' ? 'Открыт' : 'Закрыт'}
+                            </span>
+                          </td>
+                          <td className="admin-support-last-text">{t.lastText?.slice(0, 60)}{t.lastText?.length > 60 ? '…' : ''}</td>
+                          <td>{t.lastMessageAt ? new Date(t.lastMessageAt).toLocaleString('ru-RU') : '—'}</td>
+                          <td>{Number(t.unreadCount) > 0 ? <span className="admin-tab-badge">{t.unreadCount}</span> : '—'}</td>
+                          <td><button type="button" className="admin-support-open-btn" onClick={() => openSupportTicket(t.id)}>Открыть</button></td>
                         </tr>
                       ))}
                     </tbody>
