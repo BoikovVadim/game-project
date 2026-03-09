@@ -4313,7 +4313,6 @@ body.partner-modal-open {
   align-items: center;
   gap: 8px;
   min-height: 1.5em;
-  max-height: 1.5em;
 }
 
 .user-info > .user-info-row-name:last-child,
@@ -5226,14 +5225,6 @@ button.bracket-player-name-btn:active {
 }
 
 /* ---------- Gender & Birthdate ---------- */
-.user-info-row-gender,
-.user-info-row-birthdate {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
 .gender-selector {
   display: flex;
   gap: 6px;
@@ -5286,12 +5277,6 @@ button.bracket-player-name-btn:active {
 }
 
 @media (max-width: 767px) {
-  .user-info-row-gender,
-  .user-info-row-birthdate {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
-  }
   .gender-btn {
     font-size: 12px;
     padding: 3px 12px;

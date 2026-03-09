@@ -2596,9 +2596,9 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
             <span className="user-info-label">Лига:</span>{' '}
             <span className="user-info-value">{stats?.maxLeagueName ?? (stats === null && !statsError ? '…' : '—')}</span>
           </p>
-          <div className="user-info-row user-info-row-gender">
+          <p className="user-info-row">
             <span className="user-info-label">Пол:</span>
-            <div className="gender-selector">
+            <span className="user-info-value gender-selector">
               {(['male', 'female'] as const).map((g) => (
                 <button
                   key={g}
@@ -2615,9 +2615,9 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                   {g === 'male' ? 'Мужской' : 'Женский'}
                 </button>
               ))}
-            </div>
-          </div>
-          <div className="user-info-row user-info-row-birthdate">
+            </span>
+          </p>
+          <p className="user-info-row">
             <span className="user-info-label">Дата рождения:</span>
             <input
               type="date"
@@ -2632,7 +2632,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                 } catch (_) {}
               }}
             />
-          </div>
+          </p>
         </div>
       </div>
     </div>
