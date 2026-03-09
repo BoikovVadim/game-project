@@ -2377,9 +2377,11 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
               aria-label="Тех. поддержка"
             >
               <span className="cabinet-header-chat-icon-wrap">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                </svg>
+                <span className="cabinet-header-chat-icon" aria-hidden>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                  </svg>
+                </span>
                 {hasSupportUnread && <span className="cabinet-header-bell-badge" />}
               </span>
             </button>
@@ -2402,7 +2404,6 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                 <span className="cabinet-header-news-badge" aria-label="Есть непрочитанные новости" />
               )}
             </span>
-            <span className="cabinet-header-news-label">Новости</span>
           </button>
           </div>
           <div className="cabinet-header-center">

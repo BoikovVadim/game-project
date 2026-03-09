@@ -431,13 +431,17 @@
 .cabinet-header-chat {
   display: inline-flex;
   align-items: center;
+  gap: 4px;
   padding: 2px 6px;
+  font-size: 13px;
+  font-weight: 500;
   background: transparent;
   color: #666;
   border: none;
   border-radius: 6px;
   cursor: pointer;
-  transition: color 0.2s, background 0.2s;
+  transition: color 0.2s, background 0.2s, box-shadow 0.2s;
+  box-shadow: none;
 }
 
 .cabinet-header-chat:hover {
@@ -445,10 +449,22 @@
   background: #f0f0f0;
 }
 
+.cabinet-header-chat .cabinet-header-chat-icon {
+  color: var(--gold-dark, #c9a227);
+}
+
 .cabinet-header-chat-icon-wrap {
   position: relative;
-  display: inline-flex;
+  display: flex;
   align-items: center;
+  justify-content: center;
+}
+
+.cabinet-header-chat-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
 }
 
 .cabinet-header-bell {
