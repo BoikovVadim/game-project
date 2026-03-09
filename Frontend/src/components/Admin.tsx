@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { formatMoscowDateTimeFull } from './dateUtils.ts';
 import './Admin.css';
 
@@ -65,6 +65,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
 
   const [statsGroupBy, setStatsGroupBy] = useState<'day' | 'week' | 'month' | 'all'>('day');
   const [statsData, setStatsData] = useState<{ period: string; registrations: number; withdrawals: number; topups: number; gameIncome: number }[]>([]);
+  const [statsMetrics, setStatsMetrics] = useState<Set<string>>(() => new Set(['registrations', 'topups', 'withdrawals', 'gameIncome']));
 
   // Восстановить вкладку и фильтр статуса из URL при загрузке/обновлении
   useEffect(() => {
@@ -917,59 +918,108 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                   <div className="admin-stats-kpi-label">Доход игры</div>
                 </div>
               </div>
-              {statsData.length === 0 ? (
-                <p className="admin-stats-empty">Нет данных за выбранный период</p>
-              ) : (
-                <>
-                  <div className="admin-stats-chart">
-                    <ResponsiveContainer width="100%" height={400}>
-                      <BarChart data={statsData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="period" />
-                        <YAxis yAxisId="left" />
-                        <YAxis yAxisId="right" orientation="right" />
-                        <Tooltip formatter={(value: number, name: string) => [typeof value === 'number' ? value.toLocaleString('ru-RU') : value, name]} />
-                        <Legend />
-                        <Bar yAxisId="left" dataKey="registrations" name="Регистрации" fill="#8884d8" />
-                        <Bar yAxisId="right" dataKey="withdrawals" name="Выводы (₽)" fill="#ff7c7c" />
-                        <Bar yAxisId="right" dataKey="topups" name="Пополнения (₽)" fill="#82ca9d" />
-                        <Bar yAxisId="right" dataKey="gameIncome" name="Доход игры (₽)" fill="#ffc658" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <div className="admin-table-wrap">
-                    <table className="admin-table">
-                      <thead>
-                        <tr>
-                          <th>Период</th>
-                          <th>Регистрации</th>
-                          <th>Пополнения (₽)</th>
-                          <th>Выводы (₽)</th>
-                          <th>Доход игры (₽)</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {statsData.map((d) => (
-                          <tr key={d.period}>
-                            <td>{d.period}</td>
-                            <td>{fmt(d.registrations)}</td>
-                            <td>{fmt(d.topups)}</td>
-                            <td>{fmt(d.withdrawals)}</td>
-                            <td>{fmt(d.gameIncome)}</td>
-                          </tr>
-                        ))}
-                        <tr className="admin-stats-totals-row">
-                          <td><strong>Итого</strong></td>
-                          <td><strong>{fmt(totals.registrations)}</strong></td>
-                          <td><strong>{fmt(totals.topups)} ₽</strong></td>
-                          <td><strong>{fmt(totals.withdrawals)} ₽</strong></td>
-                          <td><strong>{fmt(totals.gameIncome)} ₽</strong></td>
-                        </tr>
-                      </tbody>
-                    </table>
-                  </div>
-                </>
-              )}
+              {(() => {
+                const metrics: { key: string; label: string; color: string; yAxisId: string }[] = [
+                  { key: 'registrations', label: 'Регистрации', color: '#8884d8', yAxisId: 'left' },
+                  { key: 'topups', label: 'Пополнения (₽)', color: '#82ca9d', yAxisId: 'right' },
+                  { key: 'withdrawals', label: 'Выводы (₽)', color: '#ff7c7c', yAxisId: 'right' },
+                  { key: 'gameIncome', label: 'Доход игры (₽)', color: '#ffc658', yAxisId: 'right' },
+                ];
+                const toggleMetric = (key: string) => {
+                  setStatsMetrics((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(key)) next.delete(key);
+                    else next.add(key);
+                    return next;
+                  });
+                };
+                const active = metrics.filter((m) => statsMetrics.has(m.key));
+                const needLeftAxis = active.some((m) => m.yAxisId === 'left');
+                const needRightAxis = active.some((m) => m.yAxisId === 'right');
+                return (
+                  <>
+                    <div className="admin-stats-metrics-toggle">
+                      {metrics.map((m) => (
+                        <button
+                          key={m.key}
+                          type="button"
+                          className={`admin-stats-metric-btn ${statsMetrics.has(m.key) ? 'active' : ''}`}
+                          style={{ '--metric-color': m.color } as React.CSSProperties}
+                          onClick={() => toggleMetric(m.key)}
+                        >
+                          <span className="admin-stats-metric-dot" />
+                          {m.label}
+                        </button>
+                      ))}
+                    </div>
+                    {statsData.length === 0 ? (
+                      <p className="admin-stats-empty">Нет данных за выбранный период</p>
+                    ) : active.length === 0 ? (
+                      <p className="admin-stats-empty">Выберите хотя бы одну метрику</p>
+                    ) : (
+                      <>
+                        <div className="admin-stats-chart">
+                          <ResponsiveContainer width="100%" height={400}>
+                            <LineChart data={statsData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+                              <CartesianGrid strokeDasharray="3 3" />
+                              <XAxis dataKey="period" />
+                              {needLeftAxis && <YAxis yAxisId="left" />}
+                              {needRightAxis && <YAxis yAxisId="right" orientation="right" />}
+                              {!needLeftAxis && !needRightAxis && <YAxis yAxisId="left" />}
+                              <Tooltip formatter={(value: number, name: string) => [typeof value === 'number' ? value.toLocaleString('ru-RU') : value, name]} />
+                              <Legend />
+                              {active.map((m) => (
+                                <Line
+                                  key={m.key}
+                                  yAxisId={m.yAxisId}
+                                  type="monotone"
+                                  dataKey={m.key}
+                                  name={m.label}
+                                  stroke={m.color}
+                                  strokeWidth={2}
+                                  dot={{ r: 4 }}
+                                  activeDot={{ r: 6 }}
+                                />
+                              ))}
+                            </LineChart>
+                          </ResponsiveContainer>
+                        </div>
+                        <div className="admin-table-wrap">
+                          <table className="admin-table">
+                            <thead>
+                              <tr>
+                                <th>Период</th>
+                                <th>Регистрации</th>
+                                <th>Пополнения (₽)</th>
+                                <th>Выводы (₽)</th>
+                                <th>Доход игры (₽)</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {statsData.map((d) => (
+                                <tr key={d.period}>
+                                  <td>{d.period}</td>
+                                  <td>{fmt(d.registrations)}</td>
+                                  <td>{fmt(d.topups)}</td>
+                                  <td>{fmt(d.withdrawals)}</td>
+                                  <td>{fmt(d.gameIncome)}</td>
+                                </tr>
+                              ))}
+                              <tr className="admin-stats-totals-row">
+                                <td><strong>Итого</strong></td>
+                                <td><strong>{fmt(totals.registrations)}</strong></td>
+                                <td><strong>{fmt(totals.topups)} ₽</strong></td>
+                                <td><strong>{fmt(totals.withdrawals)} ₽</strong></td>
+                                <td><strong>{fmt(totals.gameIncome)} ₽</strong></td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </>
+                    )}
+                  </>
+                );
+              })()}
             </div>
             );
           })()}

@@ -963,6 +963,51 @@
   font-weight: 500;
 }
 
+.admin-stats-metrics-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.admin-stats-metric-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 2px solid #ddd;
+  border-radius: 20px;
+  background: #fff;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.admin-stats-metric-btn:hover {
+  border-color: var(--metric-color, #999);
+  color: #333;
+}
+
+.admin-stats-metric-btn.active {
+  border-color: var(--metric-color, #999);
+  background: var(--metric-color, #999);
+  color: #fff;
+}
+
+.admin-stats-metric-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--metric-color, #999);
+  flex-shrink: 0;
+}
+
+.admin-stats-metric-btn.active .admin-stats-metric-dot {
+  background: #fff;
+}
+
 .admin-stats-empty {
   text-align: center;
   color: #999;
@@ -986,5 +1031,12 @@
 @media (max-width: 640px) {
   .admin-stats-kpi {
     grid-template-columns: repeat(2, 1fr);
+  }
+  .admin-stats-metrics-toggle {
+    gap: 6px;
+  }
+  .admin-stats-metric-btn {
+    font-size: 12px;
+    padding: 5px 10px;
   }
 }
