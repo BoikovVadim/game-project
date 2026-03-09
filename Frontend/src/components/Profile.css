@@ -721,6 +721,12 @@
   max-width: 100%;
 }
 
+.cabinet-content > .cabinet-games {
+  max-width: 100%;
+  width: 100%;
+  align-self: stretch;
+}
+
 .cabinet-balance {
   display: flex;
   align-items: center;
@@ -3129,7 +3135,7 @@ body.partner-modal-open {
 
 .cabinet-games {
   padding: 24px;
-  max-width: 640px;
+  max-width: 100%;
 }
 
 .cabinet-games h2 {
@@ -3149,7 +3155,7 @@ body.partner-modal-open {
 .cabinet-games--training .game-mode-content {
   margin-top: 0;
   width: 100%;
-  max-width: 520px;
+  max-width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -3159,6 +3165,7 @@ body.partner-modal-open {
 .cabinet-games--training .game-mode-panel {
   padding-top: 20px;
   width: 100%;
+  max-width: 520px;
   box-sizing: border-box;
 }
 
@@ -3179,7 +3186,7 @@ body.partner-modal-open {
 .cabinet-games--money .game-mode-content {
   margin-top: 0;
   width: 100%;
-  max-width: 520px;
+  max-width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -3189,6 +3196,7 @@ body.partner-modal-open {
 .cabinet-games--money .game-mode-panel {
   padding-top: 20px;
   width: 100%;
+  max-width: 520px;
   box-sizing: border-box;
 }
 
@@ -3754,6 +3762,8 @@ body.partner-modal-open {
   margin-top: 24px;
   padding-top: 20px;
   border-top: 1px solid rgba(0, 0, 0, 0.08);
+  width: 100%;
+  align-self: stretch;
 }
 
 .game-history h4 {
