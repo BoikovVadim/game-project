@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { User } from '../users/user.entity';
 import { WithdrawalRequest } from '../users/withdrawal-request.entity';
+import { Transaction } from '../users/transaction.entity';
 import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
 
@@ -277,7 +278,8 @@ export class AdminService {
 
       const topupRows = await this.dataSource.query(
         `SELECT ${dateExprT} AS period, COALESCE(SUM(t.amount), 0) AS amt FROM "transaction" t
-         WHERE t.category = 'topup' GROUP BY ${dateExprT} ORDER BY period`,
+         WHERE (t.category = 'topup' OR (t.category = 'other' AND (t.description LIKE '%пополнение%' OR t.description LIKE '%Пополнение%')))
+         GROUP BY ${dateExprT} ORDER BY period`,
       );
 
       const gamePeriodExpr = groupBy === 'day' ? 'date(tr.createdAt)' : groupBy === 'week' ? "strftime('%Y-%W', tr.createdAt)" : groupBy === 'month' ? "strftime('%Y-%m', tr.createdAt)" : "'all'";
@@ -327,5 +329,42 @@ export class AdminService {
     if (!target) throw new NotFoundException('Пользователь не найден');
     const token = this.jwtService.sign({ username: target.username, sub: target.id });
     return { access_token: token };
+  }
+
+  /** Все транзакции (пополнения, выводы, выигрыши) для админки */
+  async getTransactions(category?: string): Promise<{
+    id: number; userId: number; username: string; email: string;
+    amount: number; description: string; category: string; createdAt: string;
+  }[]> {
+    const allowed = ['topup', 'withdraw', 'win', 'other'];
+    const filterCat = category && allowed.includes(category) ? category : null;
+    try {
+      const catCondition = filterCat
+        ? `AND t.category = ?`
+        : `AND t.category IN ('topup', 'withdraw', 'win', 'other')`;
+      const params = filterCat ? [filterCat] : [];
+      const rows = await this.dataSource.query(
+        `SELECT t.id, t.userId, u.username, u.email, t.amount, t.description, t.category, t.createdAt
+         FROM "transaction" t
+         LEFT JOIN "user" u ON u.id = t.userId
+         WHERE 1=1 ${catCondition}
+         ORDER BY t.id DESC
+         LIMIT 2000`,
+        params,
+      );
+      return (rows || []).map((r: any) => ({
+        id: Number(r.id),
+        userId: Number(r.userId),
+        username: String(r.username ?? ''),
+        email: String(r.email ?? ''),
+        amount: Number(r.amount),
+        description: String(r.description ?? ''),
+        category: String(r.category ?? ''),
+        createdAt: toISOUtc(r.createdAt) ?? '',
+      }));
+    } catch (e) {
+      console.error('[AdminService.getTransactions]', e);
+      return [];
+    }
   }
 }

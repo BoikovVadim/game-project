@@ -60,6 +60,11 @@ export class AdminController {
     return this.adminService.getStats(groupBy || 'day');
   }
 
+  @Get('transactions')
+  getTransactions(@Query('category') category?: string) {
+    return this.adminService.getTransactions(category);
+  }
+
   @Post('users/:id/set-admin')
   setUserAdmin(
     @Param('id', ParseIntPipe) id: number,

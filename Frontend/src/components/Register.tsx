@@ -127,16 +127,16 @@ const Register: React.FC = () => {
           value={referralInput}
           onChange={(e) => setReferralInput(e.target.value)}
         />
-        <label style={{ display: 'flex', alignItems: 'baseline', margin: '5px 0', gap: '8px' }}>
+        <label style={{ display: 'flex', alignItems: 'baseline', margin: '5px 0', gap: '6px', fontSize: '12px', whiteSpace: 'nowrap' }}>
           <input
             type="checkbox"
             checked={acceptedTerms}
             onChange={(e) => setAcceptedTerms(e.target.checked)}
             required
           />
-          <span>Я ознакомлен и принимаю <Link to="/offer" target="_blank" style={{ color: '#1a73e8' }}>правила игры (оферту)</Link> <span style={{ color: '#c00' }}>*</span></span>
+          <span>Я ознакомлен и принимаю <Link to="/offer" target="_blank" style={{ color: '#1a73e8' }}>правила игры</Link> <span style={{ color: '#c00' }}>*</span></span>
         </label>
-        <label style={{ display: 'flex', alignItems: 'baseline', margin: '5px 0', gap: '8px' }}>
+        <label style={{ display: 'flex', alignItems: 'baseline', margin: '5px 0', gap: '6px', fontSize: '12px', whiteSpace: 'nowrap' }}>
           <input
             type="checkbox"
             checked={acceptedAge}

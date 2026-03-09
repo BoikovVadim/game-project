@@ -43,9 +43,25 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
   const [userSortBy, setUserSortBy] = useState<'id' | 'username' | 'email' | 'balance' | 'balanceRubles' | 'isAdmin'>('id');
   const [userSortDir, setUserSortDir] = useState<'asc' | 'desc'>('asc');
   const [userSearch, setUserSearch] = useState('');
-  const [section, setSection] = useState<'withdrawals' | 'users' | 'credit' | 'support' | 'statistics'>(() =>
-    tabFromUrl === 'users' ? 'users' : tabFromUrl === 'credit' ? 'credit' : tabFromUrl === 'support' ? 'support' : tabFromUrl === 'statistics' ? 'statistics' : 'withdrawals'
+  const [section, setSection] = useState<'withdrawals' | 'users' | 'credit' | 'support' | 'statistics' | 'news'>(() =>
+    tabFromUrl === 'users' ? 'users' : tabFromUrl === 'credit' ? 'credit' : tabFromUrl === 'support' ? 'support' : tabFromUrl === 'withdrawals' ? 'withdrawals' : tabFromUrl === 'news' ? 'news' : 'statistics'
   );
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const [newsList, setNewsList] = useState<{ id: number; topic: string; body: string; published: boolean; createdAt: string }[]>([]);
+  const [newsLoading, setNewsLoading] = useState(false);
+  const newsLoadedRef = React.useRef(false);
+  const [newsTopic, setNewsTopic] = useState('');
+  const [newsBody, setNewsBody] = useState('');
+  const [newsCreating, setNewsCreating] = useState(false);
+  const [newsError, setNewsError] = useState('');
+  const [newsSuccess, setNewsSuccess] = useState('');
+  const [newsEditId, setNewsEditId] = useState<number | null>(null);
+  const [newsEditTopic, setNewsEditTopic] = useState('');
+  const [newsEditBody, setNewsEditBody] = useState('');
+  const [newsDeleteConfirmId, setNewsDeleteConfirmId] = useState<number | null>(null);
+  const [newsPublishConfirm, setNewsPublishConfirm] = useState(false);
+  const [newsGenerating, setNewsGenerating] = useState(false);
   const [usersLoading, setUsersLoading] = useState(false);
   const [creditUserId, setCreditUserId] = useState('');
   const [creditAmount, setCreditAmount] = useState('');
@@ -67,6 +83,18 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
   const [statsData, setStatsData] = useState<{ period: string; registrations: number; withdrawals: number; topups: number; gameIncome: number }[]>([]);
   const [statsMetrics, setStatsMetrics] = useState<Set<string>>(() => new Set(['registrations', 'topups', 'withdrawals', 'gameIncome']));
 
+  const [statsSubTab, setStatsSubTab] = useState<'overview' | 'transactions'>(() => {
+    const sub = searchParams.get('statsTab');
+    return sub === 'transactions' ? 'transactions' : 'overview';
+  });
+  type TxRow = { id: number; userId: number; username: string; email: string; amount: number; description: string; category: string; createdAt: string };
+  const [txList, setTxList] = useState<TxRow[]>([]);
+  const [txLoading, setTxLoading] = useState(false);
+  const txLoadedRef = React.useRef(false);
+  const [txCategoryFilter, setTxCategoryFilter] = useState<'' | 'topup' | 'withdraw' | 'win' | 'other'>('');
+  const [txSortBy, setTxSortBy] = useState<'id' | 'userId' | 'username' | 'email' | 'category' | 'amount' | 'createdAt'>('id');
+  const [txSortDir, setTxSortDir] = useState<'asc' | 'desc'>('desc');
+
   // Восстановить вкладку и фильтр статуса из URL при загрузке/обновлении
   useEffect(() => {
     const tab = searchParams.get('tab');
@@ -77,15 +105,19 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
     else if (tab === 'support') setSection('support');
     else if (tab === 'statistics') setSection('statistics');
     else if (tab === 'withdrawals') setSection('withdrawals');
+    else if (tab === 'news') setSection('news');
     if (status === 'pending' || status === 'approved' || status === 'rejected' || status === '') {
       setWithdrawalStatusFilter(status);
     }
     if (groupBy === 'day' || groupBy === 'week' || groupBy === 'month' || groupBy === 'all') {
       setStatsGroupBy(groupBy);
     }
+    const sTab = searchParams.get('statsTab');
+    if (sTab === 'transactions') setStatsSubTab('transactions');
+    else if (sTab === 'overview' || !sTab) setStatsSubTab((prev) => sTab === 'overview' ? 'overview' : prev);
   }, [searchParams]);
 
-  const setSectionAndUrl = (next: 'withdrawals' | 'users' | 'credit' | 'support' | 'statistics') => {
+  const setSectionAndUrl = (next: 'withdrawals' | 'users' | 'credit' | 'support' | 'statistics' | 'news') => {
     setSection(next);
     setSearchParams((prev) => {
       const nextParams = new URLSearchParams(prev);
@@ -101,6 +133,10 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
       } else if (next === 'statistics') {
         nextParams.set('tab', 'statistics');
         nextParams.set('statsGroupBy', statsGroupBy);
+        nextParams.set('statsTab', statsSubTab);
+        nextParams.delete('status');
+      } else if (next === 'news') {
+        nextParams.set('tab', 'news');
         nextParams.delete('status');
       } else {
         nextParams.delete('tab');
@@ -368,6 +404,138 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
     fetchStats();
   }, [isAdmin, token, section, fetchStats]);
 
+  const fetchTransactions = React.useCallback(() => {
+    if (!token) return;
+    if (!txLoadedRef.current) setTxLoading(true);
+    const catParam = txCategoryFilter ? `?category=${txCategoryFilter}` : '';
+    axios.get<TxRow[]>(`/admin/transactions${catParam}`, { headers })
+      .then((r) => setTxList(Array.isArray(r.data) ? r.data : []))
+      .catch(() => setTxList([]))
+      .finally(() => { setTxLoading(false); txLoadedRef.current = true; });
+  }, [token, headers, txCategoryFilter]);
+
+  useEffect(() => {
+    if (!isAdmin || !token || section !== 'statistics' || statsSubTab !== 'transactions') return;
+    fetchTransactions();
+  }, [isAdmin, token, section, statsSubTab, fetchTransactions]);
+
+  const sortedTxList = React.useMemo(() => {
+    const list = [...txList];
+    const dir = txSortDir === 'asc' ? 1 : -1;
+    list.sort((a, b) => {
+      let va: string | number; let vb: string | number;
+      switch (txSortBy) {
+        case 'id': return (a.id - b.id) * dir;
+        case 'userId': return (a.userId - b.userId) * dir;
+        case 'amount': return (Number(a.amount) - Number(b.amount)) * dir;
+        case 'createdAt':
+          va = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          vb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return ((va as number) - (vb as number)) * dir;
+        case 'username': return (a.username || '').localeCompare(b.username || '', 'ru') * dir;
+        case 'email': return (a.email || '').localeCompare(b.email || '', 'ru') * dir;
+        case 'category': return (a.category || '').localeCompare(b.category || '', 'ru') * dir;
+        default: return 0;
+      }
+    });
+    return list;
+  }, [txList, txSortBy, txSortDir]);
+
+  const handleTxSort = (key: typeof txSortBy) => {
+    if (txSortBy === key) {
+      setTxSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setTxSortBy(key);
+      setTxSortDir('desc');
+    }
+  };
+
+  const TxSortableTh = ({ sortKey, children }: { sortKey: typeof txSortBy; children: React.ReactNode }) => (
+    <th className="admin-table-th-sortable" onClick={() => handleTxSort(sortKey)}>
+      {children}
+      {txSortBy === sortKey && <span className="admin-table-sort-icon" aria-hidden>{txSortDir === 'asc' ? ' ↑' : ' ↓'}</span>}
+    </th>
+  );
+
+  const fetchNews = React.useCallback(() => {
+    if (!token) return;
+    if (!newsLoadedRef.current) setNewsLoading(true);
+    axios.get<{ id: number; topic: string; body: string; published: boolean; createdAt: string }[]>(
+      '/news/admin', { headers },
+    )
+      .then((r) => setNewsList(Array.isArray(r.data) ? r.data : []))
+      .catch(() => setNewsList([]))
+      .finally(() => { setNewsLoading(false); newsLoadedRef.current = true; });
+  }, [token, headers]);
+
+  useEffect(() => {
+    if (!isAdmin || !token || section !== 'news') return;
+    fetchNews();
+  }, [isAdmin, token, section, fetchNews]);
+
+  const handleGenerateNews = async () => {
+    setNewsGenerating(true);
+    setNewsError('');
+    try {
+      const res = await axios.post<{ topic: string; body: string }>('/news/generate', {}, { headers });
+      setNewsTopic(res.data.topic || '');
+      setNewsBody(res.data.body || '');
+    } catch (err: any) {
+      const msg = err?.response?.data?.message || err?.message || 'Ошибка при генерации';
+      setNewsError(typeof msg === 'string' ? msg : 'Ошибка при генерации');
+    } finally {
+      setNewsGenerating(false);
+    }
+  };
+
+  const handleCreateNews = async () => {
+    setNewsCreating(true);
+    setNewsSuccess('');
+    try {
+      await axios.post('/news', { topic: newsTopic.trim(), body: newsBody.trim() }, { headers });
+      setNewsSuccess('Новость опубликована');
+      setNewsTopic('');
+      setNewsBody('');
+      fetchNews();
+      setTimeout(() => setNewsSuccess(''), 3000);
+    } catch {
+      setNewsError('Ошибка при создании новости');
+    } finally {
+      setNewsCreating(false);
+    }
+  };
+
+  const handleDeleteNews = async (id: number) => {
+    try {
+      await axios.delete(`/news/${id}`, { headers });
+      setNewsDeleteConfirmId(null);
+      fetchNews();
+    } catch {
+      setNewsError('Ошибка при удалении');
+      setNewsDeleteConfirmId(null);
+    }
+  };
+
+  const handleTogglePublish = async (id: number, published: boolean) => {
+    try {
+      await axios.put(`/news/${id}`, { published: !published }, { headers });
+      fetchNews();
+    } catch {
+      setNewsError('Ошибка при обновлении');
+    }
+  };
+
+  const handleSaveEdit = async (id: number) => {
+    if (!newsEditTopic.trim() || !newsEditBody.trim()) return;
+    try {
+      await axios.put(`/news/${id}`, { topic: newsEditTopic.trim(), body: newsEditBody.trim() }, { headers });
+      setNewsEditId(null);
+      fetchNews();
+    } catch {
+      setNewsError('Ошибка при сохранении');
+    }
+  };
+
   const handleCreditBalance = async () => {
     const uid = parseInt(creditUserId.trim(), 10);
     const amt = parseFloat(creditAmount.trim());
@@ -477,41 +645,59 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
         <div className="cabinet-header-left">
           <span className="admin-header-title">Админ-панель</span>
         </div>
-        <div className="cabinet-header-center" />
+        <div className="cabinet-header-center">
+          <div className="admin-menu-wrap">
+            <button type="button" className="admin-menu-trigger" onClick={() => setMenuOpen((v) => !v)}>
+              <svg width="14" height="14" viewBox="0 0 18 18" fill="none">
+                <rect x="1" y="1" width="7" height="7" rx="1.5" fill="currentColor" />
+                <rect x="10" y="1" width="7" height="7" rx="1.5" fill="currentColor" />
+                <rect x="1" y="10" width="7" height="7" rx="1.5" fill="currentColor" />
+                <rect x="10" y="10" width="7" height="7" rx="1.5" fill="currentColor" />
+              </svg>
+              <span className="admin-menu-label">Меню</span>
+              <svg className={`admin-menu-chevron ${menuOpen ? 'open' : ''}`} width="10" height="6" viewBox="0 0 10 6" fill="none"><path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+              {(pendingWithdrawalsCount > 0 || supportUnreadCount > 0) && (
+                <span className="admin-menu-dot" />
+              )}
+            </button>
+            {menuOpen && (
+              <>
+                <div className="admin-menu-backdrop" onClick={() => setMenuOpen(false)} />
+                <div className="admin-menu-dropdown">
+                  <button type="button" className={section === 'statistics' ? 'active' : ''} onClick={() => { setSectionAndUrl('statistics'); setMenuOpen(false); }}>
+                    Статистика
+                  </button>
+                  <button type="button" className={section === 'users' ? 'active' : ''} onClick={() => { setSectionAndUrl('users'); setMenuOpen(false); }}>
+                    Пользователи
+                  </button>
+                  <button type="button" className={section === 'withdrawals' ? 'active' : ''} onClick={() => { setSectionAndUrl('withdrawals'); setMenuOpen(false); }}>
+                    Заявки на вывод
+                    {pendingWithdrawalsCount > 0 && (
+                      <span className="admin-tab-badge">{pendingWithdrawalsCount}</span>
+                    )}
+                  </button>
+                  <button type="button" className={section === 'credit' ? 'active' : ''} onClick={() => { setSectionAndUrl('credit'); setMenuOpen(false); }}>
+                    Начисление
+                  </button>
+                  <button type="button" className={section === 'support' ? 'active' : ''} onClick={() => { setSectionAndUrl('support'); setMenuOpen(false); }}>
+                    Тех. поддержка
+                    {supportUnreadCount > 0 && (
+                      <span className="admin-tab-badge">{supportUnreadCount}</span>
+                    )}
+                  </button>
+                  <button type="button" className={section === 'news' ? 'active' : ''} onClick={() => { setSectionAndUrl('news'); setMenuOpen(false); }}>
+                    Новости
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
         <div className="cabinet-header-right">
           <Link to="/profile" className="admin-header-cabinet-link">Вернуться в кабинет</Link>
         </div>
       </header>
       <div className="admin-work-area">
-      <nav className="admin-tabs">
-        <div className="admin-tabs-left">
-          <button type="button" className={section === 'users' ? 'active' : ''} onClick={() => setSectionAndUrl('users')}>
-            Пользователи
-          </button>
-          <button type="button" className={section === 'withdrawals' ? 'active' : ''} onClick={() => setSectionAndUrl('withdrawals')}>
-            Заявки на вывод
-            {pendingWithdrawalsCount > 0 && (
-              <span className="admin-tab-badge" aria-label={`Ожидают: ${pendingWithdrawalsCount}`}>
-                {pendingWithdrawalsCount}
-              </span>
-            )}
-          </button>
-          <button type="button" className={section === 'credit' ? 'active' : ''} onClick={() => setSectionAndUrl('credit')}>
-            Начисление
-          </button>
-          <button type="button" className={section === 'support' ? 'active' : ''} onClick={() => setSectionAndUrl('support')}>
-            Тех. поддержка
-            {supportUnreadCount > 0 && (
-              <span className="admin-tab-badge" aria-label={`Непрочитано: ${supportUnreadCount}`}>
-                {supportUnreadCount}
-              </span>
-            )}
-          </button>
-          <button type="button" className={section === 'statistics' ? 'active' : ''} onClick={() => setSectionAndUrl('statistics')}>
-            Статистика
-          </button>
-        </div>
-      </nav>
       {error && <p className="admin-error">{error}</p>}
       {actionSuccessMsg && <p className="admin-success admin-action-saved">{actionSuccessMsg}</p>}
       {section === 'withdrawals' && approvedTransfer && (
@@ -868,7 +1054,11 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
       )}
       {section === 'statistics' && (
         <section className="admin-section">
-          {(() => {
+          <div className="admin-stats-subtabs">
+            <button type="button" className={`admin-stats-subtab${statsSubTab === 'overview' ? ' active' : ''}`} onClick={() => { setStatsSubTab('overview'); setSearchParams((p) => { const n = new URLSearchParams(p); n.set('statsTab', 'overview'); return n; }, { replace: true }); }}>Обзор</button>
+            <button type="button" className={`admin-stats-subtab${statsSubTab === 'transactions' ? ' active' : ''}`} onClick={() => { setStatsSubTab('transactions'); setSearchParams((p) => { const n = new URLSearchParams(p); n.set('statsTab', 'transactions'); return n; }, { replace: true }); }}>Транзакции</button>
+          </div>
+          {statsSubTab === 'overview' && (() => {
             const totals = statsData.reduce((acc, d) => ({
               registrations: acc.registrations + d.registrations,
               withdrawals: acc.withdrawals + d.withdrawals,
@@ -951,6 +1141,13 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                           {m.label}
                         </button>
                       ))}
+                      <button
+                        type="button"
+                        className="admin-stats-metric-reset"
+                        onClick={() => setStatsMetrics((prev) => prev.size === metrics.length ? new Set() : new Set(metrics.map((m) => m.key)))}
+                      >
+                        {statsMetrics.size === metrics.length ? 'Сбросить все' : 'Выбрать все'}
+                      </button>
                     </div>
                     {statsData.length === 0 ? (
                       <p className="admin-stats-empty">Нет данных за выбранный период</p>
@@ -1023,7 +1220,194 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
             </div>
             );
           })()}
+          {statsSubTab === 'transactions' && (
+            <div className="admin-stats-section">
+              <div className="admin-stats-controls">
+                <label>
+                  Тип:
+                  <select value={txCategoryFilter} onChange={(e) => { setTxCategoryFilter(e.target.value as '' | 'topup' | 'withdraw' | 'win' | 'other'); txLoadedRef.current = false; }}>
+                    <option value="">Все</option>
+                    <option value="topup">Пополнение</option>
+                    <option value="withdraw">Вывод</option>
+                    <option value="win">Выигрыш</option>
+                    <option value="other">Прочее</option>
+                  </select>
+                </label>
+              </div>
+              {txLoading && !txLoadedRef.current ? (
+                <p>Загрузка...</p>
+              ) : txList.length === 0 ? (
+                <p className="admin-stats-empty">Транзакций не найдено</p>
+              ) : (
+                <div className="admin-table-wrap">
+                  <table className="admin-table admin-table--transactions">
+                    <thead>
+                      <tr>
+                        <TxSortableTh sortKey="id">ID</TxSortableTh>
+                        <TxSortableTh sortKey="userId">Игрок (ID)</TxSortableTh>
+                        <TxSortableTh sortKey="username">Игрок</TxSortableTh>
+                        <TxSortableTh sortKey="email">Email</TxSortableTh>
+                        <TxSortableTh sortKey="category">Тип</TxSortableTh>
+                        <TxSortableTh sortKey="amount">Сумма</TxSortableTh>
+                        <th>Описание</th>
+                        <TxSortableTh sortKey="createdAt">Дата</TxSortableTh>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sortedTxList.map((tx) => (
+                        <tr key={tx.id}>
+                          <td>{tx.id}</td>
+                          <td>{tx.userId}</td>
+                          <td className="admin-td-left">{tx.username || '—'}</td>
+                          <td className="admin-td-left">{tx.email || '—'}</td>
+                          <td>
+                            {(() => {
+                              const isOtherTopup = tx.category === 'other' && /пополнение/i.test(tx.description);
+                              const badge = isOtherTopup ? 'topup' : tx.category;
+                              const label = badge === 'topup' ? 'Пополнение' : badge === 'withdraw' ? 'Вывод' : badge === 'win' ? 'Выигрыш' : badge === 'other' ? 'Прочее' : badge;
+                              return <span className={`admin-tx-badge admin-tx-badge--${badge}`}>{label}</span>;
+                            })()}
+                          </td>
+                          <td style={{ color: tx.amount >= 0 ? '#1a7f37' : '#cf222e', fontWeight: 600 }}>
+                            {tx.amount >= 0 ? '+' : ''}{Number(tx.amount).toFixed(2)} ₽
+                          </td>
+                          <td className="admin-td-left">{tx.description || '—'}</td>
+                          <td>{tx.createdAt ? formatMoscowDateTimeFull(tx.createdAt) : '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
         </section>
+      )}
+      {section === 'news' && (
+        <section className="admin-section admin-news-section">
+          <h2>Управление новостями</h2>
+          <div className="admin-news-form">
+            <h3>Создать новость</h3>
+            {newsError && <p className="admin-error">{newsError}</p>}
+            {newsSuccess && <p className="admin-success">{newsSuccess}</p>}
+            <input
+              type="text"
+              placeholder="Заголовок"
+              value={newsTopic}
+              onChange={(e) => setNewsTopic(e.target.value)}
+              className="admin-news-input"
+            />
+            <textarea
+              placeholder="Текст новости (поддерживается перенос строк)"
+              value={newsBody}
+              onChange={(e) => setNewsBody(e.target.value)}
+              className="admin-news-textarea"
+              rows={6}
+            />
+            <div className="admin-news-form-actions">
+              <button
+                type="button"
+                className="admin-news-generate-btn"
+                disabled={newsGenerating}
+                onClick={handleGenerateNews}
+              >
+                {newsGenerating ? (
+                  <>
+                    <span className="admin-news-spinner" />
+                    Генерация...
+                  </>
+                ) : (
+                  <>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
+                    Сгенерировать
+                  </>
+                )}
+              </button>
+              <button
+                type="button"
+                className="admin-news-publish-btn"
+                disabled={newsCreating}
+                onClick={() => {
+                  if (!newsTopic.trim()) { setNewsError('Введите заголовок'); return; }
+                  if (!newsBody.trim()) { setNewsError('Введите текст новости'); return; }
+                  setNewsError('');
+                  setNewsPublishConfirm(true);
+                }}
+              >
+                {newsCreating ? 'Публикация...' : 'Опубликовать'}
+              </button>
+            </div>
+          </div>
+          <div className="admin-news-list-section">
+            <h3>Все новости ({newsList.length})</h3>
+            {newsLoading && newsList.length === 0 && <p>Загрузка...</p>}
+            {!newsLoading && newsList.length === 0 && <p className="admin-stats-empty">Новостей пока нет</p>}
+            {newsList.map((item) => (
+              <div key={item.id} className={`admin-news-card ${!item.published ? 'unpublished' : ''}`}>
+                {newsEditId === item.id ? (
+                  <div className="admin-news-edit">
+                    <input
+                      type="text"
+                      value={newsEditTopic}
+                      onChange={(e) => setNewsEditTopic(e.target.value)}
+                      className="admin-news-input"
+                    />
+                    <textarea
+                      value={newsEditBody}
+                      onChange={(e) => setNewsEditBody(e.target.value)}
+                      className="admin-news-textarea"
+                      rows={5}
+                    />
+                    <div className="admin-news-edit-actions">
+                      <button type="button" onClick={() => handleSaveEdit(item.id)} className="admin-news-save-btn">Сохранить</button>
+                      <button type="button" onClick={() => setNewsEditId(null)} className="admin-news-cancel-btn">Отмена</button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="admin-news-card-header">
+                      <strong>{item.topic}</strong>
+                      <span className="admin-news-card-date">
+                        {new Date(item.createdAt).toLocaleDateString('ru-RU')}
+                      </span>
+                      {!item.published && <span className="admin-news-draft-badge">Скрыта</span>}
+                    </div>
+                    <p className="admin-news-card-body">{item.body}</p>
+                    <div className="admin-news-card-actions">
+                      <button type="button" onClick={() => { setNewsEditId(item.id); setNewsEditTopic(item.topic); setNewsEditBody(item.body); }}>Редактировать</button>
+                      <button type="button" onClick={() => handleTogglePublish(item.id, item.published)}>
+                        {item.published ? 'Скрыть' : 'Опубликовать'}
+                      </button>
+                      <button type="button" className="admin-news-delete-btn" onClick={() => setNewsDeleteConfirmId(item.id)}>Удалить</button>
+                    </div>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+      {newsPublishConfirm && (
+        <div className="admin-modal-overlay" onClick={() => setNewsPublishConfirm(false)}>
+          <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
+            <p className="admin-modal-text">Опубликовать новость?</p>
+            <div className="admin-modal-actions">
+              <button type="button" className="admin-modal-cancel" onClick={() => setNewsPublishConfirm(false)}>Отмена</button>
+              <button type="button" className="admin-modal-confirm admin-modal-confirm--publish" onClick={() => { setNewsPublishConfirm(false); handleCreateNews(); }}>Опубликовать</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {newsDeleteConfirmId !== null && (
+        <div className="admin-modal-overlay" onClick={() => setNewsDeleteConfirmId(null)}>
+          <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
+            <p className="admin-modal-text">Вы уверены, что хотите удалить эту новость?</p>
+            <div className="admin-modal-actions">
+              <button type="button" className="admin-modal-cancel" onClick={() => setNewsDeleteConfirmId(null)}>Отмена</button>
+              <button type="button" className="admin-modal-confirm" onClick={() => handleDeleteNews(newsDeleteConfirmId)}>Удалить</button>
+            </div>
+          </div>
+        </div>
       )}
       </div>
     </div>

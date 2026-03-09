@@ -24,6 +24,8 @@ import { AdminModule } from './admin/admin.module';
 import { SupportModule } from './support/support.module';
 import { SupportMessage } from './support/support-message.entity';
 import { SupportTicket } from './support/support-ticket.entity';
+import { NewsModule } from './news/news.module';
+import { News } from './news/news.entity';
 
 const frontendBuild = join(__dirname, '..', '..', 'Frontend', 'build');
 const dbByEnv = process.env.DATABASE_PATH ? resolve(process.env.DATABASE_PATH) : null;
@@ -47,7 +49,7 @@ console.log('[AppModule] database path:', databasePath, '| cwd:', process.cwd())
     TypeOrmModule.forRoot({
       type: 'sqlite',
       database: databasePath,
-      entities: [User, Tournament, Question, TournamentEntry, TournamentResult, TournamentProgress, TournamentEscrow, Transaction, Payment, WithdrawalRequest, SupportMessage, SupportTicket],
+      entities: [User, Tournament, Question, TournamentEntry, TournamentResult, TournamentProgress, TournamentEscrow, Transaction, Payment, WithdrawalRequest, SupportMessage, SupportTicket, News],
       synchronize: true,
       logging: true,
     }),
@@ -58,6 +60,7 @@ console.log('[AppModule] database path:', databasePath, '| cwd:', process.cwd())
     PaymentsModule,
     AdminModule,
     SupportModule,
+    NewsModule,
   ],
   controllers: [AppController],
   providers: [],

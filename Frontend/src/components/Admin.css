@@ -186,33 +186,96 @@
   height: 18px;
 }
 
-.admin-tabs {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 4px;
-}
-
-.admin-tabs-left {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.admin-tabs button {
-  padding: 4px 10px;
-  font-size: 12px;
-  border: 1px solid #ccc;
-  background: #f5f5f5;
-  cursor: pointer;
-  border-radius: 4px;
+.admin-menu-wrap {
   position: relative;
 }
 
-.admin-tabs button.active {
-  background: #e8d5a3;
-  border-color: #c9a227;
+.admin-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid #ccc;
+  background: #f9f9f9;
+  cursor: pointer;
+  border-radius: 6px;
+  color: #333;
+  transition: background 0.15s, border-color 0.15s;
+  line-height: 1;
+}
+
+.admin-menu-trigger:hover {
+  background: #f0f0f0;
+  border-color: #aaa;
+}
+
+.admin-menu-label {
+  white-space: nowrap;
+}
+
+.admin-menu-chevron {
+  transition: transform 0.2s;
+  color: #888;
+}
+
+.admin-menu-chevron.open {
+  transform: rotate(180deg);
+}
+
+.admin-menu-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #e53935;
+  flex-shrink: 0;
+}
+
+.admin-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 99;
+}
+
+.admin-menu-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 200px;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  z-index: 100;
+  padding: 4px 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-menu-dropdown button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  font-size: 13px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: #333;
+  text-align: left;
+  white-space: nowrap;
+  transition: background 0.12s;
+}
+
+.admin-menu-dropdown button:hover {
+  background: #f5f5f5;
+}
+
+.admin-menu-dropdown button.active {
+  background: #fdf6e3;
+  color: #8b6914;
+  font-weight: 600;
 }
 
 .admin-tab-badge {
@@ -908,6 +971,64 @@
   opacity: 0.85;
 }
 
+/* ---------- Statistics sub-tabs ---------- */
+.admin-stats-subtabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.admin-stats-subtab {
+  padding: 8px 20px;
+  background: transparent !important;
+  border: 2px solid #ddd;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  color: #666;
+  box-shadow: none;
+  transition: border-color 0.2s, color 0.2s, box-shadow 0.2s;
+}
+.admin-stats-subtab:hover {
+  color: #333;
+  border-color: #999;
+  background: transparent !important;
+  box-shadow: 0 0 0 3px rgba(0,0,0,0.08);
+}
+.admin-stats-subtab.active {
+  color: #111;
+  border-color: #111;
+  font-weight: 600;
+  background: transparent !important;
+  box-shadow: 0 0 0 3px rgba(0,0,0,0.12);
+}
+
+/* ---------- Transaction badges ---------- */
+.admin-tx-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.admin-tx-badge--topup {
+  background: #e6f4ea;
+  color: #1a7f37;
+}
+.admin-tx-badge--withdraw {
+  background: #fdecea;
+  color: #cf222e;
+}
+.admin-tx-badge--win {
+  background: #fff8e1;
+  color: #b8860b;
+}
+.admin-tx-badge--other {
+  background: #f0f0f0;
+  color: #555;
+}
+
 /* ---------- Statistics tab ---------- */
 .admin-stats-section {
   padding: 20px 0;
@@ -979,21 +1100,25 @@
   font-weight: 500;
   border: 2px solid #ddd;
   border-radius: 20px;
-  background: #fff;
+  background: transparent !important;
   color: #666;
   cursor: pointer;
-  transition: all 0.2s;
+  box-shadow: none;
+  transition: border-color 0.2s, color 0.2s, box-shadow 0.2s;
 }
 
 .admin-stats-metric-btn:hover {
   border-color: var(--metric-color, #999);
   color: #333;
+  background: transparent !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--metric-color, #999) 20%, transparent);
 }
 
 .admin-stats-metric-btn.active {
   border-color: var(--metric-color, #999);
-  background: var(--metric-color, #999);
-  color: #fff;
+  background: transparent !important;
+  color: #333;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--metric-color, #999) 25%, transparent);
 }
 
 .admin-stats-metric-dot {
@@ -1005,7 +1130,28 @@
 }
 
 .admin-stats-metric-btn.active .admin-stats-metric-dot {
-  background: #fff;
+  background: var(--metric-color, #999);
+}
+
+.admin-stats-metric-reset {
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  border: 2px solid #ddd;
+  border-radius: 20px;
+  background: transparent !important;
+  color: #999;
+  cursor: pointer;
+  box-shadow: none;
+  transition: border-color 0.2s, color 0.2s, box-shadow 0.2s;
+}
+.admin-stats-metric-reset:hover {
+  border-color: #999;
+  color: #333;
+  background: transparent !important;
+  box-shadow: 0 0 0 3px rgba(0,0,0,0.08);
 }
 
 .admin-stats-empty {
@@ -1039,4 +1185,308 @@
     font-size: 12px;
     padding: 5px 10px;
   }
+}
+
+/* ── News management ── */
+.admin-news-section h2 {
+  margin-bottom: 20px;
+}
+
+.admin-news-form {
+  background: #fff;
+  border-radius: 10px;
+  padding: 20px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+  margin-bottom: 28px;
+}
+
+.admin-news-form h3 {
+  margin: 0 0 14px;
+  font-size: 15px;
+}
+
+.admin-news-input {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 14px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  margin-bottom: 10px;
+  box-sizing: border-box;
+}
+
+.admin-news-textarea {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 14px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  resize: vertical;
+  margin-bottom: 12px;
+  box-sizing: border-box;
+  font-family: inherit;
+  line-height: 1.5;
+}
+
+.admin-news-form-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.admin-news-publish-btn {
+  padding: 8px 22px;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  border-radius: 6px;
+  background: #4caf50;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.admin-news-publish-btn:hover:not(:disabled) {
+  background: #43a047;
+}
+
+.admin-news-publish-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.admin-news-generate-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid #b0bec5;
+  border-radius: 6px;
+  background: #263238;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.admin-news-generate-btn:hover:not(:disabled) {
+  background: #37474f;
+  border-color: #90a4ae;
+}
+
+.admin-news-generate-btn:disabled {
+  opacity: 0.65;
+  cursor: default;
+}
+
+@keyframes admin-spin {
+  to { transform: rotate(360deg); }
+}
+
+.admin-news-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: admin-spin 0.7s linear infinite;
+}
+
+.admin-news-list-section h3 {
+  margin: 0 0 14px;
+  font-size: 15px;
+}
+
+.admin-news-card {
+  background: #fff;
+  border: 1px solid #e8e8e8;
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 12px;
+  transition: box-shadow 0.15s;
+}
+
+.admin-news-card:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.admin-news-card.unpublished {
+  opacity: 0.6;
+  border-color: #ddd;
+}
+
+.admin-news-card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.admin-news-card-date {
+  font-size: 12px;
+  color: #888;
+}
+
+.admin-news-draft-badge {
+  font-size: 11px;
+  background: #ff9800;
+  color: #fff;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 600;
+}
+
+.admin-news-card-body {
+  font-size: 13px;
+  color: #444;
+  margin: 0 0 12px;
+  white-space: pre-line;
+  line-height: 1.55;
+}
+
+.admin-news-card-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.admin-news-card-actions button {
+  padding: 5px 14px;
+  font-size: 12px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  background: #f7f7f7;
+  color: #222;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.admin-news-card-actions button:hover {
+  background: #eee;
+}
+
+.admin-news-delete-btn {
+  color: #d32f2f !important;
+  border-color: #e57373 !important;
+}
+
+.admin-news-delete-btn:hover {
+  background: #ffebee !important;
+}
+
+.admin-news-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.admin-news-edit-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.admin-news-save-btn {
+  padding: 6px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  border: none;
+  border-radius: 5px;
+  background: #4caf50;
+  color: #fff;
+  cursor: pointer;
+}
+
+.admin-news-save-btn:hover {
+  background: #43a047;
+}
+
+.admin-news-cancel-btn {
+  padding: 6px 16px;
+  font-size: 12px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  background: #f5f5f5;
+  cursor: pointer;
+}
+
+.admin-news-cancel-btn:hover {
+  background: #eee;
+}
+
+/* ── Delete confirmation modal ── */
+.admin-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.admin-modal {
+  background: #fff;
+  border-radius: 12px;
+  padding: 28px 32px 22px;
+  min-width: 320px;
+  max-width: 400px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.18);
+  text-align: center;
+}
+
+.admin-modal-text {
+  font-size: 15px;
+  color: #333;
+  margin: 0 0 20px;
+  line-height: 1.5;
+}
+
+.admin-modal-actions {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.admin-modal-cancel {
+  padding: 8px 20px;
+  font-size: 13px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  background: #f5f5f5;
+  color: #333;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.admin-modal-cancel:hover {
+  background: #e8e8e8;
+}
+
+.admin-modal-confirm {
+  padding: 8px 20px;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  border-radius: 6px;
+  background: #d32f2f;
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+
+.admin-modal-confirm:hover {
+  background: #b71c1c;
+}
+
+.admin-modal-confirm--publish {
+  background: #4caf50;
+}
+
+.admin-modal-confirm--publish:hover {
+  background: #388e3c;
 }

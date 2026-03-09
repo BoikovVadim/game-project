@@ -104,7 +104,7 @@ const GemIcon = ({ amount, className }: { amount: number; className?: string }) 
   );
 };
 
-const NewsItem = ({ id, topic, date, description, onRead }: { id: number; topic: string; date: string; description: React.ReactNode; onRead?: () => void }) => {
+const NewsItem = ({ id, topic, date, description, unread, onRead }: { id: number; topic: string; date: string; description: React.ReactNode; unread?: boolean; onRead?: () => void }) => {
   const [expanded, setExpanded] = useState(false);
   const handleToggle = () => {
     const next = !expanded;
@@ -112,13 +112,14 @@ const NewsItem = ({ id, topic, date, description, onRead }: { id: number; topic:
     if (next && onRead) onRead();
   };
   return (
-    <div className={`cabinet-news-item ${expanded ? 'expanded' : ''}`}>
+    <div className={`cabinet-news-item ${expanded ? 'expanded' : ''}${unread && !expanded ? ' cabinet-news-item--unread' : ''}`}>
       <button
         type="button"
         className="cabinet-news-item-header"
         onClick={handleToggle}
         aria-expanded={expanded}
       >
+        {unread && !expanded && <span className="cabinet-news-unread-dot" />}
         <span className="cabinet-news-item-topic">{topic}</span>
         <span className="cabinet-news-item-date">{date}</span>
         <span className="cabinet-news-item-chevron" aria-hidden>{expanded ? '▼' : '▶'}</span>
@@ -595,6 +596,12 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     gameModeRef.current = gameMode;
   }, [gameMode]);
 
+  useEffect(() => {
+    axios.get<{ id: number; topic: string; body: string; createdAt: string }[]>('/news')
+      .then((r) => setApiNews(Array.isArray(r.data) ? r.data : []))
+      .catch(() => {});
+  }, []);
+
   const goToSection = (s: CabinetSection, financeSub?: 'topup' | 'withdraw') => {
     let newHash: string;
     let sectionToSet: CabinetSection = s;
@@ -807,6 +814,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
       return [];
     }
   });
+  const [apiNews, setApiNews] = useState<{ id: number; topic: string; body: string; createdAt: string }[]>([]);
   const [allLeagues, setAllLeagues] = useState<number[]>([5, 10, 20, 50, 100, 200, 500]);
   const [allowedLeagues, setAllowedLeagues] = useState<number[]>([]);
   const [leagueWins, setLeagueWins] = useState<Record<number, number>>({});
@@ -2400,7 +2408,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                   <path d="M10 6h8v4h-8V6Z" />
                 </svg>
               </span>
-              {[1, 2, 3].some((id) => !readNewsIds.includes(id)) && (
+              {apiNews.some((n) => !readNewsIds.includes(n.id)) && (
                 <span className="cabinet-header-news-badge" aria-label="Есть непрочитанные новости" />
               )}
             </span>
@@ -4452,55 +4460,15 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
           <div className="cabinet-news">
             <h2>Новости</h2>
             <div className="cabinet-news-list">
-              {[
-                {
-                  id: 3,
-                  topic: 'Улучшения игры — 8 марта',
-                  date: '08.03.2025',
-                  description: (
-                    <>
-                      <p><strong>Математические вопросы.</strong> Все примеры теперь с трёхзначными числами (сложение, вычитание, умножение, деление). Исправлена ошибка, из‑за которой правильный ответ иногда не попадал в варианты: теперь верный ответ всегда есть среди четырёх кнопок.</p>
-                      <p><strong>Таймер на вопросе.</strong> Если не успели ответить и время вышло — правильный ответ по-прежнему подсвечивается мигающим зелёным и в тренировке, и в лигах. Так можно увидеть верный вариант даже при просрочке.</p>
-                      <p><strong>Просмотр вопросов после раунда.</strong> В модалке «Вопросы турнира» исправлено отображение бейджей «Правильный ответ» и «Мой ответ»: сохранённые ответы надёжнее подгружаются с сервера и показываются по полуфиналу и финалу. Убрана лишняя кнопка «Выйти из турнира» в конце матча — остаётся одна.</p>
-                      <p><strong>Подсчёт верных ответов.</strong> Исправлена рассинхронизация: число верных в конце раунда, в таблице истории и по бейджам теперь совпадает. При завершении раунда на сервер отправляется полный набор ответов.</p>
-                    </>
-                  ),
-                },
-                {
-                  id: 2,
-                  topic: 'Исправления турниров и новостей',
-                  date: '07.03.2025',
-                  description: (
-                    <>
-                      <p><strong>Кнопка «Продолжить игру».</strong> Теперь становится неактивной, когда все вопросы текущего раунда отвечены и вы ожидаете соперника. Это предотвращает случайный повторный вход в игру.</p>
-                      <p><strong>Логика продолжения игры.</strong> Исправлена ошибка, при которой после ответа на 10 вопросов полуфинала можно было начать отвечать на вопросы финала. Теперь при завершении полуфинала показывается экран результата с кнопкой «В финал», а не первый вопрос финала. Аналогично для финала — при 20 ответах показывается экран завершения.</p>
-                      <p><strong>Таблица активных игр.</strong> Прогресс отображается корректно по текущему раунду: 10/10 для полуфинала, 1/10–10/10 для финала. Исправлено отображение 11/20 на правильное 10/10. Добавлено автоматическое исправление данных для игр, затронутых предыдущим багом.</p>
-                      <p><strong>Тренировка.</strong> В таблице активных игр и истории режима «Тренировка» убрана колонка «Стоимость лиги» — она есть только в «Противостоянии».</p>
-                      <p><strong>Лиги.</strong> На карточках лиг отображаются название лиги и количество игроков онлайн в формате «X онлайн».</p>
-                      <p><strong>Новости.</strong> Новый формат: каждая новость — это блок с темой и датой. По клику блок раскрывается и показывает подробное описание. Удобно следить за обновлениями.</p>
-                    </>
-                  ),
-                },
-                {
-                  id: 1,
-                  topic: 'Обновление игры',
-                  date: '06.03.2025',
-                  description: (
-                    <>
-                      <p><strong>Удобство кабинета.</strong> Баланс вынесен в верхнюю панель справа, кнопка «Выход» — в профиль на уровень строки ID. Раздел «Новости» открывается при каждом входе в кабинет и доступен в хедере слева от баланса.</p>
-                      <p><strong>Мобильная версия.</strong> На телефонах меню перенесено в горизонтальный футер внизу экрана: все пункты с иконками и подписями равномерно распределены. Добавлены удобные отступы и размеры кнопок для тач-экранов.</p>
-                      <p><strong>Профиль и сессия.</strong> Выровнены отступы между полями ID, Логин, Email и Имя; иконка редактирования имени и поле ввода не увеличивают высоту строки. Сессия продлевается при активности и длится 6 часов.</p>
-                      <p><strong>Навигация.</strong> В сайдбаре и футере поменяны местами «Игры» и «Статистика». Новости убраны из меню и вынесены в хедер для быстрого доступа.</p>
-                    </>
-                  ),
-                },
-              ].map((item) => (
+              {apiNews.length === 0 && <p style={{ color: '#888', textAlign: 'center', padding: '20px 0' }}>Новостей пока нет</p>}
+              {apiNews.map((item) => (
                 <NewsItem
                   key={item.id}
                   id={item.id}
                   topic={item.topic}
-                  date={item.date}
-                  description={item.description}
+                  date={new Date(item.createdAt).toLocaleDateString('ru-RU')}
+                  description={<p style={{ whiteSpace: 'pre-line', margin: 0 }}>{item.body}</p>}
+                  unread={!readNewsIds.includes(item.id)}
                   onRead={() => {
                     setReadNewsIds((prev) => {
                       if (prev.includes(item.id)) return prev;
