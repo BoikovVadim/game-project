@@ -762,7 +762,7 @@ export class TournamentsService {
     }
 
     const QUESTIONS_PER_ROUND = 10;
-    const TIEBREAKER_QUESTIONS = 5;
+    const TIEBREAKER_QUESTIONS = 10;
 
     const progressByTid = new Map<
       number,
@@ -1096,38 +1096,28 @@ export class TournamentsService {
       if (t.gameType === 'training') {
         const prog = progressByTid.get(t.id);
         const answered = prog?.q ?? 0;
-        const currentIndex = prog?.currentIndex ?? 0;
-        const allProg = progressByTidAndUser.get(t.id);
-        if (allProg && allProg.size >= 2 && answered >= QUESTIONS_PER_ROUND) {
-          const mySemi = prog?.semiCorrect ?? 0;
-          let bestOppSemi = -1;
-          let oppAnswered = 0;
-          for (const [uid, oppProg] of allProg) {
-            if (uid === userId) continue;
-            const os = oppProg?.semiCorrect ?? 0;
-            if (os > bestOppSemi) { bestOppSemi = os; oppAnswered = oppProg?.q ?? 0; }
+
+        if (answered < QUESTIONS_PER_ROUND) return 'Этап не пройден';
+
+        const semiResult = getMoneySemiResult(t);
+        if (semiResult.result === 'incomplete') return 'Ожидание соперника';
+        if (semiResult.result === 'tie') return 'Ожидание соперника';
+        if (semiResult.result === 'lost') return 'Поражение';
+        if (semiResult.result === 'won') {
+          if (answered >= 2 * QUESTIONS_PER_ROUND) {
+            const players = t.players ?? [];
+            if (players.length < 4) return 'Ожидание соперника';
+            const otherFin = getOtherFinalist(t);
+            if (!otherFin || otherFin.q < 2 * QUESTIONS_PER_ROUND) return 'Ожидание соперника';
+            const myFinalCorrect = (prog?.totalCorrect ?? 0) - (prog?.semiCorrect ?? 0);
+            const oppFinalCorrect = otherFin.totalCorrect - (otherFin.semiCorrect ?? 0);
+            if (myFinalCorrect > oppFinalCorrect) return 'Победа';
+            if (myFinalCorrect < oppFinalCorrect) return 'Поражение';
+            return (prog?.semiCorrect ?? 0) > (otherFin.semiCorrect ?? 0) ? 'Победа' : 'Поражение';
           }
-          if (bestOppSemi >= 0 && oppAnswered >= QUESTIONS_PER_ROUND) {
-            if (mySemi < bestOppSemi) return 'Поражение';
-            if (mySemi > bestOppSemi) {
-              if (answered >= 2 * QUESTIONS_PER_ROUND) {
-                const players = t.players ?? [];
-                if (players.length < 4) return 'Ожидание соперника';
-                const otherFin = getOtherFinalist(t);
-                if (!otherFin || otherFin.q < 2 * QUESTIONS_PER_ROUND) return 'Ожидание соперника';
-                const myFinalCorrect = (prog?.totalCorrect ?? 0) - (prog?.semiCorrect ?? 0);
-                const oppFinalCorrect = otherFin.totalCorrect - (otherFin.semiCorrect ?? 0);
-                if (myFinalCorrect > oppFinalCorrect) return 'Победа';
-                if (myFinalCorrect < oppFinalCorrect) return 'Поражение';
-                return mySemi > (otherFin.semiCorrect ?? 0) ? 'Победа' : 'Поражение';
-              }
-              return 'Финал';
-            }
-          }
+          return 'Финал';
         }
-        if (resultByTournamentId.get(t.id)) return 'Ожидание соперника';
-        if (prog && currentIndex >= QUESTIONS_PER_ROUND) return 'Ожидание соперника';
-        return answered >= QUESTIONS_PER_ROUND ? 'Ожидание соперника' : 'Этап не пройден';
+        return 'Ожидание соперника';
       }
 
       const userProgress = progressByTid.get(t.id);
@@ -1617,7 +1607,7 @@ export class TournamentsService {
   }
 
   private readonly QUESTIONS_PER_ROUND = 10;
-  private readonly TIEBREAKER_QUESTIONS = 5;
+  private readonly TIEBREAKER_QUESTIONS = 10;
 
   /**
    * Определяет, выиграл ли пользователь полуфинал.
