@@ -3243,7 +3243,6 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                 const continuable = gameHistory?.active?.find((t) => t.userStatus === 'not_passed' && t.resultLabel !== 'Ожидание соперника');
                                 const target = tbReady ?? finalReady ?? continuable;
                                 if (!target) return null;
-                                const label = tbReady ? 'Доп. раунд' : finalReady ? 'Играть финал' : 'Продолжить игру';
                                 return (
                                   <button
                                     type="button"
@@ -3254,7 +3253,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                     }}
                                     disabled={continueTrainingLoading !== null}
                                   >
-                                    {continueTrainingLoading !== null ? 'Загрузка...' : label}
+                                    {continueTrainingLoading !== null ? 'Загрузка...' : 'Продолжить игру'}
                                   </button>
                                 );
                               })()}
