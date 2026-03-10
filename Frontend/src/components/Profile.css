@@ -4453,7 +4453,9 @@ body.partner-modal-open {
 
 .training-option:hover {
   background: #f5f5f5;
-  border-color: var(--gold-mid, #d4af37);
+}
+.training-option:focus {
+  outline: none;
 }
 
 .training-reset-btn {
