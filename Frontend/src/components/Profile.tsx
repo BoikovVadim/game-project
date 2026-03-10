@@ -2712,7 +2712,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
             <span className="user-info-value">{user.email ?? '—'}</span>
           </p>
           <div className="user-info-row user-info-row-name">
-            <span className="user-info-label">Имя:</span>
+            <span className="user-info-label">Ник в игре:</span>
             {isEditingName ? (
               <>
                 <input
