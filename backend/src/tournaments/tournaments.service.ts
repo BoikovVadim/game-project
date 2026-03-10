@@ -1168,10 +1168,6 @@ export class TournamentsService {
       const label = getResultLabel(t);
       if (label === 'Поражение' || label === 'Победа') return true;
       if (currentTournamentId === t.id) return false;
-      if (t.gameType === 'training' && (t.players?.length ?? 0) < 2) {
-        const answered = progressByTid.get(t.id)?.q ?? 0;
-        if (answered >= QUESTIONS_PER_ROUND) return false;
-      }
       return isTimeExpired(t);
     };
 
