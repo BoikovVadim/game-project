@@ -979,7 +979,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   const [statsMode, setStatsMode] = useState<'personal' | 'general'>(() =>
     typeof window !== 'undefined' ? getStatsModeFromHash(window.location.hash.replace(/^#/, '')) : 'personal',
   );
-  const [rankingMetric, setRankingMetric] = useState<'gamesPlayed' | 'wins' | 'totalWinnings' | 'correctAnswers' | 'referrals' | 'totalWithdrawn'>('gamesPlayed');
+  const [rankingMetric, setRankingMetric] = useState<'gamesPlayed' | 'wins' | 'totalWinnings' | 'correctAnswers' | 'correctAnswerRate' | 'referrals' | 'totalWithdrawn'>('gamesPlayed');
   const [rankings, setRankings] = useState<null | {
     rankings: { rank: number; userId: number; displayName: string; value: number; valueFormatted: string }[];
     myRank: number | null;
@@ -3098,6 +3098,61 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
             )}
             {statsMode === 'general' && (
               <>
+                <div className="cabinet-rankings-centered">
+                  <h3 className="cabinet-rankings-centered-title">Рейтинг</h3>
+                  <div className="cabinet-rankings-metric-tabs">
+                    {([
+                      { key: 'gamesPlayed', label: 'Сыграно игр' },
+                      { key: 'wins', label: 'Побед' },
+                      { key: 'correctAnswers', label: 'Верных ответов' },
+                      { key: 'correctAnswerRate', label: '% верных ответов' },
+                      { key: 'totalWinnings', label: 'Сумма выигрыша' },
+                      { key: 'referrals', label: 'Кол-во рефералов' },
+                      { key: 'totalWithdrawn', label: 'Сумма вывода' },
+                    ] as { key: typeof rankingMetric; label: string }[]).map((m) => (
+                      <button
+                        key={m.key}
+                        type="button"
+                        className={`cabinet-rankings-metric-btn ${rankingMetric === m.key ? 'cabinet-rankings-metric-btn--active' : ''}`}
+                        onClick={() => setRankingMetric(m.key)}
+                      >
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="cabinet-rankings-content">
+                    {rankingsError && <p style={{ color: '#c00', margin: 0 }}>{rankingsError}</p>}
+                    {!rankingsError && rankings && (
+                      <>
+                        <div className="cabinet-rankings-my">
+                          Ваше место: <strong>{rankings.myRank != null ? `${rankings.myRank} из ${rankings.totalParticipants}` : '—'}</strong>
+                          {rankings.myValue != null && (
+                            <span className="cabinet-rankings-my-value">
+                              {' '}({rankingMetric === 'totalWinnings' ? `${formatNum(rankings.myValue)} ${CURRENCY}` : rankingMetric === 'totalWithdrawn' ? `${formatNum(rankings.myValue)} ₽` : rankingMetric === 'correctAnswerRate' ? `${rankings.myValue}%` : formatNum(rankings.myValue)})
+                            </span>
+                          )}
+                        </div>
+                        <div className="cabinet-rankings-table">
+                          <div className="cabinet-rankings-header">
+                            <span>#</span>
+                            <span>Игрок</span>
+                            <span>Значение</span>
+                          </div>
+                          {rankings.rankings.slice(0, 100).map((r) => (
+                            <div
+                              key={r.userId}
+                              className={`cabinet-rankings-row ${r.userId === user?.id ? 'cabinet-rankings-row--me' : ''}`}
+                            >
+                              <span>{r.rank}</span>
+                              <span>{r.displayName}</span>
+                              <span>{r.valueFormatted}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
                 <div className="cabinet-global-stats">
                   <h3 className="cabinet-global-stats-title">Общая статистика</h3>
                   {globalStatsError && <p className="cabinet-global-stats-error">{globalStatsError}</p>}
@@ -3126,60 +3181,6 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                       <span className="cabinet-global-stat-value">{globalStats ? `${formatNum(globalStats.totalWithdrawn)} ₽` : '—'}</span>
                       <span className="cabinet-global-stat-label">Выведено денег</span>
                     </div>
-                  </div>
-                </div>
-                <div className="cabinet-rankings-layout">
-                  <div className="cabinet-rankings-metrics-list">
-                    <h4 className="cabinet-rankings-metrics-title">Рейтинг</h4>
-                    {([
-                      { key: 'gamesPlayed', label: 'Сыграно игр' },
-                      { key: 'wins', label: 'Побед' },
-                      { key: 'correctAnswers', label: 'Верных ответов' },
-                      { key: 'totalWinnings', label: 'Сумма выигрыша' },
-                      { key: 'referrals', label: 'Кол-во рефералов' },
-                      { key: 'totalWithdrawn', label: 'Сумма вывода' },
-                    ] as { key: typeof rankingMetric; label: string }[]).map((m) => (
-                      <button
-                        key={m.key}
-                        type="button"
-                        className={`cabinet-rankings-metric-btn ${rankingMetric === m.key ? 'cabinet-rankings-metric-btn--active' : ''}`}
-                        onClick={() => setRankingMetric(m.key)}
-                      >
-                        {m.label}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="cabinet-rankings-content" style={{ minHeight: 320 }}>
-                    {rankingsError && <p style={{ color: '#c00', margin: 0 }}>{rankingsError}</p>}
-                    {!rankingsError && rankings && (
-                      <>
-                        <div className="cabinet-rankings-my">
-                          Ваше место: <strong>{rankings.myRank != null ? `${rankings.myRank} из ${rankings.totalParticipants}` : '—'}</strong>
-                          {rankings.myValue != null && (
-                            <span className="cabinet-rankings-my-value">
-                              {' '}({rankingMetric === 'totalWinnings' ? `${formatNum(rankings.myValue)} ${CURRENCY}` : rankingMetric === 'totalWithdrawn' ? `${formatNum(rankings.myValue)} ₽` : formatNum(rankings.myValue)})
-                            </span>
-                          )}
-                        </div>
-                        <div className="cabinet-rankings-table">
-                          <div className="cabinet-rankings-header">
-                            <span>#</span>
-                            <span>Игрок</span>
-                            <span>Значение</span>
-                          </div>
-                          {rankings.rankings.slice(0, 100).map((r) => (
-                            <div
-                              key={r.userId}
-                              className={`cabinet-rankings-row ${r.userId === user?.id ? 'cabinet-rankings-row--me' : ''}`}
-                            >
-                              <span>{r.rank}</span>
-                              <span>{r.displayName}</span>
-                              <span>{r.valueFormatted}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </>
-                    )}
                   </div>
                 </div>
               </>

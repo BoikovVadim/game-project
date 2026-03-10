@@ -1001,7 +1001,7 @@ export class UsersService implements OnModuleInit {
 
   /** Рейтинг по метрике. Возвращает топ участников и место текущего пользователя. */
   async getRankings(
-    metric: 'gamesPlayed' | 'wins' | 'totalWinnings' | 'correctAnswers' | 'referrals' | 'totalWithdrawn',
+    metric: 'gamesPlayed' | 'wins' | 'totalWinnings' | 'correctAnswers' | 'correctAnswerRate' | 'referrals' | 'totalWithdrawn',
     userId: number,
   ): Promise<{
     rankings: { rank: number; userId: number; displayName: string; value: number; valueFormatted: string }[];
@@ -1050,6 +1050,17 @@ export class UsersService implements OnModuleInit {
           ORDER BY val DESC, u.id DESC`;
         valueCol = 'val';
         break;
+      case 'correctAnswerRate':
+        query = `SELECT u.id as "userId", COALESCE(u.nickname, u.username) as "displayName",
+          CASE WHEN COALESCE((SELECT SUM("questionsAnsweredCount") FROM tournament_progress WHERE "userId" = u.id), 0) > 0
+            THEN ROUND(COALESCE((SELECT SUM("correctAnswersCount") FROM tournament_progress WHERE "userId" = u.id), 0)::numeric
+              / COALESCE((SELECT SUM("questionsAnsweredCount") FROM tournament_progress WHERE "userId" = u.id), 1) * 100, 2)
+            ELSE 0 END as val
+          FROM "user" u
+          WHERE COALESCE((SELECT SUM("questionsAnsweredCount") FROM tournament_progress WHERE "userId" = u.id), 0) > 0
+          ORDER BY val DESC, u.id DESC`;
+        valueCol = 'val';
+        break;
       case 'referrals':
         query = `SELECT u.id as "userId", COALESCE(u.nickname, u.username) as "displayName",
           (SELECT COUNT(*) FROM "user" r WHERE r."referrerId" = u.id) as val
@@ -1087,6 +1098,7 @@ export class UsersService implements OnModuleInit {
           value: Number(r.val) || 0,
           valueFormatted: metric === 'totalWinnings' ? `${Number(r.val).toLocaleString('ru-RU')} L`
             : metric === 'totalWithdrawn' ? `${Number(r.val).toLocaleString('ru-RU')} ₽`
+            : metric === 'correctAnswerRate' ? `${Number(r.val).toLocaleString('ru-RU')}%`
             : String(Number(r.val).toLocaleString('ru-RU')),
         }));
         await this.cache.set(cacheKey, rankings, 60000);
@@ -1110,6 +1122,7 @@ export class UsersService implements OnModuleInit {
           myValue = metric === 'gamesPlayed' ? myStats.gamesPlayed
             : metric === 'wins' ? myStats.wins
             : metric === 'totalWinnings' ? myStats.totalWinnings
+            : metric === 'correctAnswerRate' ? (myStats.totalQuestions > 0 ? parseFloat(((myStats.correctAnswers / myStats.totalQuestions) * 100).toFixed(2)) : 0)
             : myStats.correctAnswers;
         }
         const betterCount = rankings.filter((r) => r.value > (myValue ?? 0)).length;

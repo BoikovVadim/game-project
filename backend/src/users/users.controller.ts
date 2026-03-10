@@ -108,9 +108,9 @@ export class UsersController {
     @Request() req: { user: { id: number } },
     @Query('metric') metric?: string,
   ) {
-    const validMetrics = ['gamesPlayed', 'wins', 'totalWinnings', 'correctAnswers', 'referrals', 'totalWithdrawn'];
+    const validMetrics = ['gamesPlayed', 'wins', 'totalWinnings', 'correctAnswers', 'correctAnswerRate', 'referrals', 'totalWithdrawn'];
     const m = validMetrics.includes(metric || '')
-      ? (metric as 'gamesPlayed' | 'wins' | 'totalWinnings' | 'correctAnswers' | 'referrals' | 'totalWithdrawn')
+      ? (metric as 'gamesPlayed' | 'wins' | 'totalWinnings' | 'correctAnswers' | 'correctAnswerRate' | 'referrals' | 'totalWithdrawn')
       : 'gamesPlayed';
     return this.usersService.getRankings(m, req.user.id);
   }
