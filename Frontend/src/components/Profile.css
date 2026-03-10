@@ -3488,18 +3488,29 @@ body.partner-modal-open {
   width: auto;
   max-width: none;
   box-sizing: border-box;
-  background: none;
-  border: none;
+  background: none !important;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  box-shadow: none !important;
   color: #666;
   cursor: pointer;
   font-size: 14px;
   text-decoration: none;
   text-align: center;
+  transition: border-color 0.2s ease, color 0.2s ease;
 }
 
 .game-mode-back:hover {
   color: #333;
-  text-decoration: underline;
+  background: none !important;
+  border-color: #999;
+  box-shadow: none !important;
+}
+
+.game-mode-back:active {
+  background: none !important;
+  box-shadow: none !important;
+  border-color: #666;
 }
 
 .game-mode-panel {
