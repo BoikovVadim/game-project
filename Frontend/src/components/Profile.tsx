@@ -1049,12 +1049,8 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
       const raw = localStorage.getItem(`${NOTIFICATIONS_STORAGE_KEY}_${user.id}`);
       const list = raw ? (JSON.parse(raw) as NotificationItem[]) : [];
       const loaded = Array.isArray(list) ? list : [];
-      const deduped = loaded.filter((item, i, arr) => {
-        const firstIdx = arr.findIndex((x) => x.type === item.type && x.title === item.title);
-        return firstIdx === i;
-      });
       const welcomeKey = `cabinet_welcome_shown_${user.id}`;
-      if (deduped.length === 0 && !localStorage.getItem(welcomeKey) && !welcomeAddedRef.current) {
+      if (loaded.length === 0 && !localStorage.getItem(welcomeKey) && !welcomeAddedRef.current) {
         welcomeAddedRef.current = true;
         localStorage.setItem(welcomeKey, '1');
         const welcome: NotificationItem = {
@@ -1067,7 +1063,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         };
         setNotifications([welcome]);
       } else {
-        setNotifications(deduped);
+        setNotifications(loaded);
       }
     } catch {
       setNotifications([]);
@@ -1098,14 +1094,13 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   const addNotification = React.useCallback((n: Omit<NotificationItem, 'id' | 'createdAt' | 'read'>) => {
     const now = Date.now();
     setNotifications((prev) => {
-      if (prev.some((p) => p.type === n.type && p.title === n.title)) return prev;
       const item: NotificationItem = {
         ...n,
         id: `n_${now}_${Math.random().toString(36).slice(2, 9)}`,
         createdAt: new Date().toISOString(),
         read: false,
       };
-      return [item, ...prev].slice(0, 50);
+      return [item, ...prev].slice(0, 100);
     });
   }, []);
 
