@@ -1096,16 +1096,40 @@ export class TournamentsService {
       const answered = prog?.q ?? 0;
       const semiCorrect = prog?.semiCorrect ?? 0;
       const totalCorrect = prog?.totalCorrect ?? 0;
+      const tbRounds = prog?.tiebreakerRounds ?? [];
       const stage = getStage(t);
       const round: 'semi' | 'final' =
         roundForQuestions ?? (stage === 'Полуфинал' || String(stage).startsWith('Полуфинал') ? 'semi' : 'final');
-      // Для любого турнира: основной раунд = 10 вопросов. Показываем прогресс по текущему раунду.
-      const questionsAnsweredInRound = answered <= 10 ? answered : answered - 10;
-      const questionsTotal = 10;
-      const correctAnswersInRound =
-        answered <= 10
-          ? (prog?.semiCorrect != null ? semiCorrect : totalCorrect)
-          : Math.max(0, totalCorrect - semiCorrect);
+
+      let questionsAnsweredInRound: number;
+      let questionsTotal: number;
+      let correctAnswersInRound: number;
+
+      const semiResultForDisplay = getMoneySemiResult(t);
+      const isSemiTiebreaker = semiResultForDisplay.result === 'tie';
+
+      if (round === 'semi') {
+        const completedTBRounds = tbRounds.length;
+        const tbCorrectSum = tbRounds.reduce((a, b) => a + b, 0);
+        const answeredAfterSemi = Math.max(0, answered - QUESTIONS_PER_ROUND);
+        const answeredInCompletedTB = completedTBRounds * TIEBREAKER_QUESTIONS;
+        const inCurrentTBRound = answeredAfterSemi - answeredInCompletedTB;
+        const hasTiebreaker = answeredAfterSemi > 0 || completedTBRounds > 0 || isSemiTiebreaker;
+        const activeTBRounds = hasTiebreaker
+          ? Math.max(1, completedTBRounds + (inCurrentTBRound > 0 ? 1 : 0))
+          : 0;
+
+        questionsTotal = QUESTIONS_PER_ROUND + activeTBRounds * TIEBREAKER_QUESTIONS;
+        questionsAnsweredInRound = Math.min(answered, questionsTotal);
+        correctAnswersInRound = semiCorrect + tbCorrectSum;
+      } else {
+        const semiTBCount = tbRounds.length;
+        const semiTotal = QUESTIONS_PER_ROUND + semiTBCount * TIEBREAKER_QUESTIONS;
+        questionsAnsweredInRound = Math.max(0, answered - semiTotal);
+        questionsTotal = QUESTIONS_PER_ROUND;
+        const tbCorrectSum = tbRounds.reduce((a, b) => a + b, 0);
+        correctAnswersInRound = Math.max(0, totalCorrect - semiCorrect - tbCorrectSum);
+      }
       return {
         id: t.id,
         status: t.status,
