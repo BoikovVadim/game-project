@@ -22,15 +22,31 @@ function shuffle<T>(arr: T[]): T[] {
   return arr;
 }
 
-function mathOpts(ans: number, spread = 2): string[] {
-  const opts: string[] = [String(ans)];
-  const deltas = [-spread, -(spread - 1), spread - 1, spread].filter((d) => d !== 0);
-  deltas.forEach((d) => { if (opts.length < 4 && !opts.includes(String(ans + d)) && ans + d >= 0) opts.push(String(ans + d)); });
-  for (let k = 1; opts.length < 4; k++) {
-    if (!opts.includes(String(ans + k))) opts.push(String(ans + k));
-    else if (!opts.includes(String(ans - k)) && ans - k >= 0) opts.push(String(ans - k));
+function mathOpts(ans: number): string[] {
+  const opts = new Set<number>([ans]);
+
+  if (ans >= 10) {
+    const pool = shuffle([-30, -20, -10, 10, 20, 30].filter((d) => ans + d > 0));
+    for (const d of pool) {
+      if (opts.size >= 4) break;
+      opts.add(ans + d);
+    }
+    for (let m = 4; opts.size < 4; m++) {
+      if (ans + m * 10 > 0) opts.add(ans + m * 10);
+      if (opts.size < 4 && ans - m * 10 > 0) opts.add(ans - m * 10);
+    }
+  } else {
+    const nearby = shuffle([-3, -2, -1, 1, 2, 3].filter((d) => ans + d > 0));
+    for (const d of nearby) {
+      if (opts.size >= 4) break;
+      opts.add(ans + d);
+    }
+    for (let k = 4; opts.size < 4; k++) {
+      if (!opts.has(ans + k)) opts.add(ans + k);
+    }
   }
-  return shuffle(opts);
+
+  return shuffle([...opts].map(String));
 }
 
 function buildMath(): QuestionItem[] {
@@ -55,7 +71,7 @@ function buildMath(): QuestionItem[] {
   for (let i = 0; i < 65; i++) {
     const a = rnd(100, 499), b = rnd(2, 9), ans = a * b;
     if (ans < 100 || ans > 9999) continue;
-    push(`Сколько будет ${a} × ${b}?`, mathOpts(ans, 10), ans);
+    push(`Сколько будет ${a} × ${b}?`, mathOpts(ans), ans);
   }
   for (let i = 0; i < 65; i++) {
     const d = rnd(2, 99), q = rnd(2, 99), a = d * q;

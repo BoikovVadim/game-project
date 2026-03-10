@@ -1803,12 +1803,19 @@ export class TournamentsService {
     if (opts.includes(correctStr)) {
       return { options: opts, correctAnswer: opts.indexOf(correctStr) };
     }
-    const wrong = [correctVal - 2, correctVal - 1, correctVal + 1, correctVal + 2].filter((x) => x !== correctVal && x >= 0);
     const newOpts: string[] = [correctStr];
-    wrong.forEach((w) => { if (newOpts.length < 4) newOpts.push(String(w)); });
-    for (let k = 1; newOpts.length < 4; k++) {
-      if (!newOpts.includes(String(correctVal + k))) newOpts.push(String(correctVal + k));
-      else if (correctVal - k >= 0 && !newOpts.includes(String(correctVal - k))) newOpts.push(String(correctVal - k));
+    if (correctVal >= 10) {
+      const deltas = [-30, -20, -10, 10, 20, 30].filter((d) => correctVal + d > 0);
+      for (let i = deltas.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [deltas[i], deltas[j]] = [deltas[j]!, deltas[i]!]; }
+      deltas.forEach((d) => { if (newOpts.length < 4 && !newOpts.includes(String(correctVal + d))) newOpts.push(String(correctVal + d)); });
+      for (let m = 4; newOpts.length < 4; m++) {
+        if (correctVal + m * 10 > 0) newOpts.push(String(correctVal + m * 10));
+        else if (correctVal - m * 10 > 0) newOpts.push(String(correctVal - m * 10));
+      }
+    } else {
+      const wrong = [-3, -2, -1, 1, 2, 3].filter((d) => correctVal + d > 0);
+      wrong.forEach((w) => { if (newOpts.length < 4) newOpts.push(String(correctVal + w)); });
+      for (let k = 4; newOpts.length < 4; k++) newOpts.push(String(correctVal + k));
     }
     for (let i = newOpts.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
