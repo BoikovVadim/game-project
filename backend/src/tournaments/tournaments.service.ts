@@ -122,6 +122,7 @@ export class TournamentsService {
       relations: ['players'],
     });
     if (!tournament || tournament.gameType !== 'money') return;
+    this.sortPlayersByOrder(tournament);
 
     const heldEscrows = await this.tournamentEscrowRepository.find({
       where: { tournamentId, status: 'held' },
@@ -260,7 +261,8 @@ export class TournamentsService {
     if (waitingTournament) {
       tournament = waitingTournament;
       tournament.players.push(user);
-      playerSlot = tournament.players.length - 1;
+      tournament.playerOrder = [...(tournament.playerOrder ?? []), user.id];
+      playerSlot = (tournament.playerOrder).length - 1;
       isCreator = false;
       await this.tournamentRepository.save(tournament);
       await this.tournamentEntryRepository.save(
@@ -271,6 +273,7 @@ export class TournamentsService {
         status: TournamentStatus.WAITING,
         players: [user],
         gameType: 'training',
+        playerOrder: [user.id],
       });
       await this.tournamentRepository.save(tournament);
       playerSlot = 0;
@@ -603,7 +606,8 @@ export class TournamentsService {
     if (waitingTournament) {
       tournament = waitingTournament;
       tournament.players.push(user);
-      playerSlot = tournament.players.length - 1;
+      tournament.playerOrder = [...(tournament.playerOrder ?? []), user.id];
+      playerSlot = (tournament.playerOrder).length - 1;
       isCreator = false;
       await this.tournamentRepository.save(tournament);
       await this.tournamentEntryRepository.save(
@@ -615,6 +619,7 @@ export class TournamentsService {
         players: [user],
         gameType: 'money',
         leagueAmount,
+        playerOrder: [user.id],
       });
       await this.tournamentRepository.save(tournament);
       playerSlot = 0;
@@ -727,7 +732,7 @@ export class TournamentsService {
         (t) =>
           t.gameType === 'training' &&
           resultByTournamentId.get(t.id) === true &&
-          (t.players?.length ?? 0) >= 2 &&
+          (t.playerOrder?.length ?? t.players?.length ?? 0) >= 2 &&
           t.status !== TournamentStatus.FINISHED,
       )
       .map((t) => t.id);
@@ -920,16 +925,22 @@ export class TournamentsService {
 
     const lostSemiByTid = new Map<number, boolean>();
 
+    const getPlayerCount = (t: Tournament): number =>
+      t.playerOrder?.length ?? t.players?.length ?? 0;
+
     const getMoneySemiResult = (
       t: Tournament,
     ): { result: 'won' | 'lost' | 'tie' | 'incomplete'; tiebreakerRound?: number } => {
-      const playerSlot = t.players?.findIndex((p) => p.id === userId) ?? -1;
-      const opponentSlot = playerSlot >= 0 && playerSlot < 4 ? (playerSlot % 2 === 0 ? playerSlot + 1 : playerSlot - 1) : -1;
-      const opponent = opponentSlot >= 0 && (t.players?.length ?? 0) > opponentSlot ? t.players![opponentSlot]! : null;
-      if (!opponent) return { result: 'incomplete' };
+      const order = t.playerOrder;
+      if (!order || order.length < 2) return { result: 'incomplete' };
+      const playerSlot = order.indexOf(userId);
+      if (playerSlot < 0) return { result: 'incomplete' };
+      const opponentSlot = playerSlot % 2 === 0 ? playerSlot + 1 : playerSlot - 1;
+      if (opponentSlot < 0 || opponentSlot >= order.length) return { result: 'incomplete' };
+      const opponentId = order[opponentSlot];
 
       const myProgress = progressByTidAndUser.get(t.id)?.get(userId);
-      const oppProgress = progressByTidAndUser.get(t.id)?.get(opponent.id);
+      const oppProgress = progressByTidAndUser.get(t.id)?.get(opponentId);
       const myQ = myProgress?.q ?? 0;
       const oppQ = oppProgress?.q ?? 0;
       const mySemi = myProgress?.semiCorrect ?? 0;
@@ -956,16 +967,16 @@ export class TournamentsService {
     const getOtherFinalist = (
       t: Tournament,
     ): { q: number; semiCorrect: number | null; totalCorrect: number } | null => {
-      const players = t.players ?? [];
-      if (players.length < 4) return null;
-      const playerSlot = players.findIndex((p) => p.id === userId);
+      const order = t.playerOrder;
+      if (!order || order.length < 4) return null;
+      const playerSlot = order.indexOf(userId);
       if (playerSlot < 0) return null;
       const otherSlots: [number, number] = playerSlot < 2 ? [2, 3] : [0, 1];
-      const p1 = players[otherSlots[0]];
-      const p2 = players[otherSlots[1]];
-      if (!p1 || !p2) return null;
-      const prog1 = progressByTidAndUser.get(t.id)?.get(p1.id);
-      const prog2 = progressByTidAndUser.get(t.id)?.get(p2.id);
+      const p1Id = order[otherSlots[0]];
+      const p2Id = order[otherSlots[1]];
+      if (p1Id == null || p2Id == null) return null;
+      const prog1 = progressByTidAndUser.get(t.id)?.get(p1Id);
+      const prog2 = progressByTidAndUser.get(t.id)?.get(p2Id);
       const q1 = prog1?.q ?? 0;
       const q2 = prog2?.q ?? 0;
       if (q1 < QUESTIONS_PER_ROUND || q2 < QUESTIONS_PER_ROUND) return null;
@@ -1000,7 +1011,7 @@ export class TournamentsService {
         lostSemiByTid.set(t.id, true);
         passed = false;
       } else if (semiResult.result === 'won' && answered >= 20) {
-        if ((t.players?.length ?? 0) < 4) {
+        if (getPlayerCount(t) < 4) {
           passed = false;
         } else {
           const otherFin = getOtherFinalist(t);
@@ -1078,7 +1089,7 @@ export class TournamentsService {
         id: t.id,
         status: t.status,
         createdAt: t.createdAt instanceof Date ? t.createdAt.toISOString() : String(t.createdAt),
-        playersCount: t.players?.length ?? 0,
+        playersCount: getPlayerCount(t),
         leagueAmount: t.leagueAmount ?? null,
         deadline,
         userStatus,
@@ -1105,8 +1116,7 @@ export class TournamentsService {
         if (semiResult.result === 'lost') return 'Поражение';
         if (semiResult.result === 'won') {
           if (answered >= 2 * QUESTIONS_PER_ROUND) {
-            const players = t.players ?? [];
-            if (players.length < 4) return 'Ожидание соперника';
+            if (getPlayerCount(t) < 4) return 'Ожидание соперника';
             const otherFin = getOtherFinalist(t);
             if (!otherFin || otherFin.q < 2 * QUESTIONS_PER_ROUND) return 'Ожидание соперника';
             const myFinalCorrect = (prog?.totalCorrect ?? 0) - (prog?.semiCorrect ?? 0);
@@ -1128,8 +1138,7 @@ export class TournamentsService {
       if (semiResult.result === 'lost') return 'Поражение';
       if (semiResult.result === 'won') {
         if (answered < 2 * QUESTIONS_PER_ROUND) return 'Ожидание соперника';
-        const players = t.players ?? [];
-        if (players.length < 4) return 'Ожидание соперника';
+        if (getPlayerCount(t) < 4) return 'Ожидание соперника';
         const otherFin = getOtherFinalist(t);
         if (!otherFin || otherFin.q < 2 * QUESTIONS_PER_ROUND) return 'Ожидание соперника';
         const myFinalCorrect = (userProgress?.totalCorrect ?? 0) - (userProgress?.semiCorrect ?? 0);
@@ -1142,7 +1151,7 @@ export class TournamentsService {
     };
 
     const getUserStatus = (t: Tournament): 'passed' | 'not_passed' => {
-      if (t.gameType === 'training' && (t.players?.length ?? 0) < 2) {
+      if (t.gameType === 'training' && getPlayerCount(t) < 2) {
         const answered = progressByTid.get(t.id)?.q ?? 0;
         return answered >= QUESTIONS_PER_ROUND ? 'passed' : 'not_passed';
       }
@@ -1240,6 +1249,7 @@ export class TournamentsService {
       relations: ['players'],
     });
     if (!tournament) throw new NotFoundException('Tournament not found');
+    this.sortPlayersByOrder(tournament);
     if (tournament.status !== TournamentStatus.WAITING && tournament.status !== TournamentStatus.ACTIVE) {
       throw new BadRequestException('Tournament is not active');
     }
@@ -1346,6 +1356,7 @@ export class TournamentsService {
       relations: ['players'],
     });
     if (!tournament) throw new NotFoundException('Tournament not found');
+    this.sortPlayersByOrder(tournament);
     const isPlayer = tournament.players?.some((p) => p.id === userId);
     if (!isPlayer) throw new BadRequestException('You are not in this tournament');
 
@@ -1419,6 +1430,7 @@ export class TournamentsService {
       relations: ['players'],
     });
     if (!tournament) throw new NotFoundException('Tournament not found');
+    this.sortPlayersByOrder(tournament);
     const isPlayer = tournament.players?.some((p) => p.id === userId);
     if (!isPlayer) throw new BadRequestException('You are not in this tournament');
 
@@ -1609,6 +1621,13 @@ export class TournamentsService {
   private readonly QUESTIONS_PER_ROUND = 10;
   private readonly TIEBREAKER_QUESTIONS = 10;
 
+  private sortPlayersByOrder(tournament: Tournament): void {
+    const order = tournament.playerOrder;
+    if (!order || !tournament.players || tournament.players.length <= 1) return;
+    const orderMap = new Map(order.map((uid, i) => [uid, i]));
+    tournament.players.sort((a, b) => (orderMap.get(a.id) ?? 999) - (orderMap.get(b.id) ?? 999));
+  }
+
   /**
    * Определяет, выиграл ли пользователь полуфинал.
    * Тренировка (1 игрок): финал доступен после завершения 10 вопросов полуфинала.
@@ -1735,6 +1754,7 @@ export class TournamentsService {
       relations: ['players'],
     });
     if (!tournament) throw new NotFoundException('Tournament not found');
+    this.sortPlayersByOrder(tournament);
     const isPlayer = tournament.players?.some((p) => p.id === userId);
     if (!isPlayer) throw new BadRequestException('You are not in this tournament');
     const safeCount = Math.max(0, Math.floor(count));
@@ -1849,6 +1869,7 @@ export class TournamentsService {
       relations: ['players'],
     });
     if (!tournament) throw new NotFoundException('Tournament not found');
+    this.sortPlayersByOrder(tournament);
     const isPlayer = tournament.players?.some((p) => p.id === userId);
     if (!isPlayer) throw new BadRequestException('You are not in this tournament');
 

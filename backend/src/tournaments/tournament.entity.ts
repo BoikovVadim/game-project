@@ -36,6 +36,10 @@ export class Tournament {
   @Column({ type: 'integer', nullable: true })
   leagueAmount!: number | null;
 
+  /** Порядок входа игроков (массив userId). Определяет слоты: [0 vs 1] = полуфинал 1, [2 vs 3] = полуфинал 2. */
+  @Column({ type: 'simple-json', nullable: true, default: null })
+  playerOrder!: number[] | null;
+
   @ManyToMany(() => User)
   @JoinTable()
   players!: User[];
