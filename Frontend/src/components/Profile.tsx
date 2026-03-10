@@ -3229,21 +3229,16 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                 setShowStartGameConfirm(true);
                                 return;
                               }
-                              const first = gameHistory?.active?.find((t) => t.userStatus === 'not_passed');
-                              const allAnswered = first && first.resultLabel === 'Ожидание соперника';
-                              if (first && !allAnswered) {
-                                setPendingStartGameAction(() => () => { continueTraining(first.id); });
+                              const continuable = gameHistory?.active?.find((t) => t.userStatus === 'not_passed' && t.resultLabel !== 'Ожидание соперника');
+                              if (continuable) {
+                                setPendingStartGameAction(() => () => { continueTraining(continuable.id); });
                                 setShowStartGameConfirm(true);
-                              } else if (!first) {
+                              } else {
                                 setPendingStartGameAction(() => () => { startTraining(); });
                                 setShowStartGameConfirm(true);
                               }
                             }}
-                            disabled={trainingLoading || continueTrainingLoading !== null || (
-                              !gameHistory?.active?.some((t) => t.resultLabel === 'Доп. раунд') &&
-                              !gameHistory?.active?.some((t) => t.resultLabel === 'Финал') &&
-                              !!(gameHistory?.active?.find((t) => t.userStatus === 'not_passed' && t.resultLabel === 'Ожидание соперника'))
-                            )}
+                            disabled={trainingLoading || continueTrainingLoading !== null}
                           >
                             {trainingLoading || continueTrainingLoading !== null
                               ? 'Загрузка...'
@@ -3251,7 +3246,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                 ? 'Доп. раунд'
                                 : gameHistory?.active?.some((t) => t.resultLabel === 'Финал')
                                   ? 'Играть финал'
-                                  : gameHistory?.active?.some((t) => t.userStatus === 'not_passed')
+                                  : gameHistory?.active?.some((t) => t.userStatus === 'not_passed' && t.resultLabel !== 'Ожидание соперника')
                                     ? 'Продолжить игру'
                                     : 'Начать игру'}
                           </button>
