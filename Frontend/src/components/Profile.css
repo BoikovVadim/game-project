@@ -4050,7 +4050,7 @@ body.partner-modal-open {
   margin-top: 8px;
   table-layout: auto;
 }
-.game-history-section {
+.game-history-table-wrap {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   width: 100%;

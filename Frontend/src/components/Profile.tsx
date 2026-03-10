@@ -3277,6 +3277,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                               })()}
                             </div>
                             {gameHistory === null ? null : gameHistory.active.length ? (
+                              <div className="game-history-table-wrap">
                               <table className="game-history-table">
                                 <thead>
                                   <tr>
@@ -3311,6 +3312,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                   ))}
                                 </tbody>
                               </table>
+                              </div>
                             ) : (
                               <p className="game-history-empty">Нет активных турниров</p>
                             )}
@@ -3319,6 +3321,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                           <div className="game-history-section">
                             <strong>История игр</strong>
                             {gameHistory === null ? null : gameHistory.completed.length ? (
+                              <div className="game-history-table-wrap">
                               <table className="game-history-table">
                                 <thead>
                                   <tr>
@@ -3347,6 +3350,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                   ))}
                                 </tbody>
                               </table>
+                              </div>
                             ) : (
                               <p className="game-history-empty">Нет завершённых турниров</p>
                             )}
@@ -3668,6 +3672,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                 )}
                               </div>
                               {gameHistory === null ? null : gameHistory.active.length ? (
+                                <div className="game-history-table-wrap">
                                 <table className="game-history-table">
                                   <thead>
                                     <tr>
@@ -3700,6 +3705,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                     ))}
                                   </tbody>
                                 </table>
+                                </div>
                               ) : (
                                 <p className="game-history-empty">Нет активных турниров</p>
                               )}
@@ -3707,6 +3713,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                             <div className="game-history-section">
                               <strong>История игр</strong>
                               {gameHistory === null ? null : gameHistory.completed.length ? (
+                                <div className="game-history-table-wrap">
                                 <table className="game-history-table">
                                   <thead>
                                     <tr>
@@ -3737,6 +3744,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                     ))}
                                   </tbody>
                                 </table>
+                                </div>
                               ) : (
                                 <p className="game-history-empty">Нет завершённых турниров</p>
                               )}
