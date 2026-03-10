@@ -1475,6 +1475,10 @@
   border-top: none;
   align-items: center;
 }
+.cabinet-rankings-row > span:first-child,
+.cabinet-rankings-row > span:last-child {
+  text-align: center;
+}
 
 .cabinet-rankings-row:last-child {
   border-radius: 0 0 6px 6px;

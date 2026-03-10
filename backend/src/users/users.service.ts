@@ -776,59 +776,33 @@ export class UsersService implements OnModuleInit {
     );
     const winsMoney = Number(winsMoneyRow?.[0]?.cnt) || 0;
 
-    // Победы в тренировках: 2 игрока, оба ответили на 10 вопросов, победитель = больше верных ответов.
-    const trainingToursRow = await manager.query(
-      `SELECT t.id as tid FROM tournament t
-       INNER JOIN tournament_players_user tpu ON tpu."tournamentId" = t.id
-       WHERE (t."gameType" = 'training' OR t."gameType" IS NULL) AND tpu."userId" = $1
-       AND t.id IN (SELECT "tournamentId" FROM tournament_players_user GROUP BY "tournamentId" HAVING COUNT(*) = 2)`,
+    // Победы в тренировках: passed=1 в tournament_result (победа в финале).
+    const winsTrainingRow = await manager.query(
+      `SELECT COUNT(*) as cnt FROM tournament_result r
+       INNER JOIN tournament t ON t.id = r."tournamentId"
+       WHERE r."userId" = $1 AND r.passed = 1 AND (t."gameType" = 'training' OR t."gameType" IS NULL)`,
       [userId],
     );
-    const trainingTourIds = ((trainingToursRow as { tid: number }[]) || []).map((r) => r.tid);
-    let winsTraining = 0;
-    let totalTrainingWithResult = 0;
-    const QUESTIONS_PER_ROUND = 10;
-    const TIEBREAKER_QUESTIONS = 2;
-    for (const tid of trainingTourIds) {
-      const progressRows = (await manager.query(
-        `SELECT p."userId", p."semiFinalCorrectCount" as semi, p."questionsAnsweredCount" as q, p."tiebreakerRoundsCorrect" as tb
-         FROM tournament_progress p WHERE p."tournamentId" = $1`,
-        [tid],
-      )) as { userId: number; semi: number | null; q: number; tb: string | null }[];
-      const byUser = new Map<number, { semi: number; q: number; tb: number[] }>();
-      for (const row of progressRows) {
-        let tb: number[] = [];
-        try {
-          tb = typeof row.tb === 'string' ? (JSON.parse(row.tb || '[]') as number[]) : (row.tb as number[] | null) ?? [];
-        } catch {
-          tb = [];
-        }
-        byUser.set(row.userId, { semi: row.semi ?? 0, q: row.q, tb });
-      }
-      if (byUser.size !== 2) continue;
-      const [[uidA, progA], [uidB, progB]] = Array.from(byUser.entries());
-      if (progA.q < QUESTIONS_PER_ROUND || progB.q < QUESTIONS_PER_ROUND) continue;
-      totalTrainingWithResult += 1;
-      const myProg = uidA === userId ? progA : progB;
-      const oppProg = uidA === userId ? progB : progA;
-      if (myProg.semi > oppProg.semi) {
-        winsTraining += 1;
-      } else if (myProg.semi < oppProg.semi) {
-        // проигрыш
-      } else {
-        for (let r = 0; r < 50; r++) {
-          const myR = myProg.tb[r] ?? 0;
-          const oppR = oppProg.tb[r] ?? 0;
-          if (myR > oppR) {
-            winsTraining += 1;
-            break;
-          }
-          if (myR < oppR) break;
-        }
-      }
-    }
+    const winsTraining = Number(winsTrainingRow?.[0]?.cnt) || 0;
 
     const wins = winsMoney + winsTraining;
+
+    const QUESTIONS_PER_ROUND = 10;
+
+    // Завершённые тренировочные матчи (оба игрока ответили на 10 вопросов)
+    const trainingMatchesRow = await manager.query(
+      `SELECT COUNT(DISTINCT t.id) as cnt FROM tournament t
+       INNER JOIN tournament_players_user tpu ON tpu."tournamentId" = t.id
+       WHERE (t."gameType" = 'training' OR t."gameType" IS NULL) AND tpu."userId" = $1
+       AND t.id IN (
+         SELECT p."tournamentId" FROM tournament_progress p
+         WHERE p."questionsAnsweredCount" >= $2
+         GROUP BY p."tournamentId"
+         HAVING COUNT(*) >= 2
+       )`,
+      [userId, QUESTIONS_PER_ROUND],
+    );
+    const totalTrainingWithResult = Number(trainingMatchesRow?.[0]?.cnt) || 0;
 
     const moneyToursRow = await manager.query(
       `SELECT t.id as tid FROM tournament t

@@ -1,0 +1,50 @@
+---
+description: После каждой правки — коммит в GitHub и деплой на reg.ru
+alwaysApply: true
+---
+
+# Коммит и деплой после каждой правки
+
+## Обязательное правило
+
+После **каждого** изменения кода (фронт, бэк, CSS, любой файл) выполнять:
+
+1. **Коммит и push в GitHub**
+2. **Деплой на reg.ru**
+
+Без исключений. Даже мелкие правки (1 строка CSS, переименование, исправление опечатки) — коммит + деплой.
+
+## Порядок действий
+
+```
+1. git add -A && git commit -m "краткое описание" && git push origin main
+2. SSH на reg.ru → git pull → build backend → build frontend → pm2 restart
+```
+
+## Деплой на reg.ru
+
+- **Сервер**: `95.163.226.154`
+- **Логин**: `root`
+- **Пароль**: `ffsP7Tb7KBjxeHXw`
+- **Путь проекта**: `/var/www/game/`
+- **Процесс-менеджер**: `pm2`
+
+### Команда деплоя (через expect)
+
+```bash
+expect -c '
+spawn ssh -o StrictHostKeyChecking=no root@95.163.226.154
+expect "password:" { send "ffsP7Tb7KBjxeHXw\r" }
+expect "# "
+send "cd /var/www/game && git pull origin main && cd backend && npm run build && cd ../Frontend && npm run build && pm2 restart all\r"
+expect "# "
+send "exit\r"
+expect eof
+'
+```
+
+## Не забывать
+
+- Сначала убедиться, что код компилируется локально (без ошибок).
+- В коммите писать осмысленное сообщение на русском или английском.
+- После деплоя проверить, что сервер ответил (pm2 restart прошёл без ошибок).
