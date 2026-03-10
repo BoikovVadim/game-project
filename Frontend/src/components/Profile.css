@@ -1176,9 +1176,14 @@
   }
 
   .training-option {
-    min-height: 44px;
-    padding: 14px 16px;
-    font-size: 14px;
+    min-height: 52px;
+    padding: 16px 18px;
+    font-size: 15px;
+    gap: 16px;
+  }
+
+  .training-options {
+    gap: 16px;
   }
 
   .training-next-question-btn,
@@ -4431,24 +4436,27 @@ body.partner-modal-open {
 .training-options {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 14px;
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
 }
 
 .training-option {
-  padding: 12px 16px;
+  padding: 14px 18px;
   text-align: left;
-  border-radius: 8px;
-  border: 1px solid #ddd;
+  border-radius: 10px;
+  border: 1.5px solid #ddd;
   background: #fff;
   color: #000;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 15px;
+  min-height: 48px;
   transition: background 0.2s, border-color 0.2s;
   width: 100%;
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
 
 .training-option:hover {
