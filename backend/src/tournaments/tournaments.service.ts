@@ -1125,10 +1125,15 @@ export class TournamentsService {
       } else {
         const semiTBCount = tbRounds.length;
         const semiTotal = QUESTIONS_PER_ROUND + semiTBCount * TIEBREAKER_QUESTIONS;
-        questionsAnsweredInRound = Math.max(0, answered - semiTotal);
-        questionsTotal = QUESTIONS_PER_ROUND;
-        const tbCorrectSum = tbRounds.reduce((a, b) => a + b, 0);
-        correctAnswersInRound = Math.max(0, totalCorrect - semiCorrect - tbCorrectSum);
+        const finalTBRounds = prog?.finalTiebreakerRounds ?? [];
+        const finalAnswered = Math.max(0, answered - semiTotal);
+        const hasFinalTB = finalTBRounds.length > 0 || finalAnswered > QUESTIONS_PER_ROUND;
+        const activeFinalTBRounds = hasFinalTB
+          ? Math.max(1, finalTBRounds.length + (finalAnswered > QUESTIONS_PER_ROUND + finalTBRounds.length * TIEBREAKER_QUESTIONS ? 1 : 0))
+          : 0;
+        questionsTotal = semiTotal + QUESTIONS_PER_ROUND + activeFinalTBRounds * TIEBREAKER_QUESTIONS;
+        questionsAnsweredInRound = answered;
+        correctAnswersInRound = totalCorrect;
       }
       return {
         id: t.id,
