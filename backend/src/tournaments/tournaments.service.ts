@@ -1609,7 +1609,9 @@ export class TournamentsService {
     const correctAnswersCount = progress?.correctAnswersCount ?? 0;
     const semiFinalCorrectCount = progress?.semiFinalCorrectCount ?? null;
     const playerIndex = tournament.players?.findIndex((p) => p.id === userId) ?? -1;
-    const userSemiIndex = playerIndex >= 0 ? (playerIndex < 2 ? 0 : 1) : 0;
+    const bugFixDate = new Date('2026-03-11T00:00:00Z');
+    const isOldTraining = tournament.gameType === 'training' && tournament.createdAt < bugFixDate;
+    const userSemiIndex = isOldTraining ? 0 : (playerIndex >= 0 ? (playerIndex < 2 ? 0 : 1) : 0);
 
     // answersChosen — массив выбранных вариантов по вопросам (0–9 полуфинал). Нужен для бейджей «Мой ответ» в просмотре.
     let answersChosen = this.normalizeAnswersChosen(progress?.answersChosen);
@@ -2005,7 +2007,9 @@ export class TournamentsService {
 
     const chosenToSave = normalizedChosen.slice(0, Math.max(safeCount, normalizedChosen.length));
     const playerSlot = tournament.players?.findIndex((p) => p.id === userId) ?? 0;
-    const semiRoundIndex = playerSlot < 2 ? 0 : 1;
+    const bugFixDate = new Date('2026-03-11T00:00:00Z');
+    const isOldTraining = tournament.gameType === 'training' && tournament.createdAt < bugFixDate;
+    const semiRoundIndex = isOldTraining ? 0 : (playerSlot < 2 ? 0 : 1);
     const { total: computedCorrect, semi: computedSemi } = await this.computeCorrectFromAnswers(tournamentId, chosenToSave, semiRoundIndex);
 
     let progress = await this.tournamentProgressRepository.findOne({
