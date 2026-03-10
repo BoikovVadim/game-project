@@ -801,6 +801,8 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   const [timerKey, setTimerKey] = useState(0);
   const timerStartRef = useRef<number>(Date.now());
   const timerPaused = answerForCurrentQuestion !== null;
+  const [questionCooldown, setQuestionCooldown] = useState(false);
+  const questionCooldownRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [continueTrainingLoading, setContinueTrainingLoading] = useState<number | null>(null);
   const [continueTrainingError, setContinueTrainingError] = useState('');
 
@@ -1599,6 +1601,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
 
   const chooseTrainingAnswer = (answerIndex: number) => {
     if (answerForCurrentQuestion !== null) return;
+    if (questionCooldown) return;
     if (trainingTimerRef.current) {
       clearInterval(trainingTimerRef.current);
       trainingTimerRef.current = null;
@@ -1647,6 +1650,9 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
       setTrainingRoundScores((prev) => [...prev, correctThisRound]);
       setTrainingRoundComplete(true);
     } else {
+      setQuestionCooldown(true);
+      if (questionCooldownRef.current) clearTimeout(questionCooldownRef.current);
+      questionCooldownRef.current = setTimeout(() => setQuestionCooldown(false), 400);
       setTrainingQuestionIndex((i) => i + 1);
       setAnswerForCurrentQuestion(null);
       timeLeftRef.current = QUESTION_TIMER_SEC;
@@ -1840,6 +1846,8 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
       clearInterval(trainingTimerRef.current);
       trainingTimerRef.current = null;
     }
+    if (questionCooldownRef.current) { clearTimeout(questionCooldownRef.current); questionCooldownRef.current = null; }
+    setQuestionCooldown(false);
     setTrainingData(null);
     setTrainingRound(null);
     setTrainingQuestionIndex(0);
@@ -3409,9 +3417,9 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                 <button
                                   key={idx}
                                   type="button"
-                                  className={`training-option ${answered && currentQuestion.correctAnswer === idx ? 'training-option-correct training-blink-3' : ''} ${answered && !isCorrect && answerForCurrentQuestion === idx ? 'training-option-wrong' : ''}`}
+                                  className={`training-option ${questionCooldown ? 'training-option-cooldown' : ''} ${answered && currentQuestion.correctAnswer === idx ? 'training-option-correct training-blink-3' : ''} ${answered && !isCorrect && answerForCurrentQuestion === idx ? 'training-option-wrong' : ''}`}
                                   onClick={() => chooseTrainingAnswer(idx)}
-                                  disabled={answered}
+                                  disabled={answered || questionCooldown}
                                 >
                                   {opt}
                                 </button>
@@ -3811,9 +3819,9 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                   <button
                                     key={idx}
                                     type="button"
-                                    className={`training-option ${answered && currentQuestion.correctAnswer === idx ? 'training-option-correct training-blink-3' : ''} ${answered && !isCorrect && answerForCurrentQuestion === idx ? 'training-option-wrong' : ''}`}
+                                    className={`training-option ${questionCooldown ? 'training-option-cooldown' : ''} ${answered && currentQuestion.correctAnswer === idx ? 'training-option-correct training-blink-3' : ''} ${answered && !isCorrect && answerForCurrentQuestion === idx ? 'training-option-wrong' : ''}`}
                                     onClick={() => chooseTrainingAnswer(idx)}
-                                    disabled={answered}
+                                    disabled={answered || questionCooldown}
                                   >
                                     {opt}
                                   </button>

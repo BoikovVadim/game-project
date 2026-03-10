@@ -4465,6 +4465,10 @@ body.partner-modal-open {
 .training-option:focus {
   outline: none;
 }
+.training-option-cooldown {
+  opacity: 0.6;
+  pointer-events: none;
+}
 
 .training-reset-btn {
   padding: 6px 12px;
