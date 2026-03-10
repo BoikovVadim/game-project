@@ -3252,7 +3252,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                               <strong>Активные игры</strong>
                               {gameHistory?.active?.some((t) => t.userStatus === 'not_passed') && (() => {
                                 const target = [...(gameHistory?.active ?? [])]
-                                  .filter((t) => t.userStatus === 'not_passed' && t.resultLabel !== 'Ожидание соперника')
+                                  .filter((t) => t.userStatus === 'not_passed')
                                   .sort((a, b) => a.id - b.id)[0] ?? null;
                                 if (!target) return null;
                                 return (
@@ -3646,8 +3646,8 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                 {gameHistory?.active?.some((t) => t.userStatus === 'not_passed') && (
                                     (() => {
                                     const notPassed = [...(gameHistory?.active?.filter((t) => t.userStatus === 'not_passed') ?? [])].sort((a, b) => a.id - b.id);
-                                    const first = notPassed.find((t) => t.resultLabel !== 'Ожидание соперника') ?? notPassed[0];
-                                    const allWaitingForOpponent = notPassed.length > 0 && notPassed.every((t) => t.resultLabel === 'Ожидание соперника');
+                                    const first = notPassed[0] ?? null;
+                                    const allWaitingForOpponent = false;
                                     return (
                                       <button
                                         type="button"
