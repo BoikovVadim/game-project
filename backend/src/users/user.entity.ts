@@ -37,7 +37,7 @@ export class User {
   passwordResetToken!: string | null;
 
   /** Срок действия ссылки сброса пароля */
-  @Column({ type: 'datetime', nullable: true })
+  @Column({ type: 'timestamptz', nullable: true })
   passwordResetExpiresAt!: Date | null;
 
   /** Баланс в L (Legend) — используется в играх */
@@ -49,7 +49,7 @@ export class User {
   balanceRubles!: number;
 
   /** Уникальный код для реферальной ссылки (например /register?ref=XXX) */
-  @Column({ type: 'varchar', length: 32, unique: true, nullable: true })
+  @Column({ type: 'varchar', length: 128, unique: true, nullable: true })
   referralCode!: string | null;
 
   /** Кто пригласил этого пользователя (id пользователя) */
@@ -57,7 +57,7 @@ export class User {
   referrerId!: number | null;
 
   /** Время последнего «пинга» из личного кабинета (для подсчёта «онлайн»). */
-  @Column({ type: 'datetime', nullable: true })
+  @Column({ type: 'timestamptz', nullable: true })
   lastCabinetSeenAt!: Date | null;
 
   /** Пол: 'male' | 'female' | null (не указан) */
@@ -67,6 +67,10 @@ export class User {
   /** Дата рождения (YYYY-MM-DD) */
   @Column({ type: 'varchar', length: 10, nullable: true })
   birthDate!: string | null;
+
+  /** Аватар пользователя (base64 data URL) */
+  @Column({ type: 'text', nullable: true })
+  avatarUrl!: string | null;
 
   /** Доступ в админ-панель и расширенные действия */
   @Column({ type: 'boolean', default: false })

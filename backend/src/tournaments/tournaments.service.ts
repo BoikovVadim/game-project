@@ -361,11 +361,11 @@ export class TournamentsService {
   async getLeagueWins(userId: number): Promise<Map<number, number>> {
     try {
       const rows = await this.tournamentResultRepository.manager.query(
-        `SELECT t.leagueAmount as leagueAmount, COUNT(*) as wins
+        `SELECT t."leagueAmount" as "leagueAmount", COUNT(*) as wins
          FROM tournament_result r
-         INNER JOIN tournament t ON t.id = r.tournamentId
-         WHERE r.userId = ? AND r.passed = 1 AND t.gameType = 'money' AND t.leagueAmount IS NOT NULL
-         GROUP BY t.leagueAmount`,
+         INNER JOIN tournament t ON t.id = r."tournamentId"
+         WHERE r."userId" = $1 AND r.passed = 1 AND t."gameType" = 'money' AND t."leagueAmount" IS NOT NULL
+         GROUP BY t."leagueAmount"`,
         [userId],
       );
       const map = new Map<number, number>();
@@ -387,7 +387,6 @@ export class TournamentsService {
     leagueWins: Record<number, number>;
     playersOnlineByLeague: Record<number, number>;
   }> {
-    await this.userRepository.update(userId, { lastCabinetSeenAt: new Date() });
     const user = await this.userRepository.findOneBy({ id: userId });
     if (!user) throw new BadRequestException('User not found');
     const balance = Number(user.balance ?? 0) || 0;
@@ -464,13 +463,14 @@ export class TournamentsService {
         .map((u) => u.id),
     );
     const balanceByUser = new Map(users.map((u) => [u.id, Number(u.balance ?? 0) || 0]));
+    const userIdArr = [...userIds];
     const winsRows = await this.tournamentResultRepository.manager.query(
-      `SELECT r.userId as userId, t.leagueAmount as leagueAmount, COUNT(*) as wins
+      `SELECT r."userId" as "userId", t."leagueAmount" as "leagueAmount", COUNT(*) as wins
        FROM tournament_result r
-       INNER JOIN tournament t ON t.id = r.tournamentId
-       WHERE r.passed = 1 AND t.gameType = 'money' AND t.leagueAmount IS NOT NULL AND r.userId IN (${[...userIds].map(() => '?').join(',')})
-       GROUP BY r.userId, t.leagueAmount`,
-      [...userIds],
+       INNER JOIN tournament t ON t.id = r."tournamentId"
+       WHERE r.passed = 1 AND t."gameType" = 'money' AND t."leagueAmount" IS NOT NULL AND r."userId" IN (${userIdArr.map((_, i) => `$${i + 1}`).join(',')})
+       GROUP BY r."userId", t."leagueAmount"`,
+      userIdArr,
     );
     const winsByUserAndLeague = new Map<string, number>();
     for (const row of winsRows as { userId: number; leagueAmount: number; wins: number }[]) {
@@ -1375,7 +1375,7 @@ export class TournamentsService {
     let answersChosen = this.normalizeAnswersChosen(progress?.answersChosen);
     if (progress?.id != null && questionsAnsweredCount > 0) {
       const rawRows = await this.tournamentProgressRepository.query(
-        'SELECT answersChosen FROM tournament_progress WHERE id = ?',
+        'SELECT "answersChosen" FROM tournament_progress WHERE id = $1',
         [progress.id],
       );
       const row = rawRows?.[0];
@@ -1664,7 +1664,7 @@ export class TournamentsService {
       // Re-read answersChosen from DB right before save to prevent lost-update race condition:
       // another concurrent request may have saved a longer array between our initial read and now.
       const freshRows = await this.tournamentProgressRepository.query(
-        'SELECT answersChosen, questionsAnsweredCount FROM tournament_progress WHERE id = ?',
+        'SELECT "answersChosen", "questionsAnsweredCount" FROM tournament_progress WHERE id = $1',
         [progress.id],
       );
       if (freshRows?.[0]) {

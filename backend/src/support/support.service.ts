@@ -71,7 +71,7 @@ export class SupportService {
     const result: any[] = [];
     for (const t of tickets) {
       const user = await this.ticketRepo.query(
-        `SELECT id, username, nickname, email FROM user WHERE id = ?`, [t.userId],
+        `SELECT id, username, nickname, email FROM "user" WHERE id = $1`, [t.userId],
       );
       const lastMsg = await this.msgRepo.findOne({ where: { ticketId: t.id }, order: { createdAt: 'DESC' } });
       const unreadCount = await this.msgRepo.count({ where: { ticketId: t.id, unreadByAdmin: true } });
@@ -119,7 +119,7 @@ export class SupportService {
   /** Количество открытых тикетов с непрочитанными */
   async totalUnreadForAdmin(): Promise<number> {
     const rows = await this.msgRepo.query(
-      `SELECT COUNT(DISTINCT ticketId) as cnt FROM support_message WHERE unreadByAdmin = 1`,
+      `SELECT COUNT(DISTINCT "ticketId") as cnt FROM support_message WHERE "unreadByAdmin" = true`,
     );
     return Number(rows[0]?.cnt ?? 0);
   }

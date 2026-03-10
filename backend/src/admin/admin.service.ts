@@ -9,9 +9,10 @@ import { Transaction } from '../users/transaction.entity';
 import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
 
-/** SQLite хранит даты в UTC без суффикса; добавляем 'Z' чтобы фронтенд парсил их как UTC. */
-function toISOUtc(v: string | null | undefined): string | null {
+/** Нормализация дат в ISO-строку для фронтенда. */
+function toISOUtc(v: string | Date | null | undefined): string | null {
   if (!v) return null;
+  if (v instanceof Date) return v.toISOString();
   const s = String(v).trim();
   if (s.includes('Z') || s.includes('+')) return s;
   return s.replace(' ', 'T') + 'Z';
@@ -32,7 +33,7 @@ export class AdminService {
 
   /** Список заявок на вывод. Явный SQL с джойном на админа, чтобы гарантированно отдавать логин и почту того, кто принял решение. */
   async getWithdrawalRequests(status?: 'pending' | 'approved' | 'rejected'): Promise<(WithdrawalRequest & { processedByAdminUsername?: string | null; processedByAdminEmail?: string | null })[]> {
-    const statusCond = status ? ' WHERE w.status = ?' : '';
+    const statusCond = status ? ' WHERE w.status = $1' : '';
     const params = status ? [status] : [];
     const tryQuery = async (adminIdCol: string) => {
       const sql = `
@@ -125,18 +126,18 @@ export class AdminService {
         const isNumeric = /^\d+$/.test(q);
         raw = isNumeric
           ? await this.dataSource.query(
-              `SELECT id, username, email, balance, balanceRubles, isAdmin FROM "user"
-               WHERE id = ? OR username LIKE ? OR email LIKE ?
-               ORDER BY (CASE WHEN id = ? THEN 0 ELSE 1 END), id ASC LIMIT ?`,
+              `SELECT id, username, email, balance, "balanceRubles", "isAdmin" FROM "user"
+               WHERE id = $1 OR username LIKE $2 OR email LIKE $3
+               ORDER BY (CASE WHEN id = $4 THEN 0 ELSE 1 END), id ASC LIMIT $5`,
               [Number(q), `%${q}%`, `%${q}%`, Number(q), safeLimit],
             )
           : await this.dataSource.query(
-              'SELECT id, username, email, balance, balanceRubles, isAdmin FROM "user" WHERE username LIKE ? OR email LIKE ? ORDER BY id ASC LIMIT ?',
+              'SELECT id, username, email, balance, "balanceRubles", "isAdmin" FROM "user" WHERE username LIKE $1 OR email LIKE $2 ORDER BY id ASC LIMIT $3',
               [`%${q}%`, `%${q}%`, safeLimit],
             );
       } else {
         raw = await this.dataSource.query(
-          'SELECT id, username, email, balance, balanceRubles, isAdmin FROM "user" ORDER BY id ASC LIMIT ?',
+          'SELECT id, username, email, balance, "balanceRubles", "isAdmin" FROM "user" ORDER BY id ASC LIMIT $1',
           [safeLimit],
         );
       }
@@ -156,6 +157,7 @@ export class AdminService {
 
   /** Назначить или снять флаг администратора с пользователя */
   async setUserAdmin(targetUserId: number, adminId: number, isAdmin: boolean): Promise<{ isAdmin: boolean }> {
+    if (targetUserId === 1) throw new ForbiddenException('Нельзя изменять права главного администратора');
     const admin = await this.userRepository.findOne({ where: { id: adminId }, select: ['id', 'isAdmin'] });
     if (!admin?.isAdmin) throw new ForbiddenException('Требуются права администратора');
     const target = await this.userRepository.findOne({ where: { id: targetUserId } });
@@ -201,7 +203,7 @@ export class AdminService {
       const adminMap: Record<number, { username: string; email: string }> = {};
       if (missingAdminIds.size > 0) {
         const ids = Array.from(missingAdminIds);
-        const placeholders = ids.map(() => '?').join(',');
+        const placeholders = ids.map((_, i) => `$${i + 1}`).join(',');
         const admins = await this.dataSource.query(
           `SELECT id, username, email FROM "user" WHERE id IN (${placeholders})`, ids,
         );
@@ -245,42 +247,42 @@ export class AdminService {
     if (cached) return cached;
 
     const dateExpr = groupBy === 'day'
-      ? `date(u.createdAt)`
+      ? `u."createdAt"::date::text`
       : groupBy === 'week'
-        ? `strftime('%Y-%W', u.createdAt)`
+        ? `TO_CHAR(u."createdAt", 'IYYY-IW')`
         : groupBy === 'month'
-          ? `strftime('%Y-%m', u.createdAt)`
+          ? `TO_CHAR(u."createdAt", 'YYYY-MM')`
           : `'all'`;
     const dateExprW = groupBy === 'day'
-      ? `date(w.processedAt)`
+      ? `w."processedAt"::date::text`
       : groupBy === 'week'
-        ? `strftime('%Y-%W', w.processedAt)`
+        ? `TO_CHAR(w."processedAt", 'IYYY-IW')`
         : groupBy === 'month'
-          ? `strftime('%Y-%m', w.processedAt)`
+          ? `TO_CHAR(w."processedAt", 'YYYY-MM')`
           : `'all'`;
     const dateExprT = groupBy === 'day'
-      ? `date(t.createdAt)`
+      ? `t."createdAt"::date::text`
       : groupBy === 'week'
-        ? `strftime('%Y-%W', t.createdAt)`
+        ? `TO_CHAR(t."createdAt", 'IYYY-IW')`
         : groupBy === 'month'
-          ? `strftime('%Y-%m', t.createdAt)`
+          ? `TO_CHAR(t."createdAt", 'YYYY-MM')`
           : `'all'`;
 
     try {
       const hasUserCreatedAt = await this.dataSource.query(
-        `SELECT 1 FROM pragma_table_info('user') WHERE name='createdAt'`,
+        `SELECT 1 FROM information_schema.columns WHERE table_name='user' AND column_name='createdAt'`,
       ).then((r: any[]) => r.length > 0);
 
       let regRows: { period: string; cnt: number }[] = [];
       if (hasUserCreatedAt) {
         regRows = await this.dataSource.query(
-          `SELECT ${dateExpr} AS period, COUNT(*) AS cnt FROM "user" u WHERE u.createdAt IS NOT NULL GROUP BY ${dateExpr} ORDER BY period`,
+          `SELECT ${dateExpr} AS period, COUNT(*) AS cnt FROM "user" u WHERE u."createdAt" IS NOT NULL GROUP BY ${dateExpr} ORDER BY period`,
         );
       }
 
       const wRows = await this.dataSource.query(
         `SELECT ${dateExprW} AS period, COALESCE(SUM(w.amount), 0) AS amt FROM withdrawal_request w
-         WHERE w.status = 'approved' AND w.processedAt IS NOT NULL GROUP BY ${dateExprW} ORDER BY period`,
+         WHERE w.status = 'approved' AND w."processedAt" IS NOT NULL GROUP BY ${dateExprW} ORDER BY period`,
       );
 
       const topupRows = await this.dataSource.query(
@@ -289,16 +291,16 @@ export class AdminService {
          GROUP BY ${dateExprT} ORDER BY period`,
       );
 
-      const gamePeriodExpr = groupBy === 'day' ? 'date(tr.createdAt)' : groupBy === 'week' ? "strftime('%Y-%W', tr.createdAt)" : groupBy === 'month' ? "strftime('%Y-%m', tr.createdAt)" : "'all'";
+      const gamePeriodExpr = groupBy === 'day' ? 'tr."createdAt"::date::text' : groupBy === 'week' ? `TO_CHAR(tr."createdAt", 'IYYY-IW')` : groupBy === 'month' ? `TO_CHAR(tr."createdAt", 'YYYY-MM')` : `'all'`;
       const gameIncomeRows = await this.dataSource.query(
         `SELECT period, SUM(income) AS income FROM (
           SELECT ${gamePeriodExpr} AS period,
-            COALESCE(4 * (SELECT leagueAmount FROM tournament WHERE id = tr.tournamentId), 0) -
+            COALESCE(4 * (SELECT "leagueAmount" FROM tournament WHERE id = tr."tournamentId"), 0) -
             COALESCE(tr.amount, 0) -
-            COALESCE((SELECT SUM(amount) FROM "transaction" WHERE category = 'referral' AND tournamentId = tr.tournamentId), 0) AS income
+            COALESCE((SELECT SUM(amount) FROM "transaction" WHERE category = 'referral' AND "tournamentId" = tr."tournamentId"), 0) AS income
           FROM "transaction" tr
-          WHERE tr.category = 'win' AND tr.tournamentId IS NOT NULL
-        ) GROUP BY period ORDER BY period`,
+          WHERE tr.category = 'win' AND tr."tournamentId" IS NOT NULL
+        ) sub GROUP BY period ORDER BY period`,
       );
 
       const periods = new Set<string>();
@@ -349,13 +351,13 @@ export class AdminService {
     const filterCat = category && allowed.includes(category) ? category : null;
     try {
       const catCondition = filterCat
-        ? `AND t.category = ?`
+        ? `AND t.category = $1`
         : `AND t.category IN ('topup', 'withdraw', 'win', 'other')`;
       const params = filterCat ? [filterCat] : [];
       const rows = await this.dataSource.query(
-        `SELECT t.id, t.userId, u.username, u.email, t.amount, t.description, t.category, t.createdAt
+        `SELECT t.id, t."userId", u.username, u.email, t.amount, t.description, t.category, t."createdAt"
          FROM "transaction" t
-         LEFT JOIN "user" u ON u.id = t.userId
+         LEFT JOIN "user" u ON u.id = t."userId"
          WHERE 1=1 ${catCondition}
          ORDER BY t.id DESC
          LIMIT 2000`,

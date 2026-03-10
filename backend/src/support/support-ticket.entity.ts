@@ -18,7 +18,7 @@ export class SupportTicket {
   @CreateDateColumn()
   createdAt!: Date;
 
-  @Column({ type: 'datetime', nullable: true })
+  @Column({ type: 'timestamptz', nullable: true })
   closedAt!: Date | null;
 
   @ManyToOne(() => User, { onDelete: 'CASCADE' })

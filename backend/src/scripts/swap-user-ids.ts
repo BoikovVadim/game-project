@@ -3,22 +3,18 @@
  * Пользователь 4 станет 1 (родоначальник), пользователь 1 станет 4.
  * Запуск из папки backend: npx ts-node -r tsconfig-paths/register src/scripts/swap-user-ids.ts
  */
-import * as path from 'path';
-import * as fs from 'fs';
 import { DataSource } from 'typeorm';
 
 const TEMP_ID = 999999;
 
 async function run() {
-  const dbPath = path.resolve(path.join(__dirname, '..', '..', 'db.sqlite'));
-  if (!fs.existsSync(dbPath)) {
-    console.error('База данных не найдена:', dbPath);
-    process.exit(1);
-  }
-
   const ds = new DataSource({
-    type: 'sqlite',
-    database: dbPath,
+    type: 'postgres',
+    host: process.env.DB_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT || '5432', 10),
+    username: process.env.DB_USER || 'legend',
+    password: process.env.DB_PASS || 'legend',
+    database: process.env.DB_NAME || 'legendgames',
     synchronize: false,
   });
   await ds.initialize();
@@ -27,7 +23,7 @@ async function run() {
   await qr.connect();
 
   try {
-    await qr.query('PRAGMA foreign_keys = OFF');
+    // PostgreSQL does not need PRAGMA foreign_keys = OFF; constraints are handled per-transaction
     await qr.startTransaction();
 
     const tablesWithUserId = [
@@ -40,14 +36,15 @@ async function run() {
     ];
 
     const updateFk = async (table: string, col: string, fromId: number, toId: number) => {
-      const rows = await qr.query(`SELECT rowid FROM ${table} WHERE ${col} = ?`, [fromId]);
+      const quotedCol = `"${col}"`;
+      const rows = await qr.query(`SELECT id FROM ${table} WHERE ${quotedCol} = $1`, [fromId]);
       if (rows.length > 0) {
-        await qr.query(`UPDATE ${table} SET ${col} = ? WHERE ${col} = ?`, [toId, fromId]);
+        await qr.query(`UPDATE ${table} SET ${quotedCol} = $1 WHERE ${quotedCol} = $2`, [toId, fromId]);
       }
     };
 
-    const user1 = await qr.query('SELECT id, username FROM user WHERE id = 1');
-    const user4 = await qr.query('SELECT id, username FROM user WHERE id = 4');
+    const user1 = await qr.query('SELECT id, username FROM "user" WHERE id = 1');
+    const user4 = await qr.query('SELECT id, username FROM "user" WHERE id = 4');
 
     if (user1.length === 0 || user4.length === 0) {
       console.error('Оба пользователя (id=1 и id=4) должны существовать в БД');
@@ -56,7 +53,7 @@ async function run() {
     }
 
     console.log('Шаг 1: user 1 → temp', TEMP_ID);
-    await qr.query('UPDATE user SET id = ? WHERE id = 1', [TEMP_ID]);
+    await qr.query('UPDATE "user" SET id = $1 WHERE id = 1', [TEMP_ID]);
     for (const { table, col } of tablesWithUserId) {
       try {
         await updateFk(table, col, 1, TEMP_ID);
@@ -64,10 +61,10 @@ async function run() {
         console.warn(`  ${table}.${col}:`, (e as Error).message);
       }
     }
-    await qr.query('UPDATE user SET referrerId = ? WHERE referrerId = 1', [TEMP_ID]);
+    await qr.query('UPDATE "user" SET "referrerId" = $1 WHERE "referrerId" = 1', [TEMP_ID]);
 
     console.log('Шаг 2: user 4 → 1');
-    await qr.query('UPDATE user SET id = 1 WHERE id = 4');
+    await qr.query('UPDATE "user" SET id = 1 WHERE id = 4');
     for (const { table, col } of tablesWithUserId) {
       try {
         await updateFk(table, col, 4, 1);
@@ -75,10 +72,10 @@ async function run() {
         console.warn(`  ${table}.${col}:`, (e as Error).message);
       }
     }
-    await qr.query('UPDATE user SET referrerId = 1 WHERE referrerId = 4');
+    await qr.query('UPDATE "user" SET "referrerId" = 1 WHERE "referrerId" = 4');
 
     console.log('Шаг 3: temp → 4');
-    await qr.query('UPDATE user SET id = 4 WHERE id = ?', [TEMP_ID]);
+    await qr.query('UPDATE "user" SET id = 4 WHERE id = $1', [TEMP_ID]);
     for (const { table, col } of tablesWithUserId) {
       try {
         await updateFk(table, col, TEMP_ID, 4);
@@ -86,15 +83,14 @@ async function run() {
         console.warn(`  ${table}.${col}:`, (e as Error).message);
       }
     }
-    await qr.query('UPDATE user SET referrerId = 4 WHERE referrerId = ?', [TEMP_ID]);
+    await qr.query('UPDATE "user" SET "referrerId" = 4 WHERE "referrerId" = $1', [TEMP_ID]);
 
     await qr.commitTransaction();
-    await qr.query('PRAGMA foreign_keys = ON');
+    // PostgreSQL does not need PRAGMA foreign_keys = ON
 
     console.log('Готово. Пользователь 4 теперь id=1, пользователь 1 теперь id=4.');
   } catch (e) {
     await qr.rollbackTransaction();
-    await qr.query('PRAGMA foreign_keys = ON');
     console.error('Ошибка:', e);
     process.exit(1);
   } finally {

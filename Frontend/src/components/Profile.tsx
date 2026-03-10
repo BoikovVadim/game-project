@@ -198,7 +198,7 @@ const BracketPlayerName = ({
   );
 };
 
-type PartnerDetailNode = { id: number; displayName: string; referrerId: number | null };
+type PartnerDetailNode = { id: number; displayName: string; referrerId: number | null; avatarUrl?: string | null };
 
 /** Ячейка дерева — клик по имени показывает/скрывает статистику */
 const PartnerDetailTooltipCell = React.memo(({
@@ -229,7 +229,7 @@ const PartnerDetailTooltipCell = React.memo(({
   currentUserAvatar?: string | null;
 }) => {
   const displayName = node.displayName.startsWith('ref_model_') ? node.displayName.slice(0, 10) : node.displayName;
-  const avatarUrl = (currentUserId != null && node.id === currentUserId) ? currentUserAvatar : (typeof localStorage !== 'undefined' ? localStorage.getItem(`avatar_${node.id}`) : null);
+  const avatarUrl = (currentUserId != null && node.id === currentUserId) ? currentUserAvatar : (node.avatarUrl ?? null);
   const elRef = useRef<HTMLButtonElement | null>(null);
 
   const handleNodeClick = (e: React.MouseEvent) => {
@@ -633,14 +633,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   const [isImpersonating] = useState(() => !!localStorage.getItem('adminToken'));
   const [transactions, setTransactions] = useState<any[]>([]);
   const [transactionsLoaded, setTransactionsLoaded] = useState(false);
-  const [avatar, setAvatar] = useState<string | null>(() => {
-    try {
-      const id = localStorage.getItem('userId');
-      return (id && localStorage.getItem(`avatar_${id}`)) || null;
-    } catch {
-      return null;
-    }
-  });
+  const [avatar, setAvatar] = useState<string | null>(null);
   const [rublesInput, setRublesInput] = useState('');
   const [legendsInput, setLegendsInput] = useState('');
   const [convertLoading, setConvertLoading] = useState(false);
@@ -911,14 +904,14 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
       const depth = findDepth(fromId);
       const rootNode: Node = { id: fromId, displayName: fromDisplayName, referrerId: null };
       if (depth < 0) {
-        return [ [rootNode], ...levels.map((arr) => (Array.isArray(arr) ? arr : []).map((x) => ({ id: Number(x.id), displayName: String(x.displayName ?? x.id), referrerId: x.referrerId != null ? Number(x.referrerId) : null }))) ];
+        return [ [rootNode], ...levels.map((arr) => (Array.isArray(arr) ? arr : []).map((x: any) => ({ id: Number(x.id), displayName: String(x.displayName ?? x.id), referrerId: x.referrerId != null ? Number(x.referrerId) : null, avatarUrl: x.avatarUrl ?? null }))) ];
       }
       const subtreeLevels: Node[][] = [[rootNode]];
       let currentIds: number[] = [fromId];
       for (let L = depth + 1; L < levels.length && currentIds.length > 0; L++) {
         const arr = Array.isArray(levels[L]) ? levels[L] : [];
         const parentIds = currentIds;
-        const nodes = arr.filter((x) => parentIds.includes(Number(x.referrerId))).map((x) => ({ id: Number(x.id), displayName: String(x.displayName ?? x.id), referrerId: x.referrerId != null ? Number(x.referrerId) : null }));
+        const nodes = arr.filter((x) => parentIds.includes(Number(x.referrerId))).map((x: any) => ({ id: Number(x.id), displayName: String(x.displayName ?? x.id), referrerId: x.referrerId != null ? Number(x.referrerId) : null, avatarUrl: x.avatarUrl ?? null }));
         subtreeLevels.push(nodes);
         currentIds = nodes.map((n) => n.id);
       }
@@ -1117,11 +1110,10 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         const isAdmin = data.isAdmin === true || data.isAdmin === 1 || data.isAdmin === '1' || !!data.isAdmin;
         setShowAdminLink(!!isAdmin);
         if (data.id != null) localStorage.setItem('userId', String(data.id));
-        const savedAvatar = data.id != null ? localStorage.getItem(`avatar_${data.id}`) : null;
+        if (data.avatarUrl) setAvatar(data.avatarUrl);
         const backendNick = data.nickname;
         const savedNickname = backendNick ?? (data.id != null ? localStorage.getItem(`nickname_${data.id}`) : null);
         setNickname(savedNickname ?? '');
-        if (savedAvatar) setAvatar(savedAvatar);
         if (data.gender) setGender(data.gender);
         if (data.birthDate) setBirthDate(data.birthDate);
       } catch (err: unknown) {
@@ -1310,19 +1302,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
           const data = res.data;
           const rootId = data.rootUserId ?? Number(user?.id) ?? 0;
           setReferralTree({ ...data, rootUserId: rootId });
-          const line1Empty = !data?.levels?.[0]?.length;
-          const seedKey = `partner_model_seeded_${user?.id ?? 0}`;
-          if (line1Empty && user?.id && !sessionStorage.getItem(seedKey)) {
-            try {
-              sessionStorage.setItem(seedKey, '1');
-              await axios.post('/users/seed-referral-model', {}, { headers: { Authorization: `Bearer ${token}` } });
-              const treeRes = await axios.get<{ rootUserId?: number; levels: { id: number; displayName: string; referrerId: number | null }[][] }>(`/users/referral-tree?t=${Date.now()}`, { headers: { Authorization: `Bearer ${token}` } });
-              const tr = treeRes.data;
-              setReferralTree({ ...tr, rootUserId: tr.rootUserId ?? Number(user?.id) ?? 0 });
-            } catch {
-              sessionStorage.removeItem(seedKey);
-            }
-          }
+          // Auto-seeding disabled for production
         })
         .catch((e) => {
           setReferralTree(null);
@@ -2089,17 +2069,19 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
 
   const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
-        setAvatar(result);
-        if (user) {
-          localStorage.setItem(`avatar_${user.id}`, result);
-        }
-      };
-      reader.readAsDataURL(file);
+    if (!file) return;
+    if (file.size > 350_000) {
+      alert('Файл слишком большой. Максимум ~350KB.');
+      return;
     }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      setAvatar(result);
+      axios.post('/users/profile/avatar', { avatarUrl: result }, authHeaders)
+        .catch(() => alert('Не удалось сохранить фото на сервере'));
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleChangePassword = async (e: React.FormEvent) => {
@@ -4544,7 +4526,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                         const total = answered >= 10 ? 10 : answered;
                         // Для полуфинала: semiScore — верные в полуфинале. correctAnswersCount при answered>10 — сумма полуфинал+финал, не использовать.
                         const correct = p?.semiScore ?? (answered <= 10 ? (p?.correctAnswersCount ?? 0) : 0);
-                        const pAvatar = p && p.id === user?.id ? avatar : (p ? localStorage.getItem(`avatar_${p.id}`) : null);
+                        const pAvatar = p && p.id === user?.id ? avatar : (p?.avatarUrl ?? null);
                         return (
                           <div key={p ? p.id : `s1-${i}`} className={`bracket-player-slot ${!p ? 'bracket-slot-empty' : ''} ${p?.isLoser ? 'bracket-slot-loser' : ''}`}>
                             <span className="bracket-player-info">
@@ -4589,7 +4571,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                         const total = answered >= 10 ? 10 : answered;
                         // Для полуфинала: semiScore — верные в полуфинале. correctAnswersCount при answered>10 — сумма полуфинал+финал, не использовать.
                         const correct = p?.semiScore ?? (answered <= 10 ? (p?.correctAnswersCount ?? 0) : 0);
-                        const pAvatar = p && p.id === user?.id ? avatar : (p ? localStorage.getItem(`avatar_${p.id}`) : null);
+                        const pAvatar = p && p.id === user?.id ? avatar : (p?.avatarUrl ?? null);
                         return (
                           <div key={p ? p.id : `s2-${i}`} className={`bracket-player-slot ${!p ? 'bracket-slot-empty' : ''} ${p?.isLoser ? 'bracket-slot-loser' : ''}`}>
                             <span className="bracket-player-info">
@@ -4640,7 +4622,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                       const answered = p?.finalAnswered ?? 0;
                       const total = answered >= 10 ? 10 : answered;
                       const correct = p?.finalScore ?? p?.finalCorrect ?? 0;
-                      const pAvatar = p && p.id === user?.id ? avatar : (p ? localStorage.getItem(`avatar_${p.id}`) : null);
+                      const pAvatar = p && p.id === user?.id ? avatar : (p?.avatarUrl ?? null);
                       return (
                         <div key={p ? p.id : `f-${i}`} className={`bracket-player-slot ${!p ? 'bracket-slot-empty' : ''}`}>
                           <span className="bracket-player-info">

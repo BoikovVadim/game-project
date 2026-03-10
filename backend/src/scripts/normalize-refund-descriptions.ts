@@ -4,8 +4,6 @@
  *
  * Запуск: npx ts-node -r tsconfig-paths/register src/scripts/normalize-refund-descriptions.ts
  */
-import * as path from 'path';
-import * as fs from 'fs';
 import { DataSource } from 'typeorm';
 
 const LEAGUE_NAMES: Record<number, string> = {
@@ -34,26 +32,20 @@ function extractTournamentId(description: string, tournamentIdFromRow: number | 
 }
 
 async function run() {
-  const possiblePaths = [
-    path.resolve(path.join(__dirname, '..', '..', 'db.sqlite')),
-    path.resolve(path.join(__dirname, '..', '..', '..', 'db.sqlite')),
-  ];
-  const dbPath = possiblePaths.find((p) => fs.existsSync(p));
-  if (!dbPath) {
-    console.error('База данных не найдена. Проверены пути:', possiblePaths);
-    process.exit(1);
-  }
-
   const ds = new DataSource({
-    type: 'sqlite',
-    database: dbPath,
+    type: 'postgres',
+    host: process.env.DB_HOST || 'localhost',
+    port: parseInt(process.env.DB_PORT || '5432', 10),
+    username: process.env.DB_USER || 'legend',
+    password: process.env.DB_PASS || 'legend',
+    database: process.env.DB_NAME || 'legendgames',
     synchronize: false,
   });
   await ds.initialize();
 
   try {
     const refunds = await ds.query(
-      `SELECT id, userId, amount, description, tournamentId FROM "transaction"
+      `SELECT id, "userId", amount, description, "tournamentId" FROM "transaction"
        WHERE category = 'refund' AND description IS NOT NULL AND description != ''`
     ) as { id: number; userId: number; amount: number; description: string; tournamentId: number | null }[];
 
@@ -68,7 +60,7 @@ async function run() {
       }
 
       const tournaments = await ds.query(
-        'SELECT id, leagueAmount FROM tournament WHERE id = ?',
+        'SELECT id, "leagueAmount" FROM tournament WHERE id = $1',
         [tournamentId]
       ) as { id: number; leagueAmount: number | null }[];
       const leagueAmount = tournaments[0]?.leagueAmount ?? null;
@@ -76,7 +68,7 @@ async function run() {
       const newDescription = `${leagueName}, ID ${tournamentId}`;
 
       await ds.query(
-        'UPDATE "transaction" SET description = ? WHERE id = ?',
+        'UPDATE "transaction" SET description = $1 WHERE id = $2',
         [newDescription, row.id]
       );
       console.log(`id=${row.id}: "${row.description}" → "${newDescription}"`);

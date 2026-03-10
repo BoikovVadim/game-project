@@ -42,6 +42,6 @@ export class WithdrawalRequest {
   @CreateDateColumn()
   createdAt!: Date;
 
-  @Column({ type: 'datetime', nullable: true })
+  @Column({ type: 'timestamptz', nullable: true })
   processedAt!: Date | null;
 }

@@ -27,7 +27,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       return { id: payload.sub, username: payload.username || '', isAdmin: false };
     }
     if (user.id === 1) return { id: user.id, username: user.username, isAdmin: true };
-    const raw = await this.userRepository.query('SELECT isAdmin FROM user WHERE id = ? LIMIT 1', [user.id]);
+    const raw = await this.userRepository.query('SELECT "isAdmin" FROM "user" WHERE id = $1 LIMIT 1', [user.id]);
     const row = raw?.[0];
     const isAdminRaw = row?.isAdmin ?? row?.isadmin;
     const isAdmin = isAdminRaw === 1 || isAdminRaw === true || isAdminRaw === '1';

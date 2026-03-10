@@ -5,8 +5,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ServeStaticModule } from '@nestjs/serve-static';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
-import { join, resolve } from 'path';
-import * as fs from 'fs';
+import { join } from 'path';
 import { AppController } from './app.controller';
 import { UsersModule } from './users/users.module';
 import { TournamentsModule } from './tournaments/tournaments.module';
@@ -31,11 +30,6 @@ import { NewsModule } from './news/news.module';
 import { News } from './news/news.entity';
 
 const frontendBuild = join(__dirname, '..', '..', 'Frontend', 'build');
-const dbByEnv = process.env.DATABASE_PATH ? resolve(process.env.DATABASE_PATH) : null;
-const dbByDir = resolve(join(__dirname, '..', 'db.sqlite'));
-const dbByCwd = resolve(join(process.cwd(), 'db.sqlite'));
-const databasePath = dbByEnv || (fs.existsSync(dbByCwd) ? dbByCwd : dbByDir);
-console.log('[AppModule] database path:', databasePath, '| cwd:', process.cwd());
 
 @Module({
   imports: [
@@ -64,8 +58,12 @@ console.log('[AppModule] database path:', databasePath, '| cwd:', process.cwd())
       },
     }),
     TypeOrmModule.forRoot({
-      type: 'sqlite',
-      database: databasePath,
+      type: 'postgres',
+      host: process.env.DB_HOST || 'localhost',
+      port: parseInt(process.env.DB_PORT || '5432', 10),
+      username: process.env.DB_USER || 'legend',
+      password: process.env.DB_PASS || 'legend',
+      database: process.env.DB_NAME || 'legendgames',
       entities: [User, Tournament, Question, TournamentEntry, TournamentResult, TournamentProgress, TournamentEscrow, Transaction, Payment, WithdrawalRequest, SupportMessage, SupportTicket, News],
       synchronize: process.env.NODE_ENV !== 'production',
       logging: process.env.NODE_ENV !== 'production',

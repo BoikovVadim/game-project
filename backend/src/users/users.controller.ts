@@ -39,6 +39,12 @@ export class UsersController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Post('profile/avatar')
+  updateAvatar(@Body() body: { avatarUrl: string | null }, @Request() req: any) {
+    return this.usersService.updateAvatar(req.user.id, body.avatarUrl ?? null);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Post('profile/personal')
   updatePersonal(
     @Body() body: { gender?: string | null; birthDate?: string | null },

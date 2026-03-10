@@ -33,7 +33,7 @@ export class TournamentProgress {
   timeLeftSeconds!: number | null;
 
   /** Момент выхода (для пересчёта оставшегося времени при возврате). */
-  @Column({ type: 'datetime', nullable: true })
+  @Column({ type: 'timestamptz', nullable: true })
   leftAt!: Date | null;
 
   /** Верных ответов в каждом доп. раунде: [r1, r2, ...] — для неограниченных доп. раундов. */

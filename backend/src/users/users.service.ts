@@ -66,7 +66,7 @@ export class UsersService implements OnModuleInit {
   /** При старте приложения переписывает старые описания возвратов за турниры в формат «Возврат за турнир, {лига}, ID {id}». */
   private async normalizeRefundDescriptions(): Promise<void> {
     const rows = (await this.dataSource.query(
-      `SELECT id, description, tournamentId FROM "transaction"
+      `SELECT id, description, "tournamentId" FROM "transaction"
        WHERE category = 'refund' AND description IS NOT NULL AND description != ''`,
     )) as { id: number; description: string; tournamentId: number | null }[];
     const getLeagueName = (amount: number | null): string =>
@@ -85,12 +85,12 @@ export class UsersService implements OnModuleInit {
       const tournamentId = extractTid(row.description, row.tournamentId);
       if (tournamentId == null) continue;
       const tournaments = (await this.dataSource.query(
-        'SELECT id, leagueAmount FROM tournament WHERE id = ?',
+        'SELECT id, "leagueAmount" FROM tournament WHERE id = $1',
         [tournamentId],
       )) as { id: number; leagueAmount: number | null }[];
       const leagueAmount = tournaments[0]?.leagueAmount ?? null;
       const newDescription = `${getLeagueName(leagueAmount)}, ID ${tournamentId}`;
-      await this.dataSource.query('UPDATE "transaction" SET description = ? WHERE id = ?', [
+      await this.dataSource.query('UPDATE "transaction" SET description = $1 WHERE id = $2', [
         newDescription,
         row.id,
       ]);
@@ -121,8 +121,8 @@ export class UsersService implements OnModuleInit {
    */
   async getBalanceRublesFromTransactions(userId: number): Promise<number> {
     const rows = await this.dataSource.query(
-      `SELECT category, amount, description, tournamentId FROM "transaction"
-       WHERE userId = ? AND category IN ('topup','withdraw','refund','convert')`,
+      `SELECT category, amount, description, "tournamentId" FROM "transaction"
+       WHERE "userId" = $1 AND category IN ('topup','withdraw','refund','convert')`,
       [userId],
     ) as { category: string; amount: number; description: string | null; tournamentId: number | null }[];
     const list = Array.isArray(rows) ? rows : [];
@@ -143,8 +143,8 @@ export class UsersService implements OnModuleInit {
    */
   async getBalanceLFromTransactions(userId: number): Promise<number> {
     const rows = await this.dataSource.query(
-      `SELECT category, amount, description, tournamentId FROM "transaction"
-       WHERE userId = ? AND category IN ('win','loss','referral','other','convert','refund')`,
+      `SELECT category, amount, description, "tournamentId" FROM "transaction"
+       WHERE "userId" = $1 AND category IN ('win','loss','referral','other','convert','refund')`,
       [userId],
     ) as { category: string; amount: number; description: string | null; tournamentId: number | null }[];
     const list = Array.isArray(rows) ? rows : [];
@@ -160,7 +160,7 @@ export class UsersService implements OnModuleInit {
   /** Сумма заявок на вывод в статусе pending (уже снята с баланса, но транзакция withdraw ещё не создана). */
   async getPendingWithdrawalSum(userId: number): Promise<number> {
     const rows = await this.dataSource.query(
-      'SELECT COALESCE(SUM(amount), 0) AS total FROM withdrawal_request WHERE userId = ? AND status = ?',
+      'SELECT COALESCE(SUM(amount), 0) AS total FROM withdrawal_request WHERE "userId" = $1 AND status = $2',
       [userId, 'pending'],
     );
     return rows?.[0]?.total != null ? Number(rows[0].total) : 0;
@@ -226,7 +226,7 @@ export class UsersService implements OnModuleInit {
     const balanceRublesFromTx = await this.forceReconcileBalanceRubles(userId);
     const balanceLFromTx = await this.forceReconcileBalanceL(userId);
     const escrowRows = await this.dataSource.query(
-      'SELECT COALESCE(SUM(amount), 0) AS total FROM tournament_escrow WHERE userId = ? AND status = ?',
+      'SELECT COALESCE(SUM(amount), 0) AS total FROM tournament_escrow WHERE "userId" = $1 AND status = $2',
       [userId, 'held'],
     );
     const reservedBalance = escrowRows?.[0]?.total != null ? Number(escrowRows[0].total) : 0;
@@ -246,7 +246,19 @@ export class UsersService implements OnModuleInit {
       isAdmin: !!isAdmin,
       gender: userAfter.gender ?? null,
       birthDate: userAfter.birthDate ?? null,
+      avatarUrl: userAfter.avatarUrl ?? null,
     };
+  }
+
+  async updateAvatar(userId: number, avatarData: string | null): Promise<{ avatarUrl: string | null }> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+    if (avatarData && avatarData.length > 500_000) {
+      throw new BadRequestException('Файл слишком большой (макс. ~350KB)');
+    }
+    user.avatarUrl = avatarData || null;
+    await this.userRepository.save(user);
+    return { avatarUrl: user.avatarUrl };
   }
 
   async updateNickname(userId: number, nickname: string | null): Promise<{ nickname: string | null }> {
@@ -300,9 +312,9 @@ export class UsersService implements OnModuleInit {
   }
 
   /** Древо рефералов: 10 линий. Каждый пользователь возвращается с referrerId для связи родитель–потомок. */
-  async getReferralTree(userId: number): Promise<{ rootUserId: number; levels: { id: number; displayName: string; referrerId: number | null }[][] }> {
+  async getReferralTree(userId: number): Promise<{ rootUserId: number; levels: { id: number; displayName: string; referrerId: number | null; avatarUrl: string | null }[][] }> {
     const MAX_LEVELS = 10;
-    const levels: { id: number; displayName: string; referrerId: number | null }[][] = [];
+    const levels: { id: number; displayName: string; referrerId: number | null; avatarUrl: string | null }[][] = [];
     const rootId = Number(userId);
 
     try {
@@ -315,7 +327,7 @@ export class UsersService implements OnModuleInit {
         }
         const users = await this.userRepository
           .createQueryBuilder('u')
-          .select(['u.id', 'u.username', 'u.nickname', 'u.referrerId'])
+          .select(['u.id', 'u.username', 'u.nickname', 'u.referrerId', 'u.avatarUrl'])
           .where('u.referrerId IN (:...ids)', { ids: parentIds })
           .getMany();
         const nextLevel = users.map((u) => {
@@ -325,6 +337,7 @@ export class UsersService implements OnModuleInit {
             id: Number(u.id),
             displayName,
             referrerId: u.referrerId != null ? Number(u.referrerId) : null,
+            avatarUrl: u.avatarUrl ?? null,
           };
         });
         levels.push(nextLevel);
@@ -601,11 +614,10 @@ export class UsersService implements OnModuleInit {
     await this.userRepository.save(user);
 
     try {
-      await this.dataSource.query(
-        'INSERT INTO withdrawal_request (userId, amount, details, status) VALUES (?, ?, ?, ?)',
+      const rows = await this.dataSource.query(
+        'INSERT INTO withdrawal_request ("userId", amount, details, status) VALUES ($1, $2, $3, $4) RETURNING id, "userId", amount, details, status, "createdAt"',
         [userId, amountNum, detailsStr, 'pending'],
-      );
-      const rows = await this.dataSource.query('SELECT id, userId, amount, details, status, createdAt FROM withdrawal_request WHERE id = last_insert_rowid()') as { id: number; userId: number; amount: number; details: string | null; status: string; createdAt: string }[];
+      ) as { id: number; userId: number; amount: number; details: string | null; status: string; createdAt: string }[];
       const row = rows?.[0];
       if (!row) throw new Error('Withdrawal request not found after insert');
       console.log('[Withdrawal] Created request id=%s userId=%s amount=%s', row.id, userId, amountNum);
@@ -721,19 +733,19 @@ export class UsersService implements OnModuleInit {
     const manager = this.userRepository.manager;
 
     const gamesPlayedRow = await manager.query(
-      'SELECT COUNT(DISTINCT tp.tournamentId) as cnt FROM tournament_players_user tp INNER JOIN tournament t ON t.id = tp.tournamentId WHERE tp.userId = ?',
+      'SELECT COUNT(DISTINCT tp."tournamentId") as cnt FROM tournament_players_user tp INNER JOIN tournament t ON t.id = tp."tournamentId" WHERE tp."userId" = $1',
       [userId],
     );
     const gamesPlayed = Number(gamesPlayedRow?.[0]?.cnt) || 0;
 
     const trainingRow = await manager.query(
-      "SELECT COUNT(DISTINCT tp.tournamentId) as cnt FROM tournament_players_user tp INNER JOIN tournament t ON t.id = tp.tournamentId WHERE tp.userId = ? AND (t.gameType = 'training' OR t.gameType IS NULL)",
+      `SELECT COUNT(DISTINCT tp."tournamentId") as cnt FROM tournament_players_user tp INNER JOIN tournament t ON t.id = tp."tournamentId" WHERE tp."userId" = $1 AND (t."gameType" = 'training' OR t."gameType" IS NULL)`,
       [userId],
     );
     const gamesPlayedTraining = Number(trainingRow?.[0]?.cnt) || 0;
 
     const moneyRow = await manager.query(
-      "SELECT COUNT(DISTINCT tp.tournamentId) as cnt FROM tournament_players_user tp INNER JOIN tournament t ON t.id = tp.tournamentId WHERE tp.userId = ? AND t.gameType = 'money'",
+      `SELECT COUNT(DISTINCT tp."tournamentId") as cnt FROM tournament_players_user tp INNER JOIN tournament t ON t.id = tp."tournamentId" WHERE tp."userId" = $1 AND t."gameType" = 'money'`,
       [userId],
     );
     const gamesPlayedMoney = Number(moneyRow?.[0]?.cnt) || 0;
@@ -741,8 +753,8 @@ export class UsersService implements OnModuleInit {
     // Победы за деньги: passed=1 в tournament_result.
     const winsMoneyRow = await manager.query(
       `SELECT COUNT(*) as cnt FROM tournament_result r
-       INNER JOIN tournament t ON t.id = r.tournamentId
-       WHERE r.userId = ? AND r.passed = 1 AND t.gameType = 'money'`,
+       INNER JOIN tournament t ON t.id = r."tournamentId"
+       WHERE r."userId" = $1 AND r.passed = 1 AND t."gameType" = 'money'`,
       [userId],
     );
     const winsMoney = Number(winsMoneyRow?.[0]?.cnt) || 0;
@@ -750,9 +762,9 @@ export class UsersService implements OnModuleInit {
     // Победы в тренировках: 2 игрока, оба ответили на 10 вопросов, победитель = больше верных ответов.
     const trainingToursRow = await manager.query(
       `SELECT t.id as tid FROM tournament t
-       INNER JOIN tournament_players_user tpu ON tpu.tournamentId = t.id
-       WHERE (t.gameType = 'training' OR t.gameType IS NULL) AND tpu.userId = ?
-       AND t.id IN (SELECT tournamentId FROM tournament_players_user GROUP BY tournamentId HAVING COUNT(*) = 2)`,
+       INNER JOIN tournament_players_user tpu ON tpu."tournamentId" = t.id
+       WHERE (t."gameType" = 'training' OR t."gameType" IS NULL) AND tpu."userId" = $1
+       AND t.id IN (SELECT "tournamentId" FROM tournament_players_user GROUP BY "tournamentId" HAVING COUNT(*) = 2)`,
       [userId],
     );
     const trainingTourIds = ((trainingToursRow as { tid: number }[]) || []).map((r) => r.tid);
@@ -762,8 +774,8 @@ export class UsersService implements OnModuleInit {
     const TIEBREAKER_QUESTIONS = 2;
     for (const tid of trainingTourIds) {
       const progressRows = (await manager.query(
-        `SELECT p.userId, p.semiFinalCorrectCount as semi, p.questionsAnsweredCount as q, p.tiebreakerRoundsCorrect as tb
-         FROM tournament_progress p WHERE p.tournamentId = ?`,
+        `SELECT p."userId", p."semiFinalCorrectCount" as semi, p."questionsAnsweredCount" as q, p."tiebreakerRoundsCorrect" as tb
+         FROM tournament_progress p WHERE p."tournamentId" = $1`,
         [tid],
       )) as { userId: number; semi: number | null; q: number; tb: string | null }[];
       const byUser = new Map<number, { semi: number; q: number; tb: number[] }>();
@@ -801,20 +813,18 @@ export class UsersService implements OnModuleInit {
 
     const wins = winsMoney + winsTraining;
 
-    // Сыгранные матчи за деньги: только когда 2 игрока в полуфинале и оба ответили на 10+ вопросов.
-    // tournament_result создаётся при просмотре списка даже без соперника — не используем его.
     const moneyToursRow = await manager.query(
       `SELECT t.id as tid FROM tournament t
-       INNER JOIN tournament_players_user tpu ON tpu.tournamentId = t.id
-       WHERE t.gameType = 'money' AND tpu.userId = ?
-       AND t.id IN (SELECT tournamentId FROM tournament_players_user GROUP BY tournamentId HAVING COUNT(*) >= 2)`,
+       INNER JOIN tournament_players_user tpu ON tpu."tournamentId" = t.id
+       WHERE t."gameType" = 'money' AND tpu."userId" = $1
+       AND t.id IN (SELECT "tournamentId" FROM tournament_players_user GROUP BY "tournamentId" HAVING COUNT(*) >= 2)`,
       [userId],
     );
     const moneyTourIds = ((moneyToursRow as { tid: number }[]) || []).map((r) => r.tid);
     let totalMoneyWithResult = 0;
     for (const tid of moneyTourIds) {
       const playersRow = (await manager.query(
-        `SELECT userId FROM tournament_players_user WHERE tournamentId = ? ORDER BY userId`,
+        `SELECT "userId" FROM tournament_players_user WHERE "tournamentId" = $1 ORDER BY "userId"`,
         [tid],
       )) as { userId: number }[];
       if (playersRow.length < 2) continue;
@@ -825,7 +835,7 @@ export class UsersService implements OnModuleInit {
       if (opponentSlot < 0 || opponentSlot >= playerIds.length) continue;
       const opponentId = playerIds[opponentSlot]!;
       const progressRows = (await manager.query(
-        `SELECT userId, questionsAnsweredCount as q FROM tournament_progress WHERE tournamentId = ? AND userId IN (?, ?)`,
+        `SELECT "userId", "questionsAnsweredCount" as q FROM tournament_progress WHERE "tournamentId" = $1 AND "userId" IN ($2, $3)`,
         [tid, userId, opponentId],
       )) as { userId: number; q: number }[];
       const byUser = new Map(progressRows.map((r) => [r.userId, r.q]));
@@ -842,45 +852,45 @@ export class UsersService implements OnModuleInit {
     const completedMatchesMoney = totalMoneyWithResult;
 
     const correctRow = await manager.query(
-      'SELECT COALESCE(SUM(correctAnswersCount), 0) as cnt FROM tournament_progress WHERE userId = ?',
+      'SELECT COALESCE(SUM("correctAnswersCount"), 0) as cnt FROM tournament_progress WHERE "userId" = $1',
       [userId],
     );
     const correctAnswers = Number(correctRow?.[0]?.cnt) || 0;
 
     const totalQuestionsRow = await manager.query(
-      'SELECT COALESCE(SUM(questionsAnsweredCount), 0) as cnt FROM tournament_progress WHERE userId = ?',
+      'SELECT COALESCE(SUM("questionsAnsweredCount"), 0) as cnt FROM tournament_progress WHERE "userId" = $1',
       [userId],
     );
     const totalQuestions = Number(totalQuestionsRow?.[0]?.cnt) || 0;
 
     const correctTrainingRow = await manager.query(
-      `SELECT COALESCE(SUM(p.correctAnswersCount), 0) as cnt FROM tournament_progress p
-       INNER JOIN tournament t ON t.id = p.tournamentId
-       WHERE p.userId = ? AND (t.gameType = 'training' OR t.gameType IS NULL)`,
+      `SELECT COALESCE(SUM(p."correctAnswersCount"), 0) as cnt FROM tournament_progress p
+       INNER JOIN tournament t ON t.id = p."tournamentId"
+       WHERE p."userId" = $1 AND (t."gameType" = 'training' OR t."gameType" IS NULL)`,
       [userId],
     );
     const correctAnswersTraining = Number(correctTrainingRow?.[0]?.cnt) || 0;
 
     const questionsTrainingRow = await manager.query(
-      `SELECT COALESCE(SUM(p.questionsAnsweredCount), 0) as cnt FROM tournament_progress p
-       INNER JOIN tournament t ON t.id = p.tournamentId
-       WHERE p.userId = ? AND (t.gameType = 'training' OR t.gameType IS NULL)`,
+      `SELECT COALESCE(SUM(p."questionsAnsweredCount"), 0) as cnt FROM tournament_progress p
+       INNER JOIN tournament t ON t.id = p."tournamentId"
+       WHERE p."userId" = $1 AND (t."gameType" = 'training' OR t."gameType" IS NULL)`,
       [userId],
     );
     const totalQuestionsTraining = Number(questionsTrainingRow?.[0]?.cnt) || 0;
 
     const correctMoneyRow = await manager.query(
-      `SELECT COALESCE(SUM(p.correctAnswersCount), 0) as cnt FROM tournament_progress p
-       INNER JOIN tournament t ON t.id = p.tournamentId
-       WHERE p.userId = ? AND t.gameType = 'money'`,
+      `SELECT COALESCE(SUM(p."correctAnswersCount"), 0) as cnt FROM tournament_progress p
+       INNER JOIN tournament t ON t.id = p."tournamentId"
+       WHERE p."userId" = $1 AND t."gameType" = 'money'`,
       [userId],
     );
     const correctAnswersMoney = Number(correctMoneyRow?.[0]?.cnt) || 0;
 
     const questionsMoneyRow = await manager.query(
-      `SELECT COALESCE(SUM(p.questionsAnsweredCount), 0) as cnt FROM tournament_progress p
-       INNER JOIN tournament t ON t.id = p.tournamentId
-       WHERE p.userId = ? AND t.gameType = 'money'`,
+      `SELECT COALESCE(SUM(p."questionsAnsweredCount"), 0) as cnt FROM tournament_progress p
+       INNER JOIN tournament t ON t.id = p."tournamentId"
+       WHERE p."userId" = $1 AND t."gameType" = 'money'`,
       [userId],
     );
     const totalQuestionsMoney = Number(questionsMoneyRow?.[0]?.cnt) || 0;
@@ -893,7 +903,7 @@ export class UsersService implements OnModuleInit {
     let totalWinnings = 0;
     try {
       const winSumRow = await manager.query(
-        `SELECT COALESCE(SUM(amount), 0) as total FROM "transaction" WHERE userId = ? AND category = 'win'`,
+        `SELECT COALESCE(SUM(amount), 0) as total FROM "transaction" WHERE "userId" = $1 AND category = 'win'`,
         [userId],
       );
       totalWinnings = Number(winSumRow?.[0]?.total) || 0;
@@ -904,7 +914,7 @@ export class UsersService implements OnModuleInit {
     let totalWithdrawn = 0;
     try {
       const wdRow = await manager.query(
-        `SELECT COALESCE(SUM(amount), 0) as total FROM withdrawal_request WHERE userId = ? AND status = 'approved'`,
+        `SELECT COALESCE(SUM(amount), 0) as total FROM withdrawal_request WHERE "userId" = $1 AND status = 'approved'`,
         [userId],
       );
       totalWithdrawn = Number(wdRow?.[0]?.total ?? 0) || 0;
@@ -919,10 +929,10 @@ export class UsersService implements OnModuleInit {
       const user = await this.userRepository.findOne({ where: { id: userId } });
       const balance = user ? Number(user.balance ?? 0) || 0 : 0;
       const leagueWinsRows = (await manager.query(
-        `SELECT t.leagueAmount as amt, COUNT(*) as wins FROM tournament_result r
-         INNER JOIN tournament t ON t.id = r.tournamentId
-         WHERE r.userId = ? AND r.passed = 1 AND t.gameType = 'money' AND t.leagueAmount IS NOT NULL
-         GROUP BY t.leagueAmount`,
+        `SELECT t."leagueAmount" as amt, COUNT(*) as wins FROM tournament_result r
+         INNER JOIN tournament t ON t.id = r."tournamentId"
+         WHERE r."userId" = $1 AND r.passed = 1 AND t."gameType" = 'money' AND t."leagueAmount" IS NOT NULL
+         GROUP BY t."leagueAmount"`,
         [userId],
       )) as { amt: number; wins: number }[];
       const leagueWins = new Map<number, number>();
@@ -993,58 +1003,58 @@ export class UsersService implements OnModuleInit {
 
     switch (metric) {
       case 'gamesPlayed':
-        query = `SELECT u.id as userId, COALESCE(u.nickname, u.username) as displayName,
-          (SELECT COUNT(DISTINCT tp.tournamentId) FROM tournament_players_user tp
-           INNER JOIN tournament t ON t.id = tp.tournamentId WHERE tp.userId = u.id) as val
+        query = `SELECT u.id as "userId", COALESCE(u.nickname, u.username) as "displayName",
+          (SELECT COUNT(DISTINCT tp."tournamentId") FROM tournament_players_user tp
+           INNER JOIN tournament t ON t.id = tp."tournamentId" WHERE tp."userId" = u.id) as val
           FROM "user" u
-          WHERE (SELECT COUNT(DISTINCT tp.tournamentId) FROM tournament_players_user tp WHERE tp.userId = u.id) > 0
+          WHERE (SELECT COUNT(DISTINCT tp."tournamentId") FROM tournament_players_user tp WHERE tp."userId" = u.id) > 0
           ORDER BY val DESC, u.id DESC`;
         valueCol = 'val';
         break;
       case 'wins':
-        query = `SELECT u.id as userId, COALESCE(u.nickname, u.username) as displayName,
-          (SELECT COUNT(*) FROM tournament_result r INNER JOIN tournament t ON t.id = r.tournamentId
-           WHERE r.userId = u.id AND r.passed = 1 AND t.gameType = 'money') as val
+        query = `SELECT u.id as "userId", COALESCE(u.nickname, u.username) as "displayName",
+          (SELECT COUNT(*) FROM tournament_result r INNER JOIN tournament t ON t.id = r."tournamentId"
+           WHERE r."userId" = u.id AND r.passed = 1 AND t."gameType" = 'money') as val
           FROM "user" u
-          WHERE (SELECT COUNT(*) FROM tournament_result r INNER JOIN tournament t ON t.id = r.tournamentId
-                 WHERE r.userId = u.id AND r.passed = 1 AND t.gameType = 'money') > 0
+          WHERE (SELECT COUNT(*) FROM tournament_result r INNER JOIN tournament t ON t.id = r."tournamentId"
+                 WHERE r."userId" = u.id AND r.passed = 1 AND t."gameType" = 'money') > 0
           ORDER BY val DESC, u.id DESC`;
         valueCol = 'val';
         break;
       case 'totalWinnings':
-        query = `SELECT u.id as userId, COALESCE(u.nickname, u.username) as displayName,
-          COALESCE((SELECT SUM(amount) FROM "transaction" WHERE userId = u.id AND category = 'win'), 0) as val
+        query = `SELECT u.id as "userId", COALESCE(u.nickname, u.username) as "displayName",
+          COALESCE((SELECT SUM(amount) FROM "transaction" WHERE "userId" = u.id AND category = 'win'), 0) as val
           FROM "user" u
-          WHERE COALESCE((SELECT SUM(amount) FROM "transaction" WHERE userId = u.id AND category = 'win'), 0) > 0
+          WHERE COALESCE((SELECT SUM(amount) FROM "transaction" WHERE "userId" = u.id AND category = 'win'), 0) > 0
           ORDER BY val DESC, u.id DESC`;
         valueCol = 'val';
         break;
       case 'correctAnswers':
-        query = `SELECT u.id as userId, COALESCE(u.nickname, u.username) as displayName,
-          COALESCE((SELECT SUM(correctAnswersCount) FROM tournament_progress WHERE userId = u.id), 0) as val
+        query = `SELECT u.id as "userId", COALESCE(u.nickname, u.username) as "displayName",
+          COALESCE((SELECT SUM("correctAnswersCount") FROM tournament_progress WHERE "userId" = u.id), 0) as val
           FROM "user" u
-          WHERE COALESCE((SELECT SUM(correctAnswersCount) FROM tournament_progress WHERE userId = u.id), 0) > 0
+          WHERE COALESCE((SELECT SUM("correctAnswersCount") FROM tournament_progress WHERE "userId" = u.id), 0) > 0
           ORDER BY val DESC, u.id DESC`;
         valueCol = 'val';
         break;
       case 'referrals':
-        query = `SELECT u.id as userId, COALESCE(u.nickname, u.username) as displayName,
-          (SELECT COUNT(*) FROM "user" r WHERE r.referrerId = u.id) as val
+        query = `SELECT u.id as "userId", COALESCE(u.nickname, u.username) as "displayName",
+          (SELECT COUNT(*) FROM "user" r WHERE r."referrerId" = u.id) as val
           FROM "user" u
-          WHERE (SELECT COUNT(*) FROM "user" r WHERE r.referrerId = u.id) > 0
+          WHERE (SELECT COUNT(*) FROM "user" r WHERE r."referrerId" = u.id) > 0
           ORDER BY val DESC, u.id DESC`;
         valueCol = 'val';
         break;
       case 'totalWithdrawn':
-        query = `SELECT u.id as userId, COALESCE(u.nickname, u.username) as displayName,
-          COALESCE((SELECT SUM(amount) FROM withdrawal_request WHERE userId = u.id AND status = 'approved'), 0) as val
+        query = `SELECT u.id as "userId", COALESCE(u.nickname, u.username) as "displayName",
+          COALESCE((SELECT SUM(amount) FROM withdrawal_request WHERE "userId" = u.id AND status = 'approved'), 0) as val
           FROM "user" u
-          WHERE COALESCE((SELECT SUM(amount) FROM withdrawal_request WHERE userId = u.id AND status = 'approved'), 0) > 0
+          WHERE COALESCE((SELECT SUM(amount) FROM withdrawal_request WHERE "userId" = u.id AND status = 'approved'), 0) > 0
           ORDER BY val DESC, u.id DESC`;
         valueCol = 'val';
         break;
       default:
-        query = `SELECT u.id as userId, COALESCE(u.nickname, u.username) as displayName, 0 as val
+        query = `SELECT u.id as "userId", COALESCE(u.nickname, u.username) as "displayName", 0 as val
           FROM "user" u LIMIT 0`;
         valueCol = 'val';
     }
@@ -1074,12 +1084,12 @@ export class UsersService implements OnModuleInit {
       if (!myEntry) {
         if (metric === 'referrals') {
           const refRow = await manager.query(
-            `SELECT COUNT(*) as cnt FROM "user" WHERE referrerId = ?`, [userId],
+            `SELECT COUNT(*) as cnt FROM "user" WHERE "referrerId" = $1`, [userId],
           );
           myValue = Number(refRow?.[0]?.cnt ?? 0);
         } else if (metric === 'totalWithdrawn') {
           const wdRow = await manager.query(
-            `SELECT COALESCE(SUM(amount), 0) as total FROM withdrawal_request WHERE userId = ? AND status = 'approved'`, [userId],
+            `SELECT COALESCE(SUM(amount), 0) as total FROM withdrawal_request WHERE "userId" = $1 AND status = 'approved'`, [userId],
           );
           myValue = Number(wdRow?.[0]?.total ?? 0);
         } else {
@@ -1139,7 +1149,7 @@ export class UsersService implements OnModuleInit {
     let totalGamesPlayed = 0;
     try {
       const rows = await manager.query(
-        `SELECT COUNT(*) as cnt FROM tournament_progress WHERE questionsAnsweredCount > 0`,
+        `SELECT COUNT(*) as cnt FROM tournament_progress WHERE "questionsAnsweredCount" > 0`,
       );
       totalGamesPlayed = Number(rows?.[0]?.cnt ?? 0) || 0;
     } catch (e) {
@@ -1148,7 +1158,7 @@ export class UsersService implements OnModuleInit {
     let totalTournaments = 0;
     try {
       const rows = await manager.query(
-        `SELECT COUNT(DISTINCT tournamentId) as cnt FROM tournament_result WHERE passed = 1`,
+        `SELECT COUNT(DISTINCT "tournamentId") as cnt FROM tournament_result WHERE passed = 1`,
       );
       totalTournaments = Number(rows?.[0]?.cnt ?? 0) || 0;
     } catch (e) {
@@ -1203,8 +1213,8 @@ export class UsersService implements OnModuleInit {
       days.push(UsersService.toLocalDateStr(d));
     }
 
-    const gameTypeTraining = gameType === 'training' ? " AND (t.gameType = 'training' OR t.gameType IS NULL)" : '';
-    const gameTypeMoney = gameType === 'money' ? " AND t.gameType = 'money'" : '';
+    const gameTypeTraining = gameType === 'training' ? ` AND (t."gameType" = 'training' OR t."gameType" IS NULL)` : '';
+    const gameTypeMoney = gameType === 'money' ? ` AND t."gameType" = 'money'` : '';
     const gameTypeFilter = gameType === 'all' ? '' : gameType === 'training' ? gameTypeTraining : gameTypeMoney;
 
     let rows: { d: string; val: number }[] = [];
@@ -1212,12 +1222,12 @@ export class UsersService implements OnModuleInit {
       switch (metric) {
         case 'gamesPlayed':
           rows = (await manager.query(
-            `SELECT date(t.createdAt) as d, COUNT(DISTINCT t.id) as val
+            `SELECT t."createdAt"::date::text as d, COUNT(DISTINCT t.id) as val
              FROM tournament t
-             INNER JOIN tournament_players_user tp ON tp.tournamentId = t.id
-             WHERE tp.userId = ? AND date(t.createdAt) >= ? AND date(t.createdAt) <= ?
+             INNER JOIN tournament_players_user tp ON tp."tournamentId" = t.id
+             WHERE tp."userId" = $1 AND t."createdAt"::date >= $2::date AND t."createdAt"::date <= $3::date
              ${gameTypeFilter}
-             GROUP BY date(t.createdAt)`,
+             GROUP BY t."createdAt"::date::text`,
             [userId, fromStr, toStr],
           )) as { d: string; val: number }[];
           break;
@@ -1227,11 +1237,11 @@ export class UsersService implements OnModuleInit {
 
           if (gameType === 'money' || gameType === 'all') {
             const moneyRows = (await manager.query(
-              `SELECT date(t.createdAt) as d, COUNT(*) as val
+              `SELECT t."createdAt"::date::text as d, COUNT(*) as val
                FROM tournament_result r
-               INNER JOIN tournament t ON t.id = r.tournamentId
-               WHERE r.userId = ? AND r.passed = 1 AND t.gameType = 'money' AND date(t.createdAt) >= ? AND date(t.createdAt) <= ?
-               GROUP BY date(t.createdAt)`,
+               INNER JOIN tournament t ON t.id = r."tournamentId"
+               WHERE r."userId" = $1 AND r.passed = 1 AND t."gameType" = 'money' AND t."createdAt"::date >= $2::date AND t."createdAt"::date <= $3::date
+               GROUP BY t."createdAt"::date::text`,
               [userId, fromStr, toStr],
             )) as { d: string; val: number }[];
             for (const r of moneyRows) {
@@ -1242,12 +1252,12 @@ export class UsersService implements OnModuleInit {
 
           if (gameType === 'training' || gameType === 'all') {
             const trainingToursRow = (await manager.query(
-              `SELECT t.id as tid, date(t.createdAt) as d
+              `SELECT t.id as tid, t."createdAt"::date::text as d
                FROM tournament t
-               INNER JOIN tournament_players_user tpu ON tpu.tournamentId = t.id
-               WHERE (t.gameType = 'training' OR t.gameType IS NULL) AND tpu.userId = ?
-               AND t.id IN (SELECT tournamentId FROM tournament_players_user GROUP BY tournamentId HAVING COUNT(*) = 2)
-               AND date(t.createdAt) >= ? AND date(t.createdAt) <= ?`,
+               INNER JOIN tournament_players_user tpu ON tpu."tournamentId" = t.id
+               WHERE (t."gameType" = 'training' OR t."gameType" IS NULL) AND tpu."userId" = $1
+               AND t.id IN (SELECT "tournamentId" FROM tournament_players_user GROUP BY "tournamentId" HAVING COUNT(*) = 2)
+               AND t."createdAt"::date >= $2::date AND t."createdAt"::date <= $3::date`,
               [userId, fromStr, toStr],
             )) as { tid: number; d: string }[];
             const QUESTIONS_PER_ROUND = 10;
@@ -1256,8 +1266,8 @@ export class UsersService implements OnModuleInit {
               const dateStr = row.d && String(row.d).slice(0, 10);
               if (!dateStr || !days.includes(dateStr)) continue;
               const progressRows = (await manager.query(
-                `SELECT p.userId, p.semiFinalCorrectCount as semi, p.questionsAnsweredCount as q, p.tiebreakerRoundsCorrect as tb
-                 FROM tournament_progress p WHERE p.tournamentId = ?`,
+                `SELECT p."userId", p."semiFinalCorrectCount" as semi, p."questionsAnsweredCount" as q, p."tiebreakerRoundsCorrect" as tb
+                 FROM tournament_progress p WHERE p."tournamentId" = $1`,
                 [tid],
               )) as { userId: number; semi: number | null; q: number; tb: string | null }[];
               const byUser = new Map<number, { semi: number; q: number; tb: number[] }>();
@@ -1297,21 +1307,21 @@ export class UsersService implements OnModuleInit {
         }
         case 'totalWinnings':
           rows = (await manager.query(
-            `SELECT date(createdAt) as d, COALESCE(SUM(amount), 0) as val
+            `SELECT "createdAt"::date::text as d, COALESCE(SUM(amount), 0) as val
              FROM "transaction"
-             WHERE userId = ? AND category = 'win' AND date(createdAt) >= ? AND date(createdAt) <= ?
-             GROUP BY date(createdAt)`,
+             WHERE "userId" = $1 AND category = 'win' AND "createdAt"::date >= $2::date AND "createdAt"::date <= $3::date
+             GROUP BY "createdAt"::date::text`,
             [userId, fromStr, toStr],
           )) as { d: string; val: number }[];
           break;
         case 'correctAnswers':
           rows = (await manager.query(
-            `SELECT date(t.createdAt) as d, COALESCE(SUM(p.correctAnswersCount), 0) as val
+            `SELECT t."createdAt"::date::text as d, COALESCE(SUM(p."correctAnswersCount"), 0) as val
              FROM tournament_progress p
-             INNER JOIN tournament t ON t.id = p.tournamentId
-             WHERE p.userId = ? AND date(t.createdAt) >= ? AND date(t.createdAt) <= ?
+             INNER JOIN tournament t ON t.id = p."tournamentId"
+             WHERE p."userId" = $1 AND t."createdAt"::date >= $2::date AND t."createdAt"::date <= $3::date
              ${gameTypeFilter}
-             GROUP BY date(t.createdAt)`,
+             GROUP BY t."createdAt"::date::text`,
             [userId, fromStr, toStr],
           )) as { d: string; val: number }[];
           break;
@@ -1358,18 +1368,18 @@ export class UsersService implements OnModuleInit {
     try {
       if (metric === 'referralCount') {
         rows = (await manager.query(
-          `SELECT date(createdAt) as d, COUNT(*) as val
-           FROM user
-           WHERE referrerId = ? AND date(createdAt) >= ? AND date(createdAt) <= ?
-           GROUP BY date(createdAt)`,
+          `SELECT "createdAt"::date::text as d, COUNT(*) as val
+           FROM "user"
+           WHERE "referrerId" = $1 AND "createdAt"::date >= $2::date AND "createdAt"::date <= $3::date
+           GROUP BY "createdAt"::date::text`,
           [userId, fromStr, toStr],
         )) as { d: string; val: number }[];
       } else if (metric === 'referralEarnings') {
         rows = (await manager.query(
-          `SELECT date(createdAt) as d, COALESCE(SUM(amount), 0) as val
+          `SELECT "createdAt"::date::text as d, COALESCE(SUM(amount), 0) as val
            FROM "transaction"
-           WHERE userId = ? AND category = 'referral' AND date(createdAt) >= ? AND date(createdAt) <= ?
-           GROUP BY date(createdAt)`,
+           WHERE "userId" = $1 AND category = 'referral' AND "createdAt"::date >= $2::date AND "createdAt"::date <= $3::date
+           GROUP BY "createdAt"::date::text`,
           [userId, fromStr, toStr],
         )) as { d: string; val: number }[];
       }

@@ -271,14 +271,15 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
   }, [isAdmin, token, section, fetchWithdrawals]);
 
   useEffect(() => {
-    if (!isAdmin || !token || section !== 'users') return;
+    if (!isAdmin || !token) return;
+    if (section === 'withdrawals') return;
     const loadPending = () => {
       axios.get<WithdrawalRequestRow[]>(`/admin/withdrawal-requests?status=pending`, { headers })
         .then((res) => setPendingWithdrawalsCount(Array.isArray(res.data) ? res.data.length : 0))
         .catch(() => setPendingWithdrawalsCount(0));
     };
     loadPending();
-    const interval = setInterval(loadPending, 2000);
+    const interval = setInterval(loadPending, 5000);
     return () => clearInterval(interval);
   }, [isAdmin, token, section, headers]);
 
@@ -603,6 +604,12 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
   };
 
   const handleSetAdmin = async (userId: number, value: boolean) => {
+    const user = users.find((u) => u.id === userId);
+    const name = user ? `${user.username} (ID ${user.id})` : `ID ${userId}`;
+    const msg = value
+      ? `Вы уверены, что хотите сделать ${name} администратором?`
+      : `Вы уверены, что хотите снять права администратора у ${name}?`;
+    if (!window.confirm(msg)) return;
     setError('');
     try {
       await axios.post(`/admin/users/${userId}/set-admin`, { isAdmin: value }, { headers });
@@ -842,10 +849,10 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                       <td className="admin-table-actions">
                         <div className="admin-table-actions-inner">
                           <button type="button" onClick={() => handleImpersonate(u.id)}>Войти как пользователь</button>
-                          {!u.isAdmin && (
+                          {u.id !== 1 && !u.isAdmin && (
                             <button type="button" className="admin-btn-make-admin" onClick={() => handleSetAdmin(u.id, true)}>Сделать админом</button>
                           )}
-                          {u.isAdmin && (
+                          {u.id !== 1 && u.isAdmin && (
                             <button type="button" className="admin-btn-remove-admin" onClick={() => handleSetAdmin(u.id, false)}>Снять админа</button>
                           )}
                         </div>
@@ -1193,7 +1200,14 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                               </tr>
                             </thead>
                             <tbody>
-                              {statsData.map((d) => (
+                              <tr className="admin-stats-totals-row">
+                                <td><strong>Итого</strong></td>
+                                <td><strong>{fmt(totals.registrations)}</strong></td>
+                                <td><strong>{fmt(totals.topups)} ₽</strong></td>
+                                <td><strong>{fmt(totals.withdrawals)} ₽</strong></td>
+                                <td><strong>{fmt(totals.gameIncome)} ₽</strong></td>
+                              </tr>
+                              {[...statsData].reverse().map((d) => (
                                 <tr key={d.period}>
                                   <td>{d.period}</td>
                                   <td>{fmt(d.registrations)}</td>
@@ -1202,13 +1216,6 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                                   <td>{fmt(d.gameIncome)}</td>
                                 </tr>
                               ))}
-                              <tr className="admin-stats-totals-row">
-                                <td><strong>Итого</strong></td>
-                                <td><strong>{fmt(totals.registrations)}</strong></td>
-                                <td><strong>{fmt(totals.topups)} ₽</strong></td>
-                                <td><strong>{fmt(totals.withdrawals)} ₽</strong></td>
-                                <td><strong>{fmt(totals.gameIncome)} ₽</strong></td>
-                              </tr>
                             </tbody>
                           </table>
                         </div>

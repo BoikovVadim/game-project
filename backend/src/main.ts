@@ -18,11 +18,15 @@ import { ExpressAdapter } from '@nestjs/platform-express';
 import { ValidationPipe } from '@nestjs/common';
 import helmet from 'helmet';
 import compression from 'compression';
+import * as express from 'express';
 import { AppModule } from './app.module';
 import { StatsExceptionFilter } from './common/stats-exception.filter';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, new ExpressAdapter());
+  const server = express.default();
+  server.use(express.json({ limit: '1mb' }));
+  server.use(express.urlencoded({ extended: true, limit: '1mb' }));
+  const app = await NestFactory.create(AppModule, new ExpressAdapter(server));
   app.useGlobalFilters(new StatsExceptionFilter());
 
   app.use(compression());
