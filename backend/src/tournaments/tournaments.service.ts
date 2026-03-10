@@ -1000,16 +1000,18 @@ export class TournamentsService {
         lostSemiByTid.set(t.id, true);
         passed = false;
       } else if (semiResult.result === 'won' && answered >= 20) {
-        const otherFin = getOtherFinalist(t);
-        if (otherFin === null && (t.players?.length ?? 0) < 4) {
-          passed = true;
-        } else if (otherFin && otherFin.q >= 2 * QUESTIONS_PER_ROUND) {
-          const myFinalCorrect = (userProgress?.totalCorrect ?? 0) - (userProgress?.semiCorrect ?? 0);
-          const oppFinalCorrect = otherFin.totalCorrect - (otherFin.semiCorrect ?? 0);
-          passed = myFinalCorrect >= oppFinalCorrect;
+        if ((t.players?.length ?? 0) < 4) {
+          passed = false;
         } else {
-          const deadline = deadlineByTournamentId[t.id] ?? this.getDeadline(t.createdAt);
-          passed = new Date(deadline) < now;
+          const otherFin = getOtherFinalist(t);
+          if (otherFin && otherFin.q >= 2 * QUESTIONS_PER_ROUND) {
+            const myFinalCorrect = (userProgress?.totalCorrect ?? 0) - (userProgress?.semiCorrect ?? 0);
+            const oppFinalCorrect = otherFin.totalCorrect - (otherFin.semiCorrect ?? 0);
+            passed = myFinalCorrect >= oppFinalCorrect;
+          } else {
+            const deadline = deadlineByTournamentId[t.id] ?? this.getDeadline(t.createdAt);
+            passed = new Date(deadline) < now;
+          }
         }
       } else {
         passed = row?.passed === 1 ? true : false;
@@ -1110,7 +1112,7 @@ export class TournamentsService {
             if (mySemi > bestOppSemi) {
               if (answered >= 2 * QUESTIONS_PER_ROUND) {
                 const players = t.players ?? [];
-                if (players.length < 4) return 'Победа';
+                if (players.length < 4) return 'Ожидание соперника';
                 const otherFin = getOtherFinalist(t);
                 if (!otherFin || otherFin.q < 2 * QUESTIONS_PER_ROUND) return 'Ожидание соперника';
                 const myFinalCorrect = (prog?.totalCorrect ?? 0) - (prog?.semiCorrect ?? 0);
@@ -1137,9 +1139,7 @@ export class TournamentsService {
       if (semiResult.result === 'won') {
         if (answered < 2 * QUESTIONS_PER_ROUND) return 'Ожидание соперника';
         const players = t.players ?? [];
-        if (players.length < 4) {
-          return resultByTournamentId.get(t.id) ? 'Победа' : 'Поражение';
-        }
+        if (players.length < 4) return 'Ожидание соперника';
         const otherFin = getOtherFinalist(t);
         if (!otherFin || otherFin.q < 2 * QUESTIONS_PER_ROUND) return 'Ожидание соперника';
         const myFinalCorrect = (userProgress?.totalCorrect ?? 0) - (userProgress?.semiCorrect ?? 0);
