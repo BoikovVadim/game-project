@@ -3278,7 +3278,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                   <tr>
                                     <th>№ турнира</th>
                                     <th>Этап</th>
-                                    <th className="game-history-questions-col"><span className="game-history-questions-tooltip" data-tooltip="Правильные в раунде / Отвечено / Всего в этапе">Вопросы</span></th>
+                                    <th className="game-history-questions-col"><span className="game-history-questions-tooltip" data-tooltip="Формат: верных / отвечено / всего. Пример: 7/10/10 = 7 верных из 10 отвеченных, всего 10 вопросов" tabIndex={0} onClick={(e) => e.currentTarget.classList.toggle('tooltip-active')} onBlur={(e) => e.currentTarget.classList.remove('tooltip-active')}>Вопросы</span></th>
                                     <th>Осталось до конца</th>
                                     <th>Статус</th>
                                   </tr>
@@ -3322,7 +3322,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                   <tr>
                                     <th>№ турнира</th>
                                     <th>Этап</th>
-                                    <th className="game-history-questions-col"><span className="game-history-questions-tooltip" data-tooltip="Правильные в раунде / Отвечено / Всего в этапе">Вопросы</span></th>
+                                    <th className="game-history-questions-col"><span className="game-history-questions-tooltip" data-tooltip="Формат: верных / отвечено / всего. Пример: 7/10/10 = 7 верных из 10 отвеченных, всего 10 вопросов" tabIndex={0} onClick={(e) => e.currentTarget.classList.toggle('tooltip-active')} onBlur={(e) => e.currentTarget.classList.remove('tooltip-active')}>Вопросы</span></th>
                                     <th>Дата завершения</th>
                                     <th>Статус</th>
                                   </tr>
@@ -3676,7 +3676,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                       <th>№ турнира</th>
                                       <th>Стоимость лиги</th>
                                       <th>Этап</th>
-                                      <th className="game-history-questions-col"><span className="game-history-questions-tooltip" data-tooltip="Правильные в раунде / Отвечено / Всего в этапе">Вопросы</span></th>
+                                      <th className="game-history-questions-col"><span className="game-history-questions-tooltip" data-tooltip="Формат: верных / отвечено / всего. Пример: 7/10/10 = 7 верных из 10 отвеченных, всего 10 вопросов" tabIndex={0} onClick={(e) => e.currentTarget.classList.toggle('tooltip-active')} onBlur={(e) => e.currentTarget.classList.remove('tooltip-active')}>Вопросы</span></th>
                                       <th>Осталось до конца</th>
                                       <th>Статус</th>
                                     </tr>
@@ -3717,7 +3717,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                       <th>№ турнира</th>
                                       <th>Стоимость лиги</th>
                                       <th>Этап</th>
-                                      <th className="game-history-questions-col"><span className="game-history-questions-tooltip" data-tooltip="Правильные в раунде / Отвечено / Всего в этапе">Вопросы</span></th>
+                                      <th className="game-history-questions-col"><span className="game-history-questions-tooltip" data-tooltip="Формат: верных / отвечено / всего. Пример: 7/10/10 = 7 верных из 10 отвеченных, всего 10 вопросов" tabIndex={0} onClick={(e) => e.currentTarget.classList.toggle('tooltip-active')} onBlur={(e) => e.currentTarget.classList.remove('tooltip-active')}>Вопросы</span></th>
                                       <th>Дата завершения</th>
                                       <th>Статус</th>
                                     </tr>

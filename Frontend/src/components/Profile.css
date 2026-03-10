@@ -4102,35 +4102,46 @@ body.partner-modal-open {
 
 /* Подсказка только в заголовке таблицы (th), не в ячейках с цифрами */
 .game-history-table th.game-history-questions-col .game-history-questions-tooltip {
-  cursor: help;
+  cursor: pointer;
   position: relative;
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  outline: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.game-history-table th.game-history-questions-col .game-history-questions-tooltip::before {
+  content: "ⓘ";
+  font-size: 13px;
+  color: #999;
 }
 .game-history-table th.game-history-questions-col .game-history-questions-tooltip::after {
   content: attr(data-tooltip);
   position: absolute;
   left: 50%;
-  bottom: 100%;
-  transform: translateX(-50%) translateY(-6px);
-  padding: 8px 12px;
-  font-size: 12px;
+  top: 100%;
+  transform: translateX(-50%) translateY(6px);
+  padding: 10px 14px;
+  font-size: 13px;
   font-weight: normal;
-  line-height: 1.35;
+  line-height: 1.45;
   color: #fff;
   background: #333;
   border-radius: 8px;
-  white-space: nowrap;
-  max-width: 260px;
+  min-width: 220px;
+  max-width: 320px;
   white-space: normal;
-  text-align: center;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  text-align: left;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.25);
   z-index: 1000;
   pointer-events: none;
   opacity: 0;
   visibility: hidden;
   transition: opacity 0.15s ease, visibility 0.15s ease;
 }
-.game-history-table th.game-history-questions-col .game-history-questions-tooltip:hover::after {
+.game-history-table th.game-history-questions-col .game-history-questions-tooltip:hover::after,
+.game-history-table th.game-history-questions-col .game-history-questions-tooltip:focus::after,
+.game-history-table th.game-history-questions-col .game-history-questions-tooltip.tooltip-active::after {
   opacity: 1;
   visibility: visible;
 }
