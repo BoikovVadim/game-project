@@ -2204,9 +2204,6 @@ export class TournamentsService {
     await saveResult(tournamentWinnerId, true);
     await saveResult(tournamentLoserId, false);
 
-    const otherSemiLoser = finalistId === opp1.id ? opp2.id : opp1.id;
-    await saveResult(otherSemiLoser, false);
-
     await this.tournamentRepository.update({ id: tournamentId }, { status: TournamentStatus.FINISHED });
   }
 
