@@ -3217,38 +3217,12 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                             type="button"
                             className="training-start-btn"
                             onClick={() => {
-                              const tbReady = gameHistory?.active?.find((t) => t.resultLabel === 'Доп. раунд');
-                              if (tbReady) {
-                                setPendingStartGameAction(() => () => { continueTraining(tbReady.id); });
-                                setShowStartGameConfirm(true);
-                                return;
-                              }
-                              const finalReady = gameHistory?.active?.find((t) => t.resultLabel === 'Финал');
-                              if (finalReady) {
-                                setPendingStartGameAction(() => () => { continueTraining(finalReady.id); });
-                                setShowStartGameConfirm(true);
-                                return;
-                              }
-                              const continuable = gameHistory?.active?.find((t) => t.userStatus === 'not_passed' && t.resultLabel !== 'Ожидание соперника');
-                              if (continuable) {
-                                setPendingStartGameAction(() => () => { continueTraining(continuable.id); });
-                                setShowStartGameConfirm(true);
-                              } else {
-                                setPendingStartGameAction(() => () => { startTraining(); });
-                                setShowStartGameConfirm(true);
-                              }
+                              setPendingStartGameAction(() => () => { startTraining(); });
+                              setShowStartGameConfirm(true);
                             }}
                             disabled={trainingLoading || continueTrainingLoading !== null}
                           >
-                            {trainingLoading || continueTrainingLoading !== null
-                              ? 'Загрузка...'
-                              : gameHistory?.active?.some((t) => t.resultLabel === 'Доп. раунд')
-                                ? 'Доп. раунд'
-                                : gameHistory?.active?.some((t) => t.resultLabel === 'Финал')
-                                  ? 'Играть финал'
-                                  : gameHistory?.active?.some((t) => t.userStatus === 'not_passed' && t.resultLabel !== 'Ожидание соперника')
-                                    ? 'Продолжить игру'
-                                    : 'Начать игру'}
+                            {trainingLoading ? 'Загрузка...' : 'Начать игру'}
                           </button>
                           <button
                             type="button"
@@ -3261,7 +3235,30 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                         {trainingError && <p className="training-error">{trainingError}</p>}
                         <div className="game-history">
                           <div className="game-history-section">
-                            <strong>Активные игры</strong>
+                            <div className="game-history-section-header">
+                              <strong>Активные игры</strong>
+                              {gameHistory?.active?.some((t) => t.userStatus === 'not_passed') && (() => {
+                                const tbReady = gameHistory?.active?.find((t) => t.resultLabel === 'Доп. раунд');
+                                const finalReady = gameHistory?.active?.find((t) => t.resultLabel === 'Финал');
+                                const continuable = gameHistory?.active?.find((t) => t.userStatus === 'not_passed' && t.resultLabel !== 'Ожидание соперника');
+                                const target = tbReady ?? finalReady ?? continuable;
+                                if (!target) return null;
+                                const label = tbReady ? 'Доп. раунд' : finalReady ? 'Играть финал' : 'Продолжить игру';
+                                return (
+                                  <button
+                                    type="button"
+                                    className="confrontation-continue-btn"
+                                    onClick={() => {
+                                      setPendingStartGameAction(() => () => { continueTraining(target.id); });
+                                      setShowStartGameConfirm(true);
+                                    }}
+                                    disabled={continueTrainingLoading !== null}
+                                  >
+                                    {continueTrainingLoading !== null ? 'Загрузка...' : label}
+                                  </button>
+                                );
+                              })()}
+                            </div>
                             {gameHistory === null ? null : gameHistory.active.length ? (
                               <table className="game-history-table">
                                 <thead>
