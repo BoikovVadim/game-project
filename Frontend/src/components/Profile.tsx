@@ -3104,6 +3104,36 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
             )}
             {statsMode === 'general' && (
               <>
+                <div className="cabinet-global-stats">
+                  <h3 className="cabinet-global-stats-title">Общая статистика</h3>
+                  {globalStatsError && <p className="cabinet-global-stats-error">{globalStatsError}</p>}
+                  <div className="cabinet-global-stats-grid">
+                    <div className="cabinet-global-stat-item">
+                      <span className="cabinet-global-stat-value">{globalStats ? formatNum(globalStats.totalUsers) : '—'}</span>
+                      <span className="cabinet-global-stat-label">Зарегистрировано пользователей</span>
+                    </div>
+                    <div className="cabinet-global-stat-item">
+                      <span className="cabinet-global-stat-value">{globalStats ? formatNum(globalStats.totalGamesPlayed) : '—'}</span>
+                      <span className="cabinet-global-stat-label">Сыграно игр</span>
+                    </div>
+                    <div className="cabinet-global-stat-item">
+                      <span className="cabinet-global-stat-value">{globalStats ? formatNum(globalStats.totalTournaments) : '—'}</span>
+                      <span className="cabinet-global-stat-label">Сыграно турниров</span>
+                    </div>
+                    <div className="cabinet-global-stat-item">
+                      <span className="cabinet-global-stat-value">{globalStats ? formatNum(globalStats.onlineCount) : '—'}</span>
+                      <span className="cabinet-global-stat-label">Онлайн</span>
+                    </div>
+                    <div className="cabinet-global-stat-item">
+                      <span className="cabinet-global-stat-value">{globalStats ? `${formatNum(globalStats.totalEarnings)} ${CURRENCY}` : '—'}</span>
+                      <span className="cabinet-global-stat-label">Общий заработок игроков</span>
+                    </div>
+                    <div className="cabinet-global-stat-item">
+                      <span className="cabinet-global-stat-value">{globalStats ? `${formatNum(globalStats.totalWithdrawn)} ₽` : '—'}</span>
+                      <span className="cabinet-global-stat-label">Выведено денег</span>
+                    </div>
+                  </div>
+                </div>
                 <div className="cabinet-rankings-centered">
                   <h3 className="cabinet-rankings-centered-title">Рейтинг</h3>
                   <div className="cabinet-rankings-metric-tabs">
@@ -3157,36 +3187,6 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                         </div>
                       </>
                     )}
-                  </div>
-                </div>
-                <div className="cabinet-global-stats">
-                  <h3 className="cabinet-global-stats-title">Общая статистика</h3>
-                  {globalStatsError && <p className="cabinet-global-stats-error">{globalStatsError}</p>}
-                  <div className="cabinet-global-stats-grid">
-                    <div className="cabinet-global-stat-item">
-                      <span className="cabinet-global-stat-value">{globalStats ? formatNum(globalStats.totalUsers) : '—'}</span>
-                      <span className="cabinet-global-stat-label">Зарегистрировано пользователей</span>
-                    </div>
-                    <div className="cabinet-global-stat-item">
-                      <span className="cabinet-global-stat-value">{globalStats ? formatNum(globalStats.totalGamesPlayed) : '—'}</span>
-                      <span className="cabinet-global-stat-label">Сыграно игр</span>
-                    </div>
-                    <div className="cabinet-global-stat-item">
-                      <span className="cabinet-global-stat-value">{globalStats ? formatNum(globalStats.totalTournaments) : '—'}</span>
-                      <span className="cabinet-global-stat-label">Сыграно турниров</span>
-                    </div>
-                    <div className="cabinet-global-stat-item">
-                      <span className="cabinet-global-stat-value">{globalStats ? formatNum(globalStats.onlineCount) : '—'}</span>
-                      <span className="cabinet-global-stat-label">Онлайн</span>
-                    </div>
-                    <div className="cabinet-global-stat-item">
-                      <span className="cabinet-global-stat-value">{globalStats ? `${formatNum(globalStats.totalEarnings)} ${CURRENCY}` : '—'}</span>
-                      <span className="cabinet-global-stat-label">Общий заработок игроков</span>
-                    </div>
-                    <div className="cabinet-global-stat-item">
-                      <span className="cabinet-global-stat-value">{globalStats ? `${formatNum(globalStats.totalWithdrawn)} ₽` : '—'}</span>
-                      <span className="cabinet-global-stat-label">Выведено денег</span>
-                    </div>
                   </div>
                 </div>
               </>
