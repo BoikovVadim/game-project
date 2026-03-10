@@ -4080,6 +4080,7 @@ body.partner-modal-open {
 }
 .game-history-table-wrap {
   overflow-x: auto;
+  overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
   width: 100%;
   box-sizing: border-box;
