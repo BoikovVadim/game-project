@@ -5060,7 +5060,8 @@ body.partner-modal-open {
 }
 
 .bracket-slot-loser .bracket-player-name,
-.bracket-slot-loser .bracket-player-score {
+.bracket-slot-loser .bracket-player-score,
+.bracket-slot-loser .bracket-player-tiebreaker {
   text-decoration: line-through;
   color: #999;
 }
@@ -5244,11 +5245,21 @@ button.bracket-player-name-btn:active {
   text-align: left;
 }
 
+.bracket-player-score-wrap {
+  display: flex;
+  flex-direction: column;
+  padding-left: 36px;
+}
 .bracket-player-score {
   font-size: 12px;
   color: #666;
   white-space: nowrap;
-  padding-left: 36px;
+}
+.bracket-player-tiebreaker {
+  font-size: 11px;
+  color: #e67e22;
+  white-space: nowrap;
+  font-weight: 600;
 }
 
 .bracket-placeholder {
@@ -6152,9 +6163,14 @@ button.bracket-player-name-btn:active {
     gap: 3px;
   }
 
+  .bracket-player-score-wrap {
+    padding-left: 34px;
+  }
   .bracket-player-score {
     font-size: 11px;
-    padding-left: 34px;
+  }
+  .bracket-player-tiebreaker {
+    font-size: 10px;
   }
 
   .questions-review-modal {

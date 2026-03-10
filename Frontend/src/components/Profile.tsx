@@ -843,8 +843,8 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   const [bracketOpenSource, setBracketOpenSource] = useState<'active' | 'completed' | null>(null);
   const [bracketView, setBracketView] = useState<{
     tournamentId: number;
-    semi1: { players: { id: number; username: string; nickname?: string | null; semiScore?: number; questionsAnswered?: number; correctAnswersCount?: number; isLoser?: boolean }[] };
-    semi2: { players: { id: number; username: string; nickname?: string | null; semiScore?: number; questionsAnswered?: number; correctAnswersCount?: number; isLoser?: boolean }[] } | null;
+    semi1: { players: { id: number; username: string; nickname?: string | null; semiScore?: number; questionsAnswered?: number; correctAnswersCount?: number; isLoser?: boolean; tiebreakerRound?: number; tiebreakerAnswered?: number; tiebreakerCorrect?: number }[] };
+    semi2: { players: { id: number; username: string; nickname?: string | null; semiScore?: number; questionsAnswered?: number; correctAnswersCount?: number; isLoser?: boolean; tiebreakerRound?: number; tiebreakerAnswered?: number; tiebreakerCorrect?: number }[] } | null;
     final: { players: { id: number; username: string; nickname?: string | null; finalScore?: number; finalAnswered?: number; finalCorrect?: number }[] };
     gameType: string | null;
     status: string;
@@ -4839,8 +4839,9 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                         const displayName = truncateBracketName(p ? (p.nickname?.trim() || `Игрок ${p.id}`) : 'Ожидание игрока');
                         const answered = p?.questionsAnswered ?? 0;
                         const total = answered >= 10 ? 10 : answered;
-                        // Для полуфинала: semiScore — верные в полуфинале. correctAnswersCount при answered>10 — сумма полуфинал+финал, не использовать.
                         const correct = p?.semiScore ?? (answered <= 10 ? (p?.correctAnswersCount ?? 0) : 0);
+                        const tbRound = p?.tiebreakerRound ?? 0;
+                        const tbAnswered = p?.tiebreakerAnswered ?? 0;
                         const pAvatar = p && p.id === user?.id ? avatar : (p?.avatarUrl ?? null);
                         return (
                           <div key={p ? p.id : `s1-${i}`} className={`bracket-player-slot ${!p ? 'bracket-slot-empty' : ''} ${p?.isLoser ? 'bracket-slot-loser' : ''}`}>
@@ -4868,9 +4869,14 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                 <span className="bracket-player-name">{displayName}</span>
                               )}
                             </span>
-                            {p && total > 0 && (
-                              <span className="bracket-player-score">{correct}/{total} ({Math.round((correct / total) * 100)}%)</span>
-                            )}
+                            <span className="bracket-player-score-wrap">
+                              {p && total > 0 && (
+                                <span className="bracket-player-score">{correct}/{total} ({Math.round((correct / total) * 100)}%)</span>
+                              )}
+                              {p && tbRound > 0 && (
+                                <span className="bracket-player-tiebreaker">+ Доп.{tbRound > 1 ? ` ${tbRound}` : ''}: {tbAnswered}/10</span>
+                              )}
+                            </span>
                           </div>
                         );
                       })}
@@ -4884,8 +4890,9 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                         const displayName = truncateBracketName(p ? (p.nickname?.trim() || `Игрок ${p.id}`) : 'Ожидание игрока');
                         const answered = p?.questionsAnswered ?? 0;
                         const total = answered >= 10 ? 10 : answered;
-                        // Для полуфинала: semiScore — верные в полуфинале. correctAnswersCount при answered>10 — сумма полуфинал+финал, не использовать.
                         const correct = p?.semiScore ?? (answered <= 10 ? (p?.correctAnswersCount ?? 0) : 0);
+                        const tbRound = p?.tiebreakerRound ?? 0;
+                        const tbAnswered = p?.tiebreakerAnswered ?? 0;
                         const pAvatar = p && p.id === user?.id ? avatar : (p?.avatarUrl ?? null);
                         return (
                           <div key={p ? p.id : `s2-${i}`} className={`bracket-player-slot ${!p ? 'bracket-slot-empty' : ''} ${p?.isLoser ? 'bracket-slot-loser' : ''}`}>
@@ -4913,9 +4920,14 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                 <span className="bracket-player-name">{displayName}</span>
                               )}
                             </span>
-                            {p && total > 0 && (
-                              <span className="bracket-player-score">{correct}/{total} ({Math.round((correct / total) * 100)}%)</span>
-                            )}
+                            <span className="bracket-player-score-wrap">
+                              {p && total > 0 && (
+                                <span className="bracket-player-score">{correct}/{total} ({Math.round((correct / total) * 100)}%)</span>
+                              )}
+                              {p && tbRound > 0 && (
+                                <span className="bracket-player-tiebreaker">+ Доп.{tbRound > 1 ? ` ${tbRound}` : ''}: {tbAnswered}/10</span>
+                              )}
+                            </span>
                           </div>
                         );
                       })}

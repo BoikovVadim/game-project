@@ -2080,8 +2080,8 @@ export class TournamentsService {
     status: string;
     isCompleted: boolean;
     isActive: boolean;
-    semi1: { players: { id: number; username: string; nickname?: string | null; semiScore?: number; questionsAnswered?: number; correctAnswersCount?: number; isLoser?: boolean }[] };
-    semi2: { players: { id: number; username: string; nickname?: string | null; semiScore?: number; questionsAnswered?: number; correctAnswersCount?: number; isLoser?: boolean }[] } | null;
+    semi1: { players: { id: number; username: string; nickname?: string | null; semiScore?: number; questionsAnswered?: number; correctAnswersCount?: number; isLoser?: boolean; tiebreakerRound?: number; tiebreakerAnswered?: number; tiebreakerCorrect?: number }[] };
+    semi2: { players: { id: number; username: string; nickname?: string | null; semiScore?: number; questionsAnswered?: number; correctAnswersCount?: number; isLoser?: boolean; tiebreakerRound?: number; tiebreakerAnswered?: number; tiebreakerCorrect?: number }[] } | null;
     final: { players: { id: number; username: string; nickname?: string | null; finalScore?: number; finalAnswered?: number; finalCorrect?: number }[] };
   }> {
     const tournament = await this.tournamentRepository.findOne({
@@ -2135,14 +2135,32 @@ export class TournamentsService {
     const toPlayer = (p: User, isLoser?: boolean) => {
       const prog = progressByUser.get(p.id);
       const q = prog?.questionsAnsweredCount ?? 0;
-      // Для полуфинала показываем только верные ответы полуфинала. correctAnswersCount при q>10 — это сумма полуфинал+финал.
-      // semiFinalCorrectCount не может быть > 10 — если есть такой баг, игнорируем.
       let semiScore: number | undefined;
       if (prog?.semiFinalCorrectCount != null && prog.semiFinalCorrectCount <= this.QUESTIONS_PER_ROUND) {
         semiScore = prog.semiFinalCorrectCount;
       } else if (q <= this.QUESTIONS_PER_ROUND) {
         semiScore = prog?.correctAnswersCount ?? 0;
       }
+
+      let tiebreakerRound = 0;
+      let tiebreakerAnswered = 0;
+      let tiebreakerCorrect: number | undefined;
+      const tbRounds = prog?.tiebreakerRoundsCorrect ?? [];
+      if (q > this.QUESTIONS_PER_ROUND && prog?.semiFinalCorrectCount != null) {
+        const completedTBRounds = tbRounds.length;
+        const answeredAfterSemi = q - this.QUESTIONS_PER_ROUND;
+        const answeredInCompletedRounds = completedTBRounds * this.TIEBREAKER_QUESTIONS;
+        const inCurrentRound = answeredAfterSemi - answeredInCompletedRounds;
+        if (inCurrentRound > 0) {
+          tiebreakerRound = completedTBRounds + 1;
+          tiebreakerAnswered = Math.min(inCurrentRound, this.TIEBREAKER_QUESTIONS);
+        } else if (completedTBRounds > 0) {
+          tiebreakerRound = completedTBRounds;
+          tiebreakerAnswered = this.TIEBREAKER_QUESTIONS;
+          tiebreakerCorrect = tbRounds[completedTBRounds - 1];
+        }
+      }
+
       return {
         id: p.id,
         username: p.username ?? `Игрок ${p.id}`,
@@ -2152,6 +2170,9 @@ export class TournamentsService {
         questionsAnswered: q,
         correctAnswersCount: prog?.correctAnswersCount ?? 0,
         isLoser: isLoser ?? false,
+        tiebreakerRound,
+        tiebreakerAnswered,
+        tiebreakerCorrect,
       };
     };
 
