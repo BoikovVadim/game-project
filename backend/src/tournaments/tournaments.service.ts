@@ -1102,52 +1102,11 @@ export class TournamentsService {
       };
     };
 
-    /** Статусы: активные — Этап не пройден, Ожидание соперника; завершённые — Время истекло, Победа, Поражение. */
+    /** Этап игрока: выиграл полуфинал → «Финал», иначе → «Полуфинал». */
     const getResultLabel = (t: Tournament): string => {
-      if (t.gameType === 'training') {
-        const prog = progressByTid.get(t.id);
-        const answered = prog?.q ?? 0;
-
-        if (answered < QUESTIONS_PER_ROUND) return 'Этап не пройден';
-
-        const semiResult = getMoneySemiResult(t);
-        if (semiResult.result === 'incomplete') return 'Ожидание соперника';
-        if (semiResult.result === 'tie') return 'Ожидание соперника';
-        if (semiResult.result === 'lost') return 'Поражение';
-        if (semiResult.result === 'won') {
-          if (answered >= 2 * QUESTIONS_PER_ROUND) {
-            if (getPlayerCount(t) < 4) return 'Ожидание соперника';
-            const otherFin = getOtherFinalist(t);
-            if (!otherFin || otherFin.q < 2 * QUESTIONS_PER_ROUND) return 'Ожидание соперника';
-            const myFinalCorrect = (prog?.totalCorrect ?? 0) - (prog?.semiCorrect ?? 0);
-            const oppFinalCorrect = otherFin.totalCorrect - (otherFin.semiCorrect ?? 0);
-            if (myFinalCorrect > oppFinalCorrect) return 'Победа';
-            if (myFinalCorrect < oppFinalCorrect) return 'Поражение';
-            return (prog?.semiCorrect ?? 0) > (otherFin.semiCorrect ?? 0) ? 'Победа' : 'Поражение';
-          }
-          return 'Финал';
-        }
-        return 'Ожидание соперника';
-      }
-
-      const userProgress = progressByTid.get(t.id);
-      const answered = userProgress?.q ?? 0;
-      if (answered < QUESTIONS_PER_ROUND) return 'Этап не пройден';
-
       const semiResult = getMoneySemiResult(t);
-      if (semiResult.result === 'lost') return 'Поражение';
-      if (semiResult.result === 'won') {
-        if (answered < 2 * QUESTIONS_PER_ROUND) return 'Ожидание соперника';
-        if (getPlayerCount(t) < 4) return 'Ожидание соперника';
-        const otherFin = getOtherFinalist(t);
-        if (!otherFin || otherFin.q < 2 * QUESTIONS_PER_ROUND) return 'Ожидание соперника';
-        const myFinalCorrect = (userProgress?.totalCorrect ?? 0) - (userProgress?.semiCorrect ?? 0);
-        const oppFinalCorrect = otherFin.totalCorrect - (otherFin.semiCorrect ?? 0);
-        if (myFinalCorrect > oppFinalCorrect) return 'Победа';
-        if (myFinalCorrect < oppFinalCorrect) return 'Поражение';
-        return 'Победа';
-      }
-      return 'Ожидание соперника';
+      if (semiResult.result === 'won') return 'Финал';
+      return 'Полуфинал';
     };
 
     const getUserStatus = (t: Tournament): 'passed' | 'not_passed' => {
