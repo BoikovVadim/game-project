@@ -1609,7 +1609,7 @@ export class TournamentsService {
     const correctAnswersCount = progress?.correctAnswersCount ?? 0;
     const semiFinalCorrectCount = progress?.semiFinalCorrectCount ?? null;
     const playerIndex = tournament.players?.findIndex((p) => p.id === userId) ?? -1;
-    const userSemiIndex = tournament.gameType === 'money' && playerIndex >= 0 ? (playerIndex < 2 ? 0 : 1) : 0;
+    const userSemiIndex = playerIndex >= 0 ? (playerIndex < 2 ? 0 : 1) : 0;
 
     // answersChosen — массив выбранных вариантов по вопросам (0–9 полуфинал). Нужен для бейджей «Мой ответ» в просмотре.
     let answersChosen = this.normalizeAnswersChosen(progress?.answersChosen);
@@ -1953,22 +1953,28 @@ export class TournamentsService {
     return 'tie';
   }
 
-  /** Подсчитать количество верных ответов на основе answersChosen и вопросов турнира. */
+  /** Подсчитать количество верных ответов на основе answersChosen и вопросов турнира.
+   *  answersChosen хранится как: [semi0..semi9, final0..final9, ...tiebreakers].
+   *  Нужно сравнивать с вопросами НУЖНОГО полуфинала (по semiRoundIndex) + финал. */
   private async computeCorrectFromAnswers(
     tournamentId: number,
     answersChosen: number[],
+    semiRoundIndex: number = 0,
   ): Promise<{ total: number; semi: number }> {
     if (!answersChosen || answersChosen.length === 0) return { total: 0, semi: 0 };
     const questions = await this.questionRepository.find({
       where: { tournament: { id: tournamentId } },
       order: { roundIndex: 'ASC', id: 'ASC' },
     });
+    const semiQuestions = questions.filter((q) => q.roundIndex === semiRoundIndex);
+    const postSemiQuestions = questions.filter((q) => q.roundIndex >= 2).sort((a, b) => a.roundIndex - b.roundIndex || a.id - b.id);
+    const playerQuestions = [...semiQuestions, ...postSemiQuestions];
     let total = 0;
     let semi = 0;
-    for (let i = 0; i < answersChosen.length && i < questions.length; i++) {
-      if (answersChosen[i] >= 0 && answersChosen[i] === questions[i].correctAnswer) {
+    for (let i = 0; i < answersChosen.length && i < playerQuestions.length; i++) {
+      if (answersChosen[i] >= 0 && answersChosen[i] === playerQuestions[i].correctAnswer) {
         total++;
-        if (i < this.QUESTIONS_PER_ROUND) semi++;
+        if (i < semiQuestions.length) semi++;
       }
     }
     return { total, semi };
@@ -1998,7 +2004,9 @@ export class TournamentsService {
     const safeTimeLeft = timeLeft !== undefined ? Math.max(0, Math.min(5, Math.floor(timeLeft))) : null;
 
     const chosenToSave = normalizedChosen.slice(0, Math.max(safeCount, normalizedChosen.length));
-    const { total: computedCorrect, semi: computedSemi } = await this.computeCorrectFromAnswers(tournamentId, chosenToSave);
+    const playerSlot = tournament.players?.findIndex((p) => p.id === userId) ?? 0;
+    const semiRoundIndex = playerSlot < 2 ? 0 : 1;
+    const { total: computedCorrect, semi: computedSemi } = await this.computeCorrectFromAnswers(tournamentId, chosenToSave, semiRoundIndex);
 
     let progress = await this.tournamentProgressRepository.findOne({
       where: { userId, tournamentId },

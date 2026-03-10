@@ -1874,7 +1874,9 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         semiFinalCorrectCount: number | null;
         answersChosen?: number[];
         semiResult?: 'playing' | 'won' | 'lost' | 'tie' | 'waiting';
+        userSemiIndex?: number;
       }>(`/tournaments/${tournamentId}/training-state`, { headers: { Authorization: `Bearer ${token}` } });
+      const semiIdx = data.userSemiIndex ?? 0;
       setTrainingData({
         tournamentId: data.tournamentId,
         deadline: data.deadline,
@@ -1888,9 +1890,9 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
       });
       setTournamentJoinInfo({
         tournamentId: data.tournamentId,
-        playerSlot: 0,
-        totalPlayers: 1,
-        semiIndex: 0,
+        playerSlot: semiIdx * 2,
+        totalPlayers: 4,
+        semiIndex: semiIdx,
         positionInSemi: 0,
         isCreator: false,
         deadline: data.deadline,
@@ -1920,7 +1922,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         setTrainingRoundScores([]);
         setTrainingRoundComplete(indexInTB >= tbQuestions.length);
       } else if (cur < 10) {
-        setTrainingRound(0);
+        setTrainingRound(semiIdx === 0 ? 0 : 1);
         setTrainingQuestionIndex(cur);
         setTrainingAnswers(ac.length >= cur ? ac.slice(0, cur) : [...ac, ...Array(Math.max(0, cur - ac.length)).fill(-1)]);
         setTrainingRoundScores([]);
@@ -1951,7 +1953,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         });
         return;
       } else {
-        setTrainingRound(0);
+        setTrainingRound(semiIdx === 0 ? 0 : 1);
         setTrainingQuestionIndex(Math.min(cur, 10));
         setTrainingAnswers(ac.length >= Math.min(cur, 10) ? ac.slice(0, Math.min(cur, 10)) : [...ac, ...Array(Math.max(0, Math.min(cur, 10) - ac.length)).fill(-1)]);
         setTrainingRoundScores(cur >= 10 ? [data.correctAnswersCount ?? 0] : []);
