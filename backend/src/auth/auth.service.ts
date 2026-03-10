@@ -12,6 +12,12 @@ function generateVerificationToken(): string {
   return crypto.randomBytes(32).toString('hex');
 }
 
+function generateVerificationCode(): string {
+  return String(crypto.randomInt(100000, 999999));
+}
+
+const CODE_TTL_MINUTES = 15;
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -45,7 +51,8 @@ export class AuthService {
       }
     }
     const myCode = generateReferralCode();
-    const emailVerificationToken = generateVerificationToken();
+    const code = generateVerificationCode();
+    const expiresAt = new Date(Date.now() + CODE_TTL_MINUTES * 60 * 1000);
     const user = this.userRepository.create({
       username,
       email,
@@ -53,11 +60,12 @@ export class AuthService {
       referralCode: myCode,
       referrerId,
       emailVerified: false,
-      emailVerificationToken,
+      emailVerificationToken: code,
+      emailVerificationExpiresAt: expiresAt,
     });
     const saved = await this.userRepository.save(user);
-    this.mailService.sendVerificationEmail(email, emailVerificationToken, username).catch((err) => {
-      console.error('[AuthService] Не удалось отправить письмо:', err);
+    this.mailService.sendVerificationCode(email, code, username).catch((err) => {
+      console.error('[AuthService] Не удалось отправить код подтверждения:', err);
     });
     return saved;
   }
@@ -82,22 +90,28 @@ export class AuthService {
     if (!email || !password || typeof email !== 'string' || typeof password !== 'string') {
       throw new UnauthorizedException('Invalid credentials');
     }
-    const emailNorm = String(email).trim().toLowerCase();
-    const row = await this.userRepository
+    const input = String(email).trim().toLowerCase();
+    const isEmail = input.includes('@');
+    const qb = this.userRepository
       .createQueryBuilder('u')
       .select('u.id', 'id')
       .addSelect('u.username', 'username')
+      .addSelect('u.email', 'email')
       .addSelect('u.password', 'password')
       .addSelect('u.emailVerified', 'emailVerified')
-      .addSelect('u.emailVerificationToken', 'emailVerificationToken')
-      .where('LOWER(u.email) = :email', { email: emailNorm })
-      .getRawOne<{ id: number; username: string; password: string; emailVerified: number; emailVerificationToken: string | null }>();
+      .addSelect('u.emailVerificationToken', 'emailVerificationToken');
+    if (isEmail) {
+      qb.where('LOWER(u.email) = :input', { input });
+    } else {
+      qb.where('LOWER(u.username) = :input', { input });
+    }
+    const row = await qb.getRawOne<{ id: number; username: string; email: string; password: string; emailVerified: number; emailVerificationToken: string | null }>();
     if (!row || row.password == null || row.password === undefined) {
       throw new UnauthorizedException('Invalid credentials');
     }
     const needsVerification = row.emailVerificationToken != null && !row.emailVerified;
     if (needsVerification) {
-      throw new UnauthorizedException('Подтвердите почту. Проверьте письмо со ссылкой.');
+      throw new UnauthorizedException({ message: 'EMAIL_NOT_VERIFIED', email: row.email });
     }
     const passwordStr = String(row.password);
     const match = await bcrypt.compare(password, passwordStr);
@@ -109,6 +123,59 @@ export class AuthService {
     return {
       access_token: this.jwtService.sign({ username, sub: userId }),
     };
+  }
+
+  async verifyCode(email: string, code: string): Promise<{ success: boolean; message: string; access_token?: string }> {
+    if (!email || !code) {
+      return { success: false, message: 'Укажите email и код' };
+    }
+    const emailNorm = email.trim().toLowerCase();
+    const user = await this.userRepository.findOne({ where: { email: emailNorm } });
+    if (!user) {
+      return { success: false, message: 'Пользователь не найден' };
+    }
+    if (user.emailVerified) {
+      const token = this.jwtService.sign({ username: user.username, sub: user.id });
+      return { success: true, message: 'Почта уже подтверждена.', access_token: token };
+    }
+    if (!user.emailVerificationToken) {
+      return { success: false, message: 'Код не был отправлен. Запросите новый.' };
+    }
+    if (user.emailVerificationExpiresAt && user.emailVerificationExpiresAt < new Date()) {
+      return { success: false, message: 'Код истёк. Запросите новый.' };
+    }
+    if (user.emailVerificationToken !== code.trim()) {
+      return { success: false, message: 'Неверный код' };
+    }
+    user.emailVerified = true;
+    user.emailVerificationToken = null;
+    user.emailVerificationExpiresAt = null;
+    await this.userRepository.save(user);
+    const token = this.jwtService.sign({ username: user.username, sub: user.id });
+    return { success: true, message: 'Почта подтверждена!', access_token: token };
+  }
+
+  async resendCode(email: string): Promise<{ success: boolean; message: string }> {
+    if (!email) {
+      return { success: false, message: 'Укажите email' };
+    }
+    const emailNorm = email.trim().toLowerCase();
+    const user = await this.userRepository.findOne({ where: { email: emailNorm } });
+    if (!user) {
+      return { success: true, message: 'Если аккаунт существует, код отправлен.' };
+    }
+    if (user.emailVerified) {
+      return { success: true, message: 'Почта уже подтверждена.' };
+    }
+    const code = generateVerificationCode();
+    const expiresAt = new Date(Date.now() + CODE_TTL_MINUTES * 60 * 1000);
+    user.emailVerificationToken = code;
+    user.emailVerificationExpiresAt = expiresAt;
+    await this.userRepository.save(user);
+    this.mailService.sendVerificationCode(user.email, code, user.username).catch((err) => {
+      console.error('[AuthService] Не удалось отправить код:', err);
+    });
+    return { success: true, message: 'Новый код отправлен на почту.' };
   }
 
   async refresh(userId: number): Promise<{ access_token: string }> {

@@ -3,6 +3,7 @@ import { HashRouter as Router, Routes, Route, Navigate, Link, useLocation } from
 import Register from './components/Register.tsx';
 import Login from './components/Login.tsx';
 import VerifyEmail from './components/VerifyEmail.tsx';
+import VerifyCode from './components/VerifyCode.tsx';
 import ForgotPassword from './components/ForgotPassword.tsx';
 import ResetPassword from './components/ResetPassword.tsx';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
@@ -112,7 +113,7 @@ function AppContent() {
       <div className={`App${isProfile ? ' cabinet-open' : ''}${isAdmin ? ' admin-open' : ''}`}>
         {!hideTopNav && (
           <nav style={{
-            padding: '14px 24px',
+            padding: '14px 16px',
             display: 'flex',
             justifyContent: 'flex-end',
             alignItems: 'center',
@@ -127,7 +128,7 @@ function AppContent() {
             <Link to="/register" style={{ color: '#111', textDecoration: 'none', fontWeight: 600, fontSize: 16 }}>Регистрация</Link>
           </nav>
         )}
-        <main className="app-main" style={{ flex: 1, padding: hideTopNav ? 0 : 24 }}>
+        <main className="app-main" style={{ flex: 1, padding: hideTopNav ? 0 : '24px 16px' }}>
           <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 200 }}><span style={{ fontSize: 16, color: '#888' }}>Загрузка...</span></div>}>
           <Routes>
             <Route path="/" element={hasToken ? <Navigate to="/profile" replace /> : <Login onLogin={handleLogin} />} />
@@ -135,6 +136,7 @@ function AppContent() {
             <Route path="/register" element={<Register />} />
             <Route path="/offer" element={<Offer />} />
             <Route path="/verify-email" element={<VerifyEmail />} />
+            <Route path="/verify-code" element={<VerifyCode onLogin={handleLogin} />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/profile" element={hasToken ? <ErrorBoundary><Profile token={token} onLogout={handleLogout} /></ErrorBoundary> : <Navigate to="/" replace />} />

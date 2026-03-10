@@ -24,8 +24,8 @@ import { StatsExceptionFilter } from './common/stats-exception.filter';
 
 async function bootstrap() {
   const server = express.default();
-  server.use(express.json({ limit: '1mb' }));
-  server.use(express.urlencoded({ extended: true, limit: '1mb' }));
+  server.use(express.json({ limit: '15mb' }));
+  server.use(express.urlencoded({ extended: true, limit: '15mb' }));
   const app = await NestFactory.create(AppModule, new ExpressAdapter(server));
   app.useGlobalFilters(new StatsExceptionFilter());
 

@@ -45,6 +45,8 @@
   color: #444;
   margin: 0 0 8px;
   text-align: justify;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .offer-container ul {

@@ -25,9 +25,13 @@ export class User {
   @Column({ type: 'boolean', default: false })
   emailVerified!: boolean;
 
-  /** Токен для подтверждения почты (хранится до верификации) */
+  /** 6-значный код для подтверждения почты */
   @Column({ type: 'varchar', length: 64, nullable: true })
   emailVerificationToken!: string | null;
+
+  /** Срок действия кода подтверждения почты */
+  @Column({ type: 'timestamptz', nullable: true })
+  emailVerificationExpiresAt!: Date | null;
 
   @Column()
   password!: string;

@@ -910,6 +910,7 @@
   align-items: center;
   gap: 16px;
   margin-bottom: 12px;
+  flex-wrap: wrap;
 }
 
 .admin-support-filter-row h3 {
@@ -976,6 +977,7 @@
   display: flex;
   gap: 8px;
   margin-bottom: 16px;
+  flex-wrap: wrap;
 }
 .admin-stats-subtab {
   padding: 8px 20px;
@@ -1179,12 +1181,39 @@
 }
 
 @media (max-width: 640px) {
+  .admin-stats-kpi {
+    flex-wrap: wrap;
+  }
   .admin-stats-kpi-card {
-    min-width: 0;
+    min-width: calc(50% - 12px);
+    flex: 1 1 calc(50% - 12px);
   }
   .admin-stats-metric-btn {
     font-size: 12px;
     padding: 5px 10px;
+  }
+  .admin-panel .cabinet-header {
+    grid-template-columns: auto 1fr auto;
+    padding: 2px 8px;
+    gap: 4px;
+  }
+  .admin-work-area {
+    padding: 8px 8px 12px;
+  }
+  .admin-modal {
+    min-width: 0;
+    padding: 20px 16px 16px;
+    max-width: calc(100vw - 24px);
+  }
+  .admin-table-wrap {
+    margin: 0 -8px;
+    padding: 0 8px;
+  }
+  .admin-credit-form {
+    padding: 16px;
+  }
+  .admin-transfer-card {
+    padding: 16px;
   }
 }
 
@@ -1434,8 +1463,8 @@
   background: #fff;
   border-radius: 12px;
   padding: 28px 32px 22px;
-  min-width: 320px;
-  max-width: 400px;
+  min-width: 280px;
+  max-width: min(400px, calc(100vw - 32px));
   box-shadow: 0 12px 36px rgba(0, 0, 0, 0.18);
   text-align: center;
 }

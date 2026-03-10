@@ -391,10 +391,10 @@ const SELECTED_LEAGUE_STORAGE_KEY = 'cabinetSelectedLeague';
 const NEWS_READ_STORAGE_KEY = 'cabinetNewsReadIds';
 const VALID_SECTIONS = ['profile', 'statistics', 'games', 'finance', 'finance-topup', 'finance-withdraw', 'partner', 'partner-statistics', 'news'] as const;
 
-const BRACKET_NAME_MAX_LEN = 15;
+const BRACKET_NAME_MAX_LEN = 20;
+
 function truncateBracketName(s: string): string {
-  if (s.length <= BRACKET_NAME_MAX_LEN) return s;
-  return s.slice(0, BRACKET_NAME_MAX_LEN) + '…';
+  return s;
 }
 
 /** Не показываем «Возврат по отклонённой заявке» — деньги формально не уходили. */
@@ -666,6 +666,22 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   const [nameDraft, setNameDraft] = useState('');
   const [gender, setGender] = useState<string | null>(null);
   const [birthDate, setBirthDate] = useState<string | null>(null);
+  const [birthYear, setBirthYear] = useState('');
+  const [birthMonth, setBirthMonth] = useState('');
+  const [birthDay, setBirthDay] = useState('');
+
+  const [savedNick, setSavedNick] = useState<string>(() => {
+    try {
+      const id = localStorage.getItem('userId');
+      return (id && localStorage.getItem(`nickname_${id}`)) || '';
+    } catch { return ''; }
+  });
+  const [savedGender, setSavedGender] = useState<string | null>(null);
+  const [savedBirthDate, setSavedBirthDate] = useState<string | null>(null);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profileSaveOk, setProfileSaveOk] = useState(false);
+  const [confirmLeave, setConfirmLeave] = useState<CabinetSection | null>(null);
+  const [confirmLeaveFinanceSub, setConfirmLeaveFinanceSub] = useState<'topup' | 'withdraw' | undefined>(undefined);
   const [hasSupportUnread, setHasSupportUnread] = useState(false);
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [oldPassword, setOldPassword] = useState('');
@@ -1113,9 +1129,21 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         if (data.avatarUrl) setAvatar(data.avatarUrl);
         const backendNick = data.nickname;
         const savedNickname = backendNick ?? (data.id != null ? localStorage.getItem(`nickname_${data.id}`) : null);
-        setNickname(savedNickname ?? '');
-        if (data.gender) setGender(data.gender);
-        if (data.birthDate) setBirthDate(data.birthDate);
+        const nickVal = savedNickname ?? '';
+        setNickname(nickVal);
+        setSavedNick(nickVal);
+        const genderVal = data.gender ?? null;
+        setGender(genderVal);
+        setSavedGender(genderVal);
+        const bdVal = data.birthDate ?? null;
+        setBirthDate(bdVal);
+        setSavedBirthDate(bdVal);
+        if (bdVal) {
+          const p = bdVal.split('-');
+          if (p[0]) setBirthYear(p[0]);
+          if (p[1]) setBirthMonth(String(Number(p[1])));
+          if (p[2]) setBirthDay(String(Number(p[2])));
+        }
       } catch (err: unknown) {
         const ax = err && typeof err === 'object' && 'isAxiosError' in err && (err as { isAxiosError?: boolean }).isAxiosError;
         const status = ax && err && typeof err === 'object' && 'response' in err ? (err as { response?: { status?: number } }).response?.status : undefined;
@@ -1443,6 +1471,15 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         questionsSemi1: data.questionsSemi1,
         questionsSemi2: data.questionsSemi2,
         questionsFinal: data.questionsFinal,
+      });
+      setTournamentJoinInfo({
+        tournamentId: data.tournamentId,
+        playerSlot: data.playerSlot ?? 0,
+        totalPlayers: data.totalPlayers ?? 1,
+        semiIndex: data.semiIndex ?? 0,
+        positionInSemi: 0,
+        isCreator: data.isCreator ?? true,
+        deadline: data.deadline,
       });
       completedForfeitRef.current = false;
       const playersMsg = data.totalPlayers && data.totalPlayers > 1 ? ` Игроков: ${data.totalPlayers}/4.` : ' Ожидайте соперников.';
@@ -1809,6 +1846,15 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         questionsSemi2: data.questionsSemi2,
         questionsFinal: data.questionsFinal,
       });
+      setTournamentJoinInfo({
+        tournamentId: data.tournamentId,
+        playerSlot: 0,
+        totalPlayers: 1,
+        semiIndex: 0,
+        positionInSemi: 0,
+        isCreator: false,
+        deadline: data.deadline,
+      });
       completedForfeitRef.current = false;
       const ac = data.answersChosen ?? [];
       setFullAnswersChosen(ac);
@@ -2070,8 +2116,8 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 350_000) {
-      alert('Файл слишком большой. Максимум ~350KB.');
+    if (file.size > 10_000_000) {
+      alert('Файл слишком большой. Максимум 10 МБ.');
       return;
     }
     const reader = new FileReader();
@@ -2156,13 +2202,77 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     );
   }
 
+  const currentBirthDateStr = (() => {
+    if (birthYear && birthMonth && birthDay) {
+      return `${birthYear}-${birthMonth.padStart(2, '0')}-${birthDay.padStart(2, '0')}`;
+    }
+    if (!birthYear && !birthMonth && !birthDay) return null;
+    return undefined;
+  })();
+
+  const profileDirty =
+    nickname !== savedNick ||
+    gender !== savedGender ||
+    (currentBirthDateStr !== undefined && currentBirthDateStr !== savedBirthDate);
+
+  const saveProfileChanges = async () => {
+    if (!profileDirty || profileSaving) return;
+    setProfileSaving(true);
+    setProfileSaveOk(false);
+    try {
+      if (nickname !== savedNick) {
+        await axios.post('/users/profile/nickname', { nickname: nickname || null }, { headers: { Authorization: `Bearer ${token}` } });
+        if (user?.id != null) localStorage.setItem(`nickname_${user.id}`, nickname);
+        setSavedNick(nickname);
+      }
+      const newBd = currentBirthDateStr !== undefined ? currentBirthDateStr : savedBirthDate;
+      if (gender !== savedGender || newBd !== savedBirthDate) {
+        await axios.post('/users/profile/personal', { gender, birthDate: newBd }, { headers: { Authorization: `Bearer ${token}` } });
+        setSavedGender(gender);
+        if (newBd !== undefined) {
+          setSavedBirthDate(newBd);
+          setBirthDate(newBd);
+        }
+      }
+      setProfileSaveOk(true);
+      setTimeout(() => setProfileSaveOk(false), 2500);
+    } catch (_) {}
+    setProfileSaving(false);
+  };
+
+  const discardProfileChanges = () => {
+    setNickname(savedNick);
+    setGender(savedGender);
+    setBirthDate(savedBirthDate);
+    if (savedBirthDate) {
+      const p = savedBirthDate.split('-');
+      setBirthYear(p[0] || '');
+      setBirthMonth(p[1] ? String(Number(p[1])) : '');
+      setBirthDay(p[2] ? String(Number(p[2])) : '');
+    } else {
+      setBirthYear('');
+      setBirthMonth('');
+      setBirthDay('');
+    }
+    setIsEditingName(false);
+  };
+
+  const tryGoToSection = (s: CabinetSection, financeSub?: 'topup' | 'withdraw') => {
+    if (profileDirty && (section === null || section === 'profile') && s !== 'profile') {
+      setConfirmLeave(s);
+      setConfirmLeaveFinanceSub(financeSub);
+      return;
+    }
+    goToSection(s, financeSub);
+  };
+
   return (
     <div className="cabinet" style={{ background: '#f0f0f0', minHeight: '100vh', width: '100%' }} data-page="cabinet">
       <aside className="cabinet-sidebar" style={{ background: '#000' }}>
         <button
           type="button"
           className={`cabinet-menu-item ${section === 'profile' ? 'active' : ''}`}
-          onClick={() => { saveTrainingProgress(); goToSection('profile'); }}
+          onClick={() => { saveTrainingProgress(); tryGoToSection('profile'); }}
           aria-label="Профиль"
         >
           <span className="cabinet-menu-icon" aria-hidden>
@@ -2176,7 +2286,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         <button
           type="button"
           className={`cabinet-menu-item ${section === 'statistics' ? 'active' : ''}`}
-          onClick={() => { saveTrainingProgress(); goToSection('statistics'); }}
+          onClick={() => { saveTrainingProgress(); tryGoToSection('statistics'); }}
           aria-label="Статистика"
         >
           <span className="cabinet-menu-icon" aria-hidden>
@@ -2192,6 +2302,10 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
           type="button"
           className={`cabinet-menu-item ${section === 'games' || section === 'games-training' || section === 'games-money' ? 'active' : ''}`}
           onClick={() => {
+            if (profileDirty && (section === null || section === 'profile')) {
+              setConfirmLeave('games');
+              return;
+            }
             saveTrainingProgress();
             clearTrainingState();
             setGameModeState(null);
@@ -2216,7 +2330,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         <button
           type="button"
           className={`cabinet-menu-item ${section === 'finance' || section === 'finance-topup' || section === 'finance-withdraw' ? 'active' : ''}`}
-          onClick={() => { saveTrainingProgress(); goToSection('finance'); }}
+          onClick={() => { saveTrainingProgress(); tryGoToSection('finance'); }}
           aria-label="Финансы"
         >
           <span className="cabinet-menu-icon" aria-hidden>
@@ -2231,7 +2345,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         <button
           type="button"
           className={`cabinet-menu-item ${(section === 'partner' || section === 'partner-statistics') ? 'active' : ''}`}
-          onClick={() => { saveTrainingProgress(); goToSection('partner'); }}
+          onClick={() => { saveTrainingProgress(); tryGoToSection('partner'); }}
           aria-label="Партнерская программа"
         >
           <span className="cabinet-menu-icon" aria-hidden>
@@ -2242,7 +2356,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
               <path d="M16 3.13a4 4 0 0 1 0 7.75" />
             </svg>
           </span>
-          <span className="cabinet-menu-label">Партнерская программа</span>
+          <span className="cabinet-menu-label">Партнёрка</span>
         </button>
       </aside>
       {showLogoutConfirm && onLogout && (
@@ -2364,7 +2478,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
             <button
               type="button"
               className={`cabinet-header-news ${section === 'news' ? 'active' : ''}`}
-              onClick={() => { saveTrainingProgress(); goToSection('news'); }}
+              onClick={() => { saveTrainingProgress(); tryGoToSection('news'); }}
               aria-label="Новости"
             >
             <span className="cabinet-header-news-icon-wrap">
@@ -2413,14 +2527,14 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                 <button
                   type="button"
                   className="cabinet-balance-dropdown-item"
-                  onClick={() => { saveTrainingProgress(); goToSection('finance', 'topup'); }}
+                  onClick={() => { saveTrainingProgress(); tryGoToSection('finance', 'topup'); }}
                 >
                   Пополнить баланс
                 </button>
                 <button
                   type="button"
                   className="cabinet-balance-dropdown-item"
-                  onClick={() => { saveTrainingProgress(); goToSection('finance', 'withdraw'); }}
+                  onClick={() => { saveTrainingProgress(); tryGoToSection('finance', 'withdraw'); }}
                 >
                   Вывод средств
                 </button>
@@ -2460,7 +2574,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
           </div>
         </header>
         <main className="cabinet-content" style={{ background: '#fff', color: '#222', minHeight: '50vh', flex: 1 }} role="main">
-        {(section === null || section === 'profile') && (
+        {(section === null || section === 'profile') && (<>
     <div className="profile-container" style={{ padding: '24px', background: '#fff', minHeight: 200 }}>
       <div className="profile-header">
         <div className="avatar-section">
@@ -2554,20 +2668,13 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                 <button
                   type="button"
                   className="profile-name-save"
-                  onClick={async () => {
+                  onClick={() => {
                     const v = nameDraft.trim().slice(0, BRACKET_NAME_MAX_LEN);
-                    const toSave = v || (user?.id != null ? String(user.id) : '');
-                    setNickname(toSave);
-                    if (user) {
-                      localStorage.setItem(`nickname_${user.id}`, toSave);
-                      try {
-                        await axios.post('/users/profile/nickname', { nickname: toSave || null }, { headers: { Authorization: `Bearer ${token}` } });
-                      } catch (_) { /* сохраняем локально даже при ошибке */ }
-                    }
+                    setNickname(v || (user?.id != null ? String(user.id) : ''));
                     setIsEditingName(false);
                   }}
-                  title="Сохранить"
-                  aria-label="Сохранить"
+                  title="Применить"
+                  aria-label="Применить"
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="20 6 9 17 4 12" />
@@ -2607,12 +2714,8 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                   key={g}
                   type="button"
                   className={`gender-btn ${gender === g ? 'gender-btn--active' : ''}`}
-                  onClick={async () => {
-                    const next = gender === g ? null : g;
-                    setGender(next);
-                    try {
-                      await axios.post('/users/profile/personal', { gender: next }, { headers: { Authorization: `Bearer ${token}` } });
-                    } catch (_) {}
+                  onClick={() => {
+                    setGender(gender === g ? null : g);
                   }}
                 >
                   {g === 'male' ? 'Мужской' : 'Женский'}
@@ -2622,24 +2725,109 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
           </p>
           <p className="user-info-row">
             <span className="user-info-label">Дата рождения:</span>
-            <input
-              type="date"
-              className="birthdate-input"
-              value={birthDate ?? ''}
-              max={new Date().toISOString().split('T')[0]}
-              onChange={async (e) => {
-                const val = e.target.value || null;
-                setBirthDate(val);
-                try {
-                  await axios.post('/users/profile/personal', { birthDate: val }, { headers: { Authorization: `Bearer ${token}` } });
-                } catch (_) {}
-              }}
-            />
+            <span className="birthdate-selects">
+              {(() => {
+                const MONTHS_RU = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+                const currentYear = new Date().getFullYear();
+                const minYear = currentYear - 100;
+                const maxYear = currentYear - 18;
+                const years: number[] = [];
+                for (let y = maxYear; y >= minYear; y--) years.push(y);
+                const daysCount = (y: string, m: string) => {
+                  if (!y || !m) return 31;
+                  return new Date(Number(y), Number(m), 0).getDate();
+                };
+                const maxDay = daysCount(birthYear, birthMonth);
+                const days: number[] = [];
+                for (let d = 1; d <= maxDay; d++) days.push(d);
+
+                return (
+                  <>
+                    <select className="birthdate-select" value={birthDay} onChange={(e) => {
+                      setBirthDay(e.target.value);
+                    }}>
+                      <option value="">День</option>
+                      {days.map(d => <option key={d} value={String(d)}>{d}</option>)}
+                    </select>
+                    <select className="birthdate-select birthdate-select--month" value={birthMonth} onChange={(e) => {
+                      const m = e.target.value;
+                      setBirthMonth(m);
+                      if (birthDay && Number(birthDay) > daysCount(birthYear, m)) {
+                        setBirthDay(String(daysCount(birthYear, m)));
+                      }
+                    }}>
+                      <option value="">Месяц</option>
+                      {MONTHS_RU.map((name, i) => <option key={i} value={String(i+1)}>{name}</option>)}
+                    </select>
+                    <select className="birthdate-select" value={birthYear} onChange={(e) => {
+                      const y = e.target.value;
+                      setBirthYear(y);
+                      if (birthDay && birthMonth && Number(birthDay) > daysCount(y, birthMonth)) {
+                        setBirthDay(String(daysCount(y, birthMonth)));
+                      }
+                    }}>
+                      <option value="">Год</option>
+                      {years.map(y => <option key={y} value={String(y)}>{y}</option>)}
+                    </select>
+                  </>
+                );
+              })()}
+            </span>
           </p>
         </div>
       </div>
-    </div>
+      <div className="profile-save-bar">
+        <button
+          type="button"
+          className={`profile-save-btn${profileDirty ? ' profile-save-btn--active' : ''}`}
+          disabled={!profileDirty || profileSaving}
+          onClick={saveProfileChanges}
+        >
+          {profileSaving ? 'Сохранение...' : profileSaveOk ? 'Сохранено' : 'Сохранить изменения'}
+        </button>
+        {profileDirty && (
+          <button
+            type="button"
+            className="profile-discard-btn"
+            onClick={discardProfileChanges}
+          >
+            Отменить изменения
+          </button>
         )}
+      </div>
+    </div>
+
+    {confirmLeave !== null && (
+      <div className="profile-confirm-overlay" onClick={() => setConfirmLeave(null)}>
+        <div className="profile-confirm-modal" onClick={(e) => e.stopPropagation()}>
+          <p className="profile-confirm-text">У вас есть несохранённые изменения. Выйти без сохранения?</p>
+          <div className="profile-confirm-buttons">
+            <button
+              type="button"
+              className="profile-confirm-btn profile-confirm-btn--cancel"
+              onClick={() => setConfirmLeave(null)}
+            >
+              Остаться
+            </button>
+            <button
+              type="button"
+              className="profile-confirm-btn profile-confirm-btn--leave"
+              onClick={() => {
+                const target = confirmLeave!;
+                const sub = confirmLeaveFinanceSub;
+                discardProfileChanges();
+                setConfirmLeave(null);
+                setConfirmLeaveFinanceSub(undefined);
+                goToSection(target, sub);
+              }}
+            >
+              Выйти
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+        </>)}
         {section === 'statistics' && (
           <div className="cabinet-statistics">
             <h2>Статистика</h2>
@@ -2976,6 +3164,12 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                             type="button"
                             className="training-start-btn"
                             onClick={() => {
+                              const finalReady = gameHistory?.active?.find((t) => t.resultLabel === 'Финал');
+                              if (finalReady) {
+                                setPendingStartGameAction(() => () => { continueTraining(finalReady.id); });
+                                setShowStartGameConfirm(true);
+                                return;
+                              }
                               const first = gameHistory?.active?.find((t) => t.userStatus === 'not_passed');
                               const allAnswered = first && first.resultLabel === 'Ожидание соперника';
                               if (first && !allAnswered) {
@@ -2986,13 +3180,15 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                 setShowStartGameConfirm(true);
                               }
                             }}
-                            disabled={trainingLoading || continueTrainingLoading !== null || !!(gameHistory?.active?.find((t) => t.userStatus === 'not_passed')?.resultLabel === 'Ожидание соперника')}
+                            disabled={trainingLoading || continueTrainingLoading !== null || !!(gameHistory?.active?.find((t) => t.userStatus === 'not_passed' && t.resultLabel === 'Ожидание соперника'))}
                           >
                             {trainingLoading || continueTrainingLoading !== null
                               ? 'Загрузка...'
-                              : gameHistory?.active?.some((t) => t.userStatus === 'not_passed')
-                                ? 'Продолжить игру'
-                                : 'Начать игру'}
+                              : gameHistory?.active?.some((t) => t.resultLabel === 'Финал')
+                                ? 'Играть финал'
+                                : gameHistory?.active?.some((t) => t.userStatus === 'not_passed')
+                                  ? 'Продолжить игру'
+                                  : 'Начать игру'}
                           </button>
                           <button
                             type="button"
@@ -3033,7 +3229,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                       </td>
                                       <td>{t.deadline ? (new Date(t.deadline) > new Date() ? formatTimeLeft(t.deadline) : 'Время вышло') : '—'}</td>
                                       <td>
-                                        <span className={`game-history-status game-history-status--${t.resultLabel === 'Победа' ? 'victory' : t.resultLabel === 'Поражение' ? 'defeat' : t.resultLabel === 'Время истекло' ? 'time-expired' : t.resultLabel === 'Ожидание соперника' ? 'stage-passed' : 'stage-not-passed'}`}>
+                                        <span className={`game-history-status game-history-status--${t.resultLabel === 'Победа' ? 'victory' : t.resultLabel === 'Поражение' ? 'defeat' : t.resultLabel === 'Время истекло' ? 'time-expired' : t.resultLabel === 'Финал' ? 'final-ready' : t.resultLabel === 'Ожидание соперника' ? 'stage-passed' : 'stage-not-passed'}`}>
                                           {t.resultLabel ?? 'Этап не пройден'}
                                         </span>
                                       </td>
@@ -3874,9 +4070,9 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
             );
           }
           return (
-            <div className="cabinet-finance" style={{ width: '100%', maxWidth: '100%', padding: 24, boxSizing: 'border-box' }}>
+            <div className="cabinet-finance">
               <h2>Финансы</h2>
-              <div className="cabinet-finance-top-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 28 }}>
+              <div className="cabinet-finance-top-row">
                 <div className="cabinet-finance-balance-panel">
                   <h4>Баланс</h4>
                   <div className="cabinet-finance-balance-lines">
@@ -4152,29 +4348,59 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
             <h2 className="partner-section-title">Партнерская программа</h2>
             <p>Поделитесь ссылкой — новые игроки, зарегистрировавшиеся по ней, будут закреплены за вами.</p>
             <div className="partner-referral-block">
-              <p className="partner-referral-label">Ваша реферальная ссылка (нажмите, чтобы скопировать):</p>
-              {(referralCode || user?.id) ? (
-                <button
-                  type="button"
-                  className="partner-referral-link"
-                  onClick={async () => {
-                    const refValue = user?.id != null ? String(user.id) : String(referralCode);
-                    const link = `${window.location.origin}/register?ref=${refValue}`;
-                    try {
-                      await navigator.clipboard.writeText(link);
-                      setReferralLinkCopied(true);
-                      setTimeout(() => setReferralLinkCopied(false), 2000);
-                    } catch {
-                      setReferralLinkCopied(false);
-                    }
-                  }}
-                >
-                  {window.location.origin}/register?ref={user?.id != null ? String(user.id) : String(referralCode)}
-                </button>
-              ) : (
+              {(referralCode || user?.id) ? (() => {
+                const refValue = user?.id != null ? String(user.id) : String(referralCode);
+                const link = `${window.location.origin}/register?ref=${refValue}`;
+                const inviteText = `Играй и зарабатывай в Legend Games! Проверь свои знания в интеллектуальных турнирах и выигрывай реальные деньги.\n\nРегистрируйся по моей ссылке:\n${link}`;
+                return (
+                  <>
+                    <p className="partner-referral-label">Ваша реферальная ссылка:</p>
+                    <div className="partner-referral-link-display">{link}</div>
+                    <div className="partner-referral-actions">
+                      <button
+                        type="button"
+                        className="partner-referral-copy-btn"
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(inviteText);
+                            setReferralLinkCopied(true);
+                            setTimeout(() => setReferralLinkCopied(false), 2500);
+                          } catch {
+                            setReferralLinkCopied(false);
+                          }
+                        }}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                        </svg>
+                        {referralLinkCopied ? 'Скопировано!' : 'Скопировать приглашение'}
+                      </button>
+                      {typeof navigator.share === 'function' && (
+                        <button
+                          type="button"
+                          className="partner-referral-share-btn"
+                          onClick={() => {
+                            navigator.share({ title: 'Legend Games', text: inviteText }).catch(() => {});
+                          }}
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                            <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
+                            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+                          </svg>
+                          Поделиться
+                        </button>
+                      )}
+                    </div>
+                    <details className="partner-referral-preview">
+                      <summary>Предпросмотр сообщения</summary>
+                      <div className="partner-referral-preview-text">{inviteText}</div>
+                    </details>
+                  </>
+                );
+              })() : (
                 <span style={{ color: '#999' }}>—</span>
               )}
-              {referralLinkCopied && <span className="partner-referral-copied">Скопировано</span>}
             </div>
             <div className="partner-tree-title-row">
               <div className="partner-tree-nav-buttons">
@@ -4482,9 +4708,10 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                 tabIndex={0}
                 style={{
                   position: 'fixed',
-                  left: bracketPlayerTooltip.rect.left,
+                  left: Math.min(bracketPlayerTooltip.rect.left, window.innerWidth - 280),
                   top: bracketPlayerTooltip.rect.bottom + 6,
                   zIndex: 1100,
+                  maxWidth: 'calc(100vw - 20px)',
                 }}
                 onClick={() => setBracketPlayerTooltip(null)}
                 onKeyDown={(e) => e.key === 'Enter' && setBracketPlayerTooltip(null)}

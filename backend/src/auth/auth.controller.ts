@@ -33,6 +33,18 @@ export class AuthController {
     return this.authService.verifyEmail(token ?? '');
   }
 
+  @Throttle({ short: { ttl: 60000, limit: 10 } })
+  @Post('verify-code')
+  async verifyCode(@Body() body: { email?: string; code?: string }) {
+    return this.authService.verifyCode(body?.email ?? '', body?.code ?? '');
+  }
+
+  @Throttle({ short: { ttl: 60000, limit: 3 } })
+  @Post('resend-code')
+  async resendCode(@Body() body: { email?: string }) {
+    return this.authService.resendCode(body?.email ?? '');
+  }
+
   @Throttle({ short: { ttl: 60000, limit: 3 } })
   @Post('forgot-password')
   async forgotPassword(@Body() body: ForgotPasswordDto) {

@@ -253,8 +253,8 @@ export class UsersService implements OnModuleInit {
   async updateAvatar(userId: number, avatarData: string | null): Promise<{ avatarUrl: string | null }> {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
-    if (avatarData && avatarData.length > 500_000) {
-      throw new BadRequestException('Файл слишком большой (макс. ~350KB)');
+    if (avatarData && avatarData.length > 14_000_000) {
+      throw new BadRequestException('Файл слишком большой (макс. 10 МБ)');
     }
     user.avatarUrl = avatarData || null;
     await this.userRepository.save(user);

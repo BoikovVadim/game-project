@@ -6,17 +6,34 @@ interface LoginProps {
   onLogin: (token: string) => void;
 }
 
+const EyeOpen = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+    <circle cx="12" cy="12" r="3"/>
+  </svg>
+);
+
+const EyeClosed = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+    <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/>
+    <line x1="1" y1="1" x2="23" y2="23"/>
+  </svg>
+);
+
 const Login: React.FC<LoginProps> = ({ onLogin }) => {
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
+  const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     try {
-      const response = await axios.post<{ access_token?: string }>('/auth/login', { email, password });
+      const response = await axios.post<{ access_token?: string }>('/auth/login', { email: login, password });
       const token = response.data?.access_token;
       if (!token) {
         setError('Сервер не вернул токен. Попробуйте ещё раз.');
@@ -27,13 +44,18 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       navigate('/profile');
     } catch (err: unknown) {
       const ax = err && typeof err === 'object' && 'isAxiosError' in err && (err as { isAxiosError?: boolean }).isAxiosError;
-      const res = ax && err && typeof err === 'object' && 'response' in err ? (err as { response?: { status?: number; data?: { message?: string; error?: string } } }).response : undefined;
+      const res = ax && err && typeof err === 'object' && 'response' in err ? (err as { response?: { status?: number; data?: { message?: string; error?: string; email?: string } } }).response : undefined;
       const status = res?.status;
       const backendMessage = res?.data?.message;
       const backendError = res?.data?.error;
       const msg = ax && err && typeof err === 'object' && 'message' in err ? (err as { message?: string }).message : '';
       if (status === 401) {
-        const text = backendMessage && typeof backendMessage === 'string' && backendMessage !== 'Invalid credentials' ? backendMessage : 'Неверный email или пароль.';
+        if (backendMessage === 'EMAIL_NOT_VERIFIED') {
+          const userEmail = res?.data?.email || login;
+          navigate(`/verify-code?email=${encodeURIComponent(userEmail)}`);
+          return;
+        }
+        const text = backendMessage && typeof backendMessage === 'string' && backendMessage !== 'Invalid credentials' ? backendMessage : 'Неверный логин/email или пароль.';
         setError(text);
       }
       else if (status === 500) setError(backendMessage || backendError ? `Ошибка сервера: ${backendMessage || backendError}` : 'Ошибка сервера. Убедитесь, что бэкенд запущен (npm run dev).');
@@ -47,19 +69,45 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       <h2 style={{ marginBottom: 16 }}>Вход</h2>
       <form onSubmit={handleSubmit}>
         <input
-          type="email"
-          placeholder="Электронная почта"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          type="text"
+          placeholder="Логин или электронная почта"
+          value={login}
+          onChange={(e) => setLogin(e.target.value)}
           required
         />
-        <input
-          type="password"
-          placeholder="Пароль"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
+        <div style={{ position: 'relative', marginBottom: 10 }}>
+          <input
+            type={showPassword ? 'text' : 'password'}
+            placeholder="Пароль"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            style={{ width: '100%', boxSizing: 'border-box', paddingRight: 40, marginBottom: 0 }}
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((v) => !v)}
+            style={{
+              position: 'absolute',
+              right: 8,
+              top: '50%',
+              transform: 'translateY(-50%)',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: 4,
+              color: '#999',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: 'none',
+            }}
+            tabIndex={-1}
+            aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
+          >
+            {showPassword ? <EyeClosed /> : <EyeOpen />}
+          </button>
+        </div>
         <p style={{ margin: '8px 0 0', fontSize: 14, textAlign: 'center' }}>
           Забыли пароль? <Link to="/forgot-password">Восстановить</Link>
         </p>

@@ -32,3 +32,13 @@
 .userslist-table tbody tr:hover {
   background: #fafafa;
 }
+
+@media (max-width: 640px) {
+  .userslist-table {
+    font-size: 12px;
+  }
+  .userslist-table th,
+  .userslist-table td {
+    padding: 6px 4px;
+  }
+}

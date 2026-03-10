@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 
-/** Генерирует сложный пароль (буквы, цифры, символы) */
 function generateStrongPassword(): string {
   const lower = 'abcdefghjkmnpqrstuvwxyz';
   const upper = 'ABCDEFGHJKMNPQRSTUVWXYZ';
@@ -18,12 +17,9 @@ function generateStrongPassword(): string {
     pick(symbols, 1),
     pick(all, 6),
   ];
-  return parts
-    .sort(() => Math.random() - 0.5)
-    .join('');
+  return parts.sort(() => Math.random() - 0.5).join('');
 }
 
-/** Извлекает реферальный код из строки (ссылка или просто код) */
 function parseReferralInput(value: string): string {
   const trimmed = value.trim();
   if (!trimmed) return '';
@@ -38,6 +34,38 @@ function parseReferralInput(value: string): string {
   }
 }
 
+const EyeOpen = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+    <circle cx="12" cy="12" r="3"/>
+  </svg>
+);
+
+const EyeClosed = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+    <path d="M14.12 14.12a3 3 0 1 1-4.24-4.24"/>
+    <line x1="1" y1="1" x2="23" y2="23"/>
+  </svg>
+);
+
+const eyeBtnStyle: React.CSSProperties = {
+  position: 'absolute',
+  right: 8,
+  top: '50%',
+  transform: 'translateY(-50%)',
+  background: 'none',
+  border: 'none',
+  cursor: 'pointer',
+  padding: 4,
+  color: '#999',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  boxShadow: 'none',
+};
+
 const Register: React.FC = () => {
   const [searchParams] = useSearchParams();
   const refFromUrl = searchParams.get('ref') ?? '';
@@ -45,6 +73,8 @@ const Register: React.FC = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [passwordConfirm, setPasswordConfirm] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showPasswordConfirm, setShowPasswordConfirm] = useState(false);
   const [referralInput, setReferralInput] = useState(refFromUrl);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [acceptedAge, setAcceptedAge] = useState(false);
@@ -65,6 +95,10 @@ const Register: React.FC = () => {
       setError('Подтвердите, что вам есть 18 лет.');
       return;
     }
+    if (password.length < 6) {
+      setError('Пароль должен быть не менее 6 символов.');
+      return;
+    }
     if (password !== passwordConfirm) {
       setError('Пароли не совпадают');
       return;
@@ -72,8 +106,7 @@ const Register: React.FC = () => {
     const referralCode = parseReferralInput(referralInput) || undefined;
     try {
       await axios.post('/auth/register', { username, email, password, referralCode });
-      alert('Регистрация прошла успешно! На вашу почту отправлено письмо со ссылкой для подтверждения. Перейдите по ссылке, затем войдите в систему.');
-      navigate('/login');
+      navigate(`/verify-code?email=${encodeURIComponent(email)}`);
     } catch (err: any) {
       const msg = err?.response?.data?.message;
       setError(Array.isArray(msg) ? msg.join('. ') : (msg || 'Не удалось зарегистрироваться'));
@@ -107,28 +140,53 @@ const Register: React.FC = () => {
           onChange={(e) => setEmail(e.target.value)}
           required
         />
-        <input
-          type="password"
-          placeholder="Пароль (при клике предложится сложный пароль)"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          onFocus={handlePasswordFocus}
-          required
-        />
-        <input
-          type="password"
-          placeholder="Повторите пароль"
-          value={passwordConfirm}
-          onChange={(e) => setPasswordConfirm(e.target.value)}
-          required
-        />
+        <div style={{ position: 'relative', marginBottom: 10 }}>
+          <input
+            type={showPassword ? 'text' : 'password'}
+            placeholder="Пароль (при клике предложится сложный пароль)"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            onFocus={handlePasswordFocus}
+            required
+            minLength={6}
+            style={{ width: '100%', boxSizing: 'border-box', paddingRight: 40, marginBottom: 0 }}
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((v) => !v)}
+            style={eyeBtnStyle}
+            tabIndex={-1}
+            aria-label={showPassword ? 'Скрыть пароль' : 'Показать пароль'}
+          >
+            {showPassword ? <EyeClosed /> : <EyeOpen />}
+          </button>
+        </div>
+        <div style={{ position: 'relative', marginBottom: 10 }}>
+          <input
+            type={showPasswordConfirm ? 'text' : 'password'}
+            placeholder="Повторите пароль"
+            value={passwordConfirm}
+            onChange={(e) => setPasswordConfirm(e.target.value)}
+            required
+            style={{ width: '100%', boxSizing: 'border-box', paddingRight: 40, marginBottom: 0 }}
+          />
+          <button
+            type="button"
+            onClick={() => setShowPasswordConfirm((v) => !v)}
+            style={eyeBtnStyle}
+            tabIndex={-1}
+            aria-label={showPasswordConfirm ? 'Скрыть пароль' : 'Показать пароль'}
+          >
+            {showPasswordConfirm ? <EyeClosed /> : <EyeOpen />}
+          </button>
+        </div>
         <input
           type="text"
           placeholder="Реферальная ссылка или код (необязательно)"
           value={referralInput}
           onChange={(e) => setReferralInput(e.target.value)}
         />
-        <label style={{ display: 'flex', alignItems: 'baseline', margin: '5px 0', gap: '6px', fontSize: '12px', whiteSpace: 'nowrap' }}>
+        <label style={{ display: 'flex', alignItems: 'baseline', margin: '5px 0', gap: '6px', fontSize: '12px' }}>
           <input
             type="checkbox"
             checked={acceptedTerms}
@@ -137,7 +195,7 @@ const Register: React.FC = () => {
           />
           <span>Я ознакомлен и принимаю <Link to="/offer" target="_blank" style={{ color: '#1a73e8' }}>правила игры</Link> <span style={{ color: '#c00' }}>*</span></span>
         </label>
-        <label style={{ display: 'flex', alignItems: 'baseline', margin: '5px 0', gap: '6px', fontSize: '12px', whiteSpace: 'nowrap' }}>
+        <label style={{ display: 'flex', alignItems: 'baseline', margin: '5px 0', gap: '6px', fontSize: '12px' }}>
           <input
             type="checkbox"
             checked={acceptedAge}

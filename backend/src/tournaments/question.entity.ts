@@ -9,7 +9,7 @@ export class Question {
   @Column()
   question!: string;
 
-  @Column('simple-array')
+  @Column('simple-json')
   options!: string[];
 
   @Column()
