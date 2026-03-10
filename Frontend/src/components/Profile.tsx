@@ -3239,7 +3239,11 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                 setShowStartGameConfirm(true);
                               }
                             }}
-                            disabled={trainingLoading || continueTrainingLoading !== null || !!(gameHistory?.active?.find((t) => t.userStatus === 'not_passed' && t.resultLabel === 'Ожидание соперника'))}
+                            disabled={trainingLoading || continueTrainingLoading !== null || (
+                              !gameHistory?.active?.some((t) => t.resultLabel === 'Доп. раунд') &&
+                              !gameHistory?.active?.some((t) => t.resultLabel === 'Финал') &&
+                              !!(gameHistory?.active?.find((t) => t.userStatus === 'not_passed' && t.resultLabel === 'Ожидание соперника'))
+                            )}
                           >
                             {trainingLoading || continueTrainingLoading !== null
                               ? 'Загрузка...'
