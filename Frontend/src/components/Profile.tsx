@@ -3251,9 +3251,10 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                             <div className="game-history-section-header">
                               <strong>Активные игры</strong>
                               {gameHistory?.active?.some((t) => t.userStatus === 'not_passed') && (() => {
-                                const tbReady = gameHistory?.active?.find((t) => t.resultLabel === 'Доп. раунд');
-                                const finalReady = gameHistory?.active?.find((t) => t.resultLabel === 'Финал');
-                                const continuable = gameHistory?.active?.find((t) => t.userStatus === 'not_passed' && t.resultLabel !== 'Ожидание соперника');
+                                const sorted = [...(gameHistory?.active ?? [])].sort((a, b) => a.id - b.id);
+                                const tbReady = sorted.find((t) => t.resultLabel === 'Доп. раунд');
+                                const finalReady = sorted.find((t) => t.resultLabel === 'Финал');
+                                const continuable = sorted.find((t) => t.userStatus === 'not_passed' && t.resultLabel !== 'Ожидание соперника');
                                 const target = tbReady ?? finalReady ?? continuable;
                                 if (!target) return null;
                                 return (
@@ -3266,7 +3267,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                     }}
                                     disabled={continueTrainingLoading !== null}
                                   >
-                                    {continueTrainingLoading !== null ? 'Загрузка...' : 'Продолжить игру'}
+                                    {continueTrainingLoading !== null ? 'Загрузка...' : `Продолжить игру #${target.id}`}
                                   </button>
                                 );
                               })()}
@@ -3278,7 +3279,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                   <tr>
                                     <th>№ турнира</th>
                                     <th>Этап</th>
-                                    <th className="game-history-questions-col"><span className="game-history-questions-tooltip" data-tooltip="Формат: всего / отвечено / верных. Пример: 10/10/7 = всего 10 вопросов, отвечено 10, верных 7" tabIndex={0} onClick={(e) => e.currentTarget.classList.toggle('tooltip-active')} onBlur={(e) => e.currentTarget.classList.remove('tooltip-active')}>Вопросы</span></th>
+                                    <th className="game-history-questions-col"><span className="game-history-questions-tooltip" data-tooltip="Формат: всего / отвечено / верных. Пример: 10/10/7 = всего 10 вопросов, отвечено 10, верных 7" tabIndex={0} onClick={(e) => { const el = e.currentTarget; if (el.classList.contains('tooltip-active')) { el.classList.remove('tooltip-active'); el.blur(); } else { el.classList.add('tooltip-active'); } }} onBlur={(e) => e.currentTarget.classList.remove('tooltip-active')}>Вопросы</span></th>
                                     <th>Осталось до конца</th>
                                     <th>Статус</th>
                                   </tr>
@@ -3322,7 +3323,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                   <tr>
                                     <th>№ турнира</th>
                                     <th>Этап</th>
-                                    <th className="game-history-questions-col"><span className="game-history-questions-tooltip" data-tooltip="Формат: всего / отвечено / верных. Пример: 10/10/7 = всего 10 вопросов, отвечено 10, верных 7" tabIndex={0} onClick={(e) => e.currentTarget.classList.toggle('tooltip-active')} onBlur={(e) => e.currentTarget.classList.remove('tooltip-active')}>Вопросы</span></th>
+                                    <th className="game-history-questions-col"><span className="game-history-questions-tooltip" data-tooltip="Формат: всего / отвечено / верных. Пример: 10/10/7 = всего 10 вопросов, отвечено 10, верных 7" tabIndex={0} onClick={(e) => { const el = e.currentTarget; if (el.classList.contains('tooltip-active')) { el.classList.remove('tooltip-active'); el.blur(); } else { el.classList.add('tooltip-active'); } }} onBlur={(e) => e.currentTarget.classList.remove('tooltip-active')}>Вопросы</span></th>
                                     <th>Дата завершения</th>
                                     <th>Статус</th>
                                   </tr>
@@ -3646,7 +3647,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                 <strong>Активные игры</strong>
                                 {gameHistory?.active?.some((t) => t.userStatus === 'not_passed') && (
                                     (() => {
-                                    const notPassed = gameHistory?.active?.filter((t) => t.userStatus === 'not_passed') ?? [];
+                                    const notPassed = [...(gameHistory?.active?.filter((t) => t.userStatus === 'not_passed') ?? [])].sort((a, b) => a.id - b.id);
                                     const first = notPassed.find((t) => t.resultLabel !== 'Ожидание соперника') ?? notPassed[0];
                                     const allWaitingForOpponent = notPassed.length > 0 && notPassed.every((t) => t.resultLabel === 'Ожидание соперника');
                                     return (
@@ -3662,7 +3663,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                         disabled={continueTournamentLoading !== null || allWaitingForOpponent}
                                         title={allWaitingForOpponent ? 'Все вопросы отвечены, ожидание соперника' : undefined}
                                       >
-                                        {continueTournamentLoading !== null ? 'Загрузка...' : 'Продолжить игру'}
+                                        {continueTournamentLoading !== null ? 'Загрузка...' : first ? `Продолжить игру #${first.id}` : 'Продолжить игру'}
                                       </button>
                                     );
                                   })()
@@ -3676,7 +3677,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                       <th>№ турнира</th>
                                       <th>Стоимость лиги</th>
                                       <th>Этап</th>
-                                      <th className="game-history-questions-col"><span className="game-history-questions-tooltip" data-tooltip="Формат: всего / отвечено / верных. Пример: 10/10/7 = всего 10 вопросов, отвечено 10, верных 7" tabIndex={0} onClick={(e) => e.currentTarget.classList.toggle('tooltip-active')} onBlur={(e) => e.currentTarget.classList.remove('tooltip-active')}>Вопросы</span></th>
+                                      <th className="game-history-questions-col"><span className="game-history-questions-tooltip" data-tooltip="Формат: всего / отвечено / верных. Пример: 10/10/7 = всего 10 вопросов, отвечено 10, верных 7" tabIndex={0} onClick={(e) => { const el = e.currentTarget; if (el.classList.contains('tooltip-active')) { el.classList.remove('tooltip-active'); el.blur(); } else { el.classList.add('tooltip-active'); } }} onBlur={(e) => e.currentTarget.classList.remove('tooltip-active')}>Вопросы</span></th>
                                       <th>Осталось до конца</th>
                                       <th>Статус</th>
                                     </tr>
@@ -3717,7 +3718,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                       <th>№ турнира</th>
                                       <th>Стоимость лиги</th>
                                       <th>Этап</th>
-                                      <th className="game-history-questions-col"><span className="game-history-questions-tooltip" data-tooltip="Формат: всего / отвечено / верных. Пример: 10/10/7 = всего 10 вопросов, отвечено 10, верных 7" tabIndex={0} onClick={(e) => e.currentTarget.classList.toggle('tooltip-active')} onBlur={(e) => e.currentTarget.classList.remove('tooltip-active')}>Вопросы</span></th>
+                                      <th className="game-history-questions-col"><span className="game-history-questions-tooltip" data-tooltip="Формат: всего / отвечено / верных. Пример: 10/10/7 = всего 10 вопросов, отвечено 10, верных 7" tabIndex={0} onClick={(e) => { const el = e.currentTarget; if (el.classList.contains('tooltip-active')) { el.classList.remove('tooltip-active'); el.blur(); } else { el.classList.add('tooltip-active'); } }} onBlur={(e) => e.currentTarget.classList.remove('tooltip-active')}>Вопросы</span></th>
                                       <th>Дата завершения</th>
                                       <th>Статус</th>
                                     </tr>
