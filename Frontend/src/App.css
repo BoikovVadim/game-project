@@ -59,7 +59,7 @@ body {
   width: 100%;
   box-sizing: border-box;
   padding: 0 16px;
-  background-color: #f5f5f5;
+  background-color: #f0f0f0;
   min-height: 60vh;
 }
 
@@ -70,7 +70,7 @@ body {
     padding: 0 24px;
   }
 
-  .App.cabinet-open .app-main {
+  .App.app-loggedin .app-main {
     max-width: none;
     margin: 0;
     padding: 0;
@@ -92,23 +92,16 @@ nav {
   display: none;
 }
 
-/* Кабинет: main растёт по контенту, чтобы при длинном контенте (тренировки и т.д.) работала прокрутка страницы */
-.App.cabinet-open .app-main {
-  flex: none;
-  min-height: 100vh;
-}
-
-.App.admin-open .app-main {
+.App.app-loggedin .app-main {
   padding: 0;
   margin: 0;
   max-width: none;
   width: 100%;
+  min-height: 100vh;
 }
 
-.app-main--admin {
-  padding: 0;
-  margin: 0;
-  max-width: none;
+.App.cabinet-open .app-main {
+  flex: none;
 }
 
 nav a, nav button {

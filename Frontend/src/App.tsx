@@ -24,6 +24,13 @@ function getToken(): string {
 
 const SCROLL_RESTORE_KEY = 'app_scroll_restore';
 
+function removeLoadingScreen() {
+  const el = document.getElementById('loading-screen');
+  if (!el) return;
+  el.style.opacity = '0';
+  setTimeout(() => { try { el.remove(); } catch (_) {} }, 180);
+}
+
 function AppContent() {
   const [token, setToken] = useState(getToken);
   const location = useLocation();
@@ -32,23 +39,24 @@ function AppContent() {
   useEffect(() => {
     const el = document.getElementById('loading-screen');
     if (!el) return;
-    let rafId: number;
-    const check = () => {
-      const ready = document.querySelector('.cabinet-sidebar, .admin-panel, .app-main form, .app-main nav');
-      if (ready) {
-        el.style.opacity = '0';
-        setTimeout(() => { try { el.remove(); } catch (_) {} }, 160);
-        return;
+    const root = document.getElementById('root');
+    if (!root) { removeLoadingScreen(); return; }
+    const observer = new MutationObserver(() => {
+      if (document.querySelector('.cabinet-sidebar, .admin-panel, .app-main form, .app-main nav')) {
+        observer.disconnect();
+        removeLoadingScreen();
       }
-      rafId = requestAnimationFrame(check);
-    };
-    rafId = requestAnimationFrame(check);
-    const safety = setTimeout(() => {
-      cancelAnimationFrame(rafId);
-      el.style.opacity = '0';
-      setTimeout(() => { try { el.remove(); } catch (_) {} }, 160);
-    }, 3000);
-    return () => { cancelAnimationFrame(rafId); clearTimeout(safety); };
+    });
+    observer.observe(root, { childList: true, subtree: true });
+    const safety = setTimeout(() => { observer.disconnect(); removeLoadingScreen(); }, 3000);
+    return () => { observer.disconnect(); clearTimeout(safety); };
+  }, []);
+
+  useEffect(() => {
+    import('./components/Profile.tsx');
+    import('./components/Admin.tsx');
+    import('./components/SupportChat.tsx');
+    import('./components/Offer.tsx');
   }, []);
 
   useEffect(() => {
@@ -118,7 +126,7 @@ function AppContent() {
   const hideTopNav = isProfile || isAdmin || isSupport || isRedirecting;
   return (
     <ErrorBoundary>
-      <div className={`App${isProfile ? ' cabinet-open' : ''}${isAdmin ? ' admin-open' : ''}`}>
+      <div className={`App${hideTopNav ? ' app-loggedin' : ''}${isProfile ? ' cabinet-open' : ''}${isAdmin ? ' admin-open' : ''}`}>
         {!hideTopNav && (
           <nav style={{
             padding: '14px 16px',
@@ -137,16 +145,7 @@ function AppContent() {
           </nav>
         )}
         <main className="app-main" style={{ flex: 1, padding: hideTopNav ? 0 : '24px 16px' }}>
-          <Suspense fallback={
-            isProfile ? (
-              <div style={{ display: 'flex', minHeight: '100vh' }}>
-                <div style={{ width: 70, background: '#000', flexShrink: 0 }} />
-                <div style={{ flex: 1 }} />
-              </div>
-            ) : (
-              <div style={{ minHeight: 200 }} />
-            )
-          }>
+          <Suspense fallback={<div style={{ minHeight: '100vh' }} />}>
           <Routes>
             <Route path="/" element={hasToken ? <Navigate to="/profile" replace /> : <Login onLogin={handleLogin} />} />
             <Route path="/login" element={<Navigate to={hasToken ? '/profile' : '/'} replace />} />
