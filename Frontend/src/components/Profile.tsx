@@ -722,7 +722,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     localStorage.removeItem('adminToken');
     localStorage.setItem('token', adminToken);
     window.dispatchEvent(new CustomEvent('token-refresh', { detail: adminToken }));
-    navigate('/admin');
+    navigate('/admin?tab=users');
     window.location.reload();
   };
   const [showStartGameConfirm, setShowStartGameConfirm] = useState(false);

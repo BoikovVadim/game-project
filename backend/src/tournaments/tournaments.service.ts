@@ -2091,7 +2091,121 @@ export class TournamentsService {
       });
       await this.tournamentProgressRepository.save(progress);
     }
+
+    await this.tryAutoComplete(tournament, userId).catch(() => {});
+
     return { ok: true };
+  }
+
+  /** Автозавершение: после каждого ответа проверяем, определился ли результат. */
+  private async tryAutoComplete(tournament: Tournament, userId: number): Promise<void> {
+    const tournamentId = tournament.id;
+    const players = tournament.players ?? [];
+    if (players.length < 2) return;
+    this.sortPlayersByOrder(tournament);
+
+    const playerSlot = players.findIndex((p) => p.id === userId);
+    if (playerSlot < 0) return;
+    const opponentSlot = playerSlot % 2 === 0 ? playerSlot + 1 : playerSlot - 1;
+    if (opponentSlot < 0 || opponentSlot >= players.length) return;
+    const opponentId = players[opponentSlot]!.id;
+
+    const myProgress = await this.tournamentProgressRepository.findOne({ where: { userId, tournamentId } });
+    const oppProgress = await this.tournamentProgressRepository.findOne({ where: { userId: opponentId, tournamentId } });
+    if (!myProgress || !oppProgress) return;
+
+    const myQ = myProgress.questionsAnsweredCount ?? 0;
+    const oppQ = oppProgress.questionsAnsweredCount ?? 0;
+    if (myQ < this.QUESTIONS_PER_ROUND || oppQ < this.QUESTIONS_PER_ROUND) return;
+
+    const semiResult = await this.computeSemiResult(tournament, userId);
+    if (semiResult === 'playing' || semiResult === 'waiting' || semiResult === 'tie') return;
+
+    const semiWinnerId = semiResult === 'won' ? userId : opponentId;
+    const semiLoserId = semiResult === 'won' ? opponentId : userId;
+
+    const now = new Date();
+    const saveResult = async (uid: number, passed: boolean) => {
+      let row = await this.tournamentResultRepository.findOne({ where: { userId: uid, tournamentId } });
+      if (row) {
+        row.passed = passed ? 1 : 0;
+        if (!row.completedAt) row.completedAt = now;
+        await this.tournamentResultRepository.save(row);
+      } else {
+        row = this.tournamentResultRepository.create({ userId: uid, tournamentId, passed: passed ? 1 : 0, completedAt: now });
+        await this.tournamentResultRepository.save(row);
+      }
+    };
+
+    if (players.length < 4) {
+      await saveResult(semiWinnerId, true);
+      await saveResult(semiLoserId, false);
+      await this.tournamentRepository.update({ id: tournamentId }, { status: TournamentStatus.FINISHED });
+      return;
+    }
+
+    await saveResult(semiLoserId, false);
+
+    if (semiResult !== 'won') return;
+
+    const otherSlots: [number, number] = playerSlot < 2 ? [2, 3] : [0, 1];
+    const opp1 = players[otherSlots[0]];
+    const opp2 = players[otherSlots[1]];
+    if (!opp1 || !opp2) return;
+
+    const p1 = await this.tournamentProgressRepository.findOne({ where: { userId: opp1.id, tournamentId } });
+    const p2 = await this.tournamentProgressRepository.findOne({ where: { userId: opp2.id, tournamentId } });
+    const finalistProgress = this.findSemiWinner(p1, p2);
+    if (!finalistProgress) return;
+
+    const finalistId = finalistProgress.userId;
+    const myTBCount = (myProgress.tiebreakerRoundsCorrect ?? []).length;
+    const mySemiTotal = this.QUESTIONS_PER_ROUND + myTBCount * this.TIEBREAKER_QUESTIONS;
+    const oppTBCount = (finalistProgress.tiebreakerRoundsCorrect ?? []).length;
+    const oppSemiTotal = this.QUESTIONS_PER_ROUND + oppTBCount * this.TIEBREAKER_QUESTIONS;
+
+    if (myQ < mySemiTotal + this.QUESTIONS_PER_ROUND) return;
+    if ((finalistProgress.questionsAnsweredCount ?? 0) < oppSemiTotal + this.QUESTIONS_PER_ROUND) return;
+
+    const mySemiTBSum = (myProgress.tiebreakerRoundsCorrect ?? []).reduce((a, b) => a + b, 0);
+    const myFinalCorrect = (myProgress.correctAnswersCount ?? 0) - (myProgress.semiFinalCorrectCount ?? 0) - mySemiTBSum;
+    const oppSemiTBSum = (finalistProgress.tiebreakerRoundsCorrect ?? []).reduce((a, b) => a + b, 0);
+    const oppFinalCorrect = (finalistProgress.correctAnswersCount ?? 0) - (finalistProgress.semiFinalCorrectCount ?? 0) - oppSemiTBSum;
+
+    const myFTB = myProgress.finalTiebreakerRoundsCorrect ?? [];
+    const oppFTB = finalistProgress.finalTiebreakerRoundsCorrect ?? [];
+    const myFTBSum = myFTB.reduce((a, b) => a + b, 0);
+    const oppFTBSum = oppFTB.reduce((a, b) => a + b, 0);
+    const myFinalBase = myFinalCorrect - myFTBSum;
+    const oppFinalBase = oppFinalCorrect - oppFTBSum;
+
+    let myWon: boolean | null = null;
+    if (myFinalBase > oppFinalBase) {
+      myWon = true;
+    } else if (myFinalBase < oppFinalBase) {
+      myWon = false;
+    } else {
+      for (let r = 0; r < Math.max(myFTB.length, oppFTB.length); r++) {
+        const myFTBEnd = mySemiTotal + this.QUESTIONS_PER_ROUND + (r + 1) * this.TIEBREAKER_QUESTIONS;
+        const oppFTBEnd = oppSemiTotal + this.QUESTIONS_PER_ROUND + (r + 1) * this.TIEBREAKER_QUESTIONS;
+        if (myQ < myFTBEnd || (finalistProgress.questionsAnsweredCount ?? 0) < oppFTBEnd) break;
+        if ((myFTB[r] ?? 0) > (oppFTB[r] ?? 0)) { myWon = true; break; }
+        if ((myFTB[r] ?? 0) < (oppFTB[r] ?? 0)) { myWon = false; break; }
+      }
+    }
+
+    if (myWon === null) return;
+
+    const tournamentWinnerId = myWon ? userId : finalistId;
+    const tournamentLoserId = myWon ? finalistId : userId;
+
+    await saveResult(tournamentWinnerId, true);
+    await saveResult(tournamentLoserId, false);
+
+    const otherSemiLoser = finalistId === opp1.id ? opp2.id : opp1.id;
+    await saveResult(otherSemiLoser, false);
+
+    await this.tournamentRepository.update({ id: tournamentId }, { status: TournamentStatus.FINISHED });
   }
 
   /** Карта турнира: полуфиналы по бокам, финал в центре. */
