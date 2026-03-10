@@ -1,4 +1,4 @@
-import React, { Suspense, useState, useEffect, useLayoutEffect } from 'react';
+import React, { Suspense, useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
 import Register from './components/Register.tsx';
 import Login from './components/Login.tsx';
@@ -29,9 +29,26 @@ function AppContent() {
   const location = useLocation();
   const hasToken = !!token;
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     const el = document.getElementById('loading-screen');
-    if (el && el.parentNode) el.remove();
+    if (!el) return;
+    let rafId: number;
+    const check = () => {
+      const ready = document.querySelector('.cabinet-sidebar, .admin-panel, .app-main form, .app-main nav');
+      if (ready) {
+        el.style.opacity = '0';
+        setTimeout(() => { try { el.remove(); } catch (_) {} }, 160);
+        return;
+      }
+      rafId = requestAnimationFrame(check);
+    };
+    rafId = requestAnimationFrame(check);
+    const safety = setTimeout(() => {
+      cancelAnimationFrame(rafId);
+      el.style.opacity = '0';
+      setTimeout(() => { try { el.remove(); } catch (_) {} }, 160);
+    }, 3000);
+    return () => { cancelAnimationFrame(rafId); clearTimeout(safety); };
   }, []);
 
   useEffect(() => {
@@ -64,19 +81,10 @@ function AppContent() {
       const y = Number(data.y);
       if (!Number.isFinite(x) || !Number.isFinite(y)) return;
       const apply = () => window.scrollTo(x, y);
-      apply();
-      requestAnimationFrame(() => requestAnimationFrame(apply));
-      const t1 = setTimeout(apply, 100);
-      const t2 = setTimeout(apply, 300);
-      const t3 = setTimeout(() => {
+      requestAnimationFrame(() => {
         apply();
         sessionStorage.removeItem(SCROLL_RESTORE_KEY);
-      }, 600);
-      return () => {
-        clearTimeout(t1);
-        clearTimeout(t2);
-        clearTimeout(t3);
-      };
+      });
     } catch (_e) {}
   }, [location.pathname, location.search]);
 
@@ -129,7 +137,16 @@ function AppContent() {
           </nav>
         )}
         <main className="app-main" style={{ flex: 1, padding: hideTopNav ? 0 : '24px 16px' }}>
-          <Suspense fallback={<div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: 200 }}><span style={{ fontSize: 16, color: '#888' }}>Загрузка...</span></div>}>
+          <Suspense fallback={
+            isProfile ? (
+              <div style={{ display: 'flex', minHeight: '100vh' }}>
+                <div style={{ width: 70, background: '#000', flexShrink: 0 }} />
+                <div style={{ flex: 1 }} />
+              </div>
+            ) : (
+              <div style={{ minHeight: 200 }} />
+            )
+          }>
           <Routes>
             <Route path="/" element={hasToken ? <Navigate to="/profile" replace /> : <Login onLogin={handleLogin} />} />
             <Route path="/login" element={<Navigate to={hasToken ? '/profile' : '/'} replace />} />
