@@ -690,7 +690,7 @@ export class TournamentsService {
     currentTournamentId?: number,
   ): Promise<{
     active: { id: number; status: string; createdAt: string; playersCount: number; leagueAmount: number | null; deadline: string; userStatus: 'passed' | 'not_passed'; stage?: string; resultLabel?: string; roundForQuestions: 'semi' | 'final'; questionsAnswered: number; questionsTotal: number; correctAnswersInRound: number }[];
-    completed: { id: number; status: string; createdAt: string; playersCount: number; leagueAmount: number | null; userStatus: 'passed' | 'not_passed'; stage?: string; resultLabel?: string; roundForQuestions: 'semi' | 'final'; questionsAnswered: number; questionsTotal: number; correctAnswersInRound: number }[];
+    completed: { id: number; status: string; createdAt: string; playersCount: number; leagueAmount: number | null; userStatus: 'passed' | 'not_passed'; stage?: string; resultLabel?: string; roundForQuestions: 'semi' | 'final'; questionsAnswered: number; questionsTotal: number; correctAnswersInRound: number; completedAt?: string | null }[];
   }> {
     await this.tournamentRepository
       .createQueryBuilder()
@@ -716,12 +716,14 @@ export class TournamentsService {
 
     const allIds = tournaments.map((t) => t.id);
     const resultByTournamentId = new Map<number, boolean>();
+    const completedAtByTid = new Map<number, string | null>();
     if (allIds.length > 0) {
       const results = await this.tournamentResultRepository.find({
         where: { userId, tournamentId: In(allIds) },
       });
       for (const r of results) {
         resultByTournamentId.set(r.tournamentId, r.passed === 1);
+        completedAtByTid.set(r.tournamentId, r.completedAt ? (r.completedAt instanceof Date ? r.completedAt.toISOString() : String(r.completedAt)) : null);
       }
     }
 
@@ -1118,6 +1120,7 @@ export class TournamentsService {
         questionsAnswered: questionsAnsweredInRound,
         questionsTotal,
         correctAnswersInRound,
+        completedAt: completedAtByTid.get(t.id) ?? null,
       };
     };
 
@@ -1449,14 +1452,17 @@ export class TournamentsService {
     let result = await this.tournamentResultRepository.findOne({
       where: { userId, tournamentId },
     });
+    const now = new Date();
     if (result) {
       result.passed = effectivePassed ? 1 : 0;
+      if (!result.completedAt) result.completedAt = now;
       await this.tournamentResultRepository.save(result);
     } else {
       result = this.tournamentResultRepository.create({
         userId,
         tournamentId,
         passed: effectivePassed ? 1 : 0,
+        completedAt: now,
       });
       await this.tournamentResultRepository.save(result);
     }

@@ -15,4 +15,7 @@ export class TournamentResult {
 
   @Column({ type: 'integer', default: 0 })
   passed!: number; // 1 = пройден, 0 = не пройден
+
+  @Column({ type: 'timestamp', nullable: true, default: null })
+  completedAt!: Date | null;
 }

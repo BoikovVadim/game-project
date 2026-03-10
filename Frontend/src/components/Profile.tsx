@@ -3328,6 +3328,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                     <th>№ турнира</th>
                                     <th>Этап</th>
                                     <th className="game-history-questions-col"><span className="game-history-questions-tooltip" data-tooltip="Правильные в раунде / Отвечено / Всего в этапе">Вопросы</span></th>
+                                    <th>Дата завершения</th>
                                     <th>Статус</th>
                                   </tr>
                                 </thead>
@@ -3345,6 +3346,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                           {(t as any).correctAnswersInRound ?? 0}/{(t as any).questionsAnswered ?? 0}/{(t as any).questionsTotal ?? 10}
                                         </button>
                                       </td>
+                                      <td>{(t as any).completedAt ? formatMoscowDateTime((t as any).completedAt) : '—'}</td>
                                       <td><span className={`game-history-status game-history-status--${t.resultLabel === 'Победа' ? 'victory' : t.resultLabel === 'Поражение' ? 'defeat' : t.resultLabel === 'Время истекло' ? 'time-expired' : t.resultLabel === 'Доп. раунд' ? 'tiebreaker' : t.resultLabel === 'Ожидание соперника' ? 'stage-passed' : 'stage-not-passed'}`}>{t.resultLabel ?? 'Этап не пройден'}</span></td>
                                     </tr>
                                   ))}
@@ -3721,6 +3723,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                       <th>Стоимость лиги</th>
                                       <th>Этап</th>
                                       <th className="game-history-questions-col"><span className="game-history-questions-tooltip" data-tooltip="Правильные в раунде / Отвечено / Всего в этапе">Вопросы</span></th>
+                                      <th>Дата завершения</th>
                                       <th>Статус</th>
                                     </tr>
                                   </thead>
@@ -3739,6 +3742,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                             {(t as any).correctAnswersInRound ?? 0}/{(t as any).questionsAnswered ?? 0}/{(t as any).questionsTotal ?? 10}
                                           </button>
                                         </td>
+                                        <td>{(t as any).completedAt ? formatMoscowDateTime((t as any).completedAt) : '—'}</td>
                                         <td><span className={`game-history-status game-history-status--${t.resultLabel === 'Победа' ? 'victory' : t.resultLabel === 'Поражение' ? 'defeat' : t.resultLabel === 'Время истекло' ? 'time-expired' : t.resultLabel === 'Доп. раунд' ? 'tiebreaker' : t.resultLabel === 'Ожидание соперника' ? 'stage-passed' : 'stage-not-passed'}`}>{t.resultLabel ?? 'Этап не пройден'}</span></td>
                                       </tr>
                                     ))}
