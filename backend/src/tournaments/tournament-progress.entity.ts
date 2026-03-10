@@ -36,9 +36,13 @@ export class TournamentProgress {
   @Column({ type: 'timestamptz', nullable: true })
   leftAt!: Date | null;
 
-  /** Верных ответов в каждом доп. раунде: [r1, r2, ...] — для неограниченных доп. раундов. */
+  /** Верных ответов в каждом доп. раунде полуфинала: [r1, r2, ...] — для неограниченных доп. раундов. */
   @Column({ type: 'simple-json', nullable: true })
   tiebreakerRoundsCorrect!: number[] | null;
+
+  /** Верных ответов в каждом доп. раунде финала: [r1, r2, ...]. */
+  @Column({ type: 'simple-json', nullable: true })
+  finalTiebreakerRoundsCorrect!: number[] | null;
 
   /** Индексы выбранных ответов по вопросам (0-based по порядку вопросов: 0–9 полуфинал 1, 10–19 полуфинал 2, 20–29 финал). */
   @Column({ type: 'simple-json', nullable: true })

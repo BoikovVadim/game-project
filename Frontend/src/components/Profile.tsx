@@ -32,9 +32,13 @@ type TrainingData = {
   questionsSemi1: TrainingQuestion[];
   questionsSemi2: TrainingQuestion[];
   questionsFinal: TrainingQuestion[];
+  questionsTiebreaker: TrainingQuestion[];
+  tiebreakerRound: number;
+  tiebreakerBase: number;
+  tiebreakerPhase: 'semi' | 'final' | null;
 };
 
-type TrainingRound = 0 | 1 | 2; // 0 = semi1, 1 = semi2, 2 = final
+type TrainingRound = 0 | 1 | 2 | 3; // 0 = semi1, 1 = semi2, 2 = final, 3 = tiebreaker
 
 /** Названия лиг по камням (от дешёвого к дорогому) */
 const LEAGUE_GEMS: Record<number, { name: string; color: string }> = {
@@ -768,6 +772,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   const [trainingRoundComplete, setTrainingRoundComplete] = useState(false);
   const [answerForCurrentQuestion, setAnswerForCurrentQuestion] = useState<number | null>(null);
   const [trainingCorrectCount, setTrainingCorrectCount] = useState(0);
+  const [tiebreakerBase, setTiebreakerBase] = useState(0);
   const QUESTION_TIMER_SEC = 5;
   const [timeLeft, setTimeLeft] = useState(QUESTION_TIMER_SEC);
   const timeLeftRef = useRef(QUESTION_TIMER_SEC);
@@ -1447,6 +1452,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     if (!trainingData) return [];
     if (round === 0) return trainingData.questionsSemi1;
     if (round === 1) return trainingData.questionsSemi2;
+    if (round === 3) return trainingData.questionsTiebreaker;
     return trainingData.questionsFinal;
   };
 
@@ -1471,6 +1477,10 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         questionsSemi1: data.questionsSemi1,
         questionsSemi2: data.questionsSemi2,
         questionsFinal: data.questionsFinal,
+        questionsTiebreaker: [],
+        tiebreakerRound: 0,
+        tiebreakerBase: 0,
+        tiebreakerPhase: null,
       });
       setTournamentJoinInfo({
         tournamentId: data.tournamentId,
@@ -1590,7 +1600,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     setBlinkKey((k) => k + 1);
     const newRoundAnswers = [...trainingAnswers, answerIndex];
     setTrainingAnswers(newRoundAnswers);
-    const base = trainingRound !== null && trainingRound >= 2 ? 10 : 0;
+    const base = trainingRound === 3 ? tiebreakerBase : (trainingRound !== null && trainingRound >= 2 ? 10 : 0);
     const globalIdx = base + trainingQuestionIndex;
     setFullAnswersChosen((prev) => {
       const arr = [...prev];
@@ -1610,7 +1620,8 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   };
 
   const goToNextQuestion = () => {
-    const totalAnswered = (trainingRound !== null && trainingRound >= 2 ? 10 : 0) + trainingQuestionIndex + 1;
+    const roundBase = trainingRound === 3 ? tiebreakerBase : (trainingRound !== null && trainingRound >= 2 ? 10 : 0);
+    const totalAnswered = roundBase + trainingQuestionIndex + 1;
     const currentIndex = totalAnswered;
     const correctThisRound = isLastQuestion ? currentQuestions.filter((q, i) => q.correctAnswer === trainingAnswers[i]).length : 0;
     const totalCorrectToSend = isLastQuestion ? trainingRoundScores.reduce((a, b) => a + b, 0) + correctThisRound : trainingCorrectCount;
@@ -1640,8 +1651,14 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     if (trainingTimerRef.current) clearInterval(trainingTimerRef.current);
     trainingTimerRef.current = null;
 
-    // Завершение финала
-    if (trainingRound === 2) {
+    if (trainingRound === 3) {
+      addNotification({
+        type: 'game_status',
+        title: 'Доп. раунд завершён',
+        text: 'Результат будет определён после ответа соперника.',
+      });
+      fetchGameHistory(gameMode === 'money' ? 'money' : 'training');
+    } else if (trainingRound === 2) {
       if (trainingData?.tournamentId && token) {
         try {
           await axios.post(`/tournaments/${trainingData.tournamentId}/complete`, { passed: true }, { headers: { Authorization: `Bearer ${token}` } });
@@ -1664,6 +1681,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     setTrainingRoundComplete(false);
     setAnswerForCurrentQuestion(null);
     setTimeLeft(QUESTION_TIMER_SEC);
+    setTiebreakerBase(0);
   };
 
   const resetTraining = async () => {
@@ -1726,6 +1744,10 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         questionsSemi1: trainData.questionsSemi1,
         questionsSemi2: trainData.questionsSemi2,
         questionsFinal: trainData.questionsFinal,
+        questionsTiebreaker: (trainData as any).questionsTiebreaker ?? [],
+        tiebreakerRound: (trainData as any).tiebreakerRound ?? 0,
+        tiebreakerBase: (trainData as any).tiebreakerBase ?? 0,
+        tiebreakerPhase: (trainData as any).tiebreakerPhase ?? null,
       });
       completedForfeitRef.current = false;
       const ac = Array.isArray(trainData.answersChosen) ? trainData.answersChosen : [];
@@ -1794,7 +1816,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
       clearInterval(trainingTimerRef.current);
       trainingTimerRef.current = null;
     }
-    const base = trainingRound >= 2 ? 10 : 0;
+    const base = trainingRound === 3 ? tiebreakerBase : (trainingRound >= 2 ? 10 : 0);
     const answered = answerForCurrentQuestion !== null;
     const count = base + trainingQuestionIndex + (answered ? 1 : 0);
     const currentIndex = count;
@@ -1830,6 +1852,10 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         questionsSemi1: TrainingQuestion[];
         questionsSemi2: TrainingQuestion[];
         questionsFinal: TrainingQuestion[];
+        questionsTiebreaker?: TrainingQuestion[];
+        tiebreakerRound?: number;
+        tiebreakerBase?: number;
+        tiebreakerPhase?: 'semi' | 'final' | null;
         questionsAnsweredCount: number;
         currentQuestionIndex: number;
         timeLeftSeconds: number | null;
@@ -1845,6 +1871,10 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         questionsSemi1: data.questionsSemi1,
         questionsSemi2: data.questionsSemi2,
         questionsFinal: data.questionsFinal,
+        questionsTiebreaker: data.questionsTiebreaker ?? [],
+        tiebreakerRound: data.tiebreakerRound ?? 0,
+        tiebreakerBase: data.tiebreakerBase ?? 0,
+        tiebreakerPhase: data.tiebreakerPhase ?? null,
       });
       setTournamentJoinInfo({
         tournamentId: data.tournamentId,
@@ -1860,7 +1890,26 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
       setFullAnswersChosen(ac);
       const cur = data.currentQuestionIndex ?? data.questionsAnsweredCount ?? 0;
       const sr = data.semiResult;
-      if (cur < 10) {
+      const tbPhase = data.tiebreakerPhase;
+      const tbQuestions = data.questionsTiebreaker ?? [];
+      const tbBase = data.tiebreakerBase ?? 0;
+      if (sr === 'tie' && tbQuestions.length > 0) {
+        setTiebreakerBase(tbBase);
+        setTrainingRound(3);
+        const indexInTB = Math.max(0, cur - tbBase);
+        setTrainingQuestionIndex(Math.min(indexInTB, tbQuestions.length));
+        setTrainingAnswers(indexInTB > 0 ? ac.slice(tbBase, tbBase + indexInTB) : []);
+        setTrainingRoundScores([]);
+        setTrainingRoundComplete(indexInTB >= tbQuestions.length);
+      } else if (sr === 'won' && tbPhase === 'final' && tbQuestions.length > 0) {
+        setTiebreakerBase(tbBase);
+        setTrainingRound(3);
+        const indexInTB = Math.max(0, cur - tbBase);
+        setTrainingQuestionIndex(Math.min(indexInTB, tbQuestions.length));
+        setTrainingAnswers(indexInTB > 0 ? ac.slice(tbBase, tbBase + indexInTB) : []);
+        setTrainingRoundScores([]);
+        setTrainingRoundComplete(indexInTB >= tbQuestions.length);
+      } else if (cur < 10) {
         setTrainingRound(0);
         setTrainingQuestionIndex(cur);
         setTrainingAnswers(ac.length >= cur ? ac.slice(0, cur) : [...ac, ...Array(Math.max(0, cur - ac.length)).fill(-1)]);
@@ -1883,12 +1932,12 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
           setTrainingRoundScores([semiScore, finalScore]);
           setTrainingRoundComplete(true);
         }
-      } else if (sr === 'waiting' || sr === 'tie' || (cur >= 10 && (!data.questionsFinal || data.questionsFinal.length === 0))) {
+      } else if (sr === 'waiting' || (cur >= 10 && (!data.questionsFinal || data.questionsFinal.length === 0))) {
         setContinueTrainingLoading(null);
         addNotification({
           type: 'game_status',
-          title: sr === 'tie' ? 'Ничья в полуфинале' : sr === 'lost' ? 'Полуфинал завершён' : 'Ожидание соперника',
-          text: sr === 'tie' ? 'Одинаковый счёт — необходим дополнительный раунд!' : sr === 'lost' ? 'К сожалению, соперник набрал больше баллов.' : 'Вы завершили полуфинал. Ожидайте, пока соперник ответит на все вопросы.',
+          title: sr === 'lost' ? 'Полуфинал завершён' : 'Ожидание соперника',
+          text: sr === 'lost' ? 'К сожалению, соперник набрал больше баллов.' : 'Вы завершили полуфинал. Ожидайте, пока соперник ответит на все вопросы.',
         });
         return;
       } else {
@@ -2065,6 +2114,10 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
           questionsSemi1: trainData.questionsSemi1 ?? [],
           questionsSemi2: trainData.questionsSemi2 ?? [],
           questionsFinal: trainData.questionsFinal ?? [],
+          questionsTiebreaker: (trainData as any).questionsTiebreaker ?? [],
+          tiebreakerRound: (trainData as any).tiebreakerRound ?? 0,
+          tiebreakerBase: (trainData as any).tiebreakerBase ?? 0,
+          tiebreakerPhase: (trainData as any).tiebreakerPhase ?? null,
         });
         completedForfeitRef.current = false;
         const cur = trainData.currentQuestionIndex ?? trainData.questionsAnsweredCount ?? 0;
@@ -3164,6 +3217,12 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                             type="button"
                             className="training-start-btn"
                             onClick={() => {
+                              const tbReady = gameHistory?.active?.find((t) => t.resultLabel === 'Доп. раунд');
+                              if (tbReady) {
+                                setPendingStartGameAction(() => () => { continueTraining(tbReady.id); });
+                                setShowStartGameConfirm(true);
+                                return;
+                              }
                               const finalReady = gameHistory?.active?.find((t) => t.resultLabel === 'Финал');
                               if (finalReady) {
                                 setPendingStartGameAction(() => () => { continueTraining(finalReady.id); });
@@ -3184,11 +3243,13 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                           >
                             {trainingLoading || continueTrainingLoading !== null
                               ? 'Загрузка...'
-                              : gameHistory?.active?.some((t) => t.resultLabel === 'Финал')
-                                ? 'Играть финал'
-                                : gameHistory?.active?.some((t) => t.userStatus === 'not_passed')
-                                  ? 'Продолжить игру'
-                                  : 'Начать игру'}
+                              : gameHistory?.active?.some((t) => t.resultLabel === 'Доп. раунд')
+                                ? 'Доп. раунд'
+                                : gameHistory?.active?.some((t) => t.resultLabel === 'Финал')
+                                  ? 'Играть финал'
+                                  : gameHistory?.active?.some((t) => t.userStatus === 'not_passed')
+                                    ? 'Продолжить игру'
+                                    : 'Начать игру'}
                           </button>
                           <button
                             type="button"
@@ -3229,7 +3290,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                       </td>
                                       <td>{t.deadline ? (new Date(t.deadline) > new Date() ? formatTimeLeft(t.deadline) : 'Время вышло') : '—'}</td>
                                       <td>
-                                        <span className={`game-history-status game-history-status--${t.resultLabel === 'Победа' ? 'victory' : t.resultLabel === 'Поражение' ? 'defeat' : t.resultLabel === 'Время истекло' ? 'time-expired' : t.resultLabel === 'Финал' ? 'final-ready' : t.resultLabel === 'Ожидание соперника' ? 'stage-passed' : 'stage-not-passed'}`}>
+                                        <span className={`game-history-status game-history-status--${t.resultLabel === 'Победа' ? 'victory' : t.resultLabel === 'Поражение' ? 'defeat' : t.resultLabel === 'Время истекло' ? 'time-expired' : t.resultLabel === 'Финал' ? 'final-ready' : t.resultLabel === 'Доп. раунд' ? 'tiebreaker' : t.resultLabel === 'Ожидание соперника' ? 'stage-passed' : 'stage-not-passed'}`}>
                                           {t.resultLabel ?? 'Этап не пройден'}
                                         </span>
                                       </td>
@@ -3268,7 +3329,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                           {(t as any).correctAnswersInRound ?? 0}/{(t as any).questionsAnswered ?? 0}/{(t as any).questionsTotal ?? 10}
                                         </button>
                                       </td>
-                                      <td><span className={`game-history-status game-history-status--${t.resultLabel === 'Победа' ? 'victory' : t.resultLabel === 'Поражение' ? 'defeat' : t.resultLabel === 'Время истекло' ? 'time-expired' : t.resultLabel === 'Ожидание соперника' ? 'stage-passed' : 'stage-not-passed'}`}>{t.resultLabel ?? 'Этап не пройден'}</span></td>
+                                      <td><span className={`game-history-status game-history-status--${t.resultLabel === 'Победа' ? 'victory' : t.resultLabel === 'Поражение' ? 'defeat' : t.resultLabel === 'Время истекло' ? 'time-expired' : t.resultLabel === 'Доп. раунд' ? 'tiebreaker' : t.resultLabel === 'Ожидание соперника' ? 'stage-passed' : 'stage-not-passed'}`}>{t.resultLabel ?? 'Этап не пройден'}</span></td>
                                     </tr>
                                   ))}
                                 </tbody>
@@ -3284,6 +3345,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                         <div className="bracket-header">
                           {trainingRound === 0 && <span className="bracket-round active">Полуфинал</span>}
                           {trainingRound === 2 && <span className="bracket-round active">Финал</span>}
+                          {trainingRound === 3 && <span className="bracket-round active">Доп. раунд {trainingData?.tiebreakerPhase === 'final' ? '(финал)' : '(полуфинал)'}</span>}
                         </div>
                         {trainingRoundComplete ? (
                           <div className="training-round-result">
@@ -3295,8 +3357,13 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                 Завершить турнир
                               </button>
                             )}
+                            {trainingRound === 3 && (
+                              <button type="button" className="training-next-round-btn" style={{ marginBottom: 8, background: '#2980b9' }} onClick={goNextRound}>
+                                Завершить доп. раунд
+                              </button>
+                            )}
                             <button type="button" className="training-next-round-btn" onClick={resetTraining}>
-                              {trainingRound === 2 ? 'Выйти' : 'Завершить полуфинал'}
+                              {trainingRound === 2 ? 'Выйти' : trainingRound === 3 ? 'Выйти' : 'Завершить полуфинал'}
                             </button>
                           </div>
                         ) : isForfeited ? (
@@ -3615,7 +3682,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                           </button>
                                         </td>
                                         <td>{t.deadline ? (new Date(t.deadline) > new Date() ? formatTimeLeft(t.deadline) : 'Время вышло') : '—'}</td>
-                                        <td><span className={`game-history-status game-history-status--${t.resultLabel === 'Победа' ? 'victory' : t.resultLabel === 'Поражение' ? 'defeat' : t.resultLabel === 'Время истекло' ? 'time-expired' : t.resultLabel === 'Ожидание соперника' ? 'stage-passed' : 'stage-not-passed'}`}>{t.resultLabel ?? 'Этап не пройден'}</span></td>
+                                        <td><span className={`game-history-status game-history-status--${t.resultLabel === 'Победа' ? 'victory' : t.resultLabel === 'Поражение' ? 'defeat' : t.resultLabel === 'Время истекло' ? 'time-expired' : t.resultLabel === 'Доп. раунд' ? 'tiebreaker' : t.resultLabel === 'Ожидание соперника' ? 'stage-passed' : 'stage-not-passed'}`}>{t.resultLabel ?? 'Этап не пройден'}</span></td>
                                       </tr>
                                     ))}
                                   </tbody>
@@ -3652,7 +3719,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                             {(t as any).correctAnswersInRound ?? 0}/{(t as any).questionsAnswered ?? 0}/{(t as any).questionsTotal ?? 10}
                                           </button>
                                         </td>
-                                        <td><span className={`game-history-status game-history-status--${t.resultLabel === 'Победа' ? 'victory' : t.resultLabel === 'Поражение' ? 'defeat' : t.resultLabel === 'Время истекло' ? 'time-expired' : t.resultLabel === 'Ожидание соперника' ? 'stage-passed' : 'stage-not-passed'}`}>{t.resultLabel ?? 'Этап не пройден'}</span></td>
+                                        <td><span className={`game-history-status game-history-status--${t.resultLabel === 'Победа' ? 'victory' : t.resultLabel === 'Поражение' ? 'defeat' : t.resultLabel === 'Время истекло' ? 'time-expired' : t.resultLabel === 'Доп. раунд' ? 'tiebreaker' : t.resultLabel === 'Ожидание соперника' ? 'stage-passed' : 'stage-not-passed'}`}>{t.resultLabel ?? 'Этап не пройден'}</span></td>
                                       </tr>
                                     ))}
                                   </tbody>
@@ -3668,6 +3735,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                           <div className="bracket-header">
                             {(trainingRound === 0 || trainingRound === 1) && <span className="bracket-round active">Полуфинал</span>}
                             {trainingRound === 2 && <span className="bracket-round active">Финал</span>}
+                            {trainingRound === 3 && <span className="bracket-round active">Доп. раунд {trainingData?.tiebreakerPhase === 'final' ? '(финал)' : '(полуфинал)'}</span>}
                             {tournamentJoinInfo && tournamentJoinInfo.totalPlayers < 4 && (
                               <span className="bracket-waiting-hint">Заполнено {tournamentJoinInfo.totalPlayers} из 4 мест. Играйте — соперники могут присоединиться.</span>
                             )}
@@ -3685,8 +3753,13 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                   Завершить турнир
                                 </button>
                               )}
+                              {trainingRound === 3 && (
+                                <button type="button" className="training-next-round-btn" style={{ marginBottom: 8, background: '#2980b9' }} onClick={goNextRound}>
+                                  Завершить доп. раунд
+                                </button>
+                              )}
                               <button type="button" className="training-next-round-btn" onClick={() => { saveTrainingProgress(); setTrainingData(null); setTournamentJoinInfo(null); setTrainingRound(null); fetchGameHistory('money'); }}>
-                                {trainingRound === 2 ? 'Выйти' : 'Завершить полуфинал'}
+                                {trainingRound === 2 ? 'Выйти' : trainingRound === 3 ? 'Выйти' : 'Завершить полуфинал'}
                               </button>
                             </div>
                           ) : isForfeited ? (

@@ -4177,6 +4177,11 @@ body.partner-modal-open {
   font-weight: 700;
 }
 
+.game-history-status--tiebreaker {
+  color: #e67e22;
+  font-weight: 700;
+}
+
 .game-history-status--stage-not-passed {
   color: #888;
 }
