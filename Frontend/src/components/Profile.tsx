@@ -3278,7 +3278,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                   <tr>
                                     <th>№ турнира</th>
                                     <th>Этап</th>
-                                    <th className="game-history-questions-col"><span className="game-history-questions-tooltip" data-tooltip="Формат: верных / отвечено / всего. Пример: 7/10/10 = 7 верных из 10 отвеченных, всего 10 вопросов" tabIndex={0} onClick={(e) => e.currentTarget.classList.toggle('tooltip-active')} onBlur={(e) => e.currentTarget.classList.remove('tooltip-active')}>Вопросы</span></th>
+                                    <th className="game-history-questions-col"><span className="game-history-questions-tooltip" data-tooltip="Формат: всего / отвечено / верных. Пример: 10/10/7 = всего 10 вопросов, отвечено 10, верных 7" tabIndex={0} onClick={(e) => e.currentTarget.classList.toggle('tooltip-active')} onBlur={(e) => e.currentTarget.classList.remove('tooltip-active')}>Вопросы</span></th>
                                     <th>Осталось до конца</th>
                                     <th>Статус</th>
                                   </tr>
@@ -3294,7 +3294,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                       <td>{t.stage ?? 'Полуфинал'}</td>
                                       <td className="game-history-questions-col">
                                         <button type="button" className="game-history-questions-link" onClick={() => openQuestionsReview(t.id, t.roundForQuestions ?? (t.stage === 'Финал' ? 'final' : 'semi'))} title="Посмотреть вопросы турнира">
-                                          {(t as any).correctAnswersInRound ?? 0}/{(t as any).questionsAnswered ?? 0}/{(t as any).questionsTotal ?? 10}
+                                          {(t as any).questionsTotal ?? 10}/{(t as any).questionsAnswered ?? 0}/{(t as any).correctAnswersInRound ?? 0}
                                         </button>
                                       </td>
                                       <td>{t.deadline ? (new Date(t.deadline) > new Date() ? formatTimeLeft(t.deadline) : 'Время вышло') : '—'}</td>
@@ -3322,7 +3322,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                   <tr>
                                     <th>№ турнира</th>
                                     <th>Этап</th>
-                                    <th className="game-history-questions-col"><span className="game-history-questions-tooltip" data-tooltip="Формат: верных / отвечено / всего. Пример: 7/10/10 = 7 верных из 10 отвеченных, всего 10 вопросов" tabIndex={0} onClick={(e) => e.currentTarget.classList.toggle('tooltip-active')} onBlur={(e) => e.currentTarget.classList.remove('tooltip-active')}>Вопросы</span></th>
+                                    <th className="game-history-questions-col"><span className="game-history-questions-tooltip" data-tooltip="Формат: всего / отвечено / верных. Пример: 10/10/7 = всего 10 вопросов, отвечено 10, верных 7" tabIndex={0} onClick={(e) => e.currentTarget.classList.toggle('tooltip-active')} onBlur={(e) => e.currentTarget.classList.remove('tooltip-active')}>Вопросы</span></th>
                                     <th>Дата завершения</th>
                                     <th>Статус</th>
                                   </tr>
@@ -3338,7 +3338,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                       <td>{t.stage ?? 'Полуфинал'}</td>
                                       <td className="game-history-questions-col">
                                         <button type="button" className="game-history-questions-link" onClick={() => openQuestionsReview(t.id, t.roundForQuestions ?? (t.stage === 'Финал' ? 'final' : 'semi'))} title="Посмотреть вопросы турнира">
-                                          {(t as any).correctAnswersInRound ?? 0}/{(t as any).questionsAnswered ?? 0}/{(t as any).questionsTotal ?? 10}
+                                          {(t as any).questionsTotal ?? 10}/{(t as any).questionsAnswered ?? 0}/{(t as any).correctAnswersInRound ?? 0}
                                         </button>
                                       </td>
                                       <td>{(t as any).completedAt ? formatMoscowDateTime((t as any).completedAt) : '—'}</td>
@@ -3676,7 +3676,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                       <th>№ турнира</th>
                                       <th>Стоимость лиги</th>
                                       <th>Этап</th>
-                                      <th className="game-history-questions-col"><span className="game-history-questions-tooltip" data-tooltip="Формат: верных / отвечено / всего. Пример: 7/10/10 = 7 верных из 10 отвеченных, всего 10 вопросов" tabIndex={0} onClick={(e) => e.currentTarget.classList.toggle('tooltip-active')} onBlur={(e) => e.currentTarget.classList.remove('tooltip-active')}>Вопросы</span></th>
+                                      <th className="game-history-questions-col"><span className="game-history-questions-tooltip" data-tooltip="Формат: всего / отвечено / верных. Пример: 10/10/7 = всего 10 вопросов, отвечено 10, верных 7" tabIndex={0} onClick={(e) => e.currentTarget.classList.toggle('tooltip-active')} onBlur={(e) => e.currentTarget.classList.remove('tooltip-active')}>Вопросы</span></th>
                                       <th>Осталось до конца</th>
                                       <th>Статус</th>
                                     </tr>
@@ -3693,7 +3693,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                         <td>{t.stage ?? 'Полуфинал'}</td>
                                         <td className="game-history-questions-col">
                                           <button type="button" className="game-history-questions-link" onClick={() => openQuestionsReview(t.id, t.roundForQuestions ?? (t.stage === 'Финал' ? 'final' : 'semi'))} title="Посмотреть вопросы турнира">
-                                            {(t as any).correctAnswersInRound ?? 0}/{(t as any).questionsAnswered ?? 0}/{(t as any).questionsTotal ?? 10}
+                                            {(t as any).questionsTotal ?? 10}/{(t as any).questionsAnswered ?? 0}/{(t as any).correctAnswersInRound ?? 0}
                                           </button>
                                         </td>
                                         <td>{t.deadline ? (new Date(t.deadline) > new Date() ? formatTimeLeft(t.deadline) : 'Время вышло') : '—'}</td>
@@ -3717,7 +3717,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                       <th>№ турнира</th>
                                       <th>Стоимость лиги</th>
                                       <th>Этап</th>
-                                      <th className="game-history-questions-col"><span className="game-history-questions-tooltip" data-tooltip="Формат: верных / отвечено / всего. Пример: 7/10/10 = 7 верных из 10 отвеченных, всего 10 вопросов" tabIndex={0} onClick={(e) => e.currentTarget.classList.toggle('tooltip-active')} onBlur={(e) => e.currentTarget.classList.remove('tooltip-active')}>Вопросы</span></th>
+                                      <th className="game-history-questions-col"><span className="game-history-questions-tooltip" data-tooltip="Формат: всего / отвечено / верных. Пример: 10/10/7 = всего 10 вопросов, отвечено 10, верных 7" tabIndex={0} onClick={(e) => e.currentTarget.classList.toggle('tooltip-active')} onBlur={(e) => e.currentTarget.classList.remove('tooltip-active')}>Вопросы</span></th>
                                       <th>Дата завершения</th>
                                       <th>Статус</th>
                                     </tr>
@@ -3734,7 +3734,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                         <td>{t.stage ?? 'Полуфинал'}</td>
                                         <td className="game-history-questions-col">
                                           <button type="button" className="game-history-questions-link" onClick={() => openQuestionsReview(t.id, t.roundForQuestions ?? (t.stage === 'Финал' ? 'final' : 'semi'))} title="Посмотреть вопросы турнира">
-                                            {(t as any).correctAnswersInRound ?? 0}/{(t as any).questionsAnswered ?? 0}/{(t as any).questionsTotal ?? 10}
+                                            {(t as any).questionsTotal ?? 10}/{(t as any).questionsAnswered ?? 0}/{(t as any).correctAnswersInRound ?? 0}
                                           </button>
                                         </td>
                                         <td>{(t as any).completedAt ? formatMoscowDateTime((t as any).completedAt) : '—'}</td>
