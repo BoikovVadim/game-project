@@ -3251,11 +3251,9 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                             <div className="game-history-section-header">
                               <strong>Активные игры</strong>
                               {gameHistory?.active?.some((t) => t.userStatus === 'not_passed') && (() => {
-                                const sorted = [...(gameHistory?.active ?? [])].sort((a, b) => a.id - b.id);
-                                const tbReady = sorted.find((t) => t.resultLabel === 'Доп. раунд');
-                                const finalReady = sorted.find((t) => t.resultLabel === 'Финал');
-                                const continuable = sorted.find((t) => t.userStatus === 'not_passed' && t.resultLabel !== 'Ожидание соперника');
-                                const target = tbReady ?? finalReady ?? continuable;
+                                const target = [...(gameHistory?.active ?? [])]
+                                  .filter((t) => t.userStatus === 'not_passed' && t.resultLabel !== 'Ожидание соперника')
+                                  .sort((a, b) => a.id - b.id)[0] ?? null;
                                 if (!target) return null;
                                 return (
                                   <button
