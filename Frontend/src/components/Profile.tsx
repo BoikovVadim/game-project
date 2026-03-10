@@ -530,6 +530,13 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     const hash = typeof window !== 'undefined' ? window.location.hash.replace(/^#/, '') : '';
     const fromHash = getSectionFromHashQuery(hash);
     if (fromHash) return fromHash;
+    try {
+      const ss = typeof window !== 'undefined' ? sessionStorage.getItem('cabinetSectionSession') : null;
+      if (ss) {
+        const parsed = getSectionFromSearchParams(new URLSearchParams(`section=${ss}`));
+        if (parsed) return parsed;
+      }
+    } catch (_e) {}
     return 'news';
   });
   const [gameMode, setGameModeState] = useState<GameMode>(() => {
@@ -538,6 +545,9 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     if (fromHash === 'games-training') return 'training';
     if (fromHash === 'games-money') return 'money';
     try {
+      const ss = typeof window !== 'undefined' ? sessionStorage.getItem('cabinetSectionSession') : null;
+      if (ss === 'games-training') return 'training';
+      if (ss === 'games-money') return 'money';
       const stored = typeof window !== 'undefined' ? localStorage.getItem(GAME_MODE_STORAGE_KEY) : null;
       if (stored === 'training' || stored === 'money') return stored as GameMode;
     } catch (_e) {}
@@ -550,6 +560,13 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     if (fromHash) return fromHash;
     const fromSearch = getSectionFromSearchParams(searchParams);
     if (fromSearch) return fromSearch;
+    try {
+      const ss = typeof window !== 'undefined' ? sessionStorage.getItem('cabinetSectionSession') : null;
+      if (ss) {
+        const parsed = getSectionFromSearchParams(new URLSearchParams(`section=${ss}`));
+        if (parsed) return parsed;
+      }
+    } catch (_e) {}
     return forceSection || 'news';
   })();
 
@@ -582,6 +599,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   useEffect(() => {
     const current = searchParams.get('section');
     const toSet = section || 'news';
+    try { sessionStorage.setItem('cabinetSectionSession', toSet); } catch (_e) {}
     if (current === toSet) return;
     navigate(`/profile?section=${encodeURIComponent(toSet)}`, { replace: true });
   }, [section, navigate, searchParams]);

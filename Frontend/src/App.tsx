@@ -88,11 +88,16 @@ function AppContent() {
       const x = Number(data.x);
       const y = Number(data.y);
       if (!Number.isFinite(x) || !Number.isFinite(y)) return;
-      const apply = () => window.scrollTo(x, y);
-      requestAnimationFrame(() => {
-        apply();
-        sessionStorage.removeItem(SCROLL_RESTORE_KEY);
-      });
+      sessionStorage.removeItem(SCROLL_RESTORE_KEY);
+      let attempts = 0;
+      const maxAttempts = 20;
+      const tryRestore = () => {
+        window.scrollTo(x, y);
+        if (Math.abs(window.scrollY - y) < 2 || attempts >= maxAttempts) return;
+        attempts++;
+        setTimeout(tryRestore, 100);
+      };
+      requestAnimationFrame(tryRestore);
     } catch (_e) {}
   }, [location.pathname, location.search]);
 
