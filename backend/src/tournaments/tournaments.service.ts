@@ -1080,7 +1080,6 @@ export class TournamentsService {
     }
 
     const getStage = (t: Tournament): string => {
-      if (getPlayerCount(t) < 4) return 'Полуфинал';
       const semiResult = getMoneySemiResult(t);
       if (semiResult.result === 'won') return 'Финал';
       return 'Полуфинал';
@@ -1162,8 +1161,7 @@ export class TournamentsService {
         if (semiResult.result === 'tie') return 'Доп. раунд';
         if (semiResult.result === 'lost') return 'Поражение';
         if (semiResult.result === 'won') {
-          if (getPlayerCount(t) < 4) return 'Победа';
-          if (!prog) return 'Финал';
+          if (!prog) return 'Ожидание соперника';
           const mySemiTotal = semiPhaseQuestions(prog);
           if (answered >= mySemiTotal + QUESTIONS_PER_ROUND) {
             const fr = getFinalResult(t, prog);
@@ -1172,7 +1170,7 @@ export class TournamentsService {
             if (fr === 'tie') return 'Доп. раунд';
             return 'Ожидание соперника';
           }
-          return 'Финал';
+          return 'Ожидание соперника';
         }
         return 'Ожидание соперника';
       }
