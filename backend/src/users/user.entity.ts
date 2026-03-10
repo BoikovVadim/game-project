@@ -76,6 +76,9 @@ export class User {
   @Column({ type: 'text', nullable: true })
   avatarUrl!: string | null;
 
+  @Column({ type: 'simple-json', nullable: true, default: null })
+  readNewsIds!: number[] | null;
+
   /** Доступ в админ-панель и расширенные действия */
   @Column({ type: 'boolean', default: false })
   isAdmin!: boolean;

@@ -392,7 +392,6 @@ const SECTION_STORAGE_KEY = 'cabinetSection';
 const GAME_MODE_STORAGE_KEY = 'cabinetGameMode';
 const STATS_MODE_STORAGE_KEY = 'cabinetStatsMode';
 const SELECTED_LEAGUE_STORAGE_KEY = 'cabinetSelectedLeague';
-const NEWS_READ_STORAGE_KEY = 'cabinetNewsReadIds';
 const VALID_SECTIONS = ['profile', 'statistics', 'games', 'finance', 'finance-topup', 'finance-withdraw', 'partner', 'partner-statistics', 'news'] as const;
 
 const BRACKET_NAME_MAX_LEN = 20;
@@ -826,16 +825,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     const num = saved ? parseInt(saved, 10) : NaN;
     return !Number.isNaN(num) && num > 0 ? num : 5;
   });
-  const [readNewsIds, setReadNewsIds] = useState<number[]>(() => {
-    if (typeof window === 'undefined') return [];
-    try {
-      const saved = localStorage.getItem(NEWS_READ_STORAGE_KEY);
-      const arr = saved ? JSON.parse(saved) : [];
-      return Array.isArray(arr) ? arr : [];
-    } catch {
-      return [];
-    }
-  });
+  const [readNewsIds, setReadNewsIds] = useState<number[]>([]);
   const [apiNews, setApiNews] = useState<{ id: number; topic: string; body: string; createdAt: string }[]>([]);
   const [allLeagues, setAllLeagues] = useState<number[]>([5, 10, 20, 50, 100, 200, 500]);
   const [allowedLeagues, setAllowedLeagues] = useState<number[]>([]);
@@ -1166,6 +1156,9 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
           if (p[0]) setBirthYear(p[0]);
           if (p[1]) setBirthMonth(String(Number(p[1])));
           if (p[2]) setBirthDay(String(Number(p[2])));
+        }
+        if (Array.isArray(data.readNewsIds)) {
+          setReadNewsIds(data.readNewsIds);
         }
       } catch (err: unknown) {
         const ax = err && typeof err === 'object' && 'isAxiosError' in err && (err as { isAxiosError?: boolean }).isAxiosError;
@@ -4764,12 +4757,9 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                   onRead={() => {
                     setReadNewsIds((prev) => {
                       if (prev.includes(item.id)) return prev;
-                      const next = [...prev, item.id];
-                      try {
-                        localStorage.setItem(NEWS_READ_STORAGE_KEY, JSON.stringify(next));
-                      } catch {}
-                      return next;
+                      return [...prev, item.id];
                     });
+                    axios.post('/users/me/read-news', { newsId: item.id }, authHeaders).catch(() => {});
                   }}
                 />
               ))}

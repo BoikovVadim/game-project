@@ -247,7 +247,20 @@ export class UsersService implements OnModuleInit {
       gender: userAfter.gender ?? null,
       birthDate: userAfter.birthDate ?? null,
       avatarUrl: userAfter.avatarUrl ?? null,
+      readNewsIds: Array.isArray(userAfter.readNewsIds) ? userAfter.readNewsIds : [],
     };
+  }
+
+  async markNewsAsRead(userId: number, newsId: number): Promise<{ readNewsIds: number[] }> {
+    const user = await this.userRepository.findOne({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+    const current: number[] = Array.isArray(user.readNewsIds) ? user.readNewsIds : [];
+    if (!current.includes(newsId)) {
+      current.push(newsId);
+      user.readNewsIds = current;
+      await this.userRepository.save(user);
+    }
+    return { readNewsIds: current };
   }
 
   async updateAvatar(userId: number, avatarData: string | null): Promise<{ avatarUrl: string | null }> {

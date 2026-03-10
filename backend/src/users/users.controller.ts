@@ -33,6 +33,12 @@ export class UsersController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Post('me/read-news')
+  markNewsAsRead(@Body() body: { newsId: number }, @Request() req: any) {
+    return this.usersService.markNewsAsRead(req.user.id, Number(body.newsId));
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Post('profile/nickname')
   updateNickname(@Body() body: { nickname: string | null }, @Request() req: any) {
     return this.usersService.updateNickname(req.user.id, body.nickname ?? null);
