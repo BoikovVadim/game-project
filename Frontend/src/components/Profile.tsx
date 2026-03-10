@@ -2935,7 +2935,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                   <div className="cabinet-statistics-list">
                     <div className="cabinet-stat-group cabinet-stat-group--general">
                       <p className="cabinet-stat-item"><strong>Лига:</strong> {stats.maxLeagueName ?? '—'}</p>
-                      <p className="cabinet-stat-item"><strong>Общая</strong> — сыграно игр: {formatNum(stats.gamesPlayed ?? 0)}</p>
+                      <p className="cabinet-stat-item"><strong>Общая</strong> — сыграно раундов: {formatNum(stats.gamesPlayed ?? 0)}</p>
                       <p className="cabinet-stat-item"><strong>Сыгранных матчей:</strong> {formatNum(stats.completedMatches ?? 0)}</p>
                       <p className="cabinet-stat-item"><strong>Сумма выигрыша:</strong> {formatNum(stats.totalWinnings ?? 0)} {CURRENCY}</p>
                       <p className="cabinet-stat-item"><strong>Выведено денег:</strong> {formatNum(stats.totalWithdrawn ?? 0)} ₽</p>
@@ -2944,14 +2944,14 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                       <p className="cabinet-stat-item"><strong>% верных ответов:</strong> {(stats.totalQuestions ?? 0) > 0 ? `${(((stats.correctAnswers ?? 0) / (stats.totalQuestions ?? 1)) * 100).toFixed(2)}%` : '—'}</p>
                     </div>
                     <div className="cabinet-stat-group cabinet-stat-group--training">
-                      <p className="cabinet-stat-item"><strong>Тренировка</strong> — сыграно игр: {formatNum(stats.gamesPlayedTraining ?? 0)}</p>
+                      <p className="cabinet-stat-item"><strong>Тренировка</strong> — сыграно раундов: {formatNum(stats.gamesPlayedTraining ?? 0)}</p>
                       <p className="cabinet-stat-item"><strong>Сыгранных матчей:</strong> {formatNum(stats.completedMatchesTraining ?? 0)}</p>
                       <p className="cabinet-stat-item"><strong>Выиграно турниров:</strong> {formatNum(stats.winsTraining ?? 0)}</p>
                       <p className="cabinet-stat-item"><strong>Верных ответов:</strong> {formatNum(stats.correctAnswersTraining ?? 0)} из {formatNum(stats.totalQuestionsTraining ?? 0)}</p>
                       <p className="cabinet-stat-item"><strong>% верных ответов:</strong> {(stats.totalQuestionsTraining ?? 0) > 0 ? `${(((stats.correctAnswersTraining ?? 0) / (stats.totalQuestionsTraining ?? 1)) * 100).toFixed(2)}%` : '—'}</p>
                     </div>
                     <div className="cabinet-stat-group cabinet-stat-group--money">
-                      <p className="cabinet-stat-item"><strong>Противостояние</strong> — сыграно игр: {formatNum(stats.gamesPlayedMoney ?? 0)}</p>
+                      <p className="cabinet-stat-item"><strong>Противостояние</strong> — сыграно раундов: {formatNum(stats.gamesPlayedMoney ?? 0)}</p>
                       <p className="cabinet-stat-item"><strong>Сыгранных матчей:</strong> {formatNum(stats.completedMatchesMoney ?? 0)}</p>
                       <p className="cabinet-stat-item"><strong>Выиграно турниров:</strong> {formatNum(stats.winsMoney ?? 0)}</p>
                       <p className="cabinet-stat-item"><strong>Верных ответов:</strong> {formatNum(stats.correctAnswersMoney ?? 0)} из {formatNum(stats.totalQuestionsMoney ?? 0)}</p>
@@ -3021,7 +3021,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                           onChange={(e) => setChartMetric(e.target.value as typeof chartMetric)}
                           className="cabinet-stats-chart-select"
                         >
-                          <option value="gamesPlayed">Сыграно игр</option>
+                          <option value="gamesPlayed">Сыграно раундов</option>
                           <option value="wins">Побед</option>
                           <option value="totalWinnings">Сумма выигрыша</option>
                           <option value="correctAnswers">Верных ответов</option>
@@ -3114,7 +3114,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                     </div>
                     <div className="cabinet-global-stat-item">
                       <span className="cabinet-global-stat-value">{globalStats ? formatNum(globalStats.totalGamesPlayed) : '—'}</span>
-                      <span className="cabinet-global-stat-label">Сыграно игр</span>
+                      <span className="cabinet-global-stat-label">Сыграно раундов</span>
                     </div>
                     <div className="cabinet-global-stat-item">
                       <span className="cabinet-global-stat-value">{globalStats ? formatNum(globalStats.totalTournaments) : '—'}</span>
@@ -3138,7 +3138,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                   <h3 className="cabinet-rankings-centered-title">Рейтинг</h3>
                   <div className="cabinet-rankings-metric-tabs">
                     {([
-                      { key: 'gamesPlayed', label: 'Сыграно игр' },
+                      { key: 'gamesPlayed', label: 'Сыграно раундов' },
                       { key: 'wins', label: 'Побед' },
                       { key: 'correctAnswers', label: 'Верных ответов' },
                       { key: 'correctAnswerRate', label: '% верных ответов' },
@@ -4551,7 +4551,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                       <div className="bracket-player-tooltip-stats">
                         <div className="bracket-player-tooltip-name">{partnerPlayerTooltip.displayName}</div>
                         <div className="bracket-player-tooltip-stat"><strong>Лига:</strong> {partnerPlayerTooltip.stats.maxLeagueName ?? '—'}</div>
-                        <div className="bracket-player-tooltip-stat">Сыграно игр: {formatNum(partnerPlayerTooltip.stats.gamesPlayed ?? 0)}</div>
+                        <div className="bracket-player-tooltip-stat">Сыграно раундов: {formatNum(partnerPlayerTooltip.stats.gamesPlayed ?? 0)}</div>
                         <div className="bracket-player-tooltip-stat">Сыгранных матчей: {formatNum(partnerPlayerTooltip.stats.completedMatches ?? 0)}</div>
                         <div className="bracket-player-tooltip-stat"><strong>Сумма выигрыша:</strong> {formatNum(partnerPlayerTooltip.stats.totalWinnings ?? 0)} {CURRENCY}</div>
                         <div className="bracket-player-tooltip-stat"><strong>Выиграно турниров:</strong> {formatNum(partnerPlayerTooltip.stats.wins ?? 0)}</div>
@@ -4818,7 +4818,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                   <div className="bracket-player-tooltip-stats">
                     <div className="bracket-player-tooltip-name">{bracketPlayerTooltip.displayName}</div>
                     <div className="bracket-player-tooltip-stat"><strong>Лига:</strong> {bracketPlayerTooltip.stats.maxLeagueName ?? '—'}</div>
-                    <div className="bracket-player-tooltip-stat">Сыграно игр: {formatNum(bracketPlayerTooltip.stats.gamesPlayed ?? 0)}</div>
+                    <div className="bracket-player-tooltip-stat">Сыграно раундов: {formatNum(bracketPlayerTooltip.stats.gamesPlayed ?? 0)}</div>
                     <div className="bracket-player-tooltip-stat">Сыгранных матчей: {formatNum(bracketPlayerTooltip.stats.completedMatches ?? 0)}</div>
                     <div className="bracket-player-tooltip-stat"><strong>Сумма выигрыша:</strong> {formatNum(bracketPlayerTooltip.stats.totalWinnings ?? 0)} {CURRENCY}</div>
                     <div className="bracket-player-tooltip-stat"><strong>Выиграно турниров:</strong> {formatNum(bracketPlayerTooltip.stats.wins ?? 0)}</div>
