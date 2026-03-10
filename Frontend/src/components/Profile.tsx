@@ -2729,7 +2729,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                   className="profile-name-save"
                   onClick={() => {
                     const v = nameDraft.trim().slice(0, BRACKET_NAME_MAX_LEN);
-                    setNickname(v || (user?.id != null ? String(user.id) : ''));
+                    setNickname(v);
                     setIsEditingName(false);
                   }}
                   title="Применить"
@@ -2742,12 +2742,12 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
               </>
             ) : (
               <>
-                <span className="user-info-value user-info-name-value">{nickname ? nickname : (user?.id != null ? String(user.id) : '—')}</span>
+                <span className="user-info-value user-info-name-value">{nickname ? nickname : (user?.username || '—')}</span>
                 <button
                   type="button"
                   className="profile-name-edit"
                   onClick={() => {
-                    setNameDraft((nickname || (user?.id != null ? String(user.id) : '')).slice(0, BRACKET_NAME_MAX_LEN));
+                    setNameDraft((nickname || '').slice(0, BRACKET_NAME_MAX_LEN));
                     setIsEditingName(true);
                   }}
                   title="Редактировать"
