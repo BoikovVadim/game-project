@@ -706,6 +706,8 @@ export class UsersService implements OnModuleInit {
     completedMatchesTraining: number;
     completedMatchesMoney: number;
     wins: number;
+    winsTraining: number;
+    winsMoney: number;
     winRatePercent: number | null;
     correctAnswers: number;
     totalQuestions: number;
@@ -726,6 +728,8 @@ export class UsersService implements OnModuleInit {
       completedMatchesTraining: 0,
       completedMatchesMoney: 0,
       wins: 0,
+      winsTraining: 0,
+      winsMoney: 0,
       winRatePercent: null as number | null,
       correctAnswers: 0,
       totalQuestions: 0,
@@ -979,6 +983,8 @@ export class UsersService implements OnModuleInit {
       completedMatchesTraining,
       completedMatchesMoney,
       wins,
+      winsTraining,
+      winsMoney,
       winRatePercent,
       correctAnswers,
       totalQuestions,

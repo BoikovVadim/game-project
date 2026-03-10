@@ -1002,6 +1002,8 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     completedMatchesTraining: number;
     completedMatchesMoney: number;
     wins: number;
+    winsTraining: number;
+    winsMoney: number;
     winRatePercent: number | null;
     correctAnswers: number;
     totalQuestions: number;
@@ -1363,6 +1365,8 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         completedMatchesTraining: number;
         completedMatchesMoney: number;
         wins: number;
+        winsTraining: number;
+        winsMoney: number;
         winRatePercent: number | null;
         correctAnswers: number;
         totalQuestions: number;
@@ -2935,19 +2939,21 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                       <p className="cabinet-stat-item"><strong>Сыгранных матчей:</strong> {formatNum(stats.completedMatches ?? 0)}</p>
                       <p className="cabinet-stat-item"><strong>Сумма выигрыша:</strong> {formatNum(stats.totalWinnings ?? 0)} {CURRENCY}</p>
                       <p className="cabinet-stat-item"><strong>Выведено денег:</strong> {formatNum(stats.totalWithdrawn ?? 0)} ₽</p>
-                      <p className="cabinet-stat-item"><strong>% побед:</strong> {stats.winRatePercent != null ? `${stats.winRatePercent.toFixed(2)}%` : '—'}</p>
+                      <p className="cabinet-stat-item"><strong>Выиграно турниров:</strong> {formatNum(stats.wins ?? 0)}</p>
                       <p className="cabinet-stat-item"><strong>Верных ответов:</strong> {formatNum(stats.correctAnswers ?? 0)} из {formatNum(stats.totalQuestions ?? 0)}</p>
                       <p className="cabinet-stat-item"><strong>% верных ответов:</strong> {(stats.totalQuestions ?? 0) > 0 ? `${(((stats.correctAnswers ?? 0) / (stats.totalQuestions ?? 1)) * 100).toFixed(2)}%` : '—'}</p>
                     </div>
                     <div className="cabinet-stat-group cabinet-stat-group--training">
                       <p className="cabinet-stat-item"><strong>Тренировка</strong> — сыграно игр: {formatNum(stats.gamesPlayedTraining ?? 0)}</p>
                       <p className="cabinet-stat-item"><strong>Сыгранных матчей:</strong> {formatNum(stats.completedMatchesTraining ?? 0)}</p>
+                      <p className="cabinet-stat-item"><strong>Выиграно турниров:</strong> {formatNum(stats.winsTraining ?? 0)}</p>
                       <p className="cabinet-stat-item"><strong>Верных ответов:</strong> {formatNum(stats.correctAnswersTraining ?? 0)} из {formatNum(stats.totalQuestionsTraining ?? 0)}</p>
                       <p className="cabinet-stat-item"><strong>% верных ответов:</strong> {(stats.totalQuestionsTraining ?? 0) > 0 ? `${(((stats.correctAnswersTraining ?? 0) / (stats.totalQuestionsTraining ?? 1)) * 100).toFixed(2)}%` : '—'}</p>
                     </div>
                     <div className="cabinet-stat-group cabinet-stat-group--money">
                       <p className="cabinet-stat-item"><strong>Противостояние</strong> — сыграно игр: {formatNum(stats.gamesPlayedMoney ?? 0)}</p>
                       <p className="cabinet-stat-item"><strong>Сыгранных матчей:</strong> {formatNum(stats.completedMatchesMoney ?? 0)}</p>
+                      <p className="cabinet-stat-item"><strong>Выиграно турниров:</strong> {formatNum(stats.winsMoney ?? 0)}</p>
                       <p className="cabinet-stat-item"><strong>Верных ответов:</strong> {formatNum(stats.correctAnswersMoney ?? 0)} из {formatNum(stats.totalQuestionsMoney ?? 0)}</p>
                       <p className="cabinet-stat-item"><strong>% верных ответов:</strong> {(stats.totalQuestionsMoney ?? 0) > 0 ? `${(((stats.correctAnswersMoney ?? 0) / (stats.totalQuestionsMoney ?? 1)) * 100).toFixed(2)}%` : '—'}</p>
                     </div>
@@ -4548,8 +4554,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                         <div className="bracket-player-tooltip-stat">Сыграно игр: {formatNum(partnerPlayerTooltip.stats.gamesPlayed ?? 0)}</div>
                         <div className="bracket-player-tooltip-stat">Сыгранных матчей: {formatNum(partnerPlayerTooltip.stats.completedMatches ?? 0)}</div>
                         <div className="bracket-player-tooltip-stat"><strong>Сумма выигрыша:</strong> {formatNum(partnerPlayerTooltip.stats.totalWinnings ?? 0)} {CURRENCY}</div>
-                        <div className="bracket-player-tooltip-stat"><strong>% побед:</strong> {partnerPlayerTooltip.stats.winRatePercent != null ? `${partnerPlayerTooltip.stats.winRatePercent.toFixed(2)}%` : '—'}</div>
-                        <div className="bracket-player-tooltip-stat">Побед: {formatNum(partnerPlayerTooltip.stats.wins ?? 0)}</div>
+                        <div className="bracket-player-tooltip-stat"><strong>Выиграно турниров:</strong> {formatNum(partnerPlayerTooltip.stats.wins ?? 0)}</div>
                         <div className="bracket-player-tooltip-stat"><strong>Верных ответов:</strong> {formatNum(partnerPlayerTooltip.stats.correctAnswers ?? 0)} из {formatNum(partnerPlayerTooltip.stats.totalQuestions ?? 0)}</div>
                         <div className="bracket-player-tooltip-stat"><strong>% верных ответов:</strong> {(partnerPlayerTooltip.stats.totalQuestions ?? 0) > 0 ? `${(((partnerPlayerTooltip.stats.correctAnswers ?? 0) / (partnerPlayerTooltip.stats.totalQuestions ?? 1)) * 100).toFixed(2)}%` : '—'}</div>
                       </div>
@@ -4816,8 +4821,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                     <div className="bracket-player-tooltip-stat">Сыграно игр: {formatNum(bracketPlayerTooltip.stats.gamesPlayed ?? 0)}</div>
                     <div className="bracket-player-tooltip-stat">Сыгранных матчей: {formatNum(bracketPlayerTooltip.stats.completedMatches ?? 0)}</div>
                     <div className="bracket-player-tooltip-stat"><strong>Сумма выигрыша:</strong> {formatNum(bracketPlayerTooltip.stats.totalWinnings ?? 0)} {CURRENCY}</div>
-                    <div className="bracket-player-tooltip-stat"><strong>% побед:</strong> {bracketPlayerTooltip.stats.winRatePercent != null ? `${bracketPlayerTooltip.stats.winRatePercent.toFixed(2)}%` : '—'}</div>
-                    <div className="bracket-player-tooltip-stat">Побед: {formatNum(bracketPlayerTooltip.stats.wins ?? 0)}</div>
+                    <div className="bracket-player-tooltip-stat"><strong>Выиграно турниров:</strong> {formatNum(bracketPlayerTooltip.stats.wins ?? 0)}</div>
                     <div className="bracket-player-tooltip-stat"><strong>Верных ответов:</strong> {formatNum(bracketPlayerTooltip.stats.correctAnswers ?? 0)} из {formatNum(bracketPlayerTooltip.stats.totalQuestions ?? 0)}</div>
                     <div className="bracket-player-tooltip-stat"><strong>% верных ответов:</strong> {(bracketPlayerTooltip.stats.totalQuestions ?? 0) > 0 ? `${(((bracketPlayerTooltip.stats.correctAnswers ?? 0) / (bracketPlayerTooltip.stats.totalQuestions ?? 1)) * 100).toFixed(2)}%` : '—'}</div>
                   </div>
