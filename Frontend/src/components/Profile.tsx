@@ -1993,7 +1993,13 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         const indexInTB = Math.max(0, cur - tbBase);
         setTrainingQuestionIndex(Math.min(indexInTB, tbQuestions.length));
         setTrainingAnswers(indexInTB > 0 ? ac.slice(tbBase, tbBase + indexInTB) : []);
-        setTrainingRoundScores([]);
+        if (indexInTB >= tbQuestions.length) {
+          const tbAns = ac.slice(tbBase, tbBase + tbQuestions.length);
+          const correctInTB = tbQuestions.reduce((sum: number, q: TrainingQuestion, i: number) => sum + (q.correctAnswer === tbAns[i] ? 1 : 0), 0);
+          setTrainingRoundScores([correctInTB]);
+        } else {
+          setTrainingRoundScores([]);
+        }
         setTrainingRoundComplete(indexInTB >= tbQuestions.length);
       } else if (sr === 'won' && tbPhase === 'final' && tbQuestions.length > 0) {
         setTiebreakerBase(tbBase);
@@ -2001,7 +2007,13 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         const indexInTB = Math.max(0, cur - tbBase);
         setTrainingQuestionIndex(Math.min(indexInTB, tbQuestions.length));
         setTrainingAnswers(indexInTB > 0 ? ac.slice(tbBase, tbBase + indexInTB) : []);
-        setTrainingRoundScores([]);
+        if (indexInTB >= tbQuestions.length) {
+          const tbAns = ac.slice(tbBase, tbBase + tbQuestions.length);
+          const correctInTB = tbQuestions.reduce((sum: number, q: TrainingQuestion, i: number) => sum + (q.correctAnswer === tbAns[i] ? 1 : 0), 0);
+          setTrainingRoundScores([correctInTB]);
+        } else {
+          setTrainingRoundScores([]);
+        }
         setTrainingRoundComplete(indexInTB >= tbQuestions.length);
       } else if (cur < 10) {
         setTrainingRound(semiIdx === 0 ? 0 : 1);
@@ -2236,7 +2248,13 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
           const indexInTB = Math.max(0, cur - tbBase2);
           setTrainingQuestionIndex(Math.min(indexInTB, tbQuestions2.length));
           setTrainingAnswers(indexInTB > 0 ? ac.slice(tbBase2, tbBase2 + indexInTB) : []);
-          setTrainingRoundScores([]);
+          if (indexInTB >= tbQuestions2.length) {
+            const tbAns = ac.slice(tbBase2, tbBase2 + tbQuestions2.length);
+            const correctInTB = tbQuestions2.reduce((sum: number, q: TrainingQuestion, i: number) => sum + (q.correctAnswer === tbAns[i] ? 1 : 0), 0);
+            setTrainingRoundScores([correctInTB]);
+          } else {
+            setTrainingRoundScores([]);
+          }
           setTrainingRoundComplete(indexInTB >= tbQuestions2.length);
         } else if (sr === 'won' && tbPhase2 === 'final' && tbQuestions2.length > 0) {
           setTiebreakerBase(tbBase2);
@@ -2244,7 +2262,13 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
           const indexInTB = Math.max(0, cur - tbBase2);
           setTrainingQuestionIndex(Math.min(indexInTB, tbQuestions2.length));
           setTrainingAnswers(indexInTB > 0 ? ac.slice(tbBase2, tbBase2 + indexInTB) : []);
-          setTrainingRoundScores([]);
+          if (indexInTB >= tbQuestions2.length) {
+            const tbAns = ac.slice(tbBase2, tbBase2 + tbQuestions2.length);
+            const correctInTB = tbQuestions2.reduce((sum: number, q: TrainingQuestion, i: number) => sum + (q.correctAnswer === tbAns[i] ? 1 : 0), 0);
+            setTrainingRoundScores([correctInTB]);
+          } else {
+            setTrainingRoundScores([]);
+          }
           setTrainingRoundComplete(indexInTB >= tbQuestions2.length);
         } else if (cur < 10) {
           setTrainingRound(semiIdx === 0 ? 0 : 1);
