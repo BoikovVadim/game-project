@@ -3524,49 +3524,16 @@ body.partner-modal-open {
   transform: none !important;
   outline: none !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
-  background-color: #1a1a1a;
 }
 
 @media (hover: none) and (pointer: coarse) {
-  .game-mode-card:hover {
+  .game-mode-card:hover,
+  .game-mode-card:active {
     transform: none !important;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
-  }
-
-  .cabinet-menu-item:hover {
-    background: transparent !important;
-    color: #aaa !important;
-    border-left-color: transparent !important;
+    box-shadow: none !important;
+    background-color: transparent !important;
     filter: none !important;
-  }
-
-  .cabinet-menu-item:hover::after {
-    opacity: 0 !important;
-  }
-
-  .cabinet-menu-item.active:hover {
-    background: transparent !important;
-    color: var(--gold-mid, #d4af37) !important;
-  }
-
-  .cabinet-menu-item:active {
-    filter: none !important;
-  }
-
-  .cabinet-menu-item--games:hover,
-  .cabinet-menu-item--games:hover .cabinet-menu-icon,
-  .cabinet-menu-item--games:hover .cabinet-menu-label {
-    color: #aaa !important;
-  }
-
-  .cabinet-menu-item--games:hover::before {
-    background: transparent !important;
-  }
-
-  .cabinet-menu-item--games.active:hover,
-  .cabinet-menu-item--games.active:hover .cabinet-menu-icon,
-  .cabinet-menu-item--games.active:hover .cabinet-menu-label {
-    color: var(--gold-mid, #d4af37) !important;
+    outline: none !important;
   }
 
   .partner-tree-nav-btn:hover {
