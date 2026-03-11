@@ -1104,7 +1104,7 @@ export class TournamentsService {
     ) => {
       const prog = progressByTid.get(t.id);
       const answered = prog?.q ?? 0;
-      const semiCorrect = prog?.semiCorrect ?? 0;
+      const semiCorrect = prog?.semiCorrect ?? (answered <= QUESTIONS_PER_ROUND ? (prog?.totalCorrect ?? 0) : 0);
       const totalCorrect = prog?.totalCorrect ?? 0;
       const tbRounds = prog?.tiebreakerRounds ?? [];
       const stage = getStage(t);
