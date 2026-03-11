@@ -7,17 +7,35 @@ html {
 
 *, *::before, *::after {
   box-sizing: border-box;
-  -webkit-tap-highlight-color: transparent;
+  -webkit-tap-highlight-color: transparent !important;
 }
 
-button, a, input, select, textarea, [role="button"], label {
-  -webkit-tap-highlight-color: transparent;
+button, a, input, select, textarea, [role="button"], label, div[onclick] {
+  -webkit-tap-highlight-color: transparent !important;
   -webkit-touch-callout: none;
 }
 
 button:focus:not(:focus-visible),
 a:focus:not(:focus-visible) {
   outline: none;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  *:hover {
+    -webkit-tap-highlight-color: transparent !important;
+  }
+
+  button:hover,
+  button:active,
+  a:hover,
+  a:active,
+  [role="button"]:hover,
+  [role="button"]:active {
+    filter: none !important;
+    transform: none !important;
+    -webkit-tap-highlight-color: transparent !important;
+    outline: none !important;
+  }
 }
 
 body {
