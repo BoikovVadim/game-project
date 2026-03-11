@@ -3431,18 +3431,18 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                           </div>
                         ) : currentQuestion ? (
                           <div className="training-question-block" key={blinkKey}>
-                            {isTimedOut && <p className="training-timeout-msg">Вы не успели ответить на вопрос!</p>}
+                            {isTimedOut && <p className="training-timeout-msg" style={{color:'#e53935',fontWeight:700}}>Вы не успели ответить на вопрос!</p>}
                             <p className="training-round-label">Вопрос {trainingQuestionIndex + 1} из {currentQuestions.length}</p>
                             <p className="training-question-text">{currentQuestion.question}</p>
                             <div className="training-timer-wrap">
-                              <p className={`training-timer-label ${isTimedOut ? 'training-timer-label--danger' : timeLeft <= 1 && !answered ? 'training-timer-label--danger' : ''}`}>
+                              <p className={`training-timer-label ${isTimedOut ? 'training-timer-label--danger' : timeLeft <= 1 && !answered ? 'training-timer-label--danger' : ''}`} style={isTimedOut || (timeLeft <= 1 && !answered) ? {color:'#e53935',fontWeight:700} : undefined}>
                                 Осталось: {timeLeft.toFixed(2)} сек
                               </p>
                               <div className="training-timer-track">
                                 <div
                                   key={timerKey}
                                   className={`training-timer-fill ${timerPaused ? 'training-timer-fill--paused' : ''} ${isTimedOut ? 'training-timer-fill--empty' : ''}`}
-                                  style={{ animationDuration: `${QUESTION_TIMER_SEC}s` }}
+                                  style={isTimedOut ? { width: 0, animation: 'none', background: 'transparent' } : { animationDuration: `${QUESTION_TIMER_SEC}s` }}
                                 />
                               </div>
                             </div>
@@ -3833,18 +3833,18 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                             </div>
                           ) : currentQuestion ? (
                             <div className="training-question-block" key={blinkKey}>
-                              {isTimedOut && <p className="training-timeout-msg">Вы не успели ответить на вопрос!</p>}
+                              {isTimedOut && <p className="training-timeout-msg" style={{color:'#e53935',fontWeight:700}}>Вы не успели ответить на вопрос!</p>}
                               <p className="training-round-label">Вопрос {trainingQuestionIndex + 1} из {currentQuestions.length}</p>
                               <p className="training-question-text">{currentQuestion.question}</p>
                               <div className="training-timer-wrap">
-                                <p className={`training-timer-label ${isTimedOut ? 'training-timer-label--danger' : timeLeft <= 1 && !answered ? 'training-timer-label--danger' : ''}`}>
+                                <p className={`training-timer-label ${isTimedOut ? 'training-timer-label--danger' : timeLeft <= 1 && !answered ? 'training-timer-label--danger' : ''}`} style={isTimedOut || (timeLeft <= 1 && !answered) ? {color:'#e53935',fontWeight:700} : undefined}>
                                   Осталось: {timeLeft.toFixed(2)} сек
                                 </p>
                                 <div className="training-timer-track">
                                   <div
                                     key={timerKey}
                                     className={`training-timer-fill ${timerPaused ? 'training-timer-fill--paused' : ''} ${isTimedOut ? 'training-timer-fill--empty' : ''}`}
-                                    style={{ animationDuration: `${QUESTION_TIMER_SEC}s` }}
+                                    style={isTimedOut ? { width: 0, animation: 'none', background: 'transparent' } : { animationDuration: `${QUESTION_TIMER_SEC}s` }}
                                   />
                                 </div>
                               </div>
