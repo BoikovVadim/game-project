@@ -1594,6 +1594,20 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         setBlinkKey((k) => k + 1);
       }
     }, 50);
+
+    if (trainingData?.tournamentId && token) {
+      const psBase = trainingRound === 3 ? tiebreakerBase : (trainingRound !== null && trainingRound >= 2 ? 10 : 0);
+      const psGIdx = psBase + trainingQuestionIndex;
+      const psAnswers = [...fullAnswersChosenRef.current];
+      while (psAnswers.length <= psGIdx) psAnswers.push(-1);
+      psAnswers[psGIdx] = -1;
+      const psCount = psBase + trainingQuestionIndex + 1;
+      axios.post(`/tournaments/${trainingData.tournamentId}/progress`, {
+        count: psCount, currentIndex: psCount, timeLeft: QUESTION_TIMER_SEC,
+        correctCount: trainingCorrectCount, answersChosen: psAnswers,
+      }, { headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
+    }
+
     return () => {
       if (trainingTimerRef.current) clearInterval(trainingTimerRef.current);
       trainingTimerRef.current = null;
@@ -1829,17 +1843,24 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
 
   const saveTrainingProgress = () => {
     if (!trainingData?.tournamentId || !token || trainingRound === null) return;
-    // Останавливаем таймер мгновенно при любом выходе/навигации.
     if (trainingTimerRef.current) {
       clearInterval(trainingTimerRef.current);
       trainingTimerRef.current = null;
     }
     const base = trainingRound === 3 ? tiebreakerBase : (trainingRound >= 2 ? 10 : 0);
-    const answered = answerForCurrentQuestion !== null;
-    const count = base + trainingQuestionIndex + (answered ? 1 : 0);
-    const currentIndex = count;
-    const body: { count: number; currentIndex: number; timeLeft?: number; correctCount?: number; answersChosen?: number[] } = { count, currentIndex, correctCount: trainingCorrectCount, answersChosen: fullAnswersChosenRef.current };
-    body.timeLeft = answered ? QUESTION_TIMER_SEC : (typeof timeLeftRef.current === 'number' ? timeLeftRef.current : QUESTION_TIMER_SEC);
+    const wasAnswered = answerForCurrentQuestion !== null;
+    const hasActiveQuestion = !wasAnswered && !!currentQuestion && !trainingRoundComplete;
+    const count = base + trainingQuestionIndex + (wasAnswered || hasActiveQuestion ? 1 : 0);
+    const answersToSend = [...fullAnswersChosenRef.current];
+    if (hasActiveQuestion) {
+      const gIdx = base + trainingQuestionIndex;
+      while (answersToSend.length <= gIdx) answersToSend.push(-1);
+      answersToSend[gIdx] = -1;
+    }
+    const body: { count: number; currentIndex: number; timeLeft?: number; correctCount?: number; answersChosen?: number[] } = {
+      count, currentIndex: count, correctCount: trainingCorrectCount, answersChosen: answersToSend,
+    };
+    body.timeLeft = QUESTION_TIMER_SEC;
     axios.post(`/tournaments/${trainingData.tournamentId}/progress`, body, { headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
   };
 
