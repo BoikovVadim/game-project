@@ -2435,6 +2435,13 @@ export class TournamentsService {
         if (loserIdx === 0) finalPlayers.push(enrichFinalPlayer(players[1]!, p1));
         else if (loserIdx === 1) finalPlayers.push(enrichFinalPlayer(players[0]!, p0));
       }
+      if (players.length >= 4) {
+        const p2 = progressByUser.get(players[2]!.id);
+        const p3 = progressByUser.get(players[3]!.id);
+        const loserIdx2 = getSemiLoserIndex(p2, p3);
+        if (loserIdx2 === 0) finalPlayers.push(enrichFinalPlayer(players[3]!, p3));
+        else if (loserIdx2 === 1) finalPlayers.push(enrichFinalPlayer(players[2]!, p2));
+      }
       return {
         tournamentId,
         gameType: tournament.gameType,
