@@ -1370,7 +1370,7 @@
   padding: 9px 14px;
   border: 1px solid #e0e0e0;
   border-radius: 8px;
-  background: #fafafa;
+  background: transparent;
   font-size: 13px;
   color: #444;
   cursor: pointer;
@@ -1378,13 +1378,13 @@
 }
 
 .cabinet-rankings-metric-btn:hover {
-  background: linear-gradient(135deg, #fdf8ed 0%, #faf5e6 100%);
+  background: transparent;
   border-color: var(--gold-dark, #c9a227);
   color: #333;
 }
 
 .cabinet-rankings-metric-btn--active {
-  background: linear-gradient(135deg, #fdf8ed 0%, #faf5e6 100%);
+  background: transparent;
   border-color: var(--gold-dark, #c9a227);
   color: #333;
   font-weight: 600;
