@@ -1763,6 +1763,21 @@ export class TournamentsService {
       }
     }
 
+    const semiTiebreakerAllQuestions: (typeof questionsSemi1)[] = [];
+    for (let r = 1; r <= 50; r++) {
+      const ri = 2 + r;
+      const qs = questions.filter((q) => q.roundIndex === ri).map(toDto);
+      if (qs.length === 0) break;
+      semiTiebreakerAllQuestions.push(qs);
+    }
+    const finalTiebreakerAllQuestions: (typeof questionsSemi1)[] = [];
+    for (let r = 1; r <= 50; r++) {
+      const ri = 100 + r;
+      const qs = questions.filter((q) => q.roundIndex === ri).map(toDto);
+      if (qs.length === 0) break;
+      finalTiebreakerAllQuestions.push(qs);
+    }
+
     return {
       tournamentId: tournament.id,
       deadline,
@@ -1784,6 +1799,10 @@ export class TournamentsService {
       answersChosen,
       userSemiIndex,
       semiResult,
+      semiTiebreakerAllQuestions,
+      semiTiebreakerRoundsCorrect: progress?.tiebreakerRoundsCorrect ?? [],
+      finalTiebreakerAllQuestions,
+      finalTiebreakerRoundsCorrect: progress?.finalTiebreakerRoundsCorrect ?? [],
     };
   }
 

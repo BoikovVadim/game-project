@@ -924,6 +924,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
 
   const [questionsReviewTournamentId, setQuestionsReviewTournamentId] = useState<number | null>(null);
   const [questionsReviewRound, setQuestionsReviewRound] = useState<'semi' | 'final'>('semi');
+  const [questionsReviewTabIdx, setQuestionsReviewTabIdx] = useState(0);
   const [questionsReviewData, setQuestionsReviewData] = useState<{
     questionsSemi1: { id: number; question: string; options: string[]; correctAnswer: number }[];
     questionsSemi2: { id: number; question: string; options: string[]; correctAnswer: number }[];
@@ -934,6 +935,10 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     semiTiebreakerCorrectSum?: number;
     answersChosen: number[];
     userSemiIndex?: number;
+    semiTiebreakerAllQuestions?: { id: number; question: string; options: string[]; correctAnswer: number }[][];
+    semiTiebreakerRoundsCorrect?: number[];
+    finalTiebreakerAllQuestions?: { id: number; question: string; options: string[]; correctAnswer: number }[][];
+    finalTiebreakerRoundsCorrect?: number[];
   } | null>(null);
   const [questionsReviewLoading, setQuestionsReviewLoading] = useState(false);
   const [questionsReviewError, setQuestionsReviewError] = useState('');
@@ -2126,6 +2131,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   const openQuestionsReview = React.useCallback(async (tournamentId: number, roundForQuestions: 'semi' | 'final') => {
     setQuestionsReviewTournamentId(tournamentId);
     setQuestionsReviewRound(roundForQuestions);
+    setQuestionsReviewTabIdx(0);
     setQuestionsReviewData(null);
     setQuestionsReviewError('');
     setQuestionsReviewLoading(true);
@@ -2142,8 +2148,13 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         questionsAnsweredCount: number;
         correctAnswersCount: number;
         semiFinalCorrectCount?: number | null;
+        semiTiebreakerCorrectSum?: number;
         answersChosen?: number[];
         userSemiIndex?: number;
+        semiTiebreakerAllQuestions?: { id: number; question: string; options: string[]; correctAnswer: number }[][];
+        semiTiebreakerRoundsCorrect?: number[];
+        finalTiebreakerAllQuestions?: { id: number; question: string; options: string[]; correctAnswer: number }[][];
+        finalTiebreakerRoundsCorrect?: number[];
       }>(`/tournaments/${tournamentId}/training-state`, { headers: { Authorization: `Bearer ${token}` } });
       const answersChosenRaw = data.answersChosen ?? (data as { answers_chosen?: number[] }).answers_chosen;
       setQuestionsReviewData({
@@ -2153,8 +2164,13 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         questionsAnsweredCount: data.questionsAnsweredCount ?? 0,
         correctAnswersCount: data.correctAnswersCount ?? 0,
         semiFinalCorrectCount: data.semiFinalCorrectCount ?? null,
+        semiTiebreakerCorrectSum: data.semiTiebreakerCorrectSum ?? 0,
         answersChosen: Array.isArray(answersChosenRaw) ? answersChosenRaw : [],
         userSemiIndex: data.userSemiIndex ?? 0,
+        semiTiebreakerAllQuestions: data.semiTiebreakerAllQuestions ?? [],
+        semiTiebreakerRoundsCorrect: data.semiTiebreakerRoundsCorrect ?? [],
+        finalTiebreakerAllQuestions: data.finalTiebreakerAllQuestions ?? [],
+        finalTiebreakerRoundsCorrect: data.finalTiebreakerRoundsCorrect ?? [],
       });
     } catch (e: unknown) {
       const msg = axios.isAxiosError(e) && e.response?.data?.message ? String(e.response.data.message) : 'Не удалось загрузить вопросы';
@@ -5168,86 +5184,111 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
               <h3>Вопросы турнира #{questionsReviewTournamentId}</h3>
               <button type="button" className="questions-review-close" onClick={closeQuestionsReview} aria-label="Закрыть">×</button>
             </div>
-            {questionsReviewData && !questionsReviewLoading && (questionsReviewData.questionsAnsweredCount ?? 0) > 10 && (
-              <div className="questions-review-tabs">
-                <button type="button" className={`questions-review-tab ${questionsReviewRound === 'semi' ? 'active' : ''}`} onClick={() => setQuestionsReviewRound('semi')}>Полуфинал</button>
-                <button type="button" className={`questions-review-tab ${questionsReviewRound === 'final' ? 'active' : ''}`} onClick={() => setQuestionsReviewRound('final')}>Финал</button>
-              </div>
-            )}
             {questionsReviewLoading && !questionsReviewData && <p className="questions-review-loading">Загрузка…</p>}
             {questionsReviewError && !questionsReviewLoading && <p className="questions-review-error">{questionsReviewError}</p>}
             {questionsReviewData && (() => {
                 const raw = questionsReviewData.answersChosen ?? (questionsReviewData as { answers_chosen?: number[] }).answers_chosen;
                 const ac = Array.isArray(raw)
-                  ? raw.map((a) => {
+                  ? raw.map((a: unknown) => {
                       const n = typeof a === 'number' && !Number.isNaN(a) ? a : (typeof a === 'string' ? Number(a) : NaN);
                       if (typeof n !== 'number' || Number.isNaN(n)) return -1;
                       return n < 0 ? -1 : Math.floor(n);
                     })
                   : [];
-                const hasChoices = ac.length > 0;
                 const userSemiIdx = questionsReviewData.userSemiIndex ?? 0;
-                const isSemi = questionsReviewRound === 'semi';
                 const n = questionsReviewData.questionsAnsweredCount;
-                const startIndex = isSemi ? 0 : 10;
-                const answeredInRound = isSemi
-                  ? Math.min(10, n)
-                  : Math.min(10, Math.max(0, n - 10));
-                const title = isSemi ? (userSemiIdx === 0 ? 'Полуфинал 1' : 'Полуфинал 2') : 'Финал';
-                const hasFinalQuestions = (questionsReviewData.questionsFinal?.length ?? 0) > 0;
-                const questions = isSemi
-                  ? (userSemiIdx === 0 ? questionsReviewData.questionsSemi1 : questionsReviewData.questionsSemi2)
-                  : (hasFinalQuestions ? questionsReviewData.questionsFinal : questionsReviewData.questionsSemi2);
-                const questionsToShow = questions.slice(0, answeredInRound);
-                const countInRound = questions.length;
+                const semiQuestions = userSemiIdx === 0 ? questionsReviewData.questionsSemi1 : questionsReviewData.questionsSemi2;
                 const semiCorrect = questionsReviewData.semiFinalCorrectCount ?? (n <= 10 ? questionsReviewData.correctAnswersCount : 0);
-                const semiTBSum = questionsReviewData.semiTiebreakerCorrectSum ?? 0;
-                const finalCorrect = n > 10 ? Math.max(0, questionsReviewData.correctAnswersCount - semiCorrect - semiTBSum) : 0;
-                const correctInRound = isSemi ? semiCorrect : finalCorrect;
+                const semiTBAll = questionsReviewData.semiTiebreakerAllQuestions ?? [];
+                const semiTBCorrects = questionsReviewData.semiTiebreakerRoundsCorrect ?? [];
+                const finalQuestions = questionsReviewData.questionsFinal ?? [];
+                const finalTBAll = questionsReviewData.finalTiebreakerAllQuestions ?? [];
+                const finalTBCorrects = questionsReviewData.finalTiebreakerRoundsCorrect ?? [];
+                const semiTBSum = semiTBCorrects.reduce((a: number, b: number) => a + b, 0);
+                const finalTBSum = finalTBCorrects.reduce((a: number, b: number) => a + b, 0);
+
+                type ReviewTab = { label: string; questions: typeof semiQuestions; startIdx: number; correctCount: number };
+                const tabs: ReviewTab[] = [];
+
+                tabs.push({ label: userSemiIdx === 0 ? 'Полуфинал 1' : 'Полуфинал 2', questions: semiQuestions, startIdx: 0, correctCount: semiCorrect });
+
+                let cursor = 10;
+                for (let r = 0; r < semiTBAll.length; r++) {
+                  if (n <= cursor) break;
+                  tabs.push({ label: semiTBAll.length === 1 ? 'Доп. раунд (ПФ)' : `Доп. раунд ${r + 1} (ПФ)`, questions: semiTBAll[r], startIdx: cursor, correctCount: semiTBCorrects[r] ?? 0 });
+                  cursor += 10;
+                }
+
+                if (finalQuestions.length > 0 && n > cursor) {
+                  const finalBaseCorrect = Math.max(0, questionsReviewData.correctAnswersCount - semiCorrect - semiTBSum - finalTBSum);
+                  tabs.push({ label: 'Финал', questions: finalQuestions, startIdx: cursor, correctCount: finalBaseCorrect });
+                  cursor += 10;
+
+                  for (let r = 0; r < finalTBAll.length; r++) {
+                    if (n <= cursor) break;
+                    tabs.push({ label: finalTBAll.length === 1 ? 'Доп. раунд (Ф)' : `Доп. раунд ${r + 1} (Ф)`, questions: finalTBAll[r], startIdx: cursor, correctCount: finalTBCorrects[r] ?? 0 });
+                    cursor += 10;
+                  }
+                }
+
+                const activeTab = tabs[questionsReviewTabIdx] ?? tabs[0];
+                if (!activeTab) return null;
+                const answeredInRound = Math.min(activeTab.questions.length, Math.max(0, n - activeTab.startIdx));
+                const questionsToShow = activeTab.questions.slice(0, answeredInRound);
+
                 return (
-                  <div className="questions-review-body">
-                    <p className="questions-review-stats">
-                      {title}: вы ответили верно на <strong>{correctInRound}</strong> из <strong>{answeredInRound}</strong> вопросов{answeredInRound < countInRound ? ` (отвечено ${answeredInRound} из ${countInRound})` : ''}. Ниже — только те вопросы, на которые вы отвечали.
-                    </p>
-                    {questionsToShow.length === 0 ? (
-                      <p className="questions-review-empty">Вы не ответили ни на один вопрос в этом раунде.</p>
-                    ) : (
-                      <div className="questions-review-round">
-                        <h4>{title}</h4>
-                        {questionsToShow.map((q, idx) => {
-                          const globalIndex = startIndex + idx;
-                          const rawChoice = ac[globalIndex];
-                          const playerChoice = typeof rawChoice === 'number' && !Number.isNaN(rawChoice) && rawChoice >= 0 && rawChoice < (q.options?.length ?? 0) ? rawChoice : -1;
-                          const correctIdx = Number(q.correctAnswer);
-                          return (
-                            <div key={q.id ?? globalIndex} className="questions-review-question">
-                              <div className="questions-review-question-header">
-                                <p className="questions-review-question-text">
-                                  <span className="questions-review-question-id">ID: {q.id ?? '—'}</span>
-                                  {' '}{idx + 1}. {q.question}
-                                </p>
-                                {playerChoice === -1 && <span className="questions-review-no-answer-badge">Нет ответа</span>}
-                              </div>
-                              <ul className="questions-review-options">
-                                {q.options.map((opt, oi) => (
-                                  <li
-                                    key={oi}
-                                    className={`questions-review-option-row ${oi === correctIdx ? 'questions-review-option-correct' : ''} ${oi === playerChoice ? 'questions-review-option-player' : ''}`}
-                                  >
-                                    <span className="questions-review-option-text">{opt}</span>
-                                    <span className="questions-review-badges">
-                                      {oi === correctIdx && <span className="questions-review-correct-badge" aria-label="Правильный ответ">Правильный ответ</span>}
-                                      {oi === playerChoice && <span className="questions-review-player-label" aria-label="Ваш выбор">Мой ответ</span>}
-                                    </span>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          );
-                        })}
+                  <>
+                    {tabs.length > 1 && (
+                      <div className="questions-review-tabs">
+                        {tabs.map((tab, ti) => (
+                          <button key={ti} type="button" className={`questions-review-tab ${ti === questionsReviewTabIdx ? 'active' : ''}`} onClick={() => setQuestionsReviewTabIdx(ti)}>{tab.label}</button>
+                        ))}
                       </div>
                     )}
-                  </div>
+                    <div className="questions-review-body">
+                      <p className="questions-review-stats">
+                        {activeTab.label}: верно <strong>{activeTab.correctCount}</strong> из <strong>{answeredInRound}</strong> вопросов{answeredInRound < activeTab.questions.length ? ` (отвечено ${answeredInRound} из ${activeTab.questions.length})` : ''}.
+                      </p>
+                      {questionsToShow.length === 0 ? (
+                        <p className="questions-review-empty">Вы не ответили ни на один вопрос в этом раунде.</p>
+                      ) : (
+                        <div className="questions-review-round">
+                          <h4>{activeTab.label}</h4>
+                          {questionsToShow.map((q, idx) => {
+                            const globalIndex = activeTab.startIdx + idx;
+                            const rawChoice = ac[globalIndex];
+                            const playerChoice = typeof rawChoice === 'number' && !Number.isNaN(rawChoice) && rawChoice >= 0 && rawChoice < (q.options?.length ?? 0) ? rawChoice : -1;
+                            const correctIdx = Number(q.correctAnswer);
+                            return (
+                              <div key={q.id ?? globalIndex} className="questions-review-question">
+                                <div className="questions-review-question-header">
+                                  <p className="questions-review-question-text">
+                                    <span className="questions-review-question-id">ID: {q.id ?? '—'}</span>
+                                    {' '}{idx + 1}. {q.question}
+                                  </p>
+                                  {playerChoice === -1 && <span className="questions-review-no-answer-badge">Нет ответа</span>}
+                                </div>
+                                <ul className="questions-review-options">
+                                  {q.options.map((opt, oi) => (
+                                    <li
+                                      key={oi}
+                                      className={`questions-review-option-row ${oi === correctIdx ? 'questions-review-option-correct' : ''} ${oi === playerChoice ? 'questions-review-option-player' : ''}`}
+                                    >
+                                      <span className="questions-review-option-text">{opt}</span>
+                                      <span className="questions-review-badges">
+                                        {oi === correctIdx && <span className="questions-review-correct-badge" aria-label="Правильный ответ">Правильный ответ</span>}
+                                        {oi === playerChoice && <span className="questions-review-player-label" aria-label="Ваш выбор">Мой ответ</span>}
+                                      </span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </>
                 );
               })()}
           </div>
