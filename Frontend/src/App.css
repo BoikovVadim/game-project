@@ -157,11 +157,11 @@ button {
   transition: box-shadow 0.25s ease;
 }
 
-button:hover {
+button:hover:not(.training-option) {
   background: var(--gold-gradient-hover);
   box-shadow: 0 4px 12px var(--gold-glow);
 }
 
-button:active {
+button:active:not(.training-option) {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }

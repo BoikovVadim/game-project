@@ -4401,6 +4401,9 @@ body.partner-modal-open {
   border-color: #228b22 !important;
   color: #000 !important;
   transition: none !important;
+  box-shadow: none !important;
+  -webkit-box-shadow: none !important;
+  filter: none !important;
 }
 
 .training-option-wrong {
@@ -4408,6 +4411,9 @@ body.partner-modal-open {
   border-color: #dc3545 !important;
   color: #000 !important;
   transition: none !important;
+  box-shadow: none !important;
+  -webkit-box-shadow: none !important;
+  filter: none !important;
 }
 
 .training-deadline-label {
