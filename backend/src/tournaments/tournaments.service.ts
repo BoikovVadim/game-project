@@ -2036,13 +2036,13 @@ export class TournamentsService {
       const currentLen = progress.answersChosen?.length ?? 0;
       if (chosenToSave.length >= currentLen && (chosenToSave.length >= safeCount || chosenToSave.length > currentLen)) {
         progress.answersChosen = chosenToSave;
-        progress.correctAnswersCount = Math.max(computedCorrect, progress.correctAnswersCount);
+        progress.correctAnswersCount = computedCorrect;
         if (chosenToSave.length >= this.QUESTIONS_PER_ROUND) {
-          progress.semiFinalCorrectCount = Math.max(computedSemi, progress.semiFinalCorrectCount ?? 0);
+          progress.semiFinalCorrectCount = computedSemi;
         }
       } else if (chosenToSave.length >= this.QUESTIONS_PER_ROUND && chosenToSave.length >= currentLen) {
-        progress.correctAnswersCount = Math.max(computedCorrect, progress.correctAnswersCount);
-        progress.semiFinalCorrectCount = Math.max(computedSemi, progress.semiFinalCorrectCount ?? 0);
+        progress.correctAnswersCount = computedCorrect;
+        progress.semiFinalCorrectCount = computedSemi;
       } else {
         const fallbackCorrect = correctCount !== undefined ? Math.max(0, Math.floor(correctCount)) : null;
         if (fallbackCorrect !== null && (progress.correctAnswersCount === 0 || fallbackCorrect > progress.correctAnswersCount)) {
