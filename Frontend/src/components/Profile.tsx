@@ -4978,8 +4978,8 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                               <span className="bracket-player-name">{displayName}</span>
                             )}
                           </span>
-                          {p && total > 0 && (
-                            <span className="bracket-player-score">{correct}/{total} ({Math.round((correct / total) * 100)}%)</span>
+                          {p && (
+                            <span className="bracket-player-score">{correct}/{total > 0 ? total : 10} ({total > 0 ? Math.round((correct / total) * 100) : 0}%)</span>
                           )}
                         </div>
                       );
