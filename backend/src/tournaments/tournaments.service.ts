@@ -793,25 +793,6 @@ export class TournamentsService {
       }
     }
 
-    // Backfill: если турнир завершён (passed=1) И есть второй игрок — помечаем FINISHED.
-    const finishedIds = tournaments
-      .filter(
-        (t) =>
-          resultByTournamentId.get(t.id) === true &&
-          (t.playerOrder?.length ?? t.players?.length ?? 0) >= 2 &&
-          t.status !== TournamentStatus.FINISHED,
-      )
-      .map((t) => t.id);
-    if (finishedIds.length > 0) {
-      await this.tournamentRepository.update(
-        { id: In(finishedIds) },
-        { status: TournamentStatus.FINISHED },
-      );
-      for (const t of tournaments) {
-        if (finishedIds.includes(t.id)) t.status = TournamentStatus.FINISHED;
-      }
-    }
-
     const deadlineByTournamentId: Record<number, string> = {};
     if (allIds.length > 0) {
       const entries = await this.tournamentEntryRepository
@@ -1086,6 +1067,8 @@ export class TournamentsService {
       if (semiResult.result === 'lost') {
         lostSemiByTid.set(t.id, true);
         passed = false;
+      } else if (semiResult.result === 'tie') {
+        passed = false;
       } else if (semiResult.result === 'won' && userProgress) {
         const mySemiTotal = semiPhaseQuestions(userProgress);
         if (answered >= mySemiTotal + QUESTIONS_PER_ROUND) {
@@ -1117,9 +1100,57 @@ export class TournamentsService {
       resultByTournamentId.set(t.id, passed);
     }
 
+    // Backfill: помечаем FINISHED только турниры с подтверждённой победой (после пересчёта).
+    const finishedIds = tournaments
+      .filter(
+        (t) =>
+          resultByTournamentId.get(t.id) === true &&
+          (t.playerOrder?.length ?? t.players?.length ?? 0) >= 2 &&
+          t.status !== TournamentStatus.FINISHED,
+      )
+      .map((t) => t.id);
+    if (finishedIds.length > 0) {
+      await this.tournamentRepository.update(
+        { id: In(finishedIds) },
+        { status: TournamentStatus.FINISHED },
+      );
+      for (const t of tournaments) {
+        if (finishedIds.includes(t.id)) t.status = TournamentStatus.FINISHED;
+      }
+    }
+
+    // Safety: если турнир FINISHED но сейчас ничья — вернуть в waiting
+    const tieButFinished = tournaments.filter(
+      (t) =>
+        t.status === TournamentStatus.FINISHED &&
+        getMoneySemiResult(t).result === 'tie',
+    );
+    if (tieButFinished.length > 0) {
+      const revertIds = tieButFinished.map((t) => t.id);
+      await this.tournamentRepository.update(
+        { id: In(revertIds) },
+        { status: TournamentStatus.WAITING },
+      );
+      for (const t of tieButFinished) {
+        t.status = TournamentStatus.WAITING;
+      }
+    }
+
     const getStage = (t: Tournament): string => {
       const semiResult = getMoneySemiResult(t);
-      if (semiResult.result === 'won') return 'Финал';
+      if (semiResult.result === 'tie') return 'Доп. раунд (ПФ)';
+      if (semiResult.result === 'won') {
+        const prog = progressByTid.get(t.id);
+        if (prog) {
+          const mySemiTotal = semiPhaseQuestions(prog);
+          const answered = prog.q ?? 0;
+          if (answered >= mySemiTotal + QUESTIONS_PER_ROUND) {
+            const fr = getFinalResult(t, prog);
+            if (fr === 'tie') return 'Доп. раунд (Ф)';
+          }
+        }
+        return 'Финал';
+      }
       return 'Полуфинал';
     };
 
@@ -1136,8 +1167,10 @@ export class TournamentsService {
       const totalCorrect = prog?.totalCorrect ?? 0;
       const tbRounds = prog?.tiebreakerRounds ?? [];
       const stage = getStage(t);
+      const semiRes = getMoneySemiResult(t);
+      const inSemiPhase = semiRes.result !== 'won';
       const round: 'semi' | 'final' =
-        roundForQuestions ?? (stage === 'Полуфинал' || String(stage).startsWith('Полуфинал') ? 'semi' : 'final');
+        roundForQuestions ?? (inSemiPhase ? 'semi' : 'final');
 
       let questionsAnsweredInRound: number;
       let questionsTotal: number;
@@ -1191,7 +1224,6 @@ export class TournamentsService {
       };
     };
 
-    /** Статусы: активные — Этап не пройден, Доп. раунд, Ожидание соперника; завершённые — Победа, Поражение. */
     const getResultLabel = (t: Tournament): string => {
       const prog = progressByTid.get(t.id);
       const answered = prog?.q ?? 0;
@@ -1204,7 +1236,7 @@ export class TournamentsService {
         const tbRound = semiResult.tiebreakerRound ?? 1;
         const roundEnd = QUESTIONS_PER_ROUND + tbRound * TIEBREAKER_QUESTIONS;
         if (answered >= roundEnd) return 'Ожидание соперника';
-        return 'Доп. раунд';
+        return 'Этап не пройден';
       }
       if (semiResult.result === 'lost') return 'Поражение';
       if (semiResult.result === 'won') {
@@ -1215,7 +1247,7 @@ export class TournamentsService {
         const fr = getFinalResult(t, prog);
         if (fr === 'won') return 'Победа';
         if (fr === 'lost') return 'Поражение';
-        if (fr === 'tie') return 'Доп. раунд';
+        if (fr === 'tie') return 'Этап не пройден';
         return 'Ожидание соперника';
       }
       return 'Ожидание соперника';
@@ -2235,6 +2267,15 @@ export class TournamentsService {
 
     const semiResult = await this.computeSemiResult(tournament, userId);
     if (semiResult === 'playing' || semiResult === 'waiting' || semiResult === 'tie') return;
+
+    // Double-check: re-read fresh progress to prevent race condition
+    const freshMy = await this.tournamentProgressRepository.findOne({ where: { userId, tournamentId } });
+    const freshOpp = await this.tournamentProgressRepository.findOne({ where: { userId: opponentId, tournamentId } });
+    if (freshMy && freshOpp) {
+      const fMyS = freshMy.semiFinalCorrectCount ?? 0;
+      const fOpS = freshOpp.semiFinalCorrectCount ?? 0;
+      if (fMyS === fOpS) return; // actually a tie — abort
+    }
 
     const semiWinnerId = semiResult === 'won' ? userId : opponentId;
     const semiLoserId = semiResult === 'won' ? opponentId : userId;

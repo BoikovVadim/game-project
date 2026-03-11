@@ -691,8 +691,6 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
       return '';
     }
   });
-  const [isEditingName, setIsEditingName] = useState(false);
-  const [nameDraft, setNameDraft] = useState('');
   const [gender, setGender] = useState<string | null>(null);
   const [birthDate, setBirthDate] = useState<string | null>(null);
   const [birthYear, setBirthYear] = useState('');
@@ -980,14 +978,14 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
       const depth = findDepth(fromId);
       const rootNode: Node = { id: fromId, displayName: fromDisplayName, referrerId: null };
       if (depth < 0) {
-        return [ [rootNode], ...levels.map((arr) => (Array.isArray(arr) ? arr : []).map((x: any) => ({ id: Number(x.id), displayName: String(x.displayName ?? x.id), referrerId: x.referrerId != null ? Number(x.referrerId) : null, avatarUrl: x.avatarUrl ?? null }))) ];
+        return [ [rootNode], ...levels.map((arr) => (Array.isArray(arr) ? arr : []).map((x: any) => ({ id: Number(x.id), displayName: String(x.displayName ?? x.id), referrerId: x.referrerId != null ? Number(x.referrerId) : null, avatarUrl: x.avatarUrl ?? null })).sort((a, b) => a.id - b.id)) ];
       }
       const subtreeLevels: Node[][] = [[rootNode]];
       let currentIds: number[] = [fromId];
       for (let L = depth + 1; L < levels.length && currentIds.length > 0; L++) {
         const arr = Array.isArray(levels[L]) ? levels[L] : [];
         const parentIds = currentIds;
-        const nodes = arr.filter((x) => parentIds.includes(Number(x.referrerId))).map((x: any) => ({ id: Number(x.id), displayName: String(x.displayName ?? x.id), referrerId: x.referrerId != null ? Number(x.referrerId) : null, avatarUrl: x.avatarUrl ?? null }));
+        const nodes = arr.filter((x) => parentIds.includes(Number(x.referrerId))).map((x: any) => ({ id: Number(x.id), displayName: String(x.displayName ?? x.id), referrerId: x.referrerId != null ? Number(x.referrerId) : null, avatarUrl: x.avatarUrl ?? null })).sort((a, b) => a.id - b.id);
         subtreeLevels.push(nodes);
         currentIds = nodes.map((n) => n.id);
       }
@@ -1003,14 +1001,14 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
       ensureRow(r);
       grid[r][levelIndex] = node;
       if (!expandedIds.has(node.id) || levelIndex + 1 >= levelsForDisplay.length) return r + 1;
-      const children = (levelsForDisplay[levelIndex + 1] ?? []).filter((n) => Number(n.referrerId) === node.id);
+      const children = (levelsForDisplay[levelIndex + 1] ?? []).filter((n) => Number(n.referrerId) === node.id).sort((a, b) => a.id - b.id);
       if (children.length === 0) return r + 1;
       let nextR = visit(r, levelIndex + 1, children[0]);
       for (let i = 1; i < children.length; i++) nextR = visit(nextR, levelIndex + 1, children[i]);
       return nextR;
     };
     let row = 0;
-    (levelsForDisplay[0] ?? []).forEach((node) => {
+    [...(levelsForDisplay[0] ?? [])].sort((a, b) => a.id - b.id).forEach((node) => {
       row = visit(row, 0, node);
     });
     const hasChildren = (levelIndex: number, nodeId: number) =>
@@ -1506,9 +1504,6 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
       .catch(() => setPartnerChartData([]));
   }, [section, token, partnerChartFrom, partnerChartTo, partnerChartMetric]);
 
-  useEffect(() => {
-    if (user && nickname === '' && !isEditingName) setIsEditingName(true);
-  }, [user, nickname, isEditingName]);
 
   const getTrainingQuestions = (round: TrainingRound): TrainingQuestion[] => {
     if (!trainingData) return [];
@@ -2488,7 +2483,6 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
       setBirthMonth('');
       setBirthDay('');
     }
-    setIsEditingName(false);
   };
 
   const tryGoToSection = (s: CabinetSection, financeSub?: 'topup' | 'withdraw') => {
@@ -2896,53 +2890,14 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
           </p>
           <div className="user-info-row user-info-row-name">
             <span className="user-info-label">Ник в игре:</span>
-            {isEditingName ? (
-              <>
-                <input
-                  type="text"
-                  placeholder="Введите имя"
-                  value={nameDraft}
-                  onChange={(e) => setNameDraft(e.target.value.slice(0, BRACKET_NAME_MAX_LEN))}
-                  maxLength={BRACKET_NAME_MAX_LEN}
-                  className="profile-nickname-input"
-                  autoFocus
-                />
-                <button
-                  type="button"
-                  className="profile-name-save"
-                  onClick={() => {
-                    const v = nameDraft.trim().slice(0, BRACKET_NAME_MAX_LEN);
-                    setNickname(v);
-                    setIsEditingName(false);
-                  }}
-                  title="Применить"
-                  aria-label="Применить"
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                </button>
-              </>
-            ) : (
-              <>
-                <span className="user-info-value user-info-name-value">{nickname ? nickname : (user?.username || '—')}</span>
-                <button
-                  type="button"
-                  className="profile-name-edit"
-                  onClick={() => {
-                    setNameDraft((nickname || '').slice(0, BRACKET_NAME_MAX_LEN));
-                    setIsEditingName(true);
-                  }}
-                  title="Редактировать"
-                  aria-label="Редактировать имя"
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                  </svg>
-                </button>
-              </>
-            )}
+            <input
+              type="text"
+              placeholder="Введите ник"
+              value={nickname}
+              onChange={(e) => setNickname(e.target.value.slice(0, BRACKET_NAME_MAX_LEN))}
+              maxLength={BRACKET_NAME_MAX_LEN}
+              className="profile-nickname-input"
+            />
           </div>
           <p className="user-info-row">
             <span className="user-info-label">Лига:</span>{' '}
