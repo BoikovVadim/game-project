@@ -1173,7 +1173,12 @@ export class TournamentsService {
 
         const semiResult = getMoneySemiResult(t);
         if (semiResult.result === 'incomplete') return 'Ожидание соперника';
-        if (semiResult.result === 'tie') return 'Доп. раунд';
+        if (semiResult.result === 'tie') {
+          const tbRound = semiResult.tiebreakerRound ?? 1;
+          const roundEnd = QUESTIONS_PER_ROUND + tbRound * TIEBREAKER_QUESTIONS;
+          if (answered >= roundEnd) return 'Ожидание соперника';
+          return 'Доп. раунд';
+        }
         if (semiResult.result === 'lost') return 'Поражение';
         if (semiResult.result === 'won') {
           if (!prog) return 'Этап не пройден';
@@ -1194,7 +1199,12 @@ export class TournamentsService {
 
       const semiResult = getMoneySemiResult(t);
       if (semiResult.result === 'lost') return 'Поражение';
-      if (semiResult.result === 'tie') return 'Доп. раунд';
+      if (semiResult.result === 'tie') {
+        const tbRound = semiResult.tiebreakerRound ?? 1;
+        const roundEnd = QUESTIONS_PER_ROUND + tbRound * TIEBREAKER_QUESTIONS;
+        if (answered >= roundEnd) return 'Ожидание соперника';
+        return 'Доп. раунд';
+      }
       if (semiResult.result === 'won') {
         if (!userProgress) return 'Этап не пройден';
         const mySemiTotal = semiPhaseQuestions(userProgress);
