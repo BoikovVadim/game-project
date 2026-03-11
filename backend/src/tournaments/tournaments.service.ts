@@ -910,8 +910,7 @@ export class TournamentsService {
           if (p.currentQuestionIndex > 0) {
             adjustedQ = Math.max(adjustedQ, p.currentQuestionIndex);
           }
-          // semiFinalCorrectCount заполняется при 10 ответах — явный признак пройденного этапа.
-          if (p.semiFinalCorrectCount != null && adjustedQ < QUESTIONS_PER_ROUND) {
+          if (p.semiFinalCorrectCount != null && adjustedQ < QUESTIONS_PER_ROUND && p.questionsAnsweredCount >= QUESTIONS_PER_ROUND - 2) {
             adjustedQ = Math.max(adjustedQ, QUESTIONS_PER_ROUND);
           }
         }
