@@ -5145,8 +5145,16 @@ body.partner-modal-open {
 .bracket-slot-loser .bracket-player-name,
 .bracket-slot-loser .bracket-player-score,
 .bracket-slot-loser .bracket-player-tiebreaker {
-  text-decoration: line-through;
   color: #999;
+}
+
+.bracket-winner-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: #2e7d32;
+  line-height: 1;
+  margin-bottom: 2px;
 }
 
 .bracket-final-block .bracket-player-slot {

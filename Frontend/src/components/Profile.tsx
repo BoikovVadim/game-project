@@ -4844,6 +4844,8 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                     <div className="bracket-match">
                       {[0, 1].map((i) => {
                         const p = bracketView.semi1.players[i];
+                        const opp = bracketView.semi1.players[1 - i];
+                        const isWinner = p && !p.isLoser && opp?.isLoser === true;
                         const displayName = truncateBracketName(p ? (p.nickname?.trim() || `Игрок ${p.id}`) : 'Ожидание игрока');
                         const answered = p?.questionsAnswered ?? 0;
                         const total = answered >= 10 ? 10 : answered;
@@ -4863,19 +4865,22 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                   )}
                                 </span>
                               )}
-                              {p ? (
-                                <BracketPlayerName
-                                  playerId={p.id}
-                                  displayName={displayName}
-                                  avatarUrl={pAvatar}
-                                  token={token}
-                                  isTooltipOpen={bracketPlayerTooltip?.playerId === p.id}
-                                  onShowTooltip={({ playerId: pid, displayName: dn, avatarUrl: av, stats, rect }) => setBracketPlayerTooltip({ playerId: pid, displayName: dn, avatarUrl: av, stats, rect })}
-                                  onCloseTooltip={() => setBracketPlayerTooltip(null)}
-                                />
-                              ) : (
-                                <span className="bracket-player-name">{displayName}</span>
-                              )}
+                              <span>
+                                {isWinner && <span className="bracket-winner-label">Победитель</span>}
+                                {p ? (
+                                  <BracketPlayerName
+                                    playerId={p.id}
+                                    displayName={displayName}
+                                    avatarUrl={pAvatar}
+                                    token={token}
+                                    isTooltipOpen={bracketPlayerTooltip?.playerId === p.id}
+                                    onShowTooltip={({ playerId: pid, displayName: dn, avatarUrl: av, stats, rect }) => setBracketPlayerTooltip({ playerId: pid, displayName: dn, avatarUrl: av, stats, rect })}
+                                    onCloseTooltip={() => setBracketPlayerTooltip(null)}
+                                  />
+                                ) : (
+                                  <span className="bracket-player-name">{displayName}</span>
+                                )}
+                              </span>
                             </span>
                             <span className="bracket-player-score-wrap">
                               {p && total > 0 && (
@@ -4892,6 +4897,8 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                     <div className="bracket-match">
                       {[0, 1].map((i) => {
                         const p = bracketView.semi2?.players[i];
+                        const opp = bracketView.semi2?.players[1 - i];
+                        const isWinner = p && !p.isLoser && opp?.isLoser === true;
                         const displayName = truncateBracketName(p ? (p.nickname?.trim() || `Игрок ${p.id}`) : 'Ожидание игрока');
                         const answered = p?.questionsAnswered ?? 0;
                         const total = answered >= 10 ? 10 : answered;
@@ -4911,19 +4918,22 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                   )}
                                 </span>
                               )}
-                              {p ? (
-                                <BracketPlayerName
-                                  playerId={p.id}
-                                  displayName={displayName}
-                                  avatarUrl={pAvatar}
-                                  token={token}
-                                  isTooltipOpen={bracketPlayerTooltip?.playerId === p.id}
-                                  onShowTooltip={({ playerId: pid, displayName: dn, avatarUrl: av, stats, rect }) => setBracketPlayerTooltip({ playerId: pid, displayName: dn, avatarUrl: av, stats, rect })}
-                                  onCloseTooltip={() => setBracketPlayerTooltip(null)}
-                                />
-                              ) : (
-                                <span className="bracket-player-name">{displayName}</span>
-                              )}
+                              <span>
+                                {isWinner && <span className="bracket-winner-label">Победитель</span>}
+                                {p ? (
+                                  <BracketPlayerName
+                                    playerId={p.id}
+                                    displayName={displayName}
+                                    avatarUrl={pAvatar}
+                                    token={token}
+                                    isTooltipOpen={bracketPlayerTooltip?.playerId === p.id}
+                                    onShowTooltip={({ playerId: pid, displayName: dn, avatarUrl: av, stats, rect }) => setBracketPlayerTooltip({ playerId: pid, displayName: dn, avatarUrl: av, stats, rect })}
+                                    onCloseTooltip={() => setBracketPlayerTooltip(null)}
+                                  />
+                                ) : (
+                                  <span className="bracket-player-name">{displayName}</span>
+                                )}
+                              </span>
                             </span>
                             <span className="bracket-player-score-wrap">
                               {p && total > 0 && (
@@ -4945,45 +4955,59 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                 <div className="bracket-final-block" ref={bracketFinalBlockRef}>
                   <h4>Финал</h4>
                   <div className="bracket-match">
-                    {[0, 1].map((i) => {
-                      const p = bracketView.final.players[i];
-                      const displayName = truncateBracketName(p ? (p.nickname?.trim() || `Игрок ${p.id}`) : 'Ожидание игрока');
-                      const answered = p?.finalAnswered ?? 0;
-                      const total = answered >= 10 ? 10 : answered;
-                      const correct = p?.finalScore ?? p?.finalCorrect ?? 0;
-                      const pAvatar = p && p.id === user?.id ? avatar : (p?.avatarUrl ?? null);
-                      return (
-                        <div key={p ? p.id : `f-${i}`} className={`bracket-player-slot ${!p ? 'bracket-slot-empty' : ''}`}>
-                          <span className="bracket-player-info">
-                            {p && (
-                              <span className="bracket-player-avatar">
-                                {pAvatar ? (
-                                  <img src={pAvatar} alt="" />
+                    {(() => {
+                      const fp = bracketView.final.players;
+                      const p0 = fp[0];
+                      const p1 = fp[1];
+                      const bothFinished = p0 && p1 && p0.finalScore != null && p1.finalScore != null;
+                      const finalWinnerId = bothFinished
+                        ? (p0.finalScore! > p1.finalScore! ? p0.id : p1.finalScore! > p0.finalScore! ? p1.id : null)
+                        : null;
+                      return [0, 1].map((i) => {
+                        const p = fp[i];
+                        const isWinner = p != null && finalWinnerId === p.id;
+                        const isLoser = bothFinished && p != null && finalWinnerId != null && finalWinnerId !== p.id;
+                        const displayName = truncateBracketName(p ? (p.nickname?.trim() || `Игрок ${p.id}`) : 'Ожидание игрока');
+                        const answered = p?.finalAnswered ?? 0;
+                        const total = answered >= 10 ? 10 : answered;
+                        const correct = p?.finalScore ?? p?.finalCorrect ?? 0;
+                        const pAvatar = p && p.id === user?.id ? avatar : (p?.avatarUrl ?? null);
+                        return (
+                          <div key={p ? p.id : `f-${i}`} className={`bracket-player-slot ${!p ? 'bracket-slot-empty' : ''} ${isLoser ? 'bracket-slot-loser' : ''}`}>
+                            <span className="bracket-player-info">
+                              {p && (
+                                <span className="bracket-player-avatar">
+                                  {pAvatar ? (
+                                    <img src={pAvatar} alt="" />
+                                  ) : (
+                                    <DollarIcon />
+                                  )}
+                                </span>
+                              )}
+                              <span>
+                                {isWinner && <span className="bracket-winner-label">Победитель</span>}
+                                {p ? (
+                                  <BracketPlayerName
+                                    playerId={p.id}
+                                    displayName={displayName}
+                                    avatarUrl={pAvatar}
+                                    token={token}
+                                    isTooltipOpen={bracketPlayerTooltip?.playerId === p.id}
+                                    onShowTooltip={({ playerId: pid, displayName: dn, avatarUrl: av, stats, rect }) => setBracketPlayerTooltip({ playerId: pid, displayName: dn, avatarUrl: av, stats, rect })}
+                                    onCloseTooltip={() => setBracketPlayerTooltip(null)}
+                                  />
                                 ) : (
-                                  <DollarIcon />
+                                  <span className="bracket-player-name">{displayName}</span>
                                 )}
                               </span>
+                            </span>
+                            {p && (
+                              <span className="bracket-player-score">{correct}/{total > 0 ? total : 10} ({total > 0 ? Math.round((correct / total) * 100) : 0}%)</span>
                             )}
-                            {p ? (
-                              <BracketPlayerName
-                                playerId={p.id}
-                                displayName={displayName}
-                                avatarUrl={pAvatar}
-                                token={token}
-                                isTooltipOpen={bracketPlayerTooltip?.playerId === p.id}
-                                onShowTooltip={({ playerId: pid, displayName: dn, avatarUrl: av, stats, rect }) => setBracketPlayerTooltip({ playerId: pid, displayName: dn, avatarUrl: av, stats, rect })}
-                                onCloseTooltip={() => setBracketPlayerTooltip(null)}
-                              />
-                            ) : (
-                              <span className="bracket-player-name">{displayName}</span>
-                            )}
-                          </span>
-                          {p && (
-                            <span className="bracket-player-score">{correct}/{total > 0 ? total : 10} ({total > 0 ? Math.round((correct / total) * 100) : 0}%)</span>
-                          )}
-                        </div>
-                      );
-                    })}
+                          </div>
+                        );
+                      });
+                    })()}
                   </div>
                 </div>
               </div>
