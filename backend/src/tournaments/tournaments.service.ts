@@ -1805,6 +1805,24 @@ export class TournamentsService {
     const opts = Array.isArray(options) ? [...options] : [];
     const idx = Math.max(0, Math.floor(correctAnswer));
     if (opts[idx] !== undefined && opts[idx] !== null && opts[idx] !== '') {
+      const mathVal = this.parseMathAnswer(question);
+      if (mathVal != null && mathVal >= 10 && opts.length === 4) {
+        const lastDigit = mathVal % 10;
+        const allSame = opts.every((o) => Number(o) % 10 === lastDigit);
+        if (!allSame) {
+          const correctStr = String(mathVal);
+          const newOpts: string[] = [correctStr];
+          const deltas = [-30, -20, -10, 10, 20, 30].filter((d) => mathVal + d > 0);
+          for (let i = deltas.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [deltas[i], deltas[j]] = [deltas[j]!, deltas[i]!]; }
+          deltas.forEach((d) => { if (newOpts.length < 4 && !newOpts.includes(String(mathVal + d))) newOpts.push(String(mathVal + d)); });
+          for (let m = 4; newOpts.length < 4; m++) {
+            if (mathVal + m * 10 > 0) newOpts.push(String(mathVal + m * 10));
+            else if (mathVal - m * 10 > 0) newOpts.push(String(mathVal - m * 10));
+          }
+          for (let i = newOpts.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [newOpts[i], newOpts[j]] = [newOpts[j]!, newOpts[i]!]; }
+          return { options: newOpts, correctAnswer: newOpts.indexOf(correctStr) };
+        }
+      }
       return { options: opts, correctAnswer: idx };
     }
     const correctVal = this.parseMathAnswer(question);
