@@ -3261,9 +3261,9 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                           <div className="game-history-section">
                             <div className="game-history-section-header">
                               <strong>Активные игры</strong>
-                              {gameHistory?.active?.some((t) => t.userStatus === 'not_passed') && (() => {
+                              {gameHistory?.active?.some((t) => t.userStatus === 'not_passed' && t.resultLabel !== 'Ожидание соперника') && (() => {
                                 const target = [...(gameHistory?.active ?? [])]
-                                  .filter((t) => t.userStatus === 'not_passed')
+                                  .filter((t) => t.userStatus === 'not_passed' && t.resultLabel !== 'Ожидание соперника')
                                   .sort((a, b) => a.id - b.id)[0] ?? null;
                                 if (!target) return null;
                                 return (
@@ -3654,11 +3654,10 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                             <div className="game-history-section">
                               <div className="game-history-section-header">
                                 <strong>Активные игры</strong>
-                                {gameHistory?.active?.some((t) => t.userStatus === 'not_passed') && (
+                                {gameHistory?.active?.some((t) => t.userStatus === 'not_passed' && t.resultLabel !== 'Ожидание соперника') && (
                                     (() => {
-                                    const notPassed = [...(gameHistory?.active?.filter((t) => t.userStatus === 'not_passed') ?? [])].sort((a, b) => a.id - b.id);
+                                    const notPassed = [...(gameHistory?.active?.filter((t) => t.userStatus === 'not_passed' && t.resultLabel !== 'Ожидание соперника') ?? [])].sort((a, b) => a.id - b.id);
                                     const first = notPassed[0] ?? null;
-                                    const allWaitingForOpponent = false;
                                     return (
                                       <button
                                         type="button"
@@ -3669,8 +3668,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                             setShowStartGameConfirm(true);
                                           }
                                         }}
-                                        disabled={continueTournamentLoading !== null || allWaitingForOpponent}
-                                        title={allWaitingForOpponent ? 'Все вопросы отвечены, ожидание соперника' : undefined}
+                                        disabled={continueTournamentLoading !== null}
                                       >
                                         {continueTournamentLoading !== null ? 'Загрузка...' : first ? `Продолжить игру #${first.id}` : 'Продолжить игру'}
                                       </button>
