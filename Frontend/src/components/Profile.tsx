@@ -1530,6 +1530,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   const isLastQuestion = currentQuestions.length > 0 && trainingQuestionIndex === currentQuestions.length - 1;
   const answered = answerForCurrentQuestion !== null;
   const isCorrect = currentQuestion && answerForCurrentQuestion !== null && answerForCurrentQuestion >= 0 && currentQuestion.correctAnswer === answerForCurrentQuestion;
+  const isTimedOut = answered && answerForCurrentQuestion === -1;
 
   const [, setDeadlineTick] = useState(0);
   const trainingDeadline = trainingData?.deadline;
@@ -1576,8 +1577,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     trainingTimerRef.current = setInterval(() => {
       const elapsed = (Date.now() - timerStartRef.current) / 1000;
       const remaining = Math.max(0, QUESTION_TIMER_SEC - elapsed);
-      const rounded = Math.ceil(remaining);
-      setTimeLeft(rounded);
+      setTimeLeft(remaining);
       if (remaining <= 0) {
         if (trainingTimerRef.current) clearInterval(trainingTimerRef.current);
         trainingTimerRef.current = null;
@@ -1593,7 +1593,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         });
         setBlinkKey((k) => k + 1);
       }
-    }, 200);
+    }, 50);
     return () => {
       if (trainingTimerRef.current) clearInterval(trainingTimerRef.current);
       trainingTimerRef.current = null;
@@ -3410,11 +3410,12 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                           </div>
                         ) : currentQuestion ? (
                           <div className="training-question-block" key={blinkKey}>
+                            {isTimedOut && <p className="training-timeout-msg">Вы не успели ответить на вопрос</p>}
                             <p className="training-round-label">Вопрос {trainingQuestionIndex + 1} из {currentQuestions.length}</p>
                             <p className="training-question-text">{currentQuestion.question}</p>
                             <div className="training-timer-wrap">
-                              <p className="training-timer-label">
-                                Осталось: {timeLeft} сек
+                              <p className={`training-timer-label ${timeLeft <= 1 && !answered ? 'training-timer-label--danger' : ''}`}>
+                                Осталось: {timeLeft.toFixed(2)} сек
                               </p>
                               <div className="training-timer-track">
                                 <div
@@ -3811,11 +3812,12 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                             </div>
                           ) : currentQuestion ? (
                             <div className="training-question-block" key={blinkKey}>
+                              {isTimedOut && <p className="training-timeout-msg">Вы не успели ответить на вопрос</p>}
                               <p className="training-round-label">Вопрос {trainingQuestionIndex + 1} из {currentQuestions.length}</p>
                               <p className="training-question-text">{currentQuestion.question}</p>
                               <div className="training-timer-wrap">
-                                <p className="training-timer-label">
-                                  Осталось: {timeLeft} сек
+                                <p className={`training-timer-label ${timeLeft <= 1 && !answered ? 'training-timer-label--danger' : ''}`}>
+                                  Осталось: {timeLeft.toFixed(2)} сек
                                 </p>
                                 <div className="training-timer-track">
                                   <div
