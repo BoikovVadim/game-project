@@ -184,6 +184,12 @@
   overflow-y: auto;
 }
 
+.cabinet-sidebar--locked .cabinet-menu-item {
+  opacity: 0.35;
+  pointer-events: none;
+  cursor: not-allowed;
+}
+
 .cabinet-menu-item-logout {
   margin-top: auto;
   margin-bottom: 18px;

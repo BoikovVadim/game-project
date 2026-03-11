@@ -1534,6 +1534,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   const [, setDeadlineTick] = useState(0);
   const trainingDeadline = trainingData?.deadline;
   const isForfeited = trainingDeadline ? new Date() > new Date(trainingDeadline) : false;
+  const isQuestionActive = !!currentQuestion && !answered && !trainingRoundComplete && !isForfeited && trainingRound !== null;
   const completedForfeitRef = useRef(false);
   useEffect(() => {
     if (!trainingDeadline || isForfeited) return;
@@ -2342,11 +2343,12 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
 
   return (
     <div className="cabinet" style={{ background: '#f0f0f0', minHeight: '100vh', width: '100%' }} data-page="cabinet">
-      <aside className="cabinet-sidebar" style={{ background: '#000' }}>
+      <aside className={`cabinet-sidebar ${isQuestionActive ? 'cabinet-sidebar--locked' : ''}`} style={{ background: '#000' }}>
         <button
           type="button"
           className={`cabinet-menu-item ${section === 'profile' ? 'active' : ''}`}
-          onClick={() => { saveTrainingProgress(); tryGoToSection('profile'); }}
+          onClick={() => { if (isQuestionActive) return; saveTrainingProgress(); tryGoToSection('profile'); }}
+          disabled={isQuestionActive}
           aria-label="Профиль"
         >
           <span className="cabinet-menu-icon" aria-hidden>
@@ -2360,7 +2362,8 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         <button
           type="button"
           className={`cabinet-menu-item ${section === 'statistics' ? 'active' : ''}`}
-          onClick={() => { saveTrainingProgress(); tryGoToSection('statistics'); }}
+          onClick={() => { if (isQuestionActive) return; saveTrainingProgress(); tryGoToSection('statistics'); }}
+          disabled={isQuestionActive}
           aria-label="Статистика"
         >
           <span className="cabinet-menu-icon" aria-hidden>
@@ -2376,6 +2379,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
           type="button"
           className={`cabinet-menu-item ${section === 'games' || section === 'games-training' || section === 'games-money' ? 'active' : ''}`}
           onClick={() => {
+            if (isQuestionActive) return;
             if (profileDirty && (section === null || section === 'profile')) {
               setConfirmLeave('games');
               return;
@@ -2388,6 +2392,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
             setSection('games');
             localStorage.setItem(SECTION_STORAGE_KEY, 'games');
           }}
+          disabled={isQuestionActive}
           aria-label="Игры"
         >
           <span className="cabinet-menu-icon" aria-hidden>
@@ -2404,7 +2409,8 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         <button
           type="button"
           className={`cabinet-menu-item ${section === 'finance' || section === 'finance-topup' || section === 'finance-withdraw' ? 'active' : ''}`}
-          onClick={() => { saveTrainingProgress(); tryGoToSection('finance'); }}
+          onClick={() => { if (isQuestionActive) return; saveTrainingProgress(); tryGoToSection('finance'); }}
+          disabled={isQuestionActive}
           aria-label="Финансы"
         >
           <span className="cabinet-menu-icon" aria-hidden>
@@ -2419,7 +2425,8 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         <button
           type="button"
           className={`cabinet-menu-item ${(section === 'partner' || section === 'partner-statistics') ? 'active' : ''}`}
-          onClick={() => { saveTrainingProgress(); tryGoToSection('partner'); }}
+          onClick={() => { if (isQuestionActive) return; saveTrainingProgress(); tryGoToSection('partner'); }}
+          disabled={isQuestionActive}
           aria-label="Партнерская программа"
         >
           <span className="cabinet-menu-icon" aria-hidden>
@@ -2623,7 +2630,9 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                   type="button"
                   className="cabinet-header-logout"
                   aria-label="Выход и админка"
-                  onClick={() => setLogoutDropdownOpen((v) => !v)}
+                  onClick={() => { if (isQuestionActive) return; setLogoutDropdownOpen((v) => !v); }}
+                  disabled={isQuestionActive}
+                  style={isQuestionActive ? { opacity: 0.35, pointerEvents: 'none' } : undefined}
                 >
                   <span className="cabinet-header-logout-icon" aria-hidden>
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -3435,7 +3444,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                             )}
                           </div>
                         ) : null}
-                        {!trainingRoundComplete && (
+                        {!trainingRoundComplete && !isQuestionActive && (
                           <button type="button" className="training-reset-btn" onClick={resetTraining}>
                             Выйти из турнира
                           </button>
@@ -3836,7 +3845,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                               )}
                             </div>
                           ) : null}
-                          {!trainingRoundComplete && (
+                          {!trainingRoundComplete && !isQuestionActive && (
                             <button type="button" className="training-reset-btn" onClick={() => { saveTrainingProgress(); setTrainingData(null); setTournamentJoinInfo(null); setTrainingRound(null); fetchGameHistory('money'); }}>
                               Выйти из турнира
                             </button>
