@@ -860,7 +860,13 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     const num = saved ? parseInt(saved, 10) : NaN;
     return !Number.isNaN(num) && num > 0 ? num : 5;
   });
-  const [readNewsIds, setReadNewsIds] = useState<number[]>([]);
+  const [readNewsIds, setReadNewsIds] = useState<number[]>(() => {
+    try {
+      const saved = localStorage.getItem('readNewsIds');
+      if (saved) { const arr = JSON.parse(saved); if (Array.isArray(arr)) return arr.filter((v: unknown) => typeof v === 'number'); }
+    } catch {}
+    return [];
+  });
   const [apiNews, setApiNews] = useState<{ id: number; topic: string; body: string; createdAt: string }[]>([]);
   const [allLeagues, setAllLeagues] = useState<number[]>([5, 10, 20, 50, 100, 200, 500]);
   const [allowedLeagues, setAllowedLeagues] = useState<number[]>([]);
@@ -1196,7 +1202,11 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
           if (p[2]) setBirthDay(String(Number(p[2])));
         }
         if (Array.isArray(data.readNewsIds)) {
-          setReadNewsIds(data.readNewsIds);
+          setReadNewsIds((prev) => {
+            const merged = Array.from(new Set([...prev, ...data.readNewsIds]));
+            try { localStorage.setItem('readNewsIds', JSON.stringify(merged)); } catch {}
+            return merged;
+          });
         }
       } catch (err: unknown) {
         const ax = err && typeof err === 'object' && 'isAxiosError' in err && (err as { isAxiosError?: boolean }).isAxiosError;
@@ -4937,7 +4947,9 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                   onRead={() => {
                     setReadNewsIds((prev) => {
                       if (prev.includes(item.id)) return prev;
-                      return [...prev, item.id];
+                      const next = [...prev, item.id];
+                      try { localStorage.setItem('readNewsIds', JSON.stringify(next)); } catch {}
+                      return next;
                     });
                     axios.post('/users/me/read-news', { newsId: item.id }, authHeaders).catch(() => {});
                   }}

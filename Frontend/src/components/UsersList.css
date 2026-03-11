@@ -30,7 +30,7 @@
 }
 
 .userslist-table tbody tr:hover {
-  background: #fafafa;
+  background: transparent !important;
 }
 
 @media (max-width: 640px) {

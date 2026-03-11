@@ -95,7 +95,8 @@
 
 .admin-panel .admin-header-cabinet-link:hover {
   color: #000;
-  background: #eee;
+  background: transparent !important;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .admin-panel .cabinet-header-logout-dropdown {
@@ -150,7 +151,8 @@
 }
 
 .admin-panel .cabinet-header-logout-item:hover {
-  background: #f5f5f5;
+  background: transparent !important;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .admin-panel .cabinet-header-logout {
@@ -171,7 +173,8 @@
 
 .admin-panel .cabinet-header-logout:hover {
   color: #000;
-  background: #eee;
+  background: transparent !important;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .admin-panel .cabinet-header-logout-icon {
@@ -207,8 +210,9 @@
 }
 
 .admin-menu-trigger:hover {
-  background: #f0f0f0;
+  background: transparent !important;
   border-color: #aaa;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .admin-menu-label {
@@ -269,7 +273,8 @@
 }
 
 .admin-menu-dropdown button:hover {
-  background: #f5f5f5;
+  background: transparent !important;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .admin-menu-dropdown button.active {
@@ -416,7 +421,8 @@
 }
 
 .admin-table-th-sortable:hover {
-  background: #eee;
+  background: transparent !important;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .admin-table-sort-icon {
@@ -443,7 +449,7 @@
 }
 
 .admin-table tbody tr:hover {
-  background: #fafafa;
+  background: transparent !important;
 }
 
 /* Кнопки действий — в стиле полей/имён из древа партнёрской программы */
@@ -719,7 +725,7 @@
 }
 
 .admin-support-back:hover {
-  background: rgba(201, 162, 39, 0.1);
+  background: transparent !important;
 }
 
 .admin-support-dialog-title {
@@ -1397,7 +1403,8 @@
 }
 
 .admin-news-card-actions button:hover {
-  background: #eee;
+  background: transparent !important;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .admin-news-delete-btn {
@@ -1445,7 +1452,8 @@
 }
 
 .admin-news-cancel-btn:hover {
-  background: #eee;
+  background: transparent !important;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 /* ── Delete confirmation modal ── */
@@ -1494,7 +1502,8 @@
 }
 
 .admin-modal-cancel:hover {
-  background: #e8e8e8;
+  background: transparent !important;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .admin-modal-confirm {

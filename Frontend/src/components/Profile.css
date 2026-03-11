@@ -149,7 +149,8 @@
 }
 
 .logout-confirm-cancel:hover {
-  background: #e5e5e5;
+  background: inherit;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .logout-confirm-submit {
@@ -171,7 +172,7 @@
   position: fixed;
   left: 0;
   top: 0;
-  width: clamp(56px, 3.2vw + 18px, 70px);
+  width: clamp(76px, 4.5vw + 24px, 96px);
   height: 100vh;
   background: #000;
   border-right: 1px solid #333;
@@ -181,6 +182,7 @@
   align-items: center;
   gap: clamp(6px, 0.5vw + 2px, 8px);
   z-index: 10;
+  overflow-x: hidden;
   overflow-y: auto;
 }
 
@@ -355,7 +357,7 @@
 .cabinet-menu-item--games::before {
   content: '';
   position: absolute;
-  inset: -12px;
+  inset: -6px;
   border-radius: 12px;
   background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.06) 35%, transparent 60%);
   pointer-events: none;
@@ -377,8 +379,8 @@
 .cabinet-main-wrap {
   flex: 0 0 auto;
   margin: 0 4px 4px 4px;
-  margin-left: 80px;
-  width: calc(100% - 88px);
+  margin-left: clamp(80px, 4.5vw + 28px, 100px);
+  width: calc(100% - clamp(88px, 4.5vw + 36px, 108px));
   min-width: 0;
   padding-top: 8px;
   display: flex;
@@ -458,8 +460,9 @@
 }
 
 .cabinet-header-chat:hover {
-  color: #333;
-  background: #f0f0f0;
+  color: #000;
+  background: transparent !important;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.25), 0 3px 12px rgba(0, 0, 0, 0.18);
 }
 
 .cabinet-header-chat .cabinet-header-chat-icon {
@@ -497,13 +500,15 @@
 }
 
 .cabinet-header-bell:hover {
-  color: #333;
-  background: #f0f0f0;
+  color: #000;
+  background: transparent !important;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.25), 0 3px 12px rgba(0, 0, 0, 0.18);
 }
 
 .cabinet-header-bell.active {
   color: #333;
-  background: rgba(201, 162, 39, 0.1);
+  background: transparent !important;
+  box-shadow: none;
 }
 
 .cabinet-header-bell .cabinet-header-bell-icon {
@@ -588,7 +593,7 @@
 }
 
 .cabinet-notification-item.unread {
-  background: rgba(201, 162, 39, 0.06);
+  background: rgba(0, 0, 0, 0.04);
 }
 
 .cabinet-notification-item.clickable {
@@ -596,7 +601,7 @@
 }
 
 .cabinet-notification-item.clickable:hover {
-  background: rgba(201, 162, 39, 0.1);
+  background: transparent !important;
 }
 
 .cabinet-notification-action {
@@ -644,13 +649,15 @@
 }
 
 .cabinet-header-news:hover {
-  color: #333;
-  background: #f0f0f0;
+  color: #000;
+  background: transparent !important;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.25), 0 3px 12px rgba(0, 0, 0, 0.18);
 }
 
 .cabinet-header-news.active {
   color: #333;
-  background: rgba(201, 162, 39, 0.1);
+  background: transparent !important;
+  box-shadow: none;
 }
 
 .cabinet-header-news .cabinet-header-news-icon {
@@ -836,7 +843,8 @@
 }
 
 .cabinet-balance-dropdown-item:hover {
-  background: #f5f5f5;
+  background: transparent !important;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .cabinet-header-sep {
@@ -898,7 +906,8 @@
 }
 
 .cabinet-header-logout-item:hover {
-  background: #f5f5f5;
+  background: transparent !important;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .cabinet-header-logout {
@@ -919,7 +928,8 @@
 
 .cabinet-header-logout:hover {
   color: #000;
-  background: #eee;
+  background: transparent !important;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .cabinet-header-logout-icon {
@@ -1272,7 +1282,7 @@
 }
 
 .cabinet-statistics-tab:hover {
-  background: #f0f0f0;
+  background: transparent !important;
 }
 
 .cabinet-statistics-tab--active {
@@ -1657,7 +1667,7 @@
 }
 
 .cabinet-stats-chart-filter-btn:hover {
-  background: #f0f0f0;
+  background: transparent !important;
 }
 
 .cabinet-stats-chart-filter-btn--active {
@@ -1939,11 +1949,11 @@
 .cabinet-stats-chart-table th {
   font-weight: 600;
   color: #333;
-  background: rgba(201, 162, 39, 0.08);
+  background: rgba(0, 0, 0, 0.04);
 }
 
 .cabinet-stats-chart-table tbody tr:hover {
-  background: rgba(0, 0, 0, 0.02);
+  background: transparent !important;
 }
 
 .cabinet-statistics h2.partner-section-title {
@@ -1975,7 +1985,7 @@
 }
 
 .partner-referral-link:hover {
-  background: rgba(201, 162, 39, 0.08);
+  background: transparent !important;
   border-color: var(--gold-mid, #c9a227);
   color: var(--gold-dark, #b8860b);
 }
@@ -2036,9 +2046,10 @@
 }
 
 .partner-referral-share-btn:hover {
-  background: rgba(0, 0, 0, 0.04);
+  background: transparent !important;
   border-color: #999;
   color: #333;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .partner-referral-preview {
@@ -2135,7 +2146,7 @@
 }
 
 .partner-tree-nav-btn:hover {
-  background: rgba(201, 162, 39, 0.08);
+  background: transparent !important;
   border-color: rgba(201, 162, 39, 0.4);
   color: var(--gold-mid, #c9a227);
 }
@@ -2166,7 +2177,8 @@
 
 .partner-tree-eye-btn:hover {
   color: var(--gold-mid, #c9a227);
-  background: rgba(201, 162, 39, 0.12);
+  background: transparent !important;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .partner-tree-eye-icon {
@@ -2356,8 +2368,9 @@
 }
 
 .partner-tree-expand:hover {
-  background: #ddd;
+  background: transparent !important;
   border-color: #999;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .partner-tree-count {
@@ -2400,7 +2413,7 @@
 }
 
 .partner-tree-nick-btn:hover {
-  background: rgba(184, 134, 11, 0.12);
+  background: transparent !important;
   border-color: rgba(184, 134, 11, 0.4);
 }
 
@@ -2579,8 +2592,9 @@ body.partner-modal-open {
 }
 
 .partner-detail-close:hover {
-  background: #f0f0f0;
+  background: transparent !important;
   color: #333;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .partner-detail-tree {
@@ -2678,7 +2692,7 @@ body.partner-modal-open {
 }
 
 .partner-detail-expand:hover {
-  background: rgba(184, 134, 11, 0.15);
+  background: transparent !important;
   border-color: rgba(184, 134, 11, 0.4);
 }
 
@@ -2707,7 +2721,7 @@ body.partner-modal-open {
 }
 
 .partner-detail-node--clickable:hover {
-  background: #f5f5f5;
+  background: transparent !important;
   border-color: rgba(184, 134, 11, 0.3);
 }
 
@@ -2742,7 +2756,7 @@ body.partner-modal-open {
 }
 
 .partner-tree-table tbody tr:hover td {
-  background: #f5f5f5;
+  background: transparent !important;
 }
 
 .cabinet-news {
@@ -2791,11 +2805,11 @@ body.partner-modal-open {
   cursor: pointer;
   font-family: inherit;
   text-align: left;
-  transition: background 0.15s;
+  transition: none;
 }
 
 .cabinet-news-item-header:hover {
-  background: #f5f5f5;
+  background: #fff !important;
 }
 
 .cabinet-news-item.expanded .cabinet-news-item-header {
@@ -3098,7 +3112,8 @@ body.partner-modal-open {
 }
 
 .cabinet-finance-back:hover {
-  background: rgba(0, 0, 0, 0.04);
+  background: transparent !important;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .cabinet-finance-placeholder {
@@ -3138,8 +3153,8 @@ body.partner-modal-open {
   border: 1px solid #ccc;
 }
 .cabinet-finance-btn-outline:hover {
-  background: rgba(0, 0, 0, 0.04);
-  box-shadow: none;
+  background: transparent !important;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .cabinet-withdrawal-history {
@@ -3195,7 +3210,7 @@ body.partner-modal-open {
 }
 
 .cabinet-withdrawal-table tbody tr:hover {
-  background: #fafafa;
+  background: transparent !important;
 }
 
 .cabinet-withdrawal-status-tag {
@@ -3307,7 +3322,7 @@ body.partner-modal-open {
 }
 
 .transactions-filter-preset:hover {
-  background: #eee;
+  background: transparent !important;
   color: #333;
 }
 
@@ -3317,7 +3332,7 @@ body.partner-modal-open {
 }
 
 .transactions-th-sortable:hover {
-  background: rgba(0, 0, 0, 0.06);
+  background: transparent !important;
 }
 
 .transactions-empty-filter {
@@ -3381,7 +3396,7 @@ body.partner-modal-open {
 }
 
 .transactions-table tbody tr:hover {
-  background: rgba(0, 0, 0, 0.02);
+  background: transparent !important;
 }
 
 .transactions-amount-plus {
@@ -3778,8 +3793,9 @@ body.partner-modal-open {
 }
 
 .confrontation-carousel-arrow:hover {
-  background: #e8ecf1;
+  background: transparent !important;
   border-color: #a0a4a8;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .confrontation-carousel-slide {
@@ -4581,7 +4597,7 @@ body.partner-modal-open {
 }
 
 .training-option:hover {
-  background: #f5f5f5;
+  background: transparent !important;
   box-shadow: none;
   -webkit-box-shadow: none;
   border-color: #ddd;
@@ -4658,7 +4674,8 @@ body.partner-modal-open {
 .cabinet-logout-btn:hover {
   color: #333;
   border-color: #999;
-  background: #f5f5f5;
+  background: transparent !important;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .cabinet-logout-btn-icon {
@@ -4861,7 +4878,8 @@ body.partner-modal-open {
 
 .profile-name-edit:hover {
   color: #333;
-  background: #eee;
+  background: transparent !important;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .password-section {
@@ -4950,7 +4968,8 @@ body.partner-modal-open {
 }
 
 .form-buttons button[type="button"]:hover {
-  background-color: #ddd;
+  background-color: transparent !important;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 /* Сетка турнира (бracket) */
@@ -5069,7 +5088,8 @@ body.partner-modal-open {
 }
 
 .cabinet-confirm-cancel:hover {
-  background: #e5e5e5;
+  background: transparent !important;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .cabinet-confirm-submit {

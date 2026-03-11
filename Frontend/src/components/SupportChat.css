@@ -40,7 +40,7 @@
 }
 
 .support-chat-back:hover {
-  background: rgba(201, 162, 39, 0.12);
+  background: transparent !important;
 }
 
 .support-chat-title {
@@ -85,8 +85,7 @@
 
 .support-ticket-card:hover {
   background: #fff;
-  border-color: var(--gold-dark, #c9a227);
-  box-shadow: 0 0 0 2px rgba(201, 162, 39, 0.3);
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.12);
 }
 
 .support-ticket-card-top {

@@ -84,6 +84,19 @@ export class TournamentsService {
     return deadline.toISOString();
   }
 
+  private async getLastActivityDate(tournamentId: number, fallback: Date): Promise<Date> {
+    const progressList = await this.tournamentProgressRepository.find({ where: { tournamentId } });
+    const entries = await this.tournamentEntryRepository.find({ where: { tournament: { id: tournamentId } } as any });
+    let latest = fallback;
+    for (const p of progressList) {
+      if (p.leftAt && p.leftAt > latest) latest = p.leftAt;
+    }
+    for (const e of entries) {
+      if (e.joinedAt && e.joinedAt > latest) latest = e.joinedAt;
+    }
+    return latest;
+  }
+
   @Cron(CronExpression.EVERY_MINUTE)
   async handleExpiredEscrowsCron(): Promise<void> {
     try {
@@ -256,10 +269,31 @@ export class TournamentsService {
       where: { status: TournamentStatus.WAITING, gameType: 'training' },
       relations: ['players'],
     });
+    const waitingIds = waitingTournaments.map((t) => t.id);
+    const waitingEntries = waitingIds.length > 0
+      ? await this.tournamentEntryRepository.find({ where: { tournament: { id: In(waitingIds) } } as any })
+      : [];
+    const waitingProgress = waitingIds.length > 0
+      ? await this.tournamentProgressRepository.find({ where: { tournamentId: In(waitingIds) } })
+      : [];
+    const lastActivityByTid = new Map<number, Date>();
+    for (const e of waitingEntries) {
+      const tid = (e as any).tournamentId ?? (e.tournament as any)?.id;
+      if (!tid) continue;
+      const prev = lastActivityByTid.get(tid);
+      if (!prev || e.joinedAt > prev) lastActivityByTid.set(tid, e.joinedAt);
+    }
+    for (const p of waitingProgress) {
+      if (p.leftAt) {
+        const prev = lastActivityByTid.get(p.tournamentId);
+        if (!prev || p.leftAt > prev) lastActivityByTid.set(p.tournamentId, p.leftAt);
+      }
+    }
     const waitingTournament = waitingTournaments.find((t) => {
       if (t.players.length >= 4) return false;
       if (t.players.some((p) => p.id === userId)) return false;
-      const dl = new Date(this.getDeadline(t.createdAt));
+      const from = lastActivityByTid.get(t.id) ?? t.createdAt;
+      const dl = new Date(this.getDeadline(from));
       if (dl < now) return false;
       return true;
     });
@@ -331,7 +365,7 @@ export class TournamentsService {
 
     const semiIndex = playerSlot < 2 ? 0 : 1;
     const gameStartedAt = tournament.createdAt;
-    const deadline = this.getDeadline(gameStartedAt);
+    const deadline = this.getDeadline(joinedAt);
 
     return {
       tournamentId: tournament.id,
@@ -599,11 +633,32 @@ export class TournamentsService {
       relations: ['players'],
     });
     const now = new Date();
+    const moneyWaitingIds = waitingTournaments.map((t) => t.id);
+    const moneyWaitingEntries = moneyWaitingIds.length > 0
+      ? await this.tournamentEntryRepository.find({ where: { tournament: { id: In(moneyWaitingIds) } } as any })
+      : [];
+    const moneyWaitingProgress = moneyWaitingIds.length > 0
+      ? await this.tournamentProgressRepository.find({ where: { tournamentId: In(moneyWaitingIds) } })
+      : [];
+    const moneyLastActivityByTid = new Map<number, Date>();
+    for (const e of moneyWaitingEntries) {
+      const tid = (e as any).tournamentId ?? (e.tournament as any)?.id;
+      if (!tid) continue;
+      const prev = moneyLastActivityByTid.get(tid);
+      if (!prev || e.joinedAt > prev) moneyLastActivityByTid.set(tid, e.joinedAt);
+    }
+    for (const p of moneyWaitingProgress) {
+      if (p.leftAt) {
+        const prev = moneyLastActivityByTid.get(p.tournamentId);
+        if (!prev || p.leftAt > prev) moneyLastActivityByTid.set(p.tournamentId, p.leftAt);
+      }
+    }
     const waitingTournament = waitingTournaments.find((t) => {
       if ((t.leagueAmount ?? 0) !== leagueAmount) return false;
       if (t.players.length >= 4) return false;
       if (t.players.some((p) => p.id === userId)) return false;
-      const dl = new Date(this.getDeadline(t.createdAt));
+      const from = moneyLastActivityByTid.get(t.id) ?? t.createdAt;
+      const dl = new Date(this.getDeadline(from));
       if (dl < now) return false;
       return true;
     });
@@ -738,24 +793,22 @@ export class TournamentsService {
       }
     }
 
-    // Backfill: если тренировка завершена (passed=1) И есть второй игрок — помечаем FINISHED.
-    // При одном игроке или без нажатия "Завершить турнир" — турнир остаётся в активных.
-    const finishedTrainingIds = tournaments
+    // Backfill: если турнир завершён (passed=1) И есть второй игрок — помечаем FINISHED.
+    const finishedIds = tournaments
       .filter(
         (t) =>
-          t.gameType === 'training' &&
           resultByTournamentId.get(t.id) === true &&
           (t.playerOrder?.length ?? t.players?.length ?? 0) >= 2 &&
           t.status !== TournamentStatus.FINISHED,
       )
       .map((t) => t.id);
-    if (finishedTrainingIds.length > 0) {
+    if (finishedIds.length > 0) {
       await this.tournamentRepository.update(
-        { id: In(finishedTrainingIds) },
+        { id: In(finishedIds) },
         { status: TournamentStatus.FINISHED },
       );
       for (const t of tournaments) {
-        if (finishedTrainingIds.includes(t.id)) t.status = TournamentStatus.FINISHED;
+        if (finishedIds.includes(t.id)) t.status = TournamentStatus.FINISHED;
       }
     }
 
@@ -766,16 +819,23 @@ export class TournamentsService {
         .innerJoinAndSelect('e.tournament', 't')
         .where('e.tournamentId IN (:...ids)', { ids: allIds })
         .getMany();
+      const allProgress = await this.tournamentProgressRepository
+        .createQueryBuilder('p')
+        .where('p.tournamentId IN (:...ids)', { ids: allIds })
+        .getMany();
       const tournamentByTid = new Map(tournaments.map((t) => [t.id, t]));
       for (const tid of allIds) {
-        const tournamentEntries = entries.filter((e) => e.tournament.id === tid);
-        const lastJoinedAt =
-          tournamentEntries.length > 0
-            ? tournamentEntries.reduce((max, e) => (e.joinedAt > max ? e.joinedAt : max), tournamentEntries[0]!.joinedAt)
-            : null;
         const t = tournamentByTid.get(tid);
-        const from = lastJoinedAt ?? t?.createdAt ?? new Date();
-        deadlineByTournamentId[tid] = this.getDeadline(from);
+        let latest: Date = t?.createdAt ?? new Date();
+        const tournamentEntries = entries.filter((e) => e.tournament.id === tid);
+        for (const e of tournamentEntries) {
+          if (e.joinedAt && e.joinedAt > latest) latest = e.joinedAt;
+        }
+        const tidProgress = allProgress.filter((p) => p.tournamentId === tid);
+        for (const p of tidProgress) {
+          if (p.leftAt && p.leftAt > latest) latest = p.leftAt;
+        }
+        deadlineByTournamentId[tid] = this.getDeadline(latest);
       }
     }
 
@@ -787,51 +847,20 @@ export class TournamentsService {
     const progressByTidAndUser = new Map<number, Map<number, ProgressData>>();
 
     if (allIds.length > 0) {
-      const trainingTournamentIds = tournaments.filter((t) => t.gameType === 'training').map((t) => t.id);
-      const trainingIdSet = new Set(trainingTournamentIds);
-
-      const moneyTournamentIds = tournaments.filter((t) => t.gameType === 'money').map((t) => t.id);
-      const moneyPlayerIds =
-        moneyTournamentIds.length > 0
-          ? [...new Set(tournaments.filter((t) => t.gameType === 'money').flatMap((t) => (t.players ?? []).map((p) => p.id)))]
-          : [];
-
-      const myProgressList = await this.tournamentProgressRepository.find({
-        where: { userId, tournamentId: In(allIds) },
+      const allProgressList = await this.tournamentProgressRepository.find({
+        where: { tournamentId: In(allIds) },
       });
+      let progressList = allProgressList;
+      const othersProgress = allProgressList.filter((p) => p.userId !== userId);
 
-      let progressList = myProgressList;
-      let othersProgress: TournamentProgress[] = [];
-      if (moneyTournamentIds.length > 0 && moneyPlayerIds.length > 0) {
-        othersProgress = await this.tournamentProgressRepository.find({
-          where: { userId: In(moneyPlayerIds), tournamentId: In(moneyTournamentIds) },
-        });
-        const myTids = new Set(myProgressList.map((p) => p.tournamentId));
-        progressList = [
-          ...myProgressList,
-          ...othersProgress.filter((p) => !(p.userId === userId && myTids.has(p.tournamentId))),
-        ];
-      }
-
-      if (trainingTournamentIds.length > 0) {
-        const trainingAllProgress = await this.tournamentProgressRepository.find({
-          where: { tournamentId: In(trainingTournamentIds) },
-        });
-        const have = new Set(progressList.map((p) => `${p.tournamentId}:${p.userId}`));
-        const toAdd = trainingAllProgress.filter((p) => !have.has(`${p.tournamentId}:${p.userId}`));
-        progressList = [...progressList, ...toAdd];
-        othersProgress = [...othersProgress, ...toAdd];
-      }
-
-      // Backfill для тренировок: исправляем рассинхрон 9/10 и 19/20.
-      // Также: currentQuestionIndex >= 10 значит пользователь уже в финале — полуфинал пройден.
-      if (trainingTournamentIds.length > 0) {
+      // Backfill: исправляем рассинхрон 9/10 и 19/20 для всех турниров.
+      if (allIds.length > 0) {
         await this.tournamentProgressRepository
           .createQueryBuilder()
           .update(TournamentProgress)
           .set({ questionsAnsweredCount: QUESTIONS_PER_ROUND })
           .where('userId = :userId', { userId })
-          .andWhere('tournamentId IN (:...ids)', { ids: trainingTournamentIds })
+          .andWhere('tournamentId IN (:...ids)', { ids: allIds })
           .andWhere('questionsAnsweredCount = :q', { q: QUESTIONS_PER_ROUND - 1 })
           .andWhere('currentQuestionIndex = :idx', { idx: QUESTIONS_PER_ROUND - 1 })
           .execute();
@@ -840,17 +869,16 @@ export class TournamentsService {
           .update(TournamentProgress)
           .set({ questionsAnsweredCount: 2 * QUESTIONS_PER_ROUND })
           .where('userId = :userId', { userId })
-          .andWhere('tournamentId IN (:...ids)', { ids: trainingTournamentIds })
+          .andWhere('tournamentId IN (:...ids)', { ids: allIds })
           .andWhere('questionsAnsweredCount = :q', { q: 2 * QUESTIONS_PER_ROUND - 1 })
           .andWhere('currentQuestionIndex = :idx', { idx: 2 * QUESTIONS_PER_ROUND - 1 })
           .execute();
-        // currentQuestionIndex >= 10 = уже в финале, значит все 10 полуфинала отвечены.
         await this.tournamentProgressRepository
           .createQueryBuilder()
           .update(TournamentProgress)
           .set({ questionsAnsweredCount: QUESTIONS_PER_ROUND })
           .where('userId = :userId', { userId })
-          .andWhere('tournamentId IN (:...ids)', { ids: trainingTournamentIds })
+          .andWhere('tournamentId IN (:...ids)', { ids: allIds })
           .andWhere('currentQuestionIndex >= :minIdx', { minIdx: QUESTIONS_PER_ROUND })
           .andWhere('questionsAnsweredCount < :q', { q: QUESTIONS_PER_ROUND })
           .execute();
@@ -897,7 +925,7 @@ export class TournamentsService {
 
       for (const p of progressList) {
         let adjustedQ = p.questionsAnsweredCount;
-        if (p.userId === userId && trainingIdSet.has(p.tournamentId)) {
+        if (p.userId === userId) {
           if (p.questionsAnsweredCount === QUESTIONS_PER_ROUND - 1 && p.currentQuestionIndex === QUESTIONS_PER_ROUND - 1) {
             adjustedQ = QUESTIONS_PER_ROUND;
           } else if (p.questionsAnsweredCount === 2 * QUESTIONS_PER_ROUND - 1 && p.currentQuestionIndex === 2 * QUESTIONS_PER_ROUND - 1) {
@@ -1165,52 +1193,26 @@ export class TournamentsService {
 
     /** Статусы: активные — Этап не пройден, Доп. раунд, Ожидание соперника; завершённые — Победа, Поражение. */
     const getResultLabel = (t: Tournament): string => {
-      if (t.gameType === 'training') {
-        const prog = progressByTid.get(t.id);
-        const answered = prog?.q ?? 0;
+      const prog = progressByTid.get(t.id);
+      const answered = prog?.q ?? 0;
 
-        if (answered < QUESTIONS_PER_ROUND) return 'Этап не пройден';
-
-        const semiResult = getMoneySemiResult(t);
-        if (semiResult.result === 'incomplete') return 'Ожидание соперника';
-        if (semiResult.result === 'tie') {
-          const tbRound = semiResult.tiebreakerRound ?? 1;
-          const roundEnd = QUESTIONS_PER_ROUND + tbRound * TIEBREAKER_QUESTIONS;
-          if (answered >= roundEnd) return 'Ожидание соперника';
-          return 'Доп. раунд';
-        }
-        if (semiResult.result === 'lost') return 'Поражение';
-        if (semiResult.result === 'won') {
-          if (!prog) return 'Этап не пройден';
-          const mySemiTotal = semiPhaseQuestions(prog);
-          if (answered < mySemiTotal + QUESTIONS_PER_ROUND) return 'Этап не пройден';
-          const fr = getFinalResult(t, prog);
-          if (fr === 'won') return 'Победа';
-          if (fr === 'lost') return 'Поражение';
-          if (fr === 'tie') return 'Доп. раунд';
-          return 'Ожидание соперника';
-        }
-        return 'Ожидание соперника';
-      }
-
-      const userProgress = progressByTid.get(t.id);
-      const answered = userProgress?.q ?? 0;
       if (answered < QUESTIONS_PER_ROUND) return 'Этап не пройден';
 
       const semiResult = getMoneySemiResult(t);
-      if (semiResult.result === 'lost') return 'Поражение';
+      if (semiResult.result === 'incomplete') return 'Ожидание соперника';
       if (semiResult.result === 'tie') {
         const tbRound = semiResult.tiebreakerRound ?? 1;
         const roundEnd = QUESTIONS_PER_ROUND + tbRound * TIEBREAKER_QUESTIONS;
         if (answered >= roundEnd) return 'Ожидание соперника';
         return 'Доп. раунд';
       }
+      if (semiResult.result === 'lost') return 'Поражение';
       if (semiResult.result === 'won') {
-        if (!userProgress) return 'Этап не пройден';
-        const mySemiTotal = semiPhaseQuestions(userProgress);
+        if (!prog) return 'Этап не пройден';
+        const mySemiTotal = semiPhaseQuestions(prog);
         if (answered < mySemiTotal + QUESTIONS_PER_ROUND) return 'Этап не пройден';
         if (getPlayerCount(t) < 4) return 'Ожидание соперника';
-        const fr = getFinalResult(t, userProgress);
+        const fr = getFinalResult(t, prog);
         if (fr === 'won') return 'Победа';
         if (fr === 'lost') return 'Поражение';
         if (fr === 'tie') return 'Доп. раунд';
@@ -1220,7 +1222,7 @@ export class TournamentsService {
     };
 
     const getUserStatus = (t: Tournament): 'passed' | 'not_passed' => {
-      if (t.gameType === 'training' && getPlayerCount(t) < 2) {
+      if (getPlayerCount(t) < 2) {
         const answered = progressByTid.get(t.id)?.q ?? 0;
         return answered >= QUESTIONS_PER_ROUND ? 'passed' : 'not_passed';
       }
@@ -1260,10 +1262,9 @@ export class TournamentsService {
       }
     }
 
-    // Для денег: если выиграл полуфинал — турнир и в активных (есть финал), и в истории (пройден этап).
+    // Если выиграл полуфинал — турнир и в активных (есть финал), и в истории (пройден этап).
     const moneySemiWonFinalPending = tournaments.filter(
       (t) =>
-        t.gameType === 'money' &&
         getMoneySemiResult(t).result === 'won' &&
         (progressByTid.get(t.id)?.q ?? 0) < 2 * QUESTIONS_PER_ROUND &&
         !belongsToHistory(t),
@@ -1325,15 +1326,8 @@ export class TournamentsService {
     const playerIndex = tournament.players?.findIndex((p) => p.id === userId) ?? -1;
     if (playerIndex < 0) throw new BadRequestException('You are not in this tournament');
 
-    const entries = await this.tournamentEntryRepository.find({
-      where: { tournament: { id: tournamentId } },
-    });
-    const lastJoinedAt =
-      entries.length > 0
-        ? entries.reduce((max, e) => (e.joinedAt > max ? e.joinedAt : max), entries[0]!.joinedAt)
-        : null;
-    const from = lastJoinedAt ?? tournament.createdAt ?? new Date();
-    const deadline = this.getDeadline(from);
+    const lastActivity = await this.getLastActivityDate(tournamentId, tournament.createdAt ?? new Date());
+    const deadline = this.getDeadline(lastActivity);
 
     const playerSlot = playerIndex;
     const semiIndex = playerSlot < 2 ? 0 : 1;
@@ -1346,7 +1340,7 @@ export class TournamentsService {
     let tiebreakerRound = 0;
     let tiebreakerQuestions: { id: number; question: string; options: string[]; correctAnswer: number }[] = [];
 
-    if (opponent && tournament.gameType === 'money' && progress) {
+    if (opponent && progress) {
       const oppProgress = await this.tournamentProgressRepository.findOne({
         where: { userId: opponent.id, tournamentId },
       });
@@ -1605,21 +1599,10 @@ export class TournamentsService {
     }
 
     let deadline: string;
-    if (tournament.gameType === 'money') {
-      try {
-        const entries = await this.tournamentEntryRepository.find({
-          where: { tournament: { id: tournamentId } } as any,
-        });
-        const lastJoinedAt =
-          entries.length > 0
-            ? entries.reduce((max, e) => (e.joinedAt > max ? e.joinedAt : max), entries[0]!.joinedAt)
-            : null;
-        const from = lastJoinedAt ?? tournament.createdAt ?? new Date();
-        deadline = this.getDeadline(from);
-      } catch {
-        deadline = this.getDeadline(tournament.createdAt ?? new Date());
-      }
-    } else {
+    try {
+      const lastActivity = await this.getLastActivityDate(tournamentId, tournament.createdAt ?? new Date());
+      deadline = this.getDeadline(lastActivity);
+    } catch {
       deadline = this.getDeadline(tournament.createdAt ?? new Date());
     }
 
@@ -2363,16 +2346,18 @@ export class TournamentsService {
     const entries = await this.tournamentEntryRepository.find({
       where: { tournament: { id: tournamentId } },
     });
-    const lastJoinedAt =
-      entries.length > 0
-        ? entries.reduce((max, e) => (e.joinedAt > max ? e.joinedAt : max), entries[0]!.joinedAt)
-        : null;
-    const baseDeadline = this.getDeadline(lastJoinedAt ?? tournament.createdAt ?? new Date());
-
     const players = tournament.players ?? [];
     let progressList = await this.tournamentProgressRepository.find({
       where: { tournamentId, userId: In(players.map((p) => p.id)) },
     });
+    let latestActivity: Date = tournament.createdAt ?? new Date();
+    for (const e of entries) {
+      if (e.joinedAt && e.joinedAt > latestActivity) latestActivity = e.joinedAt;
+    }
+    for (const p of progressList) {
+      if (p.leftAt && p.leftAt > latestActivity) latestActivity = p.leftAt;
+    }
+    const baseDeadline = this.getDeadline(latestActivity);
     // Backfill: если ровно 10 ответов, но semiFinalCorrectCount не установлен — восстанавливаем из correctAnswersCount.
     // При 10 ответах correctAnswersCount = верные в полуфинале. При 11+ это уже сумма полуфинал+финал — не трогаем.
     for (const p of progressList) {
@@ -2509,52 +2494,22 @@ export class TournamentsService {
       };
     };
 
-    if (tournament.gameType === 'training') {
-      const semi1Players = players.length >= 2 ? toSemiPlayers(0, 1) : players.slice(0, 2).map((p) => toPlayer(p));
-      const semi2Players = players.length >= 4 ? toSemiPlayers(2, 3) : players.length > 2 ? players.slice(2, 4).map((p) => toPlayer(p)) : [];
-      const finalPlayers: { id: number; username: string; nickname?: string | null; finalScore?: number; finalAnswered?: number; finalCorrect?: number }[] = [];
-      if (players.length >= 2) {
-        const p0 = progressByUser.get(players[0]!.id);
-        const p1 = progressByUser.get(players[1]!.id);
-        const loserIdx = getSemiLoserIndex(p0, p1);
-        if (loserIdx === 0) finalPlayers.push(enrichFinalPlayer(players[1]!, p1));
-        else if (loserIdx === 1) finalPlayers.push(enrichFinalPlayer(players[0]!, p0));
-      }
-      if (players.length >= 4) {
-        const p2 = progressByUser.get(players[2]!.id);
-        const p3 = progressByUser.get(players[3]!.id);
-        const loserIdx2 = getSemiLoserIndex(p2, p3);
-        if (loserIdx2 === 0) finalPlayers.push(enrichFinalPlayer(players[3]!, p3));
-        else if (loserIdx2 === 1) finalPlayers.push(enrichFinalPlayer(players[2]!, p2));
-      }
-      return {
-        tournamentId,
-        gameType: tournament.gameType,
-        status: tournament.status ?? 'active',
-        isCompleted,
-        isActive,
-        semi1: { players: semi1Players },
-        semi2: semi2Players.length ? { players: semi2Players } : null,
-        final: { players: finalPlayers },
-      };
-    }
-
     const semi1Players = players.length >= 2 ? toSemiPlayers(0, 1) : players.slice(0, 2).map((p) => toPlayer(p));
     const semi2Players = players.length >= 4 ? toSemiPlayers(2, 3) : players.length > 2 ? players.slice(2, 4).map((p) => toPlayer(p)) : [];
     const finalPlayers: { id: number; username: string; nickname?: string | null; finalScore?: number; finalAnswered?: number; finalCorrect?: number }[] = [];
     if (players.length >= 2) {
       const p0 = progressByUser.get(players[0]!.id);
       const p1 = progressByUser.get(players[1]!.id);
-      const loser1 = getSemiLoserIndex(p0, p1);
-      if (loser1 === 0) finalPlayers.push(enrichFinalPlayer(players[1]!, p1));
-      else if (loser1 === 1) finalPlayers.push(enrichFinalPlayer(players[0]!, p0));
+      const loserIdx = getSemiLoserIndex(p0, p1);
+      if (loserIdx === 0) finalPlayers.push(enrichFinalPlayer(players[1]!, p1));
+      else if (loserIdx === 1) finalPlayers.push(enrichFinalPlayer(players[0]!, p0));
     }
     if (players.length >= 4) {
       const p2 = progressByUser.get(players[2]!.id);
       const p3 = progressByUser.get(players[3]!.id);
-      const loser2 = getSemiLoserIndex(p2, p3);
-      if (loser2 === 0) finalPlayers.push(enrichFinalPlayer(players[3]!, p3));
-      else if (loser2 === 1) finalPlayers.push(enrichFinalPlayer(players[2]!, p2));
+      const loserIdx2 = getSemiLoserIndex(p2, p3);
+      if (loserIdx2 === 0) finalPlayers.push(enrichFinalPlayer(players[3]!, p3));
+      else if (loserIdx2 === 1) finalPlayers.push(enrichFinalPlayer(players[2]!, p2));
     }
 
     return {
