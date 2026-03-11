@@ -1217,9 +1217,19 @@ export class TournamentsService {
       return resultByTournamentId.get(t.id) === true ? 'passed' : 'not_passed';
     };
 
+    const getEffectiveDeadline = (t: Tournament): string => {
+      const base = deadlineByTournamentId[t.id] ?? this.getDeadline(t.createdAt);
+      const sr = getMoneySemiResult(t);
+      if (sr.result === 'tie' && sr.tiebreakerRound) {
+        const dl = new Date(base);
+        dl.setTime(dl.getTime() + sr.tiebreakerRound * GAME_DEADLINE_HOURS * 60 * 60 * 1000);
+        return dl.toISOString();
+      }
+      return base;
+    };
+
     const isTimeExpired = (t: Tournament): boolean => {
-      const deadline = deadlineByTournamentId[t.id] ?? this.getDeadline(t.createdAt);
-      return new Date(deadline) < now;
+      return new Date(getEffectiveDeadline(t)) < now;
     };
 
     const belongsToHistory = (t: Tournament): boolean => {
@@ -1263,7 +1273,7 @@ export class TournamentsService {
     );
 
     const activeRaw = activeTournamentsRaw.map((t) =>
-      toItem(t, deadlineByTournamentId[t.id] ?? this.getDeadline(t.createdAt), getUserStatus(t), getDisplayResultLabel(t, false)),
+      toItem(t, getEffectiveDeadline(t), getUserStatus(t), getDisplayResultLabel(t, false)),
     );
     const active = activeRaw.slice().sort((a, b) => {
       const tA = new Date(a.createdAt).getTime();
@@ -1751,6 +1761,12 @@ export class TournamentsService {
           }
         }
       }
+    }
+
+    if (semiResult === 'tie' && tiebreakerRound > 0) {
+      const dl = new Date(deadline);
+      dl.setTime(dl.getTime() + tiebreakerRound * GAME_DEADLINE_HOURS * 60 * 60 * 1000);
+      deadline = dl.toISOString();
     }
 
     return {
@@ -2333,15 +2349,7 @@ export class TournamentsService {
       entries.length > 0
         ? entries.reduce((max, e) => (e.joinedAt > max ? e.joinedAt : max), entries[0]!.joinedAt)
         : null;
-    const deadline = this.getDeadline(lastJoinedAt ?? tournament.createdAt ?? new Date());
-    const isTimeExpired = new Date(deadline) < new Date();
-    const hasWinner =
-      (await this.tournamentResultRepository.findOne({
-        where: { tournamentId, passed: 1 },
-      })) != null;
-    const isCompleted =
-      tournament.status === TournamentStatus.FINISHED || hasWinner || isTimeExpired;
-    const isActive = !isCompleted;
+    const baseDeadline = this.getDeadline(lastJoinedAt ?? tournament.createdAt ?? new Date());
 
     const players = tournament.players ?? [];
     let progressList = await this.tournamentProgressRepository.find({
@@ -2364,6 +2372,37 @@ export class TournamentsService {
       }
     }
     const progressByUser = new Map(progressList.map((p) => [p.userId, p]));
+
+    let maxTiebreakerRound = 0;
+    for (let pair = 0; pair < Math.floor(players.length / 2); pair++) {
+      const p0 = progressByUser.get(players[pair * 2]?.id);
+      const p1 = progressByUser.get(players[pair * 2 + 1]?.id);
+      const q0 = p0?.questionsAnsweredCount ?? 0;
+      const q1 = p1?.questionsAnsweredCount ?? 0;
+      if (q0 < this.QUESTIONS_PER_ROUND || q1 < this.QUESTIONS_PER_ROUND) continue;
+      const s0 = p0?.semiFinalCorrectCount ?? 0;
+      const s1 = p1?.semiFinalCorrectCount ?? 0;
+      if (s0 !== s1) continue;
+      const tb0 = p0?.tiebreakerRoundsCorrect ?? [];
+      const tb1 = p1?.tiebreakerRoundsCorrect ?? [];
+      for (let r = 1; r <= 50; r++) {
+        const roundEnd = this.QUESTIONS_PER_ROUND + r * this.TIEBREAKER_QUESTIONS;
+        if (q0 < roundEnd || q1 < roundEnd) { maxTiebreakerRound = Math.max(maxTiebreakerRound, r); break; }
+        if ((tb0[r - 1] ?? 0) !== (tb1[r - 1] ?? 0)) break;
+      }
+    }
+    let dl = new Date(baseDeadline);
+    if (maxTiebreakerRound > 0) {
+      dl = new Date(dl.getTime() + maxTiebreakerRound * GAME_DEADLINE_HOURS * 60 * 60 * 1000);
+    }
+    const isTimeExpired = dl < new Date();
+    const hasWinner =
+      (await this.tournamentResultRepository.findOne({
+        where: { tournamentId, passed: 1 },
+      })) != null;
+    const isCompleted =
+      tournament.status === TournamentStatus.FINISHED || hasWinner || isTimeExpired;
+    const isActive = !isCompleted;
 
     const toPlayer = (p: User, isLoser?: boolean) => {
       const prog = progressByUser.get(p.id);
@@ -2422,8 +2461,8 @@ export class TournamentsService {
       if (s1 > s0) return 0;
       const tb0 = prog0?.tiebreakerRoundsCorrect ?? [];
       const tb1 = prog1?.tiebreakerRoundsCorrect ?? [];
-      const R = 10;
-      const T = 5;
+      const R = this.QUESTIONS_PER_ROUND;
+      const T = this.TIEBREAKER_QUESTIONS;
       for (let r = 1; r <= 50; r++) {
         const roundEnd = R + r * T;
         if (q0 < roundEnd || q1 < roundEnd) return null;
