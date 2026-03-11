@@ -35,6 +35,7 @@ a:focus:not(:focus-visible) {
     transform: none !important;
     -webkit-tap-highlight-color: transparent !important;
     outline: none !important;
+    box-shadow: none !important;
   }
 }
 
