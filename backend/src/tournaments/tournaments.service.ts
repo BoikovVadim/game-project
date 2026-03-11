@@ -124,10 +124,13 @@ export class TournamentsService {
     if (!tournament || tournament.gameType !== 'money') return;
     this.sortPlayersByOrder(tournament);
 
-    const heldEscrows = await this.tournamentEscrowRepository.find({
-      where: { tournamentId, status: 'held' },
-    });
-    if (heldEscrows.length === 0) return;
+    // Atomic claim: only one cluster instance gets the rows
+    const claimed: { id: number; userId: number; amount: number }[] =
+      await this.tournamentEscrowRepository.query(
+        'UPDATE tournament_escrow SET status = \'processing\' WHERE "tournamentId" = $1 AND status = \'held\' RETURNING id, "userId", amount',
+        [tournamentId],
+      );
+    if (!claimed || claimed.length === 0) return;
 
     const entries = await this.tournamentEntryRepository.find({
       where: { tournament: { id: tournamentId } },
@@ -137,7 +140,13 @@ export class TournamentsService {
         ? entries.reduce((max, e) => (e.joinedAt > max ? e.joinedAt : max), entries[0]!.joinedAt)
         : tournament.createdAt ?? new Date();
     const deadline = this.getDeadline(lastJoinedAt instanceof Date ? lastJoinedAt : new Date(lastJoinedAt));
-    if (new Date(deadline) >= new Date()) return;
+    if (new Date(deadline) >= new Date()) {
+      await this.tournamentEscrowRepository.query(
+        'UPDATE tournament_escrow SET status = \'held\' WHERE "tournamentId" = $1 AND status = \'processing\'',
+        [tournamentId],
+      );
+      return;
+    }
 
     const results = await this.tournamentResultRepository.find({
       where: { tournamentId },
@@ -157,22 +166,24 @@ export class TournamentsService {
         tournamentId,
       );
       await this.usersService.distributeReferralRewards(winnerId, leagueAmount, tournamentId);
-      for (const e of heldEscrows) {
-        e.status = 'paid_to_winner';
-        await this.tournamentEscrowRepository.save(e);
-      }
+      await this.tournamentEscrowRepository.query(
+        'UPDATE tournament_escrow SET status = \'paid_to_winner\' WHERE "tournamentId" = $1 AND status = \'processing\'',
+        [tournamentId],
+      );
     } else {
-      for (const e of heldEscrows) {
+      for (const row of claimed) {
         await this.usersService.addToBalanceL(
-          e.userId,
-          e.amount,
+          row.userId,
+          row.amount,
           `${getLeagueName(leagueAmount)}, ID ${tournamentId}`,
           'refund',
           tournamentId,
         );
-        e.status = 'refunded';
-        await this.tournamentEscrowRepository.save(e);
       }
+      await this.tournamentEscrowRepository.query(
+        'UPDATE tournament_escrow SET status = \'refunded\' WHERE "tournamentId" = $1 AND status = \'processing\'',
+        [tournamentId],
+      );
     }
   }
 
