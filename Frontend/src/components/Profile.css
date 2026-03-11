@@ -4400,12 +4400,14 @@ body.partner-modal-open {
   background: rgba(34, 139, 34, 0.35) !important;
   border-color: #228b22 !important;
   color: #000 !important;
+  transition: none !important;
 }
 
 .training-option-wrong {
   background: rgba(220, 53, 69, 0.28) !important;
   border-color: #dc3545 !important;
   color: #000 !important;
+  transition: none !important;
 }
 
 .training-deadline-label {
@@ -4452,7 +4454,7 @@ body.partner-modal-open {
   cursor: pointer;
   font-size: 15px;
   min-height: 48px;
-  transition: background 0.2s, border-color 0.2s;
+  transition: background 0.2s;
   width: 100%;
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
