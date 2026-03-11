@@ -27,10 +27,23 @@ async function main() {
 
   const allProgress = await progressRepo.find();
   let fixed = 0;
+  let skippedUnreliable = 0;
 
   for (const p of allProgress) {
     const ac: number[] = Array.isArray(p.answersChosen) ? p.answersChosen : [];
     if (ac.length === 0) continue;
+
+    // Проверка надёжности answersChosen:
+    // Если все ответы одинаковые (например [0,0,0,...,0]) — скорее всего дефолт/баг записи.
+    // Такие записи НЕ пересчитываем — оставляем correctAnswersCount как есть.
+    const uniqueValues = new Set(ac.filter((v) => v >= 0));
+    if (uniqueValues.size <= 1) {
+      skippedUnreliable++;
+      console.log(
+        `SKIP T${p.tournamentId} user=${p.userId}: unreliable answersChosen (all same: ${[...uniqueValues][0] ?? 'none'}), keeping correct=${p.correctAnswersCount}, semi=${p.semiFinalCorrectCount}`,
+      );
+      continue;
+    }
 
     const tournament = await tournamentRepo.findOne({
       where: { id: p.tournamentId },
@@ -79,12 +92,12 @@ async function main() {
       await progressRepo.save(p);
       fixed++;
       console.log(
-        `T${p.tournamentId} user=${p.userId}: correct ${oldCorrect}->${total}, semi ${oldSemi}->${semi}`,
+        `FIX T${p.tournamentId} user=${p.userId}: correct ${oldCorrect}->${total}, semi ${oldSemi}->${semi}`,
       );
     }
   }
 
-  console.log(`\nDone. Fixed ${fixed} of ${allProgress.length} progress records.`);
+  console.log(`\nDone. Fixed ${fixed}, skipped unreliable ${skippedUnreliable}, total ${allProgress.length}.`);
   await ds.destroy();
 }
 
