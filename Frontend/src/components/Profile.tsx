@@ -898,6 +898,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     questionsAnsweredCount: number;
     correctAnswersCount: number;
     semiFinalCorrectCount?: number | null;
+    semiTiebreakerCorrectSum?: number;
     answersChosen: number[];
     userSemiIndex?: number;
   } | null>(null);
@@ -5033,7 +5034,8 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                 const questionsToShow = questions.slice(0, answeredInRound);
                 const countInRound = questions.length;
                 const semiCorrect = questionsReviewData.semiFinalCorrectCount ?? (n <= 10 ? questionsReviewData.correctAnswersCount : 0);
-                const finalCorrect = n > 10 ? Math.max(0, questionsReviewData.correctAnswersCount - semiCorrect) : 0;
+                const semiTBSum = questionsReviewData.semiTiebreakerCorrectSum ?? 0;
+                const finalCorrect = n > 10 ? Math.max(0, questionsReviewData.correctAnswersCount - semiCorrect - semiTBSum) : 0;
                 const correctInRound = isSemi ? semiCorrect : finalCorrect;
                 return (
                   <div className="questions-review-body">

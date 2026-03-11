@@ -1528,6 +1528,7 @@ export class TournamentsService {
     leftAt: string | null;
     correctAnswersCount: number;
     semiFinalCorrectCount: number | null;
+    semiTiebreakerCorrectSum: number;
     answersChosen: number[];
     userSemiIndex: number;
     semiResult: 'playing' | 'won' | 'lost' | 'tie' | 'waiting';
@@ -1769,6 +1770,7 @@ export class TournamentsService {
       leftAt: leftAt ? (leftAt instanceof Date ? leftAt.toISOString() : String(leftAt)) : null,
       correctAnswersCount,
       semiFinalCorrectCount,
+      semiTiebreakerCorrectSum: (progress.tiebreakerRoundsCorrect ?? []).reduce((a: number, b: number) => a + b, 0),
       answersChosen,
       userSemiIndex,
       semiResult,
@@ -2400,14 +2402,17 @@ export class TournamentsService {
 
     const enrichFinalPlayer = (
       pl: User,
-      prog: { questionsAnsweredCount?: number; correctAnswersCount?: number; semiFinalCorrectCount?: number | null } | undefined,
+      prog: TournamentProgress | undefined,
     ) => {
       const q = prog?.questionsAnsweredCount ?? 0;
       const semiCorrect = prog?.semiFinalCorrectCount ?? 0;
       const totalCorrect = prog?.correctAnswersCount ?? 0;
-      const finalAnswered = q > 10 ? Math.min(10, q - 10) : 0;
-      const finalCorrect = q > 10 ? (totalCorrect - semiCorrect) : 0;
-      const finalScore = q >= 20 ? finalCorrect : undefined;
+      const semiTBRounds: number[] = (prog as any)?.tiebreakerRoundsCorrect ?? [];
+      const semiTBSum = semiTBRounds.reduce((a: number, b: number) => a + b, 0);
+      const semiPhase = this.QUESTIONS_PER_ROUND + semiTBRounds.length * this.TIEBREAKER_QUESTIONS;
+      const finalAnswered = q > semiPhase ? Math.min(this.QUESTIONS_PER_ROUND, q - semiPhase) : 0;
+      const finalCorrect = q > semiPhase ? Math.max(0, totalCorrect - semiCorrect - semiTBSum) : 0;
+      const finalScore = q >= semiPhase + this.QUESTIONS_PER_ROUND ? finalCorrect : undefined;
       return {
         id: pl.id,
         username: pl.username ?? 'Игрок',
@@ -2426,12 +2431,9 @@ export class TournamentsService {
       if (players.length >= 2) {
         const p0 = progressByUser.get(players[0]!.id);
         const p1 = progressByUser.get(players[1]!.id);
-        const s0 = p0?.semiFinalCorrectCount ?? 0;
-        const s1 = p1?.semiFinalCorrectCount ?? 0;
-        if (p0 && p1 && (p0.questionsAnsweredCount ?? 0) >= 10 && (p1.questionsAnsweredCount ?? 0) >= 10) {
-          if (s0 > s1) finalPlayers.push(enrichFinalPlayer(players[0]!, p0));
-          else if (s1 > s0) finalPlayers.push(enrichFinalPlayer(players[1]!, p1));
-        }
+        const loserIdx = getSemiLoserIndex(p0, p1);
+        if (loserIdx === 0) finalPlayers.push(enrichFinalPlayer(players[1]!, p1));
+        else if (loserIdx === 1) finalPlayers.push(enrichFinalPlayer(players[0]!, p0));
       }
       return {
         tournamentId,
@@ -2450,26 +2452,12 @@ export class TournamentsService {
     const finalPlayers: { id: number; username: string; nickname?: string | null; finalScore?: number; finalAnswered?: number; finalCorrect?: number }[] = [];
     if (players.length >= 4) {
       const [p0, p1, p2, p3] = [0, 1, 2, 3].map((i) => progressByUser.get(players[i]!.id));
-      const [s0, s1, s2, s3] = [
-        p0?.semiFinalCorrectCount ?? 0,
-        p1?.semiFinalCorrectCount ?? 0,
-        p2?.semiFinalCorrectCount ?? 0,
-        p3?.semiFinalCorrectCount ?? 0,
-      ];
-      const q0 = p0?.questionsAnsweredCount ?? 0;
-      const q1 = p1?.questionsAnsweredCount ?? 0;
-      const q2 = p2?.questionsAnsweredCount ?? 0;
-      const q3 = p3?.questionsAnsweredCount ?? 0;
-      if (q0 >= 10 && q1 >= 10 && s0 !== s1) {
-        const winner = s0 > s1 ? players[0]! : players[1]!;
-        const prog = s0 > s1 ? p0 : p1;
-        finalPlayers.push(enrichFinalPlayer(winner, prog));
-      }
-      if (q2 >= 10 && q3 >= 10 && s2 !== s3) {
-        const winner = s2 > s3 ? players[2]! : players[3]!;
-        const prog = s2 > s3 ? p2 : p3;
-        finalPlayers.push(enrichFinalPlayer(winner, prog));
-      }
+      const loser1 = getSemiLoserIndex(p0, p1);
+      if (loser1 === 0) finalPlayers.push(enrichFinalPlayer(players[1]!, p1));
+      else if (loser1 === 1) finalPlayers.push(enrichFinalPlayer(players[0]!, p0));
+      const loser2 = getSemiLoserIndex(p2, p3);
+      if (loser2 === 0) finalPlayers.push(enrichFinalPlayer(players[3]!, p3));
+      else if (loser2 === 1) finalPlayers.push(enrichFinalPlayer(players[2]!, p2));
     }
 
     return {
