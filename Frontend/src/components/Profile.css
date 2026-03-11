@@ -3471,15 +3471,13 @@ body.partner-modal-open {
   background-repeat: no-repeat;
   overflow: hidden;
   color: #fff;
+  -webkit-touch-callout: none !important;
+  -webkit-user-select: none !important;
+  user-select: none !important;
+  touch-action: manipulation;
 }
 
 .game-mode-card-training {
-  background-image: url('../assets/game-training-bg.png');
-  background-size: cover;
-  background-position: center;
-}
-
-.game-mode-card-training:hover {
   background-image: url('../assets/game-training-bg.png');
   background-size: cover;
   background-position: center;
@@ -3491,17 +3489,19 @@ body.partner-modal-open {
   background-position: center;
 }
 
-.game-mode-card-tournament:hover {
-  background-image: url('../assets/game-tournament-bg.png');
-  background-size: cover;
-  background-position: center;
-}
-
 .game-mode-card-overlay {
   position: absolute;
   inset: 0;
   background: linear-gradient(to top, rgba(0, 0, 0, 0.75) 0%, rgba(0, 0, 0, 0.4) 50%, rgba(0, 0, 0, 0.3) 100%);
   pointer-events: none;
+  -webkit-touch-callout: none !important;
+}
+
+.game-mode-card *,
+.game-mode-card img {
+  -webkit-touch-callout: none !important;
+  -webkit-user-select: none !important;
+  user-select: none !important;
 }
 
 .game-mode-card .game-mode-title,
