@@ -2457,11 +2457,16 @@ export class TournamentsService {
     const semi1Players = players.length >= 2 ? toSemiPlayers(0, 1) : players.slice(0, 2).map((p) => toPlayer(p));
     const semi2Players = players.length >= 4 ? toSemiPlayers(2, 3) : players.length > 2 ? players.slice(2, 4).map((p) => toPlayer(p)) : [];
     const finalPlayers: { id: number; username: string; nickname?: string | null; finalScore?: number; finalAnswered?: number; finalCorrect?: number }[] = [];
-    if (players.length >= 4) {
-      const [p0, p1, p2, p3] = [0, 1, 2, 3].map((i) => progressByUser.get(players[i]!.id));
+    if (players.length >= 2) {
+      const p0 = progressByUser.get(players[0]!.id);
+      const p1 = progressByUser.get(players[1]!.id);
       const loser1 = getSemiLoserIndex(p0, p1);
       if (loser1 === 0) finalPlayers.push(enrichFinalPlayer(players[1]!, p1));
       else if (loser1 === 1) finalPlayers.push(enrichFinalPlayer(players[0]!, p0));
+    }
+    if (players.length >= 4) {
+      const p2 = progressByUser.get(players[2]!.id);
+      const p3 = progressByUser.get(players[3]!.id);
       const loser2 = getSemiLoserIndex(p2, p3);
       if (loser2 === 0) finalPlayers.push(enrichFinalPlayer(players[3]!, p3));
       else if (loser2 === 1) finalPlayers.push(enrichFinalPlayer(players[2]!, p2));
