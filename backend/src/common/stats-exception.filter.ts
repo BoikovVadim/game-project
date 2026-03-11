@@ -54,7 +54,8 @@ export class StatsExceptionFilter implements ExceptionFilter {
       return;
     }
 
-    this.logger.error(`Unhandled exception: ${String(exception)}`);
+    const stack = exception instanceof Error ? exception.stack : String(exception);
+    this.logger.error(`Unhandled exception on ${request.method} ${request.url}: ${stack}`);
     response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       statusCode: 500,
       message: 'Internal server error',
