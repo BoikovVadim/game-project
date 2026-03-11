@@ -4882,9 +4882,6 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                               {p && total > 0 && (
                                 <span className="bracket-player-score">{correct}/{total} ({Math.round((correct / total) * 100)}%)</span>
                               )}
-                              {p && tbRound > 0 && (
-                                <span className="bracket-player-tiebreaker">+ Доп.{tbRound > 1 ? ` ${tbRound}` : ''}: {tbAnswered}/10</span>
-                              )}
                             </span>
                           </div>
                         );
@@ -4932,9 +4929,6 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                             <span className="bracket-player-score-wrap">
                               {p && total > 0 && (
                                 <span className="bracket-player-score">{correct}/{total} ({Math.round((correct / total) * 100)}%)</span>
-                              )}
-                              {p && tbRound > 0 && (
-                                <span className="bracket-player-tiebreaker">+ Доп.{tbRound > 1 ? ` ${tbRound}` : ''}: {tbAnswered}/10</span>
                               )}
                             </span>
                           </div>
