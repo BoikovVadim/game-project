@@ -1176,15 +1176,13 @@ export class TournamentsService {
         if (semiResult.result === 'tie') return 'Доп. раунд';
         if (semiResult.result === 'lost') return 'Поражение';
         if (semiResult.result === 'won') {
-          if (!prog) return 'Ожидание соперника';
+          if (!prog) return 'Этап не пройден';
           const mySemiTotal = semiPhaseQuestions(prog);
-          if (answered >= mySemiTotal + QUESTIONS_PER_ROUND) {
-            const fr = getFinalResult(t, prog);
-            if (fr === 'won') return 'Победа';
-            if (fr === 'lost') return 'Поражение';
-            if (fr === 'tie') return 'Доп. раунд';
-            return 'Ожидание соперника';
-          }
+          if (answered < mySemiTotal + QUESTIONS_PER_ROUND) return 'Этап не пройден';
+          const fr = getFinalResult(t, prog);
+          if (fr === 'won') return 'Победа';
+          if (fr === 'lost') return 'Поражение';
+          if (fr === 'tie') return 'Доп. раунд';
           return 'Ожидание соперника';
         }
         return 'Ожидание соперника';
@@ -1198,9 +1196,9 @@ export class TournamentsService {
       if (semiResult.result === 'lost') return 'Поражение';
       if (semiResult.result === 'tie') return 'Доп. раунд';
       if (semiResult.result === 'won') {
-        if (!userProgress) return 'Ожидание соперника';
+        if (!userProgress) return 'Этап не пройден';
         const mySemiTotal = semiPhaseQuestions(userProgress);
-        if (answered < mySemiTotal + QUESTIONS_PER_ROUND) return 'Ожидание соперника';
+        if (answered < mySemiTotal + QUESTIONS_PER_ROUND) return 'Этап не пройден';
         if (getPlayerCount(t) < 4) return 'Ожидание соперника';
         const fr = getFinalResult(t, userProgress);
         if (fr === 'won') return 'Победа';
