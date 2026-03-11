@@ -5052,11 +5052,13 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                           const correctIdx = Number(q.correctAnswer);
                           return (
                             <div key={q.id ?? globalIndex} className="questions-review-question">
-                              <p className="questions-review-question-text">
-                                <span className="questions-review-question-id">ID: {q.id ?? '—'}</span>
-                                {' '}{idx + 1}. {q.question}
+                              <div className="questions-review-question-header">
+                                <p className="questions-review-question-text">
+                                  <span className="questions-review-question-id">ID: {q.id ?? '—'}</span>
+                                  {' '}{idx + 1}. {q.question}
+                                </p>
                                 {playerChoice === -1 && <span className="questions-review-no-answer-badge">Нет ответа</span>}
-                              </p>
+                              </div>
                               <ul className="questions-review-options">
                                 {q.options.map((opt, oi) => (
                                   <li
