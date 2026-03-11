@@ -3504,11 +3504,6 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                             <p>
                               Вы ответили на {trainingRoundScores[trainingRoundScores.length - 1]} из {currentQuestions.length} вопросов верно.
                             </p>
-                            {trainingRound === 2 && (
-                              <button type="button" className="training-next-round-btn" style={{ marginBottom: 8, background: '#27ae60' }} onClick={goNextRound}>
-                                Завершить турнир
-                              </button>
-                            )}
                             {trainingRound === 3 && (
                               <button type="button" className="training-next-round-btn" style={{ marginBottom: 8, background: '#2980b9' }} onClick={goNextRound}>
                                 Завершить доп. раунд
@@ -3914,11 +3909,6 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                               <p>
                                 Вы ответили на {trainingRoundScores[trainingRoundScores.length - 1]} из {currentQuestions.length} вопросов верно.
                               </p>
-                              {trainingRound === 2 && (
-                                <button type="button" className="training-next-round-btn" style={{ marginBottom: 8, background: '#27ae60' }} onClick={goNextRound}>
-                                  Завершить турнир
-                                </button>
-                              )}
                               {trainingRound === 3 && (
                                 <button type="button" className="training-next-round-btn" style={{ marginBottom: 8, background: '#2980b9' }} onClick={goNextRound}>
                                   Завершить доп. раунд
