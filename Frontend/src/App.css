@@ -13,6 +13,7 @@ html {
 button, a, input, select, textarea, [role="button"], label, div[onclick] {
   -webkit-tap-highlight-color: transparent !important;
   -webkit-touch-callout: none;
+  touch-action: manipulation;
 }
 
 button:focus:not(:focus-visible),
@@ -23,6 +24,17 @@ a:focus:not(:focus-visible) {
 @media (hover: none) and (pointer: coarse) {
   *:hover {
     -webkit-tap-highlight-color: transparent !important;
+  }
+
+  button,
+  a,
+  [role="button"],
+  input,
+  select,
+  textarea,
+  label {
+    transition-duration: 0s !important;
+    transition-delay: 0s !important;
   }
 
   button:hover,

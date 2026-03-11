@@ -1653,7 +1653,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     } else {
       setQuestionCooldown(true);
       if (questionCooldownRef.current) clearTimeout(questionCooldownRef.current);
-      questionCooldownRef.current = setTimeout(() => setQuestionCooldown(false), 400);
+      questionCooldownRef.current = setTimeout(() => setQuestionCooldown(false), 150);
       setTrainingQuestionIndex((i) => i + 1);
       setAnswerForCurrentQuestion(null);
       timeLeftRef.current = QUESTION_TIMER_SEC;
