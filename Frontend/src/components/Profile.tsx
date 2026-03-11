@@ -1946,6 +1946,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         tiebreakerPhase?: 'semi' | 'final' | null;
         questionsAnsweredCount: number;
         currentQuestionIndex: number;
+        lockedAnswerCount?: number;
         timeLeftSeconds: number | null;
         leftAt: string | null;
         correctAnswersCount: number;
@@ -1978,7 +1979,9 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
       completedForfeitRef.current = false;
       const ac = data.answersChosen ?? [];
       setFullAnswersChosen(ac);
-      const cur = data.currentQuestionIndex ?? data.questionsAnsweredCount ?? 0;
+      const rawCur = data.currentQuestionIndex ?? data.questionsAnsweredCount ?? 0;
+      const lac = data.lockedAnswerCount ?? 0;
+      const cur = lac > 0 ? Math.min(rawCur, lac + 1) : rawCur;
       const sr = data.semiResult;
       const tbPhase = data.tiebreakerPhase;
       const tbQuestions = data.questionsTiebreaker ?? [];
@@ -2022,12 +2025,20 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
           setTrainingRoundScores([semiScore, finalScore]);
           setTrainingRoundComplete(true);
         }
-      } else if (sr === 'waiting' || (cur >= 10 && (!data.questionsFinal || data.questionsFinal.length === 0))) {
+      } else if (sr === 'waiting' || sr === 'lost' || (cur >= 10 && (!data.questionsFinal || data.questionsFinal.length === 0) && sr !== 'tie')) {
         setContinueTrainingLoading(null);
         addNotification({
           type: 'game_status',
           title: sr === 'lost' ? 'Полуфинал завершён' : 'Ожидание соперника',
           text: sr === 'lost' ? 'К сожалению, соперник набрал больше баллов.' : 'Вы завершили полуфинал. Ожидайте, пока соперник ответит на все вопросы.',
+        });
+        return;
+      } else if (sr === 'tie' && cur >= 10) {
+        setContinueTrainingLoading(null);
+        addNotification({
+          type: 'game_status',
+          title: 'Доп. раунд',
+          text: 'Ничья в полуфинале. Ожидайте формирование вопросов доп. раунда.',
         });
         return;
       } else {
@@ -2210,10 +2221,31 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
           tiebreakerPhase: (trainData as any).tiebreakerPhase ?? null,
         });
         completedForfeitRef.current = false;
-        const cur = trainData.currentQuestionIndex ?? trainData.questionsAnsweredCount ?? 0;
+        const rawCur2 = trainData.currentQuestionIndex ?? trainData.questionsAnsweredCount ?? 0;
+        const lac2 = (trainData as any).lockedAnswerCount ?? 0;
+        const cur = lac2 > 0 ? Math.min(rawCur2, lac2 + 1) : rawCur2;
         const semiIdx = data.semiIndex ?? 0;
         const sr = trainData.semiResult;
-        if (cur < 10) {
+        const tbPhase2 = (trainData as any).tiebreakerPhase ?? null;
+        const tbQuestions2: TrainingQuestion[] = (trainData as any).questionsTiebreaker ?? [];
+        const tbBase2: number = (trainData as any).tiebreakerBase ?? 0;
+        if (sr === 'tie' && tbQuestions2.length > 0) {
+          setTiebreakerBase(tbBase2);
+          setTrainingRound(3);
+          const indexInTB = Math.max(0, cur - tbBase2);
+          setTrainingQuestionIndex(Math.min(indexInTB, tbQuestions2.length));
+          setTrainingAnswers(indexInTB > 0 ? ac.slice(tbBase2, tbBase2 + indexInTB) : []);
+          setTrainingRoundScores([]);
+          setTrainingRoundComplete(indexInTB >= tbQuestions2.length);
+        } else if (sr === 'won' && tbPhase2 === 'final' && tbQuestions2.length > 0) {
+          setTiebreakerBase(tbBase2);
+          setTrainingRound(3);
+          const indexInTB = Math.max(0, cur - tbBase2);
+          setTrainingQuestionIndex(Math.min(indexInTB, tbQuestions2.length));
+          setTrainingAnswers(indexInTB > 0 ? ac.slice(tbBase2, tbBase2 + indexInTB) : []);
+          setTrainingRoundScores([]);
+          setTrainingRoundComplete(indexInTB >= tbQuestions2.length);
+        } else if (cur < 10) {
           setTrainingRound(semiIdx === 0 ? 0 : 1);
           setTrainingQuestionIndex(cur);
           setTrainingAnswers(ac.length >= cur ? ac.slice(0, cur) : [...ac, ...Array(Math.max(0, cur - ac.length)).fill(-1)]);
@@ -2236,6 +2268,14 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
             setTrainingRoundScores([semiScore, finalScore]);
             setTrainingRoundComplete(true);
           }
+        } else if (sr === 'waiting' || (cur >= 10 && (!trainData.questionsFinal || trainData.questionsFinal.length === 0) && sr !== 'tie')) {
+          setContinueTournamentLoading(null);
+          addNotification({
+            type: 'game_status',
+            title: sr === 'lost' ? 'Полуфинал завершён' : 'Ожидание соперника',
+            text: sr === 'lost' ? 'К сожалению, соперник набрал больше баллов.' : 'Вы завершили полуфинал. Ожидайте, пока соперник ответит на все вопросы.',
+          });
+          return;
         } else {
           setTrainingRound(semiIdx === 0 ? 0 : 1);
           setTrainingQuestionIndex(Math.min(cur, 10));

@@ -1522,6 +1522,7 @@ export class TournamentsService {
     tiebreakerPhase: 'semi' | 'final' | null;
     questionsAnsweredCount: number;
     currentQuestionIndex: number;
+    lockedAnswerCount: number;
     timeLeftSeconds: number | null;
     leftAt: string | null;
     correctAnswersCount: number;
@@ -1764,6 +1765,7 @@ export class TournamentsService {
       tiebreakerPhase,
       questionsAnsweredCount,
       currentQuestionIndex,
+      lockedAnswerCount: progress?.lockedAnswerCount ?? 0,
       timeLeftSeconds,
       leftAt: leftAt ? (leftAt instanceof Date ? leftAt.toISOString() : String(leftAt)) : null,
       correctAnswersCount,
@@ -2017,8 +2019,8 @@ export class TournamentsService {
     this.sortPlayersByOrder(tournament);
     const isPlayer = tournament.players?.some((p) => p.id === userId);
     if (!isPlayer) throw new BadRequestException('You are not in this tournament');
-    const safeCount = Math.max(0, Math.floor(count));
-    const safeCurrent = currentIndex !== undefined ? Math.max(0, Math.min(259, Math.floor(currentIndex))) : safeCount;
+    let safeCount = Math.max(0, Math.floor(count));
+    let safeCurrent = currentIndex !== undefined ? Math.max(0, Math.min(259, Math.floor(currentIndex))) : safeCount;
     const safeTimeLeft = timeLeft !== undefined ? Math.max(0, Math.min(5, Math.floor(timeLeft))) : null;
 
     const chosenToSave = normalizedChosen.slice(0, Math.max(safeCount, normalizedChosen.length));
@@ -2035,6 +2037,13 @@ export class TournamentsService {
         if (i < prevChosen.length) {
           chosenToSave[i] = prevChosen[i];
         }
+      }
+
+      // Prevent pre-save inflation: non-final saves can advance at most 1 beyond locked answers
+      if (!answerFinal && locked > 0) {
+        const cap = locked + 1;
+        if (safeCount > cap) safeCount = cap;
+        if (safeCurrent > cap) safeCurrent = cap;
       }
     }
 
