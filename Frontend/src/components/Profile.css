@@ -3740,9 +3740,9 @@ body.partner-modal-open {
 
 .confrontation-league-carousel-block {
   margin-bottom: clamp(14px, 1.5vw, 24px);
-  overflow: hidden;
+  overflow: visible;
   width: 100%;
-  max-width: clamp(400px, 40vw + 80px, 700px);
+  max-width: clamp(420px, 55vw + 50px, 900px);
   align-self: center;
 }
 
@@ -3755,17 +3755,13 @@ body.partner-modal-open {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0;
+  gap: clamp(4px, 0.5vw, 8px);
   margin-bottom: 12px;
-  max-width: 100%;
   position: relative;
-  padding: 0 clamp(32px, 3.5vw, 44px);
 }
 
 .confrontation-carousel-arrow {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
+  flex-shrink: 0;
   width: clamp(28px, 2.5vw + 8px, 48px);
   height: clamp(28px, 2.5vw + 8px, 48px);
   font-size: clamp(16px, 1.5vw + 4px, 28px);
@@ -3781,29 +3777,17 @@ body.partner-modal-open {
   z-index: 5;
 }
 
-.confrontation-carousel-prev {
-  left: 0;
-}
-
-.confrontation-carousel-next {
-  right: 0;
-}
-
 .confrontation-carousel-arrow:hover {
   background: #e8ecf1;
   border-color: #a0a4a8;
 }
 
 .confrontation-carousel-slide {
-  flex: 1;
   display: flex;
   justify-content: center;
   align-items: center;
-  min-width: 0;
-  overflow: hidden;
+  overflow: visible;
   position: relative;
-  padding: 0;
-  z-index: 1;
 }
 
 .confrontation-carousel-slide .confrontation-carousel-card {
@@ -3814,28 +3798,28 @@ body.partner-modal-open {
 }
 
 .confrontation-carousel-slide .confrontation-carousel-card-prev {
-  transform: scale(0.5) translateX(35%);
-  filter: brightness(0.5);
+  transform: scale(0.7);
+  filter: brightness(0.55);
   z-index: 0;
-  margin-right: clamp(-60px, -5vw, -30px);
+  margin-right: clamp(-210px, -11vw - 20px, -90px);
 }
 
 .confrontation-carousel-slide .confrontation-carousel-card-next {
-  transform: scale(0.5) translateX(-35%);
-  filter: brightness(0.5);
+  transform: scale(0.7);
+  filter: brightness(0.55);
   z-index: 0;
-  margin-left: clamp(-60px, -5vw, -30px);
+  margin-left: clamp(-210px, -11vw - 20px, -90px);
 }
 
 .confrontation-carousel-slide .confrontation-carousel-card-center {
   transform: scale(1);
   z-index: 2;
+  position: relative;
 }
 
 .confrontation-carousel-slide .confrontation-carousel-card-prev:hover,
 .confrontation-carousel-slide .confrontation-carousel-card-next:hover {
   filter: brightness(0.7);
-  z-index: 3;
 }
 
 .confrontation-league-conditions-top {
@@ -6415,14 +6399,14 @@ button.bracket-player-name-btn:active {
   }
 
   .confrontation-carousel-slide .confrontation-carousel-card {
-    width: clamp(150px, 45vw, 220px);
-    min-height: clamp(75px, 22vw, 110px);
+    width: clamp(140px, 40vw, 200px);
+    min-height: clamp(70px, 20vw, 100px);
   }
   .confrontation-carousel-slide .confrontation-carousel-card-prev {
-    margin-right: -50px;
+    margin-right: clamp(-100px, -20vw, -70px);
   }
   .confrontation-carousel-slide .confrontation-carousel-card-next {
-    margin-left: -50px;
+    margin-left: clamp(-100px, -20vw, -70px);
   }
 
   .logout-confirm-box {
