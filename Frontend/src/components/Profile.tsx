@@ -3541,8 +3541,8 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                               <div className="training-timer-track">
                                 <div
                                   key={timerKey}
-                                  className={`training-timer-fill ${timerPaused ? 'training-timer-fill--paused' : ''} ${isTimedOut ? 'training-timer-fill--empty' : ''}`}
-                                  style={isTimedOut ? { width: 0, animation: 'none', background: 'transparent' } : { animationDuration: `${QUESTION_TIMER_SEC}s` }}
+                                  className={`training-timer-fill ${isTimedOut ? 'training-timer-fill--empty' : ''}`}
+                                  style={isTimedOut ? { width: 0, animation: 'none', background: 'transparent' } : timerPaused ? { width: `${(timeLeft / QUESTION_TIMER_SEC) * 100}%`, animation: 'none' } : { animationDuration: `${QUESTION_TIMER_SEC}s` }}
                                 />
                               </div>
                             </div>
@@ -3551,7 +3551,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                 <button
                                   key={`${trainingQuestionIndex}-${idx}`}
                                   type="button"
-                                  className={`training-option ${questionCooldown ? 'training-option-cooldown' : ''} ${answered && currentQuestion.correctAnswer === idx ? 'training-option-correct training-blink-3' : ''} ${answered && !isCorrect && answerForCurrentQuestion === idx ? 'training-option-wrong' : ''}`}
+                                  className={`training-option ${questionCooldown ? 'training-option-cooldown' : ''} ${answered && currentQuestion.correctAnswer === idx ? 'training-option-correct' : ''} ${answered && answerForCurrentQuestion === idx && isCorrect ? 'training-option-correct' : ''} ${answered && answerForCurrentQuestion === idx && !isCorrect ? 'training-option-wrong' : ''} ${answered && !isCorrect && currentQuestion.correctAnswer === idx ? 'training-option-correct training-blink-3' : ''}`}
                                   onClick={() => chooseTrainingAnswer(idx)}
                                   disabled={answered || questionCooldown}
                                 >
@@ -3951,8 +3951,8 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                 <div className="training-timer-track">
                                   <div
                                     key={timerKey}
-                                    className={`training-timer-fill ${timerPaused ? 'training-timer-fill--paused' : ''} ${isTimedOut ? 'training-timer-fill--empty' : ''}`}
-                                    style={isTimedOut ? { width: 0, animation: 'none', background: 'transparent' } : { animationDuration: `${QUESTION_TIMER_SEC}s` }}
+                                    className={`training-timer-fill ${isTimedOut ? 'training-timer-fill--empty' : ''}`}
+                                    style={isTimedOut ? { width: 0, animation: 'none', background: 'transparent' } : timerPaused ? { width: `${(timeLeft / QUESTION_TIMER_SEC) * 100}%`, animation: 'none' } : { animationDuration: `${QUESTION_TIMER_SEC}s` }}
                                   />
                                 </div>
                               </div>
@@ -3961,7 +3961,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                   <button
                                     key={`${trainingQuestionIndex}-${idx}`}
                                     type="button"
-                                    className={`training-option ${questionCooldown ? 'training-option-cooldown' : ''} ${answered && currentQuestion.correctAnswer === idx ? 'training-option-correct training-blink-3' : ''} ${answered && !isCorrect && answerForCurrentQuestion === idx ? 'training-option-wrong' : ''}`}
+                                    className={`training-option ${questionCooldown ? 'training-option-cooldown' : ''} ${answered && currentQuestion.correctAnswer === idx ? 'training-option-correct' : ''} ${answered && answerForCurrentQuestion === idx && isCorrect ? 'training-option-correct' : ''} ${answered && answerForCurrentQuestion === idx && !isCorrect ? 'training-option-wrong' : ''} ${answered && !isCorrect && currentQuestion.correctAnswer === idx ? 'training-option-correct training-blink-3' : ''}`}
                                     onClick={() => chooseTrainingAnswer(idx)}
                                     disabled={answered || questionCooldown}
                                   >

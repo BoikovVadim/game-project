@@ -4507,10 +4507,6 @@ body.partner-modal-open {
   animation: timer-shrink linear forwards;
 }
 
-.training-timer-fill--paused {
-  animation-play-state: paused;
-}
-
 .training-timer-fill--empty {
   width: 0% !important;
   animation: none !important;
@@ -4608,14 +4604,30 @@ body.partner-modal-open {
   border-color: #ddd;
   filter: none;
 }
-.training-option:focus,
-.training-option:focus-visible,
-.training-option:focus-within {
+.training-option:focus:not(.training-option-correct):not(.training-option-wrong),
+.training-option:focus-visible:not(.training-option-correct):not(.training-option-wrong),
+.training-option:focus-within:not(.training-option-correct):not(.training-option-wrong) {
   outline: none !important;
   box-shadow: none !important;
   -webkit-box-shadow: none !important;
   border-color: #ddd !important;
   background: #fff !important;
+}
+.training-option.training-option-correct:focus,
+.training-option.training-option-correct:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  -webkit-box-shadow: none !important;
+  background: rgba(34, 139, 34, 0.35) !important;
+  border-color: #228b22 !important;
+}
+.training-option.training-option-wrong:focus,
+.training-option.training-option-wrong:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  -webkit-box-shadow: none !important;
+  background: rgba(220, 53, 69, 0.28) !important;
+  border-color: #dc3545 !important;
 }
 .training-option:active:not(.training-option-correct):not(.training-option-wrong) {
   outline: none !important;
