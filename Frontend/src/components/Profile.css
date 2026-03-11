@@ -4520,7 +4520,9 @@ body.partner-modal-open {
 }
 
 /* Прохождение вопросов: только 2 цвета — верно (зелёный), неверно (красный), без бейджа */
-.training-option-correct {
+.training-option.training-option-correct,
+.training-option.training-option-correct:hover,
+.training-option.training-option-correct:active {
   background: rgba(34, 139, 34, 0.35) !important;
   border-color: #228b22 !important;
   color: #000 !important;
@@ -4530,7 +4532,9 @@ body.partner-modal-open {
   filter: none !important;
 }
 
-.training-option-wrong {
+.training-option.training-option-wrong,
+.training-option.training-option-wrong:hover,
+.training-option.training-option-wrong:active {
   background: rgba(220, 53, 69, 0.28) !important;
   border-color: #dc3545 !important;
   color: #000 !important;
@@ -4597,7 +4601,7 @@ body.partner-modal-open {
   -webkit-box-shadow: none;
 }
 
-.training-option:hover {
+.training-option:hover:not(.training-option-correct):not(.training-option-wrong) {
   background: transparent !important;
   box-shadow: none;
   -webkit-box-shadow: none;
