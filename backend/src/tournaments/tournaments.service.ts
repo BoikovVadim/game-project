@@ -1986,8 +1986,9 @@ export class TournamentsService {
       order: { roundIndex: 'ASC', id: 'ASC' },
     });
     const semiQuestions = questions.filter((q) => q.roundIndex === semiRoundIndex);
-    const postSemiQuestions = questions.filter((q) => q.roundIndex >= 2).sort((a, b) => a.roundIndex - b.roundIndex || a.id - b.id);
-    const playerQuestions = [...semiQuestions, ...postSemiQuestions];
+    const tiebreakerQuestions = questions.filter((q) => q.roundIndex >= 3).sort((a, b) => a.roundIndex - b.roundIndex || a.id - b.id);
+    const finalQuestions = questions.filter((q) => q.roundIndex === 2).sort((a, b) => a.id - b.id);
+    const playerQuestions = [...semiQuestions, ...tiebreakerQuestions, ...finalQuestions];
     let total = 0;
     let semi = 0;
     for (let i = 0; i < answersChosen.length && i < playerQuestions.length; i++) {
