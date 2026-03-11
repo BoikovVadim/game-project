@@ -3710,10 +3710,10 @@ body.partner-modal-open {
 .training-start-btn {
   display: block;
   width: 100%;
-  max-width: clamp(200px, 19vw + 52px, 280px);
+  max-width: clamp(200px, 25vw + 40px, 420px);
   margin: 0 auto;
-  padding: clamp(8px, 0.9vw + 1px, 12px) clamp(16px, 1.9vw + 1px, 24px);
-  font-size: clamp(13px, 0.7vw + 8px, 16px);
+  padding: clamp(10px, 1vw + 2px, 18px) clamp(16px, 2vw, 32px);
+  font-size: clamp(14px, 0.8vw + 8px, 20px);
   font-weight: 600;
   background: var(--gold-gradient);
   color: #fff;
@@ -3739,10 +3739,10 @@ body.partner-modal-open {
 }
 
 .confrontation-league-carousel-block {
-  margin-bottom: 20px;
+  margin-bottom: clamp(14px, 1.5vw, 24px);
   overflow: hidden;
   width: 100%;
-  max-width: 520px;
+  max-width: clamp(400px, 40vw + 80px, 700px);
   align-self: center;
 }
 
@@ -3766,9 +3766,9 @@ body.partner-modal-open {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  width: clamp(28px, 3vw, 40px);
-  height: clamp(28px, 3vw, 40px);
-  font-size: clamp(16px, 1.8vw, 24px);
+  width: clamp(28px, 2.5vw + 8px, 48px);
+  height: clamp(28px, 2.5vw + 8px, 48px);
+  font-size: clamp(16px, 1.5vw + 4px, 28px);
   line-height: 1;
   display: flex;
   align-items: center;
@@ -3808,8 +3808,8 @@ body.partner-modal-open {
 
 .confrontation-carousel-slide .confrontation-carousel-card {
   flex-shrink: 0;
-  width: clamp(180px, 18vw + 40px, 300px);
-  min-height: clamp(90px, 9vw + 20px, 150px);
+  width: clamp(180px, 22vw + 40px, 420px);
+  min-height: clamp(90px, 11vw + 20px, 210px);
   transition: transform 0.25s ease, filter 0.25s ease, z-index 0.25s, box-shadow 0.3s ease;
 }
 
@@ -3840,16 +3840,16 @@ body.partner-modal-open {
 
 .confrontation-league-conditions-top {
   margin: 0 0 clamp(11px, 1.2vw + 2px, 16px);
-  padding: clamp(6px, 0.5vw + 2px, 8px) clamp(10px, 0.9vw + 3px, 14px) clamp(7px, 0.7vw + 2px, 10px);
+  padding: clamp(8px, 0.7vw + 3px, 14px) clamp(12px, 1.2vw + 4px, 22px) clamp(8px, 0.7vw + 3px, 14px);
   background: #fff8e6;
   border: 1px solid #e6d9a8;
   border-radius: 8px;
   color: #664d00;
-  font-size: 11px;
+  font-size: clamp(11px, 0.6vw + 6px, 14px);
   text-align: left;
   min-height: 80px;
   width: 100%;
-  max-width: 520px;
+  max-width: clamp(400px, 40vw + 80px, 700px);
   box-sizing: border-box;
   align-self: center;
   display: flex;
@@ -3902,11 +3902,11 @@ body.partner-modal-open {
 .confrontation-carousel-card {
   display: block;
   position: relative;
-  width: clamp(200px, 22vw + 40px, 340px);
-  min-height: clamp(100px, 11vw + 20px, 170px);
+  width: clamp(200px, 22vw + 40px, 420px);
+  min-height: clamp(100px, 11vw + 20px, 210px);
   max-width: 100%;
   border: none;
-  border-radius: 12px;
+  border-radius: clamp(8px, 0.8vw, 14px);
   cursor: pointer;
   overflow: hidden;
   outline: none;
@@ -3969,30 +3969,30 @@ body.partner-modal-open {
 }
 
 .confrontation-carousel-name {
-  font-size: clamp(14px, 1.4vw, 20px);
+  font-size: clamp(14px, 1.6vw + 2px, 26px);
   font-weight: 700;
-  margin-bottom: 4px;
+  margin-bottom: clamp(2px, 0.3vw, 6px);
 }
 
 .confrontation-carousel-online {
-  font-size: clamp(11px, 1vw, 14px);
+  font-size: clamp(11px, 1.1vw + 1px, 18px);
   opacity: 0.9;
 }
 
 .confrontation-carousel-cost-prize {
   text-align: center;
-  margin: 4px 0 4px;
+  margin: clamp(4px, 0.5vw, 10px) 0 clamp(4px, 0.5vw, 10px);
   padding: 0 16px;
 }
 
 .confrontation-carousel-cost-prize .confrontation-carousel-cost {
-  font-size: clamp(13px, 1.2vw, 17px);
+  font-size: clamp(13px, 1.2vw + 2px, 20px);
   color: #555;
-  margin-bottom: 4px;
+  margin-bottom: clamp(2px, 0.3vw, 6px);
 }
 
 .confrontation-carousel-cost-prize .confrontation-carousel-prize {
-  font-size: clamp(13px, 1.1vw, 16px);
+  font-size: clamp(13px, 1.2vw + 2px, 20px);
   color: #2a7;
   font-weight: 600;
 }
@@ -4000,14 +4000,14 @@ body.partner-modal-open {
 .confrontation-carousel-dots {
   display: flex;
   justify-content: center;
-  gap: 6px;
+  gap: clamp(4px, 0.4vw, 8px);
   flex-wrap: wrap;
-  margin-bottom: 4px;
+  margin-bottom: clamp(4px, 0.4vw, 8px);
 }
 
 .confrontation-carousel-dot {
-  width: 8px;
-  height: 8px;
+  width: clamp(6px, 0.5vw + 3px, 12px);
+  height: clamp(6px, 0.5vw + 3px, 12px);
   border-radius: 50%;
   background: #c8cbcf;
   border: none;
@@ -4062,10 +4062,10 @@ body.partner-modal-open {
 .confrontation-start-btn {
   display: block;
   width: 100%;
-  max-width: clamp(220px, 22vw + 40px, 320px);
-  margin: -40px auto 0;
-  padding: clamp(10px, 1vw, 14px) clamp(16px, 2vw, 28px);
-  font-size: clamp(13px, 0.7vw + 8px, 16px);
+  max-width: clamp(220px, 25vw + 40px, 420px);
+  margin: clamp(-30px, -2vw, -10px) auto 0;
+  padding: clamp(10px, 1vw + 2px, 18px) clamp(16px, 2vw, 32px);
+  font-size: clamp(14px, 0.8vw + 8px, 20px);
   font-weight: 600;
   background: var(--gold-gradient);
   color: #fff;
