@@ -88,7 +88,7 @@ body {
   flex: 1;
   width: 100%;
   box-sizing: border-box;
-  padding: 0 16px;
+  padding: 0 clamp(11px, 1.2vw + 2px, 16px);
   background-color: #f0f0f0;
   min-height: 60vh;
 }
@@ -109,12 +109,12 @@ body {
 }
 
 nav {
-  margin-bottom: 20px;
+  margin-bottom: clamp(14px, 1.4vw + 3px, 20px);
   width: 100%;
   display: flex;
   justify-content: flex-end;
   align-items: center;
-  gap: 8px;
+  gap: clamp(6px, 0.5vw + 2px, 8px);
 }
 
 .App.cabinet-open > nav,
@@ -153,14 +153,14 @@ nav a:hover, nav button:hover {
 form {
   display: flex;
   flex-direction: column;
-  max-width: 300px;
+  max-width: clamp(220px, 19vw + 72px, 300px);
   width: 100%;
   margin: 0 auto;
 }
 
 input {
-  margin-bottom: 10px;
-  padding: 8px;
+  margin-bottom: clamp(7px, 0.7vw + 2px, 10px);
+  padding: clamp(6px, 0.5vw + 2px, 8px);
   border-radius: 8px;
   border: 1px solid #ddd;
   transition: box-shadow 0.3s ease;
@@ -176,7 +176,7 @@ input:hover {
 }
 
 button {
-  padding: 10px;
+  padding: clamp(7px, 0.7vw + 2px, 10px);
   background: var(--gold-gradient);
   color: #fff;
   border: none;

@@ -1,75 +1,75 @@
 .offer-page {
-  max-width: 860px;
+  max-width: clamp(640px, 51vw + 248px, 860px);
   margin: 0 auto;
-  padding: 32px 24px 60px;
+  padding: clamp(20px, 2.8vw + 2px, 32px) clamp(16px, 1.9vw + 1px, 24px) clamp(40px, 4.6vw + 16px, 60px);
 }
 
 .offer-container {
   background: #fff;
   border-radius: 16px;
-  padding: 40px 36px;
+  padding: clamp(28px, 2.8vw + 6px, 40px) clamp(24px, 2.8vw + 2px, 36px);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
 }
 
 .offer-container h1 {
-  font-size: 24px;
+  font-size: clamp(18px, 1.4vw + 7px, 24px);
   font-weight: 700;
   color: #222;
-  margin: 0 0 8px;
+  margin: 0 0 clamp(6px, 0.5vw + 2px, 8px);
   text-align: center;
 }
 
 .offer-date {
   text-align: center;
   color: #888;
-  font-size: 13px;
-  margin: 0 0 32px;
+  font-size: clamp(11px, 0.5vw + 7px, 13px);
+  margin: 0 0 clamp(20px, 2.8vw + 2px, 32px);
 }
 
 .offer-container section {
-  margin-bottom: 28px;
+  margin-bottom: clamp(18px, 2.3vw, 28px);
 }
 
 .offer-container h2 {
-  font-size: 17px;
+  font-size: clamp(14px, 0.7vw + 9px, 17px);
   font-weight: 600;
   color: #333;
-  margin: 0 0 12px;
+  margin: 0 0 clamp(8px, 0.9vw + 1px, 12px);
   padding-bottom: 6px;
   border-bottom: 1px solid #eee;
 }
 
 .offer-container p {
-  font-size: 14px;
+  font-size: clamp(11px, 0.7vw + 6px, 14px);
   line-height: 1.65;
   color: #444;
-  margin: 0 0 8px;
+  margin: 0 0 clamp(6px, 0.5vw + 2px, 8px);
   text-align: justify;
   word-break: break-word;
   overflow-wrap: break-word;
 }
 
 .offer-container ul {
-  margin: 8px 0 12px;
-  padding-left: 24px;
+  margin: clamp(6px, 0.5vw + 2px, 8px) 0 clamp(8px, 0.9vw + 1px, 12px);
+  padding-left: clamp(16px, 1.9vw + 1px, 24px);
 }
 
 .offer-container li {
-  font-size: 14px;
+  font-size: clamp(11px, 0.7vw + 6px, 14px);
   line-height: 1.65;
   color: #444;
   margin-bottom: 4px;
 }
 
 .offer-back {
-  margin-top: 32px;
+  margin-top: clamp(20px, 2.8vw + 2px, 32px);
   text-align: center;
 }
 
 .offer-back a {
   color: #1a73e8;
   text-decoration: none;
-  font-size: 14px;
+  font-size: clamp(11px, 0.7vw + 6px, 14px);
   font-weight: 500;
 }
 
