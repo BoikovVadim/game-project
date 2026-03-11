@@ -5109,8 +5109,8 @@ body.partner-modal-open {
 
 .bracket-semi-block {
   padding: clamp(10px, 0.9vw + 3px, 14px) clamp(11px, 1.2vw + 2px, 16px);
-  background: #f0f2f5;
-  border: 2px solid #c8cbcf;
+  background: #f5f0e0;
+  border: 2px solid #c9a227;
   border-radius: 8px;
   min-height: clamp(50px, 4.6vw + 2px, 70px);
   min-width: clamp(160px, 9.3vw + 48px, 200px);
@@ -5123,20 +5123,21 @@ body.partner-modal-open {
 }
 
 .bracket-semi-1 {
-  border-color: #a8b4c0;
-  background: #e8ecf1;
+  border-color: #c9a227;
+  background: #faf6e8;
 }
 
 .bracket-semi-2 {
-  border-color: #a8b4c0;
-  background: #e8ecf1;
+  border-color: #c9a227;
+  background: #faf6e8;
 }
 
 .bracket-semi-block h4 {
   margin: 0 0 clamp(7px, 0.7vw + 2px, 10px);
   font-size: clamp(11px, 0.5vw + 7px, 13px);
   font-weight: 600;
-  color: #445;
+  color: #7a5c1a;
+  text-align: center;
 }
 
 .bracket-connector {
@@ -5192,13 +5193,15 @@ body.partner-modal-open {
 .bracket-player-slot {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: clamp(6px, 0.5vw + 2px, 8px) clamp(8px, 0.9vw + 1px, 12px);
+  align-items: center;
+  gap: 2px;
+  padding: clamp(8px, 0.7vw + 2px, 10px) clamp(8px, 0.9vw + 1px, 12px);
   background: #fff;
-  border-radius: 4px;
+  border-radius: 6px;
   border: 1px solid #d0d0d0;
   font-size: clamp(11px, 0.5vw + 7px, 13px);
   min-width: 0;
+  text-align: center;
 }
 
 .bracket-player-slot.bracket-slot-empty {
@@ -5226,17 +5229,21 @@ body.partner-modal-open {
 .bracket-winner-label {
   display: block;
   font-size: clamp(10px, 0.4vw + 6px, 11px);
-  font-weight: 600;
+  font-weight: 700;
   color: #2e7d32;
   line-height: 1;
-  margin-bottom: 2px;
+  margin-bottom: 1px;
+  text-align: center;
+  letter-spacing: 0.02em;
 }
 
+.bracket-semi-block .bracket-player-slot,
 .bracket-final-block .bracket-player-slot {
   border-color: #d4c48a;
   background: #fffef5;
 }
 
+.bracket-semi-block .bracket-player-slot.bracket-slot-empty,
 .bracket-final-block .bracket-player-slot.bracket-slot-empty {
   background: #faf8ef;
   border-color: #d4c48a;
@@ -5244,8 +5251,9 @@ body.partner-modal-open {
 
 .bracket-player-info {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: clamp(6px, 0.5vw + 2px, 8px);
+  gap: 4px;
   min-width: 0;
 }
 
@@ -5285,6 +5293,7 @@ body.partner-modal-open {
   color: #333;
   word-break: keep-all;
   overflow-wrap: break-word;
+  text-align: center;
 }
 
 .bracket-player-name--hoverable {
@@ -5414,12 +5423,13 @@ button.bracket-player-name-btn:active {
 .bracket-player-score-wrap {
   display: flex;
   flex-direction: column;
-  padding-left: clamp(28px, 1.9vw + 5px, 36px);
+  align-items: center;
 }
 .bracket-player-score {
   font-size: clamp(10px, 0.5vw + 6px, 12px);
   color: #666;
   white-space: nowrap;
+  text-align: center;
 }
 .bracket-player-tiebreaker {
   font-size: clamp(10px, 0.4vw + 6px, 11px);
@@ -6343,7 +6353,7 @@ button.bracket-player-name-btn:active {
   }
 
   .bracket-player-score-wrap {
-    padding-left: 34px;
+    padding-left: 0;
   }
   .bracket-player-score {
     font-size: 11px;

@@ -4868,24 +4868,20 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                   )}
                                 </span>
                               )}
-                              <span>
-                                {isWinner && <span className="bracket-winner-label">Победитель</span>}
-                                {p ? (
-                                  <BracketPlayerName
-                                    playerId={p.id}
-                                    displayName={displayName}
-                                    avatarUrl={pAvatar}
-                                    token={token}
-                                    isTooltipOpen={bracketPlayerTooltip?.playerId === p.id}
-                                    onShowTooltip={({ playerId: pid, displayName: dn, avatarUrl: av, stats, rect }) => setBracketPlayerTooltip({ playerId: pid, displayName: dn, avatarUrl: av, stats, rect })}
-                                    onCloseTooltip={() => setBracketPlayerTooltip(null)}
-                                  />
-                                ) : (
-                                  <span className="bracket-player-name">{displayName}</span>
-                                )}
-                              </span>
-                            </span>
-                            <span className="bracket-player-score-wrap">
+                              {isWinner && <span className="bracket-winner-label">Победитель</span>}
+                              {p ? (
+                                <BracketPlayerName
+                                  playerId={p.id}
+                                  displayName={displayName}
+                                  avatarUrl={pAvatar}
+                                  token={token}
+                                  isTooltipOpen={bracketPlayerTooltip?.playerId === p.id}
+                                  onShowTooltip={({ playerId: pid, displayName: dn, avatarUrl: av, stats, rect }) => setBracketPlayerTooltip({ playerId: pid, displayName: dn, avatarUrl: av, stats, rect })}
+                                  onCloseTooltip={() => setBracketPlayerTooltip(null)}
+                                />
+                              ) : (
+                                <span className="bracket-player-name">{displayName}</span>
+                              )}
                               {p && total > 0 && (
                                 <span className="bracket-player-score">{correct}/{total} ({Math.round((correct / total) * 100)}%)</span>
                               )}
@@ -4921,24 +4917,20 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                   )}
                                 </span>
                               )}
-                              <span>
-                                {isWinner && <span className="bracket-winner-label">Победитель</span>}
-                                {p ? (
-                                  <BracketPlayerName
-                                    playerId={p.id}
-                                    displayName={displayName}
-                                    avatarUrl={pAvatar}
-                                    token={token}
-                                    isTooltipOpen={bracketPlayerTooltip?.playerId === p.id}
-                                    onShowTooltip={({ playerId: pid, displayName: dn, avatarUrl: av, stats, rect }) => setBracketPlayerTooltip({ playerId: pid, displayName: dn, avatarUrl: av, stats, rect })}
-                                    onCloseTooltip={() => setBracketPlayerTooltip(null)}
-                                  />
-                                ) : (
-                                  <span className="bracket-player-name">{displayName}</span>
-                                )}
-                              </span>
-                            </span>
-                            <span className="bracket-player-score-wrap">
+                              {isWinner && <span className="bracket-winner-label">Победитель</span>}
+                              {p ? (
+                                <BracketPlayerName
+                                  playerId={p.id}
+                                  displayName={displayName}
+                                  avatarUrl={pAvatar}
+                                  token={token}
+                                  isTooltipOpen={bracketPlayerTooltip?.playerId === p.id}
+                                  onShowTooltip={({ playerId: pid, displayName: dn, avatarUrl: av, stats, rect }) => setBracketPlayerTooltip({ playerId: pid, displayName: dn, avatarUrl: av, stats, rect })}
+                                  onCloseTooltip={() => setBracketPlayerTooltip(null)}
+                                />
+                              ) : (
+                                <span className="bracket-player-name">{displayName}</span>
+                              )}
                               {p && total > 0 && (
                                 <span className="bracket-player-score">{correct}/{total} ({Math.round((correct / total) * 100)}%)</span>
                               )}
@@ -4987,26 +4979,24 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                   )}
                                 </span>
                               )}
-                              <span>
-                                {isWinner && <span className="bracket-winner-label">Победитель</span>}
-                                {p ? (
-                                  <BracketPlayerName
-                                    playerId={p.id}
-                                    displayName={displayName}
-                                    avatarUrl={pAvatar}
-                                    token={token}
-                                    isTooltipOpen={bracketPlayerTooltip?.playerId === p.id}
-                                    onShowTooltip={({ playerId: pid, displayName: dn, avatarUrl: av, stats, rect }) => setBracketPlayerTooltip({ playerId: pid, displayName: dn, avatarUrl: av, stats, rect })}
-                                    onCloseTooltip={() => setBracketPlayerTooltip(null)}
-                                  />
-                                ) : (
-                                  <span className="bracket-player-name">{displayName}</span>
-                                )}
-                              </span>
+                              {isWinner && <span className="bracket-winner-label">Победитель</span>}
+                              {p ? (
+                                <BracketPlayerName
+                                  playerId={p.id}
+                                  displayName={displayName}
+                                  avatarUrl={pAvatar}
+                                  token={token}
+                                  isTooltipOpen={bracketPlayerTooltip?.playerId === p.id}
+                                  onShowTooltip={({ playerId: pid, displayName: dn, avatarUrl: av, stats, rect }) => setBracketPlayerTooltip({ playerId: pid, displayName: dn, avatarUrl: av, stats, rect })}
+                                  onCloseTooltip={() => setBracketPlayerTooltip(null)}
+                                />
+                              ) : (
+                                <span className="bracket-player-name">{displayName}</span>
+                              )}
+                              {p && (
+                                <span className="bracket-player-score">{correct}/{total > 0 ? total : 10} ({total > 0 ? Math.round((correct / total) * 100) : 0}%)</span>
+                              )}
                             </span>
-                            {p && (
-                              <span className="bracket-player-score">{correct}/{total > 0 ? total : 10} ({total > 0 ? Math.round((correct / total) * 100) : 0}%)</span>
-                            )}
                           </div>
                         );
                       });
