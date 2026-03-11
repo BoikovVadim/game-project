@@ -24,28 +24,15 @@ function shuffle<T>(arr: T[]): T[] {
 
 function mathOpts(ans: number): string[] {
   const opts = new Set<number>([ans]);
-
-  if (ans >= 10) {
-    const pool = shuffle([-30, -20, -10, 10, 20, 30].filter((d) => ans + d > 0));
-    for (const d of pool) {
-      if (opts.size >= 4) break;
-      opts.add(ans + d);
-    }
-    for (let m = 4; opts.size < 4; m++) {
-      if (ans + m * 10 > 0) opts.add(ans + m * 10);
-      if (opts.size < 4 && ans - m * 10 > 0) opts.add(ans - m * 10);
-    }
-  } else {
-    const nearby = shuffle([-3, -2, -1, 1, 2, 3].filter((d) => ans + d > 0));
-    for (const d of nearby) {
-      if (opts.size >= 4) break;
-      opts.add(ans + d);
-    }
-    for (let k = 4; opts.size < 4; k++) {
-      if (!opts.has(ans + k)) opts.add(ans + k);
-    }
+  const pool = shuffle([-30, -20, -10, 10, 20, 30].filter((d) => ans + d > 0));
+  for (const d of pool) {
+    if (opts.size >= 4) break;
+    opts.add(ans + d);
   }
-
+  for (let m = 4; opts.size < 4; m++) {
+    if (ans + m * 10 > 0) opts.add(ans + m * 10);
+    if (opts.size < 4 && ans - m * 10 > 0) opts.add(ans - m * 10);
+  }
   return shuffle([...opts].map(String));
 }
 
@@ -74,7 +61,7 @@ function buildMath(): QuestionItem[] {
     push(`Сколько будет ${a} × ${b}?`, mathOpts(ans), ans);
   }
   for (let i = 0; i < 65; i++) {
-    const d = rnd(2, 99), q = rnd(2, 99), a = d * q;
+    const d = rnd(2, 99), q = rnd(10, 99), a = d * q;
     if (a < 100 || a > 999) continue;
     push(`Сколько будет ${a} ÷ ${d}?`, mathOpts(q), q);
   }
