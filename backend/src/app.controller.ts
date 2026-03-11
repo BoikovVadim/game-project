@@ -17,6 +17,9 @@ function sendIndex(res: Response): void {
     );
     return;
   }
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
   res.sendFile(INDEX_PATH, (err) => {
     if (err && !res.headersSent) {
       res.status(500).type('text/plain').send('Ошибка отдачи index.html');
