@@ -82,6 +82,14 @@ const LEAGUE_IMAGES: Record<number, string> = {
   1000000: '/leagues/league-almaz.png',
 };
 
+// Предзагрузка всех изображений лиг — при переключении карусели не будет мигания
+(() => {
+  Object.values(LEAGUE_IMAGES).forEach((src) => {
+    const img = new Image();
+    img.src = src;
+  });
+})();
+
 /** Выигрыш победителя: 4 игрока × ставка − 20% с каждого из 3 проигравших = 3.4 × ставка L */
 function getLeaguePrize(stake: number): number {
   return Math.round(3.4 * stake);
