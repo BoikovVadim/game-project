@@ -1257,7 +1257,8 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   useEffect(() => {
     const inGamesSection = section === 'games' || section === 'games-training' || section === 'games-money';
     if (inGamesSection && token && (gameMode === 'training' || gameMode === 'money')) {
-      const currentId = gameMode === 'training' ? trainingData?.tournamentId : undefined;
+      const dlOk = trainingData?.deadline ? new Date() < new Date(trainingData.deadline) : false;
+      const currentId = gameMode === 'training' && dlOk ? trainingData?.tournamentId : undefined;
       fetchGameHistory(gameMode, currentId);
     }
   }, [section, token, gameMode, fetchGameHistory, trainingData?.tournamentId]);
@@ -3380,7 +3381,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                               <strong>Активные игры</strong>
                               {gameHistory?.active?.some((t) => t.userStatus === 'not_passed') && (() => {
                                 const target = [...(gameHistory?.active ?? [])]
-                                  .filter((t) => t.userStatus === 'not_passed' && t.resultLabel !== 'Ожидание соперника')
+                                  .filter((t) => t.userStatus === 'not_passed' && t.resultLabel !== 'Ожидание соперника' && t.resultLabel !== 'Время истекло' && (!t.deadline || new Date(t.deadline) > new Date()))
                                   .sort((a, b) => a.id - b.id)[0] ?? null;
                                 const canContinue = target != null;
                                 return (
@@ -3780,7 +3781,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                 <strong>Активные игры</strong>
                                 {gameHistory?.active?.some((t) => t.userStatus === 'not_passed') && (
                                     (() => {
-                                    const notPassed = [...(gameHistory?.active?.filter((t) => t.userStatus === 'not_passed' && t.resultLabel !== 'Ожидание соперника') ?? [])].sort((a, b) => a.id - b.id);
+                                    const notPassed = [...(gameHistory?.active?.filter((t) => t.userStatus === 'not_passed' && t.resultLabel !== 'Ожидание соперника' && t.resultLabel !== 'Время истекло' && (!t.deadline || new Date(t.deadline) > new Date())) ?? [])].sort((a, b) => a.id - b.id);
                                     const first = notPassed[0] ?? null;
                                     const canContinue = first != null;
                                     return (
