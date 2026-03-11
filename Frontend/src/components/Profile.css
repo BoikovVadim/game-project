@@ -3751,10 +3751,9 @@ body.partner-modal-open {
   justify-content: center;
   gap: 0;
   margin-bottom: 12px;
-  overflow: hidden;
   max-width: 100%;
   position: relative;
-  padding: 0 36px;
+  padding: 0 clamp(32px, 3.5vw, 44px);
 }
 
 .confrontation-carousel-arrow {
@@ -3773,7 +3772,7 @@ body.partner-modal-open {
   border-radius: 50%;
   cursor: pointer;
   color: #333;
-  z-index: 0;
+  z-index: 5;
 }
 
 .confrontation-carousel-prev {
@@ -3797,42 +3796,40 @@ body.partner-modal-open {
   min-width: 0;
   overflow: hidden;
   position: relative;
-  padding: 0 4px;
-  z-index: 2;
+  padding: 0;
+  z-index: 1;
 }
 
 .confrontation-carousel-slide .confrontation-carousel-card {
   flex-shrink: 0;
-  width: clamp(200px, 22vw + 40px, 340px);
-  min-height: clamp(100px, 11vw + 20px, 170px);
+  width: clamp(180px, 18vw + 40px, 300px);
+  min-height: clamp(90px, 9vw + 20px, 150px);
   transition: transform 0.25s ease, filter 0.25s ease, z-index 0.25s, box-shadow 0.3s ease;
 }
 
-/* Боковые: выступ за центральную картинку = 30% её ширины (~78px) */
 .confrontation-carousel-slide .confrontation-carousel-card-prev {
-  transform: scale(0.45) translateX(20%);
+  transform: scale(0.5) translateX(35%);
   filter: brightness(0.5);
   z-index: 0;
-  margin-right: -40px;
+  margin-right: clamp(-60px, -5vw, -30px);
 }
 
 .confrontation-carousel-slide .confrontation-carousel-card-next {
-  transform: scale(0.45) translateX(-20%);
+  transform: scale(0.5) translateX(-35%);
   filter: brightness(0.5);
   z-index: 0;
-  margin-left: -40px;
+  margin-left: clamp(-60px, -5vw, -30px);
 }
 
 .confrontation-carousel-slide .confrontation-carousel-card-center {
   transform: scale(1);
-  z-index: 1;
+  z-index: 2;
 }
-
 
 .confrontation-carousel-slide .confrontation-carousel-card-prev:hover,
 .confrontation-carousel-slide .confrontation-carousel-card-next:hover {
   filter: brightness(0.7);
-  z-index: 2;
+  z-index: 3;
 }
 
 .confrontation-league-conditions-top {
@@ -6384,9 +6381,15 @@ button.bracket-player-name-btn:active {
     padding: 6px 12px;
   }
 
-  .confrontation-carousel-card {
-    width: clamp(180px, 55vw, 260px);
-    min-height: clamp(90px, 28vw, 130px);
+  .confrontation-carousel-slide .confrontation-carousel-card {
+    width: clamp(150px, 45vw, 220px);
+    min-height: clamp(75px, 22vw, 110px);
+  }
+  .confrontation-carousel-slide .confrontation-carousel-card-prev {
+    margin-right: -50px;
+  }
+  .confrontation-carousel-slide .confrontation-carousel-card-next {
+    margin-left: -50px;
   }
 
   .logout-confirm-box {
