@@ -3261,22 +3261,24 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                           <div className="game-history-section">
                             <div className="game-history-section-header">
                               <strong>Активные игры</strong>
-                              {gameHistory?.active?.some((t) => t.userStatus === 'not_passed' && t.resultLabel !== 'Ожидание соперника') && (() => {
+                              {gameHistory?.active?.some((t) => t.userStatus === 'not_passed') && (() => {
                                 const target = [...(gameHistory?.active ?? [])]
                                   .filter((t) => t.userStatus === 'not_passed' && t.resultLabel !== 'Ожидание соперника')
                                   .sort((a, b) => a.id - b.id)[0] ?? null;
-                                if (!target) return null;
+                                const canContinue = target != null;
                                 return (
                                   <button
                                     type="button"
                                     className="confrontation-continue-btn"
                                     onClick={() => {
-                                      setPendingStartGameAction(() => () => { continueTraining(target.id); });
-                                      setShowStartGameConfirm(true);
+                                      if (canContinue) {
+                                        setPendingStartGameAction(() => () => { continueTraining(target!.id); });
+                                        setShowStartGameConfirm(true);
+                                      }
                                     }}
-                                    disabled={continueTrainingLoading !== null}
+                                    disabled={!canContinue || continueTrainingLoading !== null}
                                   >
-                                    {continueTrainingLoading !== null ? 'Загрузка...' : `Продолжить игру #${target.id}`}
+                                    {continueTrainingLoading !== null ? 'Загрузка...' : canContinue ? `Продолжить игру #${target!.id}` : 'Продолжить игру'}
                                   </button>
                                 );
                               })()}
@@ -3654,23 +3656,24 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                             <div className="game-history-section">
                               <div className="game-history-section-header">
                                 <strong>Активные игры</strong>
-                                {gameHistory?.active?.some((t) => t.userStatus === 'not_passed' && t.resultLabel !== 'Ожидание соперника') && (
+                                {gameHistory?.active?.some((t) => t.userStatus === 'not_passed') && (
                                     (() => {
                                     const notPassed = [...(gameHistory?.active?.filter((t) => t.userStatus === 'not_passed' && t.resultLabel !== 'Ожидание соперника') ?? [])].sort((a, b) => a.id - b.id);
                                     const first = notPassed[0] ?? null;
+                                    const canContinue = first != null;
                                     return (
                                       <button
                                         type="button"
                                         className="confrontation-continue-btn"
                                         onClick={() => {
-                                          if (first) {
-                                            setPendingStartGameAction(() => () => { continueTournament(first.id); });
+                                          if (canContinue) {
+                                            setPendingStartGameAction(() => () => { continueTournament(first!.id); });
                                             setShowStartGameConfirm(true);
                                           }
                                         }}
-                                        disabled={continueTournamentLoading !== null}
+                                        disabled={!canContinue || continueTournamentLoading !== null}
                                       >
-                                        {continueTournamentLoading !== null ? 'Загрузка...' : first ? `Продолжить игру #${first.id}` : 'Продолжить игру'}
+                                        {continueTournamentLoading !== null ? 'Загрузка...' : canContinue ? `Продолжить игру #${first!.id}` : 'Продолжить игру'}
                                       </button>
                                     );
                                   })()
