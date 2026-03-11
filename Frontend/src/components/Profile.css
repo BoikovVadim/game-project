@@ -14,6 +14,12 @@
 /* Скелетон загрузки — тот же layout, что и кабинет, без дерганий */
 .cabinet-loading-skeleton {
   min-height: 100vh;
+  background: #f0f0f0;
+  width: 100%;
+}
+
+.cabinet-loading-skeleton > .cabinet-sidebar {
+  background: #000;
 }
 
 .cabinet-loading-sidebar-item {
@@ -36,6 +42,7 @@
   align-items: center;
   justify-content: center;
   min-height: clamp(140px, 13.9vw + 33px, 200px);
+  flex: 1;
 }
 
 .cabinet-loading-spinner {
@@ -979,6 +986,16 @@
 }
 
 @media (max-width: 767px) {
+  .cabinet-loading-skeleton > .cabinet-sidebar {
+    display: none;
+  }
+  .cabinet-loading-skeleton > .cabinet-main-wrap {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    min-height: 100vh;
+  }
+
   /* Сайдбар на мобилке — горизонтальный футер внизу, иконка + подпись */
   .cabinet-sidebar {
     top: auto;

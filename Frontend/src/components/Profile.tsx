@@ -2237,9 +2237,9 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
 
   if (!user && !profileError) {
     return (
-      <div className="cabinet cabinet-loading-skeleton" style={{ background: '#f0f0f0', minHeight: '100vh', width: '100%' }}>
-        <aside className="cabinet-sidebar" aria-hidden style={{ background: '#000' }} />
-        <div className="cabinet-main-wrap" style={{ marginLeft: 80, background: '#f0f0f0', flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div className="cabinet cabinet-loading-skeleton">
+        <aside className="cabinet-sidebar" aria-hidden />
+        <div className="cabinet-main-wrap cabinet-loading-content">
           <div className="cabinet-loading-spinner" aria-label="Загрузка" />
         </div>
       </div>
