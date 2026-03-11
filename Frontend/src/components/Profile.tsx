@@ -5032,10 +5032,10 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                   ? Math.min(10, n)
                   : Math.min(10, Math.max(0, n - 10));
                 const title = isSemi ? (userSemiIdx === 0 ? 'Полуфинал 1' : 'Полуфинал 2') : 'Финал';
-                // Тренировка: 20 вопросов (полуфинал 0–9, финал 10–19). Ответы 10–19 соответствуют semi2 (roundIndex 1), а не questionsFinal (roundIndex 2).
+                const hasFinalQuestions = (questionsReviewData.questionsFinal?.length ?? 0) > 0;
                 const questions = isSemi
                   ? (userSemiIdx === 0 ? questionsReviewData.questionsSemi1 : questionsReviewData.questionsSemi2)
-                  : (threeRounds ? questionsReviewData.questionsFinal : questionsReviewData.questionsSemi2);
+                  : (hasFinalQuestions ? questionsReviewData.questionsFinal : questionsReviewData.questionsSemi2);
                 const questionsToShow = questions.slice(0, answeredInRound);
                 const countInRound = questions.length;
                 const semiCorrect = questionsReviewData.semiFinalCorrectCount ?? (n <= 10 ? questionsReviewData.correctAnswersCount : 0);
