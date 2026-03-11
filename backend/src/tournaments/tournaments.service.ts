@@ -2053,13 +2053,27 @@ export class TournamentsService {
       if (progress.semiFinalCorrectCount != null) {
         const currentCorrect = progress.correctAnswersCount;
         const semiTBRounds = progress.tiebreakerRoundsCorrect ?? [];
-        for (let r = 1; r <= 50; r++) {
-          const roundEnd = this.QUESTIONS_PER_ROUND + r * this.TIEBREAKER_QUESTIONS;
-          if (safeCount === roundEnd && semiTBRounds.length < r) {
-            const prevSum = semiTBRounds.reduce((a, b) => a + b, 0);
-            const roundCorrect = currentCorrect - progress.semiFinalCorrectCount - prevSum;
-            progress.tiebreakerRoundsCorrect = [...semiTBRounds, Math.max(0, roundCorrect)];
-            break;
+
+        const oppSlotForTB = playerSlot % 2 === 0 ? playerSlot + 1 : playerSlot - 1;
+        const oppPlayerForTB = tournament.players?.[oppSlotForTB];
+        let isSemiTied = false;
+        if (oppPlayerForTB) {
+          const oppProg = await this.tournamentProgressRepository.findOne({
+            where: { userId: oppPlayerForTB.id, tournamentId },
+          });
+          isSemiTied = oppProg?.semiFinalCorrectCount != null
+            && oppProg.semiFinalCorrectCount === progress.semiFinalCorrectCount;
+        }
+
+        if (isSemiTied) {
+          for (let r = 1; r <= 50; r++) {
+            const roundEnd = this.QUESTIONS_PER_ROUND + r * this.TIEBREAKER_QUESTIONS;
+            if (safeCount === roundEnd && semiTBRounds.length < r) {
+              const prevSum = semiTBRounds.reduce((a, b) => a + b, 0);
+              const roundCorrect = currentCorrect - progress.semiFinalCorrectCount - prevSum;
+              progress.tiebreakerRoundsCorrect = [...semiTBRounds, Math.max(0, roundCorrect)];
+              break;
+            }
           }
         }
 
