@@ -1770,7 +1770,7 @@ export class TournamentsService {
       leftAt: leftAt ? (leftAt instanceof Date ? leftAt.toISOString() : String(leftAt)) : null,
       correctAnswersCount,
       semiFinalCorrectCount,
-      semiTiebreakerCorrectSum: (progress.tiebreakerRoundsCorrect ?? []).reduce((a: number, b: number) => a + b, 0),
+      semiTiebreakerCorrectSum: (progress?.tiebreakerRoundsCorrect ?? []).reduce((a: number, b: number) => a + b, 0),
       answersChosen,
       userSemiIndex,
       semiResult,
