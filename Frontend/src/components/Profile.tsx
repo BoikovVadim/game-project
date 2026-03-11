@@ -5027,14 +5027,10 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                 const userSemiIdx = questionsReviewData.userSemiIndex ?? 0;
                 const isSemi = questionsReviewRound === 'semi';
                 const n = questionsReviewData.questionsAnsweredCount;
-                // Тренировка: 3 раунда — полуфинал 1 (0–9), полуфинал 2 (10–19), финал (20–29). Противостояние: полуфинал (0–9), финал (10–19).
-                const threeRounds = n > 20;
-                const startIndex = isSemi
-                  ? (userSemiIdx === 0 ? 0 : threeRounds ? 10 : 0)
-                  : (threeRounds ? 20 : 10);
+                const startIndex = isSemi ? 0 : 10;
                 const answeredInRound = isSemi
-                  ? (userSemiIdx === 0 ? Math.min(10, n) : Math.min(10, Math.max(0, n - 10)))
-                  : Math.min(10, Math.max(0, n - (threeRounds ? 20 : 10)));
+                  ? Math.min(10, n)
+                  : Math.min(10, Math.max(0, n - 10));
                 const title = isSemi ? (userSemiIdx === 0 ? 'Полуфинал 1' : 'Полуфинал 2') : 'Финал';
                 // Тренировка: 20 вопросов (полуфинал 0–9, финал 10–19). Ответы 10–19 соответствуют semi2 (roundIndex 1), а не questionsFinal (roundIndex 2).
                 const questions = isSemi
