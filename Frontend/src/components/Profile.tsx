@@ -3504,13 +3504,8 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                             <p>
                               Вы ответили на {trainingRoundScores[trainingRoundScores.length - 1]} из {currentQuestions.length} вопросов верно.
                             </p>
-                            {trainingRound === 3 && (
-                              <button type="button" className="training-next-round-btn" style={{ marginBottom: 8, background: '#2980b9' }} onClick={goNextRound}>
-                                Завершить доп. раунд
-                              </button>
-                            )}
                             <button type="button" className="training-next-round-btn" onClick={resetTraining}>
-                              {trainingRound === 2 ? 'Выйти' : trainingRound === 3 ? 'Выйти' : 'Завершить полуфинал'}
+                              Выйти
                             </button>
                           </div>
                         ) : gameBlockedByOtherTab ? (
@@ -3909,13 +3904,8 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                               <p>
                                 Вы ответили на {trainingRoundScores[trainingRoundScores.length - 1]} из {currentQuestions.length} вопросов верно.
                               </p>
-                              {trainingRound === 3 && (
-                                <button type="button" className="training-next-round-btn" style={{ marginBottom: 8, background: '#2980b9' }} onClick={goNextRound}>
-                                  Завершить доп. раунд
-                                </button>
-                              )}
                               <button type="button" className="training-next-round-btn" onClick={() => { saveTrainingProgress(); setTrainingData(null); setTournamentJoinInfo(null); setTrainingRound(null); fetchGameHistory('money'); }}>
-                                {trainingRound === 2 ? 'Выйти' : trainingRound === 3 ? 'Выйти' : 'Завершить полуфинал'}
+                                Выйти
                               </button>
                             </div>
                           ) : gameBlockedByOtherTab ? (
