@@ -4445,6 +4445,8 @@ body.partner-modal-open {
 }
 
 .training-option {
+  -webkit-appearance: none;
+  appearance: none;
   padding: 14px 18px;
   text-align: left;
   border-radius: 10px;
@@ -4454,18 +4456,47 @@ body.partner-modal-open {
   cursor: pointer;
   font-size: 15px;
   min-height: 48px;
-  transition: background 0.2s;
+  transition: none;
   width: 100%;
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
+  outline: none;
+  box-shadow: none;
+  filter: none;
+  -webkit-box-shadow: none;
 }
 
 .training-option:hover {
   background: #f5f5f5;
+  box-shadow: none;
+  -webkit-box-shadow: none;
+  border-color: #ddd;
+  filter: none;
 }
-.training-option:focus {
-  outline: none;
+.training-option:focus,
+.training-option:focus-visible,
+.training-option:focus-within {
+  outline: none !important;
+  box-shadow: none !important;
+  -webkit-box-shadow: none !important;
+  border-color: #ddd !important;
+  background: #fff !important;
+}
+.training-option:active:not(.training-option-correct):not(.training-option-wrong) {
+  outline: none !important;
+  box-shadow: none !important;
+  border-color: #ddd !important;
+  background: #f5f5f5 !important;
+}
+.training-option:not(.training-option-correct):not(.training-option-wrong) {
+  background: #fff !important;
+  border-color: #ddd !important;
+  box-shadow: none !important;
+  -webkit-box-shadow: none !important;
+  outline: none !important;
+  animation: none !important;
+  filter: none !important;
 }
 .training-option-cooldown {
   opacity: 0.6;
