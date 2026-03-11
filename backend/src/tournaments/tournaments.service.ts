@@ -2006,6 +2006,7 @@ export class TournamentsService {
     timeLeft?: number,
     correctCount?: number,
     answersChosen?: unknown,
+    answerFinal?: boolean,
   ): Promise<{ ok: boolean }> {
     const normalizedChosen = this.normalizeAnswersChosen(answersChosen);
     const tournament = await this.tournamentRepository.findOne({
@@ -2021,13 +2022,26 @@ export class TournamentsService {
     const safeTimeLeft = timeLeft !== undefined ? Math.max(0, Math.min(5, Math.floor(timeLeft))) : null;
 
     const chosenToSave = normalizedChosen.slice(0, Math.max(safeCount, normalizedChosen.length));
-    const playerSlot = tournament.players?.findIndex((p) => p.id === userId) ?? 0;
-    const semiRoundIndex = playerSlot < 2 ? 0 : 1;
-    const { total: computedCorrect, semi: computedSemi } = await this.computeCorrectFromAnswers(tournamentId, chosenToSave, semiRoundIndex);
 
     let progress = await this.tournamentProgressRepository.findOne({
       where: { userId, tournamentId },
     });
+
+    // Anti-cheat: заблокированные ответы нельзя перезаписать
+    if (progress) {
+      const locked = progress.lockedAnswerCount ?? 0;
+      const prevChosen = progress.answersChosen ?? [];
+      for (let i = 0; i < Math.min(locked, chosenToSave.length); i++) {
+        if (i < prevChosen.length) {
+          chosenToSave[i] = prevChosen[i];
+        }
+      }
+    }
+
+    const playerSlot = tournament.players?.findIndex((p) => p.id === userId) ?? 0;
+    const semiRoundIndex = playerSlot < 2 ? 0 : 1;
+    const { total: computedCorrect, semi: computedSemi } = await this.computeCorrectFromAnswers(tournamentId, chosenToSave, semiRoundIndex);
+
     if (progress) {
       if (safeCount >= progress.questionsAnsweredCount) {
         progress.questionsAnsweredCount = safeCount;
@@ -2100,16 +2114,30 @@ export class TournamentsService {
         progress.leftAt = null;
       }
 
+      // Anti-cheat: при answerFinal фиксируем ответы — перезаписать нельзя
+      if (answerFinal) {
+        progress.lockedAnswerCount = Math.max(progress.lockedAnswerCount ?? 0, chosenToSave.length);
+      }
+
       // Re-read from DB right before save to prevent lost-update race condition:
       // another concurrent request may have saved newer data between our initial read and now.
       const freshRows = await this.tournamentProgressRepository.query(
-        'SELECT "answersChosen", "questionsAnsweredCount", "correctAnswersCount", "semiFinalCorrectCount" FROM tournament_progress WHERE id = $1',
+        'SELECT "answersChosen", "questionsAnsweredCount", "correctAnswersCount", "semiFinalCorrectCount", "lockedAnswerCount" FROM tournament_progress WHERE id = $1',
         [progress.id],
       );
       if (freshRows?.[0]) {
         const freshChosen = this.normalizeAnswersChosen(freshRows[0].answersChosen);
         const freshCorrect = Number(freshRows[0].correctAnswersCount) || 0;
         const freshSemiCorrect = freshRows[0].semiFinalCorrectCount != null ? Number(freshRows[0].semiFinalCorrectCount) : null;
+        const freshLocked = Number(freshRows[0].lockedAnswerCount) || 0;
+        progress.lockedAnswerCount = Math.max(progress.lockedAnswerCount ?? 0, freshLocked);
+
+        // Защита от перезаписи заблокированных ответов из свежих данных
+        const mergedChosen = progress.answersChosen ?? [];
+        for (let i = 0; i < Math.min(freshLocked, mergedChosen.length); i++) {
+          if (i < freshChosen.length) mergedChosen[i] = freshChosen[i];
+        }
+        progress.answersChosen = mergedChosen;
 
         if (freshChosen.length > (progress.answersChosen?.length ?? 0)) {
           progress.answersChosen = freshChosen;
@@ -2146,6 +2174,7 @@ export class TournamentsService {
         correctAnswersCount: bestCorrect,
         ...(bestSemi !== undefined && { semiFinalCorrectCount: bestSemi }),
         currentQuestionIndex: safeCurrent,
+        lockedAnswerCount: answerFinal ? safeCount : 0,
         ...(safeTimeLeft !== null && { timeLeftSeconds: safeTimeLeft, leftAt: new Date() }),
         ...(chosenToSave.length > 0 && { answersChosen: chosenToSave }),
       });

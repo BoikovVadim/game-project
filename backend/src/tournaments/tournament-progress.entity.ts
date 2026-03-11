@@ -47,4 +47,8 @@ export class TournamentProgress {
   /** Индексы выбранных ответов по вопросам (0-based по порядку вопросов: 0–9 полуфинал 1, 10–19 полуфинал 2, 20–29 финал). */
   @Column({ type: 'simple-json', nullable: true })
   answersChosen!: number[] | null;
+
+  /** Количество заблокированных ответов — ответы с индексом < lockedAnswerCount не могут быть перезаписаны (защита от читерства). */
+  @Column({ type: 'integer', default: 0 })
+  lockedAnswerCount!: number;
 }

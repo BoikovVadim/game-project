@@ -806,6 +806,31 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   const [continueTrainingLoading, setContinueTrainingLoading] = useState<number | null>(null);
   const [continueTrainingError, setContinueTrainingError] = useState('');
 
+  // Anti-cheat: BroadcastChannel — блокировка игры во второй вкладке
+  const [gameBlockedByOtherTab, setGameBlockedByOtherTab] = useState(false);
+  const gameBcRef = useRef<BroadcastChannel | null>(null);
+  useEffect(() => {
+    if (typeof BroadcastChannel === 'undefined') return;
+    const bc = new BroadcastChannel('legend-game-session');
+    gameBcRef.current = bc;
+    bc.onmessage = (e) => {
+      if (e.data?.type === 'game-claim') {
+        setGameBlockedByOtherTab(true);
+        if (trainingTimerRef.current) {
+          clearInterval(trainingTimerRef.current);
+          trainingTimerRef.current = null;
+        }
+      }
+    };
+    return () => { bc.close(); gameBcRef.current = null; };
+  }, []);
+  useEffect(() => {
+    if (trainingRound !== null) {
+      gameBcRef.current?.postMessage({ type: 'game-claim' });
+      setGameBlockedByOtherTab(false);
+    }
+  }, [trainingRound]);
+
   // Турнир на людей: слот в ожидающем турнире
   const [tournamentJoinInfo, setTournamentJoinInfo] = useState<{
     tournamentId: number;
@@ -1592,6 +1617,18 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
           return arr;
         });
         setBlinkKey((k) => k + 1);
+        // Немедленно фиксируем timeout на сервере (answerFinal) — перезаписать будет нельзя
+        if (trainingData?.tournamentId && token) {
+          const toBase = trainingRound === 3 ? tiebreakerBase : (trainingRound !== null && trainingRound >= 2 ? 10 : 0);
+          const toGIdx = toBase + trainingQuestionIndex;
+          const toAnswers = [...fullAnswersChosenRef.current];
+          while (toAnswers.length <= toGIdx) toAnswers.push(-1);
+          toAnswers[toGIdx] = -1;
+          axios.post(`/tournaments/${trainingData.tournamentId}/progress`, {
+            count: toBase + trainingQuestionIndex + 1, currentIndex: toBase + trainingQuestionIndex + 1,
+            correctCount: trainingCorrectCount, answersChosen: toAnswers, answerFinal: true,
+          }, { headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
+        }
       }
     }, 50);
 
@@ -1643,8 +1680,10 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
       const cumulative = [...fullAnswersChosenRef.current];
       while (cumulative.length <= globalIdx) cumulative.push(-1);
       cumulative[globalIdx] = answerIndex;
-      const body: { count: number; currentIndex: number; timeLeft?: number; correctCount?: number; answersChosen?: number[] } = { count: totalAnswered, currentIndex, timeLeft: QUESTION_TIMER_SEC, correctCount: nextCorrect, answersChosen: cumulative };
-      axios.post(`/tournaments/${trainingData.tournamentId}/progress`, body, { headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
+      axios.post(`/tournaments/${trainingData.tournamentId}/progress`, {
+        count: totalAnswered, currentIndex, timeLeft: QUESTION_TIMER_SEC,
+        correctCount: nextCorrect, answersChosen: cumulative, answerFinal: true,
+      }, { headers: { Authorization: `Bearer ${token}` } }).catch(() => {});
     }
   };
 
@@ -3422,6 +3461,10 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                               {trainingRound === 2 ? 'Выйти' : trainingRound === 3 ? 'Выйти' : 'Завершить полуфинал'}
                             </button>
                           </div>
+                        ) : gameBlockedByOtherTab ? (
+                          <div className="training-question-block">
+                            <p style={{color:'#e53935',fontWeight:700,textAlign:'center',margin:'24px 0'}}>Игра открыта в другой вкладке. Играть можно только в одной вкладке.</p>
+                          </div>
                         ) : isForfeited ? (
                           <div className="training-question-block training-forfeit">
                             <p className="training-forfeit-text">Время вышло. Вы считаетесь проигравшим.</p>
@@ -3823,6 +3866,10 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                               <button type="button" className="training-next-round-btn" onClick={() => { saveTrainingProgress(); setTrainingData(null); setTournamentJoinInfo(null); setTrainingRound(null); fetchGameHistory('money'); }}>
                                 {trainingRound === 2 ? 'Выйти' : trainingRound === 3 ? 'Выйти' : 'Завершить полуфинал'}
                               </button>
+                            </div>
+                          ) : gameBlockedByOtherTab ? (
+                            <div className="training-question-block">
+                              <p style={{color:'#e53935',fontWeight:700,textAlign:'center',margin:'24px 0'}}>Игра открыта в другой вкладке. Играть можно только в одной вкладке.</p>
                             </div>
                           ) : isForfeited ? (
                             <div className="training-question-block training-forfeit">

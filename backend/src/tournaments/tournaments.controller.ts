@@ -65,10 +65,10 @@ export class TournamentsController {
   @UseGuards(JwtAuthGuard)
   setProgress(
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: { count?: number; currentIndex?: number; timeLeft?: number; correctCount?: number; answersChosen?: number[] },
+    @Body() body: { count?: number; currentIndex?: number; timeLeft?: number; correctCount?: number; answersChosen?: number[]; answerFinal?: boolean },
     @Request() req: { user: { id: number } },
   ) {
-    return this.tournamentsService.setProgress(req.user.id, id, body.count ?? 0, body.currentIndex, body.timeLeft, body.correctCount, body.answersChosen);
+    return this.tournamentsService.setProgress(req.user.id, id, body.count ?? 0, body.currentIndex, body.timeLeft, body.correctCount, body.answersChosen, body.answerFinal === true);
   }
 
   @Post('create')
