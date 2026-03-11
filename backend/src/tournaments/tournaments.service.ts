@@ -2054,13 +2054,13 @@ export class TournamentsService {
       const currentLen = progress.answersChosen?.length ?? 0;
       if (chosenToSave.length >= currentLen && (chosenToSave.length >= safeCount || chosenToSave.length > currentLen)) {
         progress.answersChosen = chosenToSave;
-        progress.correctAnswersCount = computedCorrect;
+        progress.correctAnswersCount = Math.max(computedCorrect, progress.correctAnswersCount);
         if (chosenToSave.length >= this.QUESTIONS_PER_ROUND) {
-          progress.semiFinalCorrectCount = computedSemi;
+          progress.semiFinalCorrectCount = Math.max(computedSemi, progress.semiFinalCorrectCount ?? 0);
         }
       } else if (chosenToSave.length >= this.QUESTIONS_PER_ROUND && chosenToSave.length >= currentLen) {
-        progress.correctAnswersCount = computedCorrect;
-        progress.semiFinalCorrectCount = computedSemi;
+        progress.correctAnswersCount = Math.max(computedCorrect, progress.correctAnswersCount);
+        progress.semiFinalCorrectCount = Math.max(computedSemi, progress.semiFinalCorrectCount ?? 0);
       } else {
         const fallbackCorrect = correctCount !== undefined ? Math.max(0, Math.floor(correctCount)) : null;
         if (fallbackCorrect !== null && (progress.correctAnswersCount === 0 || fallbackCorrect > progress.correctAnswersCount)) {
@@ -2104,17 +2104,33 @@ export class TournamentsService {
         progress.leftAt = null;
       }
 
-      // Re-read answersChosen from DB right before save to prevent lost-update race condition:
-      // another concurrent request may have saved a longer array between our initial read and now.
+      // Re-read from DB right before save to prevent lost-update race condition:
+      // another concurrent request may have saved newer data between our initial read and now.
       const freshRows = await this.tournamentProgressRepository.query(
-        'SELECT "answersChosen", "questionsAnsweredCount" FROM tournament_progress WHERE id = $1',
+        'SELECT "answersChosen", "questionsAnsweredCount", "correctAnswersCount", "semiFinalCorrectCount" FROM tournament_progress WHERE id = $1',
         [progress.id],
       );
       if (freshRows?.[0]) {
         const freshChosen = this.normalizeAnswersChosen(freshRows[0].answersChosen);
+        const freshCorrect = Number(freshRows[0].correctAnswersCount) || 0;
+        const freshSemiCorrect = freshRows[0].semiFinalCorrectCount != null ? Number(freshRows[0].semiFinalCorrectCount) : null;
+
         if (freshChosen.length > (progress.answersChosen?.length ?? 0)) {
           progress.answersChosen = freshChosen;
+          const { total: recomputedTotal, semi: recomputedSemi } = await this.computeCorrectFromAnswers(tournamentId, freshChosen, semiRoundIndex);
+          progress.correctAnswersCount = Math.max(recomputedTotal, freshCorrect, progress.correctAnswersCount);
+          if (freshChosen.length >= this.QUESTIONS_PER_ROUND) {
+            progress.semiFinalCorrectCount = Math.max(recomputedSemi, freshSemiCorrect ?? 0, progress.semiFinalCorrectCount ?? 0);
+          }
+        } else {
+          if (freshCorrect > progress.correctAnswersCount) {
+            progress.correctAnswersCount = freshCorrect;
+          }
+          if (freshSemiCorrect != null && (progress.semiFinalCorrectCount == null || freshSemiCorrect > progress.semiFinalCorrectCount)) {
+            progress.semiFinalCorrectCount = freshSemiCorrect;
+          }
         }
+
         const freshCount = Number(freshRows[0].questionsAnsweredCount) || 0;
         if (freshCount > progress.questionsAnsweredCount) {
           progress.questionsAnsweredCount = freshCount;

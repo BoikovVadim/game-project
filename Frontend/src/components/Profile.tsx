@@ -5032,9 +5032,10 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                   : (hasFinalQuestions ? questionsReviewData.questionsFinal : questionsReviewData.questionsSemi2);
                 const questionsToShow = questions.slice(0, answeredInRound);
                 const countInRound = questions.length;
-                const semiCorrect = questionsReviewData.semiFinalCorrectCount ?? (n <= 10 ? questionsReviewData.correctAnswersCount : 0);
-                const finalCorrect = n > 10 ? Math.max(0, questionsReviewData.correctAnswersCount - semiCorrect) : 0;
-                const correctInRound = isSemi ? semiCorrect : finalCorrect;
+                const correctInRound = questionsToShow.reduce((cnt, q, idx) => {
+                  const choice = ac[startIndex + idx];
+                  return cnt + (typeof choice === 'number' && choice >= 0 && choice === Number(q.correctAnswer) ? 1 : 0);
+                }, 0);
                 return (
                   <div className="questions-review-body">
                     <p className="questions-review-stats">
