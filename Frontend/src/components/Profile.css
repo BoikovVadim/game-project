@@ -1370,21 +1370,33 @@
   padding: 9px 14px;
   border: 1px solid #e0e0e0;
   border-radius: 8px;
-  background: transparent;
+  background: transparent !important;
   font-size: 13px;
   color: #444;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: border-color 0.15s, color 0.15s, font-weight 0.15s;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-appearance: none;
+  outline: none;
+}
+
+.cabinet-rankings-metric-btn:hover,
+.cabinet-rankings-metric-btn:focus,
+.cabinet-rankings-metric-btn:active {
+  background: transparent !important;
+  outline: none;
 }
 
 .cabinet-rankings-metric-btn:hover {
-  background: transparent;
   border-color: var(--gold-dark, #c9a227);
   color: #333;
 }
 
-.cabinet-rankings-metric-btn--active {
-  background: transparent;
+.cabinet-rankings-metric-btn--active,
+.cabinet-rankings-metric-btn--active:hover,
+.cabinet-rankings-metric-btn--active:focus,
+.cabinet-rankings-metric-btn--active:active {
+  background: transparent !important;
   border-color: var(--gold-dark, #c9a227);
   color: #333;
   font-weight: 600;
