@@ -186,11 +186,13 @@ button {
   transition: box-shadow 0.25s ease;
 }
 
-button:hover:not(.training-option) {
-  background: var(--gold-gradient-hover);
-  box-shadow: 0 4px 12px var(--gold-glow);
+@media (hover: hover) and (pointer: fine) {
+  button:hover:not(.training-option):not(.game-mode-card):not(.cabinet-menu-item):not(.cabinet-rankings-metric-btn):not(.partner-tree-nav-btn) {
+    background: var(--gold-gradient-hover);
+    box-shadow: 0 4px 12px var(--gold-glow);
+  }
 }
 
-button:active:not(.training-option) {
+button:active:not(.training-option):not(.game-mode-card):not(.cabinet-menu-item):not(.cabinet-rankings-metric-btn):not(.partner-tree-nav-btn) {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }

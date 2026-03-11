@@ -3464,29 +3464,26 @@ body.partner-modal-open {
   font: inherit;
   text-align: center;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-  background-color: #1a1a1a;
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
+  transition: none !important;
+  background: #1a1a1a !important;
+  background-size: cover !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
   overflow: hidden;
   color: #fff;
   -webkit-touch-callout: none !important;
   -webkit-user-select: none !important;
   user-select: none !important;
   touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent !important;
 }
 
 .game-mode-card-training {
-  background-image: url('../assets/game-training-bg.png');
-  background-size: cover;
-  background-position: center;
+  background: #1a1a1a url('../assets/game-training-bg.png') center / cover no-repeat !important;
 }
 
 .game-mode-card-tournament {
-  background-image: url('../assets/game-tournament-bg.png');
-  background-size: cover;
-  background-position: center;
+  background: #1a1a1a url('../assets/game-tournament-bg.png') center / cover no-repeat !important;
 }
 
 .game-mode-card-overlay {
@@ -3524,16 +3521,41 @@ body.partner-modal-open {
   transform: none !important;
   outline: none !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
+  filter: none !important;
+}
+
+.game-mode-card-training:hover,
+.game-mode-card-training:active,
+.game-mode-card-training:focus {
+  background: #1a1a1a url('../assets/game-training-bg.png') center / cover no-repeat !important;
+}
+
+.game-mode-card-tournament:hover,
+.game-mode-card-tournament:active,
+.game-mode-card-tournament:focus {
+  background: #1a1a1a url('../assets/game-tournament-bg.png') center / cover no-repeat !important;
 }
 
 @media (hover: none) and (pointer: coarse) {
   .game-mode-card:hover,
-  .game-mode-card:active {
+  .game-mode-card:active,
+  .game-mode-card:focus {
     transform: none !important;
-    box-shadow: none !important;
-    background-color: transparent !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2) !important;
     filter: none !important;
     outline: none !important;
+  }
+
+  .game-mode-card-training:hover,
+  .game-mode-card-training:active,
+  .game-mode-card-training:focus {
+    background: #1a1a1a url('../assets/game-training-bg.png') center / cover no-repeat !important;
+  }
+
+  .game-mode-card-tournament:hover,
+  .game-mode-card-tournament:active,
+  .game-mode-card-tournament:focus {
+    background: #1a1a1a url('../assets/game-tournament-bg.png') center / cover no-repeat !important;
   }
 
   .partner-tree-nav-btn:hover {
