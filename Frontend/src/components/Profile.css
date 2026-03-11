@@ -1374,32 +1374,38 @@
   font-size: 13px;
   color: #444;
   cursor: pointer;
-  transition: border-color 0.15s, color 0.15s, font-weight 0.15s;
+  transition: none;
   -webkit-tap-highlight-color: transparent;
   -webkit-appearance: none;
-  outline: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  outline: none !important;
+  touch-action: manipulation;
 }
 
 .cabinet-rankings-metric-btn:hover,
 .cabinet-rankings-metric-btn:focus,
+.cabinet-rankings-metric-btn:focus-visible,
 .cabinet-rankings-metric-btn:active {
   background: transparent !important;
-  outline: none;
+  outline: none !important;
+  box-shadow: none !important;
 }
 
-.cabinet-rankings-metric-btn:hover {
+.cabinet-rankings-metric-btn--active {
   border-color: var(--gold-dark, #c9a227);
   color: #333;
+  font-weight: 600;
 }
 
-.cabinet-rankings-metric-btn--active,
 .cabinet-rankings-metric-btn--active:hover,
 .cabinet-rankings-metric-btn--active:focus,
 .cabinet-rankings-metric-btn--active:active {
   background: transparent !important;
   border-color: var(--gold-dark, #c9a227);
-  color: #333;
-  font-weight: 600;
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 .cabinet-rankings-content {
