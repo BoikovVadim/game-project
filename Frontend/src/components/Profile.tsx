@@ -3405,17 +3405,41 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                       <div className="training-start">
                         <p>Турнир из двух полуфиналов и финала. В каждом матче — 10 вопросов.</p>
                         <div className="training-start-buttons">
-                          <button
-                            type="button"
-                            className="training-start-btn"
-                            onClick={() => {
-                              setPendingStartGameAction(() => () => { startTraining(); });
-                              setShowStartGameConfirm(true);
-                            }}
-                            disabled={trainingLoading || continueTrainingLoading !== null}
-                          >
-                            {trainingLoading ? 'Загрузка...' : 'Начать игру'}
-                          </button>
+                          {(() => {
+                            const continueTarget = [...(gameHistory?.active ?? [])]
+                              .filter((t) => t.userStatus === 'not_passed' && t.resultLabel !== 'Ожидание соперника' && t.resultLabel !== 'Время истекло' && (!t.deadline || new Date(t.deadline) > new Date()))
+                              .sort((a, b) => a.id - b.id)[0] ?? null;
+                            const hasActiveGames = (gameHistory?.active?.length ?? 0) > 0;
+                            if (continueTarget) {
+                              return (
+                                <button
+                                  type="button"
+                                  className="training-start-btn"
+                                  onClick={() => {
+                                    setPendingStartGameAction(() => () => { continueTraining(continueTarget.id); });
+                                    setShowStartGameConfirm(true);
+                                  }}
+                                  disabled={continueTrainingLoading !== null}
+                                >
+                                  {continueTrainingLoading !== null ? 'Загрузка...' : `Продолжить игру #${continueTarget.id}`}
+                                </button>
+                              );
+                            }
+                            return (
+                              <button
+                                type="button"
+                                className="training-start-btn"
+                                onClick={() => {
+                                  setPendingStartGameAction(() => () => { startTraining(); });
+                                  setShowStartGameConfirm(true);
+                                }}
+                                disabled={trainingLoading || hasActiveGames}
+                                title={hasActiveGames ? 'Завершите активные игры перед началом новой' : undefined}
+                              >
+                                {trainingLoading ? 'Загрузка...' : 'Начать игру'}
+                              </button>
+                            );
+                          })()}
                           <button
                             type="button"
                             className="game-mode-back"
@@ -3429,27 +3453,6 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                           <div className="game-history-section">
                             <div className="game-history-section-header">
                               <strong>Активные игры</strong>
-                              {gameHistory?.active?.some((t) => t.userStatus === 'not_passed') && (() => {
-                                const target = [...(gameHistory?.active ?? [])]
-                                  .filter((t) => t.userStatus === 'not_passed' && t.resultLabel !== 'Ожидание соперника' && t.resultLabel !== 'Время истекло' && (!t.deadline || new Date(t.deadline) > new Date()))
-                                  .sort((a, b) => a.id - b.id)[0] ?? null;
-                                const canContinue = target != null;
-                                return (
-                                  <button
-                                    type="button"
-                                    className="confrontation-continue-btn"
-                                    onClick={() => {
-                                      if (canContinue) {
-                                        setPendingStartGameAction(() => () => { continueTraining(target!.id); });
-                                        setShowStartGameConfirm(true);
-                                      }
-                                    }}
-                                    disabled={!canContinue || continueTrainingLoading !== null}
-                                  >
-                                    {continueTrainingLoading !== null ? 'Загрузка...' : canContinue ? `Продолжить игру #${target!.id}` : 'Продолжить игру'}
-                                  </button>
-                                );
-                              })()}
                             </div>
                             {gameHistory === null ? null : gameHistory.active.length ? (
                               <div className="game-history-table-wrap">
@@ -3786,31 +3789,57 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                     </>
                                   ) : null}
                                 </div>
-                                <button
-                                  type="button"
-                                  className="confrontation-start-btn"
-                                  onClick={() => {
-                                    setPendingStartGameAction(() => () => { joinTournament(selectedLeague ?? 5); });
-                                    setShowStartGameConfirm(true);
-                                  }}
-                                  disabled={
-                                    tournamentJoinLoading ||
-                                    allowedLeaguesLoading ||
-                                    !isSelectedAllowed ||
-                                    balance < (selectedLeague ?? 5)
+                                {(() => {
+                                  const continueTarget = [...(gameHistory?.active ?? [])]
+                                    .filter((t) => t.userStatus === 'not_passed' && t.resultLabel !== 'Ожидание соперника' && t.resultLabel !== 'Время истекло' && (!t.deadline || new Date(t.deadline) > new Date()))
+                                    .sort((a, b) => a.id - b.id)[0] ?? null;
+                                  const hasActiveGames = (gameHistory?.active?.length ?? 0) > 0;
+                                  if (continueTarget) {
+                                    return (
+                                      <button
+                                        type="button"
+                                        className="confrontation-start-btn"
+                                        onClick={() => {
+                                          setPendingStartGameAction(() => () => { continueTournament(continueTarget.id); });
+                                          setShowStartGameConfirm(true);
+                                        }}
+                                        disabled={continueTournamentLoading !== null}
+                                      >
+                                        {continueTournamentLoading !== null ? 'Загрузка...' : `Продолжить игру #${continueTarget.id}`}
+                                      </button>
+                                    );
                                   }
-                                  title={
-                                    tournamentJoinLoading || allowedLeaguesLoading
-                                      ? undefined
-                                      : hasConditions
-                                        ? conditionItems.map((i) => `${i.label}: ${i.value}`).join('. ')
-                                        : isSelectedAllowed && balance < (selectedLeague ?? 5)
-                                          ? `Нужно ${formatNum(selectedLeague ?? 5)} ${CURRENCY}, у вас ${formatNum(balance)} ${CURRENCY}`
-                                          : undefined
-                                  }
-                                >
-                                  {tournamentJoinLoading ? 'Загрузка...' : 'Начать игру'}
-                                </button>
+                                  return (
+                                    <button
+                                      type="button"
+                                      className="confrontation-start-btn"
+                                      onClick={() => {
+                                        setPendingStartGameAction(() => () => { joinTournament(selectedLeague ?? 5); });
+                                        setShowStartGameConfirm(true);
+                                      }}
+                                      disabled={
+                                        tournamentJoinLoading ||
+                                        allowedLeaguesLoading ||
+                                        !isSelectedAllowed ||
+                                        balance < (selectedLeague ?? 5) ||
+                                        hasActiveGames
+                                      }
+                                      title={
+                                        hasActiveGames
+                                          ? 'Завершите активные игры перед началом новой'
+                                          : tournamentJoinLoading || allowedLeaguesLoading
+                                            ? undefined
+                                            : hasConditions
+                                              ? conditionItems.map((i) => `${i.label}: ${i.value}`).join('. ')
+                                              : isSelectedAllowed && balance < (selectedLeague ?? 5)
+                                                ? `Нужно ${formatNum(selectedLeague ?? 5)} ${CURRENCY}, у вас ${formatNum(balance)} ${CURRENCY}`
+                                                : undefined
+                                      }
+                                    >
+                                      {tournamentJoinLoading ? 'Загрузка...' : 'Начать игру'}
+                                    </button>
+                                  );
+                                })()}
                               </>
                             );
                           })()}
@@ -3829,28 +3858,6 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                             <div className="game-history-section">
                               <div className="game-history-section-header">
                                 <strong>Активные игры</strong>
-                                {gameHistory?.active?.some((t) => t.userStatus === 'not_passed') && (
-                                    (() => {
-                                    const notPassed = [...(gameHistory?.active?.filter((t) => t.userStatus === 'not_passed' && t.resultLabel !== 'Ожидание соперника' && t.resultLabel !== 'Время истекло' && (!t.deadline || new Date(t.deadline) > new Date())) ?? [])].sort((a, b) => a.id - b.id);
-                                    const first = notPassed[0] ?? null;
-                                    const canContinue = first != null;
-                                    return (
-                                      <button
-                                        type="button"
-                                        className="confrontation-continue-btn"
-                                        onClick={() => {
-                                          if (canContinue) {
-                                            setPendingStartGameAction(() => () => { continueTournament(first!.id); });
-                                            setShowStartGameConfirm(true);
-                                          }
-                                        }}
-                                        disabled={!canContinue || continueTournamentLoading !== null}
-                                      >
-                                        {continueTournamentLoading !== null ? 'Загрузка...' : canContinue ? `Продолжить игру #${first!.id}` : 'Продолжить игру'}
-                                      </button>
-                                    );
-                                  })()
-                                )}
                               </div>
                               {gameHistory === null ? null : gameHistory.active.length ? (
                                 <div className="game-history-table-wrap">
