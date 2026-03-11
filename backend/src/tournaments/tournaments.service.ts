@@ -1541,6 +1541,10 @@ export class TournamentsService {
     answersChosen: number[];
     userSemiIndex: number;
     semiResult: 'playing' | 'won' | 'lost' | 'tie' | 'waiting';
+    semiTiebreakerAllQuestions: { id: number; question: string; options: string[]; correctAnswer: number }[][];
+    semiTiebreakerRoundsCorrect: number[];
+    finalTiebreakerAllQuestions: { id: number; question: string; options: string[]; correctAnswer: number }[][];
+    finalTiebreakerRoundsCorrect: number[];
   }> {
     const tournament = await this.tournamentRepository.findOne({
       where: { id: tournamentId },
