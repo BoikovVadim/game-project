@@ -1594,6 +1594,7 @@ export class TournamentsService {
         }
       } else if (semiResult.result === 'won' && userProgress) {
         const mySemiTotal = semiPhaseQuestions(userProgress);
+        const semiWinCompletionDate = getCompletionDateFromUsers(t, [userId, opponentId], deadlineAt);
         if (answered >= mySemiTotal + QUESTIONS_PER_ROUND) {
           const fr = getFinalResult(t, userProgress);
           if (fr === 'won') {
@@ -1608,17 +1609,13 @@ export class TournamentsService {
             completionDate = completionDate ?? getCompletionDateFromUsers(t, [userId, otherFinalist?.userId ?? -1], deadlineAt);
           } else {
             passed = false;
-            if (deadlineAt < now) {
-              userCompleted = true;
-              completionDate = completionDate ?? deadlineAt;
-            }
+            userCompleted = true;
+            completionDate = completionDate ?? (deadlineAt < now ? deadlineAt : semiWinCompletionDate);
           }
         } else {
           passed = false;
-          if (deadlineAt < now) {
-            userCompleted = true;
-            completionDate = completionDate ?? deadlineAt;
-          }
+          userCompleted = true;
+          completionDate = completionDate ?? (deadlineAt < now ? deadlineAt : semiWinCompletionDate);
         }
       } else {
         passed = row?.passed === 1 ? true : false;
