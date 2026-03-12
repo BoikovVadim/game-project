@@ -17,6 +17,7 @@ import { generateLiterature } from '../tournaments/question-generators/literatur
 import { generateMusicFilm } from '../tournaments/question-generators/music-film';
 import { generateHistoryScience } from '../tournaments/question-generators/history-science';
 import { generateNatureTechCulture } from '../tournaments/question-generators/nature-tech-culture';
+import { generateCulture500 } from '../tournaments/question-generators/expand-culture-500';
 
 async function run() {
   console.log('Инициализация приложения...');
@@ -33,6 +34,7 @@ async function run() {
     { name: 'MusicFilm', fn: generateMusicFilm },
     { name: 'HistoryScience', fn: generateHistoryScience },
     { name: 'NatureTechCulture', fn: generateNatureTechCulture },
+    { name: 'Culture500', fn: generateCulture500 },
   ];
 
   const allQuestions: RawQuestion[] = [];
