@@ -1567,7 +1567,7 @@ export class TournamentsService {
       if (realPlayers < 4) {
         const done4 = t.status === TournamentStatus.FINISHED || deadlineAt < now;
         if (done4 && answered >= QUESTIONS_PER_ROUND) {
-          if (semiResult.result === 'won' || semiResult.result === 'incomplete') {
+          if (semiResult.result === 'won') {
             passed = true;
           } else if (semiResult.result === 'tie') {
             const tbR = semiResult.tiebreakerRound ?? 1;
@@ -1796,7 +1796,7 @@ export class TournamentsService {
         const semiRes4 = getMoneySemiResult(t);
         if (semiRes4.result === 'won') return 'Победа';
         if (semiRes4.result === 'lost') return 'Поражение';
-        if (semiRes4.result === 'incomplete') return 'Победа';
+        if (semiRes4.result === 'incomplete') return 'Ожидание соперника';
         if (semiRes4.result === 'tie') {
           const tbR4 = semiRes4.tiebreakerRound ?? 1;
           const rEnd4 = QUESTIONS_PER_ROUND + tbR4 * TIEBREAKER_QUESTIONS;
@@ -1854,7 +1854,11 @@ export class TournamentsService {
     };
 
     const belongsToHistory = (t: Tournament): boolean => {
-      if (t.status === TournamentStatus.FINISHED) return true;
+      if (t.status === TournamentStatus.FINISHED) {
+        const label = getResultLabel(t);
+        if (label === 'Ожидание соперника') return false;
+        return true;
+      }
       const label = getResultLabel(t);
       if (label === 'Время истекло' || label === 'Поражение' || label === 'Победа') return true;
       if (label === 'Ожидание соперника') return isTimeExpired(t);
