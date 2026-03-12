@@ -191,8 +191,8 @@ export class TournamentsService {
 
         for (const prog of allProg) {
           let row = await this.tournamentResultRepository.findOne({ where: { userId: prog.userId, tournamentId: tournament.id } });
-          if (row) { row.passed = 0; await this.tournamentResultRepository.save(row); }
-          else { await this.tournamentResultRepository.save(this.tournamentResultRepository.create({ userId: prog.userId, tournamentId: tournament.id, passed: 0 })); }
+          if (row) { row.passed = 0; if (!row.completedAt) row.completedAt = new Date(); await this.tournamentResultRepository.save(row); }
+          else { await this.tournamentResultRepository.save(this.tournamentResultRepository.create({ userId: prog.userId, tournamentId: tournament.id, passed: 0, completedAt: new Date() })); }
         }
 
         tournament.status = TournamentStatus.FINISHED;
@@ -257,8 +257,8 @@ export class TournamentsService {
 
         const saveResult = async (uid: number, passed: boolean) => {
           let row = await this.tournamentResultRepository.findOne({ where: { userId: uid, tournamentId: tournament.id } });
-          if (row) { row.passed = passed ? 1 : 0; await this.tournamentResultRepository.save(row); }
-          else { await this.tournamentResultRepository.save(this.tournamentResultRepository.create({ userId: uid, tournamentId: tournament.id, passed: passed ? 1 : 0 })); }
+          if (row) { row.passed = passed ? 1 : 0; if (!row.completedAt) row.completedAt = new Date(); await this.tournamentResultRepository.save(row); }
+          else { await this.tournamentResultRepository.save(this.tournamentResultRepository.create({ userId: uid, tournamentId: tournament.id, passed: passed ? 1 : 0, completedAt: new Date() })); }
         };
 
         let tournamentResolved = false;
@@ -1116,7 +1116,14 @@ export class TournamentsService {
         if (myQ < 10) {
           playerRoundFinished.set(tid, false);
         } else if (oppId == null || oppId <= 0) {
-          playerRoundFinished.set(tid, myQ >= 10);
+          const realPlayers = (t.playerOrder?.filter((id: number) => id > 0).length) ?? 0;
+          if (realPlayers <= 2) {
+            playerRoundFinished.set(tid, myQ >= 10);
+          } else {
+            if (myQ >= mySemiTotal + 10) { playerRoundFinished.set(tid, true); }
+            else if (myQ >= 10 && myQ < mySemiTotal + 10) { playerRoundFinished.set(tid, false); }
+            else { playerRoundFinished.set(tid, myQ >= 10); }
+          }
         } else if (mySemi != null && oppProg?.semiFinalCorrectCount != null && mySemi === oppProg.semiFinalCorrectCount) {
           const myTB = myProg.tiebreakerRoundsCorrect ?? [];
           const oppTB = oppProg.tiebreakerRoundsCorrect ?? [];
@@ -1441,11 +1448,16 @@ export class TournamentsService {
 
       if (row) {
         row.passed = passed ? 1 : 0;
+        if (!row.completedAt && t.status === TournamentStatus.FINISHED) row.completedAt = new Date();
         await this.tournamentResultRepository.save(row);
       } else {
-        row = this.tournamentResultRepository.create({ userId, tournamentId: t.id, passed: passed ? 1 : 0 });
+        row = this.tournamentResultRepository.create({
+          userId, tournamentId: t.id, passed: passed ? 1 : 0,
+          ...(t.status === TournamentStatus.FINISHED ? { completedAt: new Date() } : {}),
+        });
         await this.tournamentResultRepository.save(row);
       }
+      completedAtByTid.set(t.id, row.completedAt ? (row.completedAt instanceof Date ? row.completedAt.toISOString() : String(row.completedAt)) : null);
       resultByTournamentId.set(t.id, passed);
     }
 
