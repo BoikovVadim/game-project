@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import LandingLayout from './LandingLayout';
+import LandingLayout from './LandingLayout.tsx';
 import './Offer.css';
 
 

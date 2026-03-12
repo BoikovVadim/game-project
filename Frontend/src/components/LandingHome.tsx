@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import Login from './Login';
-import LandingLayout from './LandingLayout';
+import Login from './Login.tsx';
+import LandingLayout from './LandingLayout.tsx';
 
 interface LandingHomeProps {
   onLogin: (token: string) => void;

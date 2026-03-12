@@ -1,5 +1,5 @@
 import React from 'react';
-import LandingLayout from './LandingLayout';
+import LandingLayout from './LandingLayout.tsx';
 import './Offer.css';
 
 const PaymentTerms: React.FC = () => (
