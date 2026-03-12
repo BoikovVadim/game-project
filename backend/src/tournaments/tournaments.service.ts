@@ -381,15 +381,38 @@ export class TournamentsService {
             const f1Finished = playerFinishedCurrentRound(f1);
             const f2Finished = playerFinishedCurrentRound(f2);
 
+            const getFinalCorrectCount = (uid: number): number => {
+              const prog = allProg.find((p) => p.userId === uid);
+              if (!prog) return 0;
+              const total = prog.correctAnswersCount ?? 0;
+              const semi = prog.semiFinalCorrectCount ?? 0;
+              const tbSum = (prog.tiebreakerRoundsCorrect ?? []).reduce((a: number, b: number) => a + b, 0);
+              return total - semi - tbSum;
+            };
+
             if (f1Finished && !f2Finished) {
-              this.logger.log(`[closeTimedOutRounds] T${tournament.id} final: ${f2} timed out, ${f1} wins`);
-              await saveResult(f1, true);
-              await saveResult(f2, false);
+              const f1c = getFinalCorrectCount(f1);
+              if (f1c === 0) {
+                this.logger.log(`[closeTimedOutRounds] T${tournament.id} final: ${f1} finished with 0 correct, ${f2} timed out → both lose`);
+                await saveResult(f1, false);
+                await saveResult(f2, false);
+              } else {
+                this.logger.log(`[closeTimedOutRounds] T${tournament.id} final: ${f2} timed out, ${f1} wins (${f1c} correct)`);
+                await saveResult(f1, true);
+                await saveResult(f2, false);
+              }
               tournamentResolved = true;
             } else if (f2Finished && !f1Finished) {
-              this.logger.log(`[closeTimedOutRounds] T${tournament.id} final: ${f1} timed out, ${f2} wins`);
-              await saveResult(f2, true);
-              await saveResult(f1, false);
+              const f2c = getFinalCorrectCount(f2);
+              if (f2c === 0) {
+                this.logger.log(`[closeTimedOutRounds] T${tournament.id} final: ${f2} finished with 0 correct, ${f1} timed out → both lose`);
+                await saveResult(f1, false);
+                await saveResult(f2, false);
+              } else {
+                this.logger.log(`[closeTimedOutRounds] T${tournament.id} final: ${f1} timed out, ${f2} wins (${f2c} correct)`);
+                await saveResult(f2, true);
+                await saveResult(f1, false);
+              }
               tournamentResolved = true;
             } else if (!f1Finished && !f2Finished) {
               this.logger.log(`[closeTimedOutRounds] T${tournament.id} final: both finalists timed out`);
