@@ -4066,6 +4066,13 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
             }
             return desc;
           };
+          const formatTransactionAmount = (value: number) => {
+            if (!Number.isFinite(value)) return '0.00';
+            return value.toLocaleString('ru-RU', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            });
+          };
           const getAmountDisplay = (t: any) => {
             const amt = Number(t?.amount);
             const isTopup = t?.category === 'topup' || t?.description?.includes?.('Пополнение');
@@ -4074,11 +4081,11 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
             if (isConvert) {
               const absAmt = Math.abs(amt);
               const currency = amt > 0 ? CURRENCY : '₽';
-              return `${formatNum(absAmt)} ${currency}`;
+              return `${formatTransactionAmount(absAmt)} ${currency}`;
             }
             const sign = amt >= 0 ? '+' : '-';
             const currency = (isTopup || isWithdraw) ? '₽' : CURRENCY;
-            return `${sign}${formatNum(Math.abs(amt))} ${currency}`;
+            return `${sign}${formatTransactionAmount(Math.abs(amt))} ${currency}`;
           };
           const getAmountCellClass = (t: any) => {
             const isConvert = t?.category === 'convert' || t?.description?.includes?.('Конвертация');
