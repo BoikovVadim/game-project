@@ -1,6 +1,5 @@
 import React, { Suspense, useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
-import Register from './components/Register.tsx';
 import VerifyEmail from './components/VerifyEmail.tsx';
 import VerifyCode from './components/VerifyCode.tsx';
 import ForgotPassword from './components/ForgotPassword.tsx';
@@ -135,7 +134,7 @@ function AppContent() {
   const isSupport = location.pathname === '/support' && hasToken;
   const isRedirecting = hasToken && (location.pathname === '/' || location.pathname === '/login');
 
-  const publicInfoPages = ['/', '/about', '/offer', '/privacy', '/payment-terms', '/tournament-rules', '/balance-rules', '/contacts'];
+  const publicInfoPages = ['/', '/about', '/offer', '/privacy', '/payment-terms', '/tournament-rules', '/balance-rules', '/contacts', '/register'];
   const isPublicPage = !hasToken && publicInfoPages.includes(location.pathname);
   const hideTopNav = isProfile || isAdmin || isSupport || isRedirecting || isPublicPage;
   const noPadding = hideTopNav || isPublicPage;
@@ -165,7 +164,7 @@ function AppContent() {
           <Routes>
             <Route path="/" element={hasToken ? <Navigate to="/profile" replace /> : <LandingHome onLogin={handleLogin} />} />
             <Route path="/login" element={<Navigate to={hasToken ? '/profile' : '/'} replace />} />
-            <Route path="/register" element={<Register />} />
+            <Route path="/register" element={<Navigate to="/?tab=register" replace />} />
             <Route path="/offer" element={<Offer />} />
             <Route path="/about" element={<About />} />
             <Route path="/privacy" element={<Privacy />} />

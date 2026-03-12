@@ -227,6 +227,39 @@
   box-shadow: 0 8px 40px rgba(0,0,0,0.4);
 }
 
+.landing-form-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 20px;
+  border-bottom: 2px solid #333;
+}
+
+.landing-form-tab {
+  flex: 1;
+  background: none;
+  border: none;
+  color: #888;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 10px 0;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: color 0.2s, border-color 0.2s;
+  box-shadow: none;
+}
+
+.landing-form-tab:hover {
+  color: #ccc;
+  box-shadow: none;
+}
+
+.landing-form-tab.active {
+  color: var(--gold-mid);
+  border-bottom-color: var(--gold-mid);
+  box-shadow: none;
+}
+
 .landing-hero-form h2 {
   color: #fff;
   margin: 0 0 20px;
@@ -265,6 +298,20 @@
 
 .landing-hero-form p {
   color: #aaa;
+}
+
+.landing-hero-form label {
+  color: #bbb;
+}
+
+.landing-hero-form label a {
+  color: var(--gold-mid);
+}
+
+.landing-hero-form .error,
+.landing-hero-form p[style*="color: red"],
+.landing-hero-form p[style*="color:red"] {
+  color: #ff6b6b !important;
 }
 
 /* ===== Features ===== */

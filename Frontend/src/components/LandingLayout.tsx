@@ -40,13 +40,13 @@ const LandingLayout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 
           <div className="landing-auth-mobile" style={{ display: 'none' }}>
             <Link to="/" className="landing-btn-login" onClick={() => setMobileOpen(false)}>Вход</Link>
-            <Link to="/register" className="landing-btn-register" onClick={() => setMobileOpen(false)}>Регистрация</Link>
+            <Link to="/?tab=register" className="landing-btn-register" onClick={() => setMobileOpen(false)}>Регистрация</Link>
           </div>
         </nav>
 
         <div className="landing-auth-buttons">
           <Link to="/" className="landing-btn-login">Вход</Link>
-          <Link to="/register" className="landing-btn-register">Регистрация</Link>
+          <Link to="/?tab=register" className="landing-btn-register">Регистрация</Link>
         </div>
       </header>
 

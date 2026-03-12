@@ -1,6 +1,7 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import Login from './Login.tsx';
+import Register from './Register.tsx';
 import LandingLayout from './LandingLayout.tsx';
 
 interface LandingHomeProps {
@@ -8,6 +9,19 @@ interface LandingHomeProps {
 }
 
 const LandingHome: React.FC<LandingHomeProps> = ({ onLogin }) => {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') === 'register' ? 'register' : 'login';
+
+  const switchTab = (tab: 'login' | 'register') => {
+    const next = new URLSearchParams(searchParams);
+    if (tab === 'login') {
+      next.delete('tab');
+    } else {
+      next.set('tab', 'register');
+    }
+    setSearchParams(next, { replace: true });
+  };
+
   return (
     <LandingLayout>
       <section className="landing-hero">
@@ -18,11 +32,26 @@ const LandingHome: React.FC<LandingHomeProps> = ({ onLogin }) => {
             Участвуйте в турнирах, проверяйте свою эрудицию
             и поднимайтесь в рейтинге среди тысяч участников.
           </p>
-          <Link to="/register" className="landing-hero-cta">Начать участие</Link>
         </div>
 
         <div className="landing-hero-form">
-          <Login onLogin={onLogin} />
+          <div className="landing-form-tabs">
+            <button
+              type="button"
+              className={`landing-form-tab${activeTab === 'login' ? ' active' : ''}`}
+              onClick={() => switchTab('login')}
+            >
+              Вход
+            </button>
+            <button
+              type="button"
+              className={`landing-form-tab${activeTab === 'register' ? ' active' : ''}`}
+              onClick={() => switchTab('register')}
+            >
+              Регистрация
+            </button>
+          </div>
+          {activeTab === 'login' ? <Login onLogin={onLogin} /> : <Register />}
         </div>
       </section>
 
