@@ -875,8 +875,8 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   const selectedLeagueRef = useRef(5);
 
   const [gameHistory, setGameHistory] = useState<{
-    active: { id: number; status: string; createdAt: string; playersCount: number; deadline?: string; userStatus?: 'passed' | 'not_passed'; stage?: string; resultLabel?: string; roundForQuestions?: 'semi' | 'final'; roundFinished?: boolean }[];
-    completed: { id: number; status: string; createdAt: string; playersCount: number; userStatus?: 'passed' | 'not_passed'; stage?: string; resultLabel?: string; roundForQuestions?: 'semi' | 'final' }[];
+    active: { id: number; status: string; createdAt: string; playersCount: number; deadline?: string; userStatus?: 'passed' | 'not_passed'; stage?: string; resultLabel?: string; roundForQuestions?: 'semi' | 'final'; roundFinished?: boolean; roundStartedAt?: string | null }[];
+    completed: { id: number; status: string; createdAt: string; playersCount: number; userStatus?: 'passed' | 'not_passed'; stage?: string; resultLabel?: string; roundForQuestions?: 'semi' | 'final'; roundStartedAt?: string | null }[];
   } | null>(null);
 
   const [bracketOpenSource, setBracketOpenSource] = useState<'active' | 'completed' | null>(null);
@@ -1262,8 +1262,8 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     const params = new URLSearchParams({ mode });
     if (currentTournamentId) params.set('currentTournamentId', String(currentTournamentId));
     axios.get<{
-      active: { id: number; status: string; createdAt: string; playersCount: number; deadline?: string; userStatus?: 'passed' | 'not_passed'; stage?: string; resultLabel?: string; roundFinished?: boolean }[];
-      completed: { id: number; status: string; createdAt: string; playersCount: number; userStatus?: 'passed' | 'not_passed'; stage?: string; resultLabel?: string }[];
+      active: { id: number; status: string; createdAt: string; playersCount: number; deadline?: string; userStatus?: 'passed' | 'not_passed'; stage?: string; resultLabel?: string; roundFinished?: boolean; roundStartedAt?: string | null }[];
+      completed: { id: number; status: string; createdAt: string; playersCount: number; userStatus?: 'passed' | 'not_passed'; stage?: string; resultLabel?: string; roundStartedAt?: string | null }[];
     }>(`/tournaments/my?${params}`, { headers: { Authorization: `Bearer ${token}` } })
       .then((res) => setGameHistory(res.data))
       .catch(() => setGameHistory({ active: [], completed: [] }));
@@ -3424,6 +3424,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                     <th>№ турнира</th>
                                     <th>Этап</th>
                                     <th className="game-history-questions-col"><span className="game-history-questions-tooltip" data-tooltip="Формат: всего / отвечено / верных. Пример: 10/10/7 = всего 10 вопросов, отвечено 10, верных 7" tabIndex={0} onClick={(e) => { const el = e.currentTarget; if (el.classList.contains('tooltip-active')) { el.classList.remove('tooltip-active'); el.blur(); } else { el.classList.add('tooltip-active'); } }} onBlur={(e) => e.currentTarget.classList.remove('tooltip-active')}>Вопросы</span></th>
+                                    <th>Старт раунда</th>
                                     <th>Осталось до конца</th>
                                     <th>Статус</th>
                                   </tr>
@@ -3442,6 +3443,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                           {(t as any).questionsTotal ?? 10}/{(t as any).questionsAnswered ?? 0}/{(t as any).correctAnswersInRound ?? 0}
                                         </button>
                                       </td>
+                                      <td>{t.roundStartedAt ? new Date(t.roundStartedAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'}</td>
                                       <td>{t.roundFinished ? '—' : t.deadline ? (new Date(t.deadline) > new Date() ? formatTimeLeft(t.deadline) : 'Время вышло') : '—'}</td>
                                       <td>
                                         <span className={`game-history-status game-history-status--${t.resultLabel === 'Победа' ? 'victory' : t.resultLabel === 'Поражение' ? 'defeat' : t.resultLabel === 'Время истекло' ? 'time-expired' : t.resultLabel === 'Финал' ? 'final-ready' : t.resultLabel === 'Доп. раунд' ? 'tiebreaker' : t.resultLabel === 'Ожидание соперника' ? 'stage-passed' : 'stage-not-passed'}`}>
@@ -3468,6 +3470,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                     <th>№ турнира</th>
                                     <th>Этап</th>
                                     <th className="game-history-questions-col"><span className="game-history-questions-tooltip" data-tooltip="Формат: всего / отвечено / верных. Пример: 10/10/7 = всего 10 вопросов, отвечено 10, верных 7" tabIndex={0} onClick={(e) => { const el = e.currentTarget; if (el.classList.contains('tooltip-active')) { el.classList.remove('tooltip-active'); el.blur(); } else { el.classList.add('tooltip-active'); } }} onBlur={(e) => e.currentTarget.classList.remove('tooltip-active')}>Вопросы</span></th>
+                                    <th>Старт раунда</th>
                                     <th>Дата завершения</th>
                                     <th>Статус</th>
                                   </tr>
@@ -3486,6 +3489,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                           {(t as any).questionsTotal ?? 10}/{(t as any).questionsAnswered ?? 0}/{(t as any).correctAnswersInRound ?? 0}
                                         </button>
                                       </td>
+                                      <td>{t.roundStartedAt ? new Date(t.roundStartedAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'}</td>
                                       <td>{(t as any).completedAt ? formatMoscowDateTime((t as any).completedAt) : '—'}</td>
                                       <td><span className={`game-history-status game-history-status--${t.resultLabel === 'Победа' ? 'victory' : t.resultLabel === 'Поражение' ? 'defeat' : t.resultLabel === 'Время истекло' ? 'time-expired' : t.resultLabel === 'Доп. раунд' ? 'tiebreaker' : t.resultLabel === 'Ожидание соперника' ? 'stage-passed' : 'stage-not-passed'}`}>{t.resultLabel ?? 'Этап не пройден'}</span></td>
                                     </tr>
@@ -3820,6 +3824,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                       <th>Стоимость лиги</th>
                                       <th>Этап</th>
                                       <th className="game-history-questions-col"><span className="game-history-questions-tooltip" data-tooltip="Формат: всего / отвечено / верных. Пример: 10/10/7 = всего 10 вопросов, отвечено 10, верных 7" tabIndex={0} onClick={(e) => { const el = e.currentTarget; if (el.classList.contains('tooltip-active')) { el.classList.remove('tooltip-active'); el.blur(); } else { el.classList.add('tooltip-active'); } }} onBlur={(e) => e.currentTarget.classList.remove('tooltip-active')}>Вопросы</span></th>
+                                      <th>Старт раунда</th>
                                       <th>Осталось до конца</th>
                                       <th>Статус</th>
                                     </tr>
@@ -3839,6 +3844,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                             {(t as any).questionsTotal ?? 10}/{(t as any).questionsAnswered ?? 0}/{(t as any).correctAnswersInRound ?? 0}
                                           </button>
                                         </td>
+                                        <td>{t.roundStartedAt ? new Date(t.roundStartedAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'}</td>
                                         <td>{t.roundFinished ? '—' : t.deadline ? (new Date(t.deadline) > new Date() ? formatTimeLeft(t.deadline) : 'Время вышло') : '—'}</td>
                                         <td><span className={`game-history-status game-history-status--${t.resultLabel === 'Победа' ? 'victory' : t.resultLabel === 'Поражение' ? 'defeat' : t.resultLabel === 'Время истекло' ? 'time-expired' : t.resultLabel === 'Доп. раунд' ? 'tiebreaker' : t.resultLabel === 'Ожидание соперника' ? 'stage-passed' : 'stage-not-passed'}`}>{t.resultLabel ?? 'Этап не пройден'}</span></td>
                                       </tr>
@@ -3861,6 +3867,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                       <th>Стоимость лиги</th>
                                       <th>Этап</th>
                                       <th className="game-history-questions-col"><span className="game-history-questions-tooltip" data-tooltip="Формат: всего / отвечено / верных. Пример: 10/10/7 = всего 10 вопросов, отвечено 10, верных 7" tabIndex={0} onClick={(e) => { const el = e.currentTarget; if (el.classList.contains('tooltip-active')) { el.classList.remove('tooltip-active'); el.blur(); } else { el.classList.add('tooltip-active'); } }} onBlur={(e) => e.currentTarget.classList.remove('tooltip-active')}>Вопросы</span></th>
+                                      <th>Старт раунда</th>
                                       <th>Дата завершения</th>
                                       <th>Статус</th>
                                     </tr>
@@ -3880,6 +3887,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                             {(t as any).questionsTotal ?? 10}/{(t as any).questionsAnswered ?? 0}/{(t as any).correctAnswersInRound ?? 0}
                                           </button>
                                         </td>
+                                        <td>{t.roundStartedAt ? new Date(t.roundStartedAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—'}</td>
                                         <td>{(t as any).completedAt ? formatMoscowDateTime((t as any).completedAt) : '—'}</td>
                                         <td><span className={`game-history-status game-history-status--${t.resultLabel === 'Победа' ? 'victory' : t.resultLabel === 'Поражение' ? 'defeat' : t.resultLabel === 'Время истекло' ? 'time-expired' : t.resultLabel === 'Доп. раунд' ? 'tiebreaker' : t.resultLabel === 'Ожидание соперника' ? 'stage-passed' : 'stage-not-passed'}`}>{t.resultLabel ?? 'Этап не пройден'}</span></td>
                                       </tr>

@@ -920,8 +920,8 @@ export class TournamentsService {
     mode?: 'training' | 'money',
     currentTournamentId?: number,
   ): Promise<{
-    active: { id: number; status: string; createdAt: string; playersCount: number; leagueAmount: number | null; deadline: string; userStatus: 'passed' | 'not_passed'; stage?: string; resultLabel?: string; roundForQuestions: 'semi' | 'final'; questionsAnswered: number; questionsTotal: number; correctAnswersInRound: number; roundFinished?: boolean }[];
-    completed: { id: number; status: string; createdAt: string; playersCount: number; leagueAmount: number | null; userStatus: 'passed' | 'not_passed'; stage?: string; resultLabel?: string; roundForQuestions: 'semi' | 'final'; questionsAnswered: number; questionsTotal: number; correctAnswersInRound: number; completedAt?: string | null }[];
+    active: { id: number; status: string; createdAt: string; playersCount: number; leagueAmount: number | null; deadline: string; userStatus: 'passed' | 'not_passed'; stage?: string; resultLabel?: string; roundForQuestions: 'semi' | 'final'; questionsAnswered: number; questionsTotal: number; correctAnswersInRound: number; roundFinished?: boolean; roundStartedAt?: string | null }[];
+    completed: { id: number; status: string; createdAt: string; playersCount: number; leagueAmount: number | null; userStatus: 'passed' | 'not_passed'; stage?: string; resultLabel?: string; roundForQuestions: 'semi' | 'final'; questionsAnswered: number; questionsTotal: number; correctAnswersInRound: number; completedAt?: string | null; roundStartedAt?: string | null }[];
   }> {
     await this.tournamentRepository
       .createQueryBuilder()
@@ -959,6 +959,7 @@ export class TournamentsService {
     }
 
     const deadlineByTournamentId: Record<number, string> = {};
+    const roundStartedAtByTid = new Map<number, string | null>();
     // Per-player deadline: based on player's own roundStartedAt + 24h
     const playerRoundFinished = new Map<number, boolean>();
     if (allIds.length > 0) {
@@ -971,6 +972,7 @@ export class TournamentsService {
         const myProg = allProgress.find((p) => p.tournamentId === tid && p.userId === userId);
         const isInFinal = this.isPlayerInFinalPhase(myProg, allProgress, tournaments.find((t2) => t2.id === tid));
         const hours = isInFinal ? GAME_DEADLINE_HOURS_FINAL : GAME_DEADLINE_HOURS;
+        roundStartedAtByTid.set(tid, myProg?.roundStartedAt ? myProg.roundStartedAt.toISOString() : null);
         if (myProg?.roundStartedAt) {
           deadlineByTournamentId[tid] = this.getDeadline(myProg.roundStartedAt, hours);
         } else if (myProg) {
@@ -1429,6 +1431,7 @@ export class TournamentsService {
         correctAnswersInRound,
         completedAt: completedAtByTid.get(t.id) ?? null,
         roundFinished: playerRoundFinished.get(t.id) ?? false,
+        roundStartedAt: roundStartedAtByTid.get(t.id) ?? null,
       };
     };
 
