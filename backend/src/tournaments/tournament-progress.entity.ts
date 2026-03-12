@@ -51,4 +51,12 @@ export class TournamentProgress {
   /** Количество заблокированных ответов — ответы с индексом < lockedAnswerCount не могут быть перезаписаны (защита от читерства). */
   @Column({ type: 'integer', default: 0 })
   lockedAnswerCount!: number;
+
+  /** Когда игрок начал текущий раунд (для персонального 24ч таймера). Сбрасывается при переходе на новый этап (ТБ, финал). */
+  @Column({ type: 'timestamptz', nullable: true })
+  roundStartedAt!: Date | null;
+
+  /** Игрок был исключён из турнира за истечение времени. */
+  @Column({ type: 'boolean', default: false })
+  kicked!: boolean;
 }

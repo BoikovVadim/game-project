@@ -106,6 +106,111 @@ export class TournamentsService {
     } catch (err) {
       this.logger.error('[Cron] processAllExpiredEscrows failed', err);
     }
+    try {
+      await this.kickExpiredPlayers();
+    } catch (err) {
+      this.logger.error('[Cron] kickExpiredPlayers failed', err);
+    }
+  }
+
+  /**
+   * Находит игроков, у которых истёк персональный 24ч таймер (roundStartedAt + 24h < now)
+   * и они не завершили текущий раунд. Помечает их как kicked, соперник автоматически побеждает.
+   */
+  private async kickExpiredPlayers(): Promise<void> {
+    const cutoff = new Date(Date.now() - GAME_DEADLINE_HOURS * 60 * 60 * 1000);
+    const expiredProgress = await this.tournamentProgressRepository
+      .createQueryBuilder('p')
+      .where('p."roundStartedAt" IS NOT NULL')
+      .andWhere('p."roundStartedAt" < :cutoff', { cutoff })
+      .andWhere('p.kicked = false')
+      .getMany();
+
+    for (const prog of expiredProgress) {
+      try {
+        const tournament = await this.tournamentRepository.findOne({
+          where: { id: prog.tournamentId },
+          relations: ['players'],
+        });
+        if (!tournament) continue;
+        if (tournament.status === TournamentStatus.FINISHED) continue;
+        this.sortPlayersByOrder(tournament);
+
+        const playerSlot = tournament.playerOrder?.indexOf(prog.userId) ?? -1;
+        if (playerSlot < 0) continue;
+
+        // Determine expected questions for current phase
+        const myQ = prog.questionsAnsweredCount ?? 0;
+        const myTBLen = (prog.tiebreakerRoundsCorrect ?? []).length;
+        const mySemiTotal = this.QUESTIONS_PER_ROUND + myTBLen * this.TIEBREAKER_QUESTIONS;
+
+        // Check if player actually finished current round
+        let finished = false;
+        if (myQ >= 10 && prog.semiFinalCorrectCount != null) {
+          const oppSlot = playerSlot % 2 === 0 ? playerSlot + 1 : playerSlot - 1;
+          const oppId = tournament.playerOrder && oppSlot >= 0 && oppSlot < tournament.playerOrder.length
+            ? tournament.playerOrder[oppSlot] : null;
+          if (oppId != null && oppId > 0) {
+            const oppProg = await this.tournamentProgressRepository.findOne({
+              where: { userId: oppId, tournamentId: prog.tournamentId },
+            });
+            if (oppProg?.semiFinalCorrectCount != null) {
+              if (prog.semiFinalCorrectCount > oppProg.semiFinalCorrectCount) {
+                // Won semi — finished if answered enough for current phase
+                finished = myQ >= mySemiTotal;
+              } else if (prog.semiFinalCorrectCount === oppProg.semiFinalCorrectCount) {
+                // Tie — check if answered all tiebreaker questions
+                const nextTBRound = myTBLen + 1;
+                const nextTBEnd = this.QUESTIONS_PER_ROUND + nextTBRound * this.TIEBREAKER_QUESTIONS;
+                finished = myQ >= nextTBEnd;
+              } else {
+                finished = true; // Lost semi = round over
+              }
+            } else {
+              finished = true; // Opponent hasn't finished semi yet, but we have
+            }
+          } else {
+            finished = true; // No opponent yet
+          }
+        }
+
+        if (finished) continue; // Player finished round, don't kick
+
+        // KICK the player
+        this.logger.log(`[kickExpiredPlayers] Kicking userId=${prog.userId} from tournament=${prog.tournamentId} (expired)`);
+        await this.tournamentProgressRepository.update({ id: prog.id }, { kicked: true });
+
+        // Replace slot in playerOrder with -1 (vacant) — keep in players relation for history
+        if (tournament.playerOrder) {
+          const idx = tournament.playerOrder.indexOf(prog.userId);
+          if (idx >= 0) tournament.playerOrder[idx] = -1;
+        }
+        await this.tournamentRepository.save(tournament);
+
+        // Create a "kicked" result
+        let result = await this.tournamentResultRepository.findOne({
+          where: { userId: prog.userId, tournamentId: prog.tournamentId },
+        });
+        if (result) {
+          result.passed = 0;
+          await this.tournamentResultRepository.save(result);
+        } else {
+          await this.tournamentResultRepository.save(
+            this.tournamentResultRepository.create({
+              userId: prog.userId, tournamentId: prog.tournamentId, passed: 0,
+            }),
+          );
+        }
+
+        // Set tournament back to WAITING so new players can join the vacant slot
+        if (tournament.status === TournamentStatus.ACTIVE) {
+          tournament.status = TournamentStatus.WAITING;
+          await this.tournamentRepository.save(tournament);
+        }
+      } catch (err) {
+        this.logger.error(`[kickExpiredPlayers] Error for progress ${prog.id}`, err);
+      }
+    }
   }
 
   /** Находит все турниры за деньги с эскроу в статусе held и дедлайном в прошлом, обрабатывает их (возврат или выплата). */
@@ -293,11 +398,10 @@ export class TournamentsService {
       }
     }
     const waitingTournament = waitingTournaments.find((t) => {
-      if (t.players.length >= 4) return false;
       if (t.players.some((p) => p.id === userId)) return false;
-      const from = lastActivityByTid.get(t.id) ?? t.createdAt;
-      const dl = new Date(this.getDeadline(from));
-      if (dl < now) return false;
+      // Check for vacant slot (kicked player) or room for new player
+      const hasVacantSlot = t.playerOrder?.includes(-1) ?? false;
+      if (!hasVacantSlot && t.players.length >= 4) return false;
       return true;
     });
 
@@ -309,8 +413,15 @@ export class TournamentsService {
     if (waitingTournament) {
       tournament = waitingTournament;
       tournament.players.push(user);
-      tournament.playerOrder = [...(tournament.playerOrder ?? []), user.id];
-      playerSlot = (tournament.playerOrder).length - 1;
+      // Fill vacant slot (-1) if available, otherwise append
+      const vacantIdx = tournament.playerOrder?.indexOf(-1) ?? -1;
+      if (vacantIdx >= 0 && tournament.playerOrder) {
+        tournament.playerOrder[vacantIdx] = user.id;
+        playerSlot = vacantIdx;
+      } else {
+        tournament.playerOrder = [...(tournament.playerOrder ?? []), user.id];
+        playerSlot = tournament.playerOrder.length - 1;
+      }
       isCreator = false;
       await this.tournamentRepository.save(tournament);
       await this.tournamentEntryRepository.save(
@@ -658,11 +769,9 @@ export class TournamentsService {
     }
     const waitingTournament = waitingTournaments.find((t) => {
       if ((t.leagueAmount ?? 0) !== leagueAmount) return false;
-      if (t.players.length >= 4) return false;
       if (t.players.some((p) => p.id === userId)) return false;
-      const from = moneyLastActivityByTid.get(t.id) ?? t.createdAt;
-      const dl = new Date(this.getDeadline(from));
-      if (dl < now) return false;
+      const hasVacantSlot = t.playerOrder?.includes(-1) ?? false;
+      if (!hasVacantSlot && t.players.length >= 4) return false;
       return true;
     });
 
@@ -675,8 +784,14 @@ export class TournamentsService {
     if (waitingTournament) {
       tournament = waitingTournament;
       tournament.players.push(user);
-      tournament.playerOrder = [...(tournament.playerOrder ?? []), user.id];
-      playerSlot = (tournament.playerOrder).length - 1;
+      const vacantIdx = tournament.playerOrder?.indexOf(-1) ?? -1;
+      if (vacantIdx >= 0 && tournament.playerOrder) {
+        tournament.playerOrder[vacantIdx] = user.id;
+        playerSlot = vacantIdx;
+      } else {
+        tournament.playerOrder = [...(tournament.playerOrder ?? []), user.id];
+        playerSlot = tournament.playerOrder.length - 1;
+      }
       isCreator = false;
       await this.tournamentRepository.save(tournament);
       await this.tournamentEntryRepository.save(
@@ -758,7 +873,7 @@ export class TournamentsService {
     mode?: 'training' | 'money',
     currentTournamentId?: number,
   ): Promise<{
-    active: { id: number; status: string; createdAt: string; playersCount: number; leagueAmount: number | null; deadline: string; userStatus: 'passed' | 'not_passed'; stage?: string; resultLabel?: string; roundForQuestions: 'semi' | 'final'; questionsAnswered: number; questionsTotal: number; correctAnswersInRound: number }[];
+    active: { id: number; status: string; createdAt: string; playersCount: number; leagueAmount: number | null; deadline: string; userStatus: 'passed' | 'not_passed'; stage?: string; resultLabel?: string; roundForQuestions: 'semi' | 'final'; questionsAnswered: number; questionsTotal: number; correctAnswersInRound: number; roundFinished?: boolean }[];
     completed: { id: number; status: string; createdAt: string; playersCount: number; leagueAmount: number | null; userStatus: 'passed' | 'not_passed'; stage?: string; resultLabel?: string; roundForQuestions: 'semi' | 'final'; questionsAnswered: number; questionsTotal: number; correctAnswersInRound: number; completedAt?: string | null }[];
   }> {
     await this.tournamentRepository
@@ -797,29 +912,62 @@ export class TournamentsService {
     }
 
     const deadlineByTournamentId: Record<number, string> = {};
+    // Per-player deadline: based on player's own roundStartedAt + 24h
+    const playerRoundFinished = new Map<number, boolean>();
     if (allIds.length > 0) {
-      const entries = await this.tournamentEntryRepository
-        .createQueryBuilder('e')
-        .innerJoinAndSelect('e.tournament', 't')
-        .where('e.tournamentId IN (:...ids)', { ids: allIds })
-        .getMany();
       const allProgress = await this.tournamentProgressRepository
         .createQueryBuilder('p')
         .where('p.tournamentId IN (:...ids)', { ids: allIds })
         .getMany();
-      const tournamentByTid = new Map(tournaments.map((t) => [t.id, t]));
+
       for (const tid of allIds) {
-        const t = tournamentByTid.get(tid);
-        let latest: Date = t?.createdAt ?? new Date();
-        const tournamentEntries = entries.filter((e) => e.tournament.id === tid);
-        for (const e of tournamentEntries) {
-          if (e.joinedAt && e.joinedAt > latest) latest = e.joinedAt;
+        const myProg = allProgress.find((p) => p.tournamentId === tid && p.userId === userId);
+        if (myProg?.roundStartedAt) {
+          deadlineByTournamentId[tid] = this.getDeadline(myProg.roundStartedAt);
+        } else if (myProg) {
+          const entries = await this.tournamentEntryRepository.find({ where: { tournament: { id: tid }, user: { id: userId } } as any });
+          const joinedAt = entries.length > 0 ? entries[0]!.joinedAt : (tournaments.find((t) => t.id === tid)?.createdAt ?? new Date());
+          deadlineByTournamentId[tid] = this.getDeadline(joinedAt);
+          // Backfill roundStartedAt
+          await this.tournamentProgressRepository.update({ id: myProg.id }, { roundStartedAt: joinedAt });
+        } else {
+          const t = tournaments.find((t2) => t2.id === tid);
+          deadlineByTournamentId[tid] = this.getDeadline(t?.createdAt ?? new Date());
         }
-        const tidProgress = allProgress.filter((p) => p.tournamentId === tid);
-        for (const p of tidProgress) {
-          if (p.leftAt && p.leftAt > latest) latest = p.leftAt;
+      }
+
+      // Determine if player has finished current round (no timer needed)
+      for (const tid of allIds) {
+        const myProg = allProgress.find((p) => p.tournamentId === tid && p.userId === userId);
+        if (!myProg) { playerRoundFinished.set(tid, false); continue; }
+        const t = tournaments.find((t2) => t2.id === tid);
+        if (!t) { playerRoundFinished.set(tid, false); continue; }
+        this.sortPlayersByOrder(t);
+        const playerSlot = t.playerOrder?.indexOf(userId) ?? -1;
+        const oppSlot = playerSlot >= 0 ? (playerSlot % 2 === 0 ? playerSlot + 1 : playerSlot - 1) : -1;
+        const oppId = oppSlot >= 0 && t.playerOrder && oppSlot < t.playerOrder.length ? t.playerOrder[oppSlot] : null;
+        const oppProg = oppId != null && oppId > 0 ? allProgress.find((p) => p.tournamentId === tid && p.userId === oppId) : null;
+
+        const myQ = myProg.questionsAnsweredCount ?? 0;
+        const mySemi = myProg.semiFinalCorrectCount;
+        const myTBLen = (myProg.tiebreakerRoundsCorrect ?? []).length;
+        const mySemiTotal = 10 + myTBLen * 10;
+
+        if (myQ < 10) {
+          playerRoundFinished.set(tid, false);
+        } else if (mySemi != null && oppProg?.semiFinalCorrectCount != null && mySemi === oppProg.semiFinalCorrectCount) {
+          // Tie in semi — check if current tiebreaker round is answered
+          const oppTBLen = (oppProg.tiebreakerRoundsCorrect ?? []).length;
+          const nextTBEnd = 10 + Math.max(myTBLen, oppTBLen) * 10 + 10;
+          playerRoundFinished.set(tid, myQ >= nextTBEnd - 10 && myQ % 10 === 0 && myQ > 10);
+        } else if (mySemi != null && oppProg?.semiFinalCorrectCount != null && mySemi > oppProg.semiFinalCorrectCount) {
+          // Won semi — check if in final
+          if (myQ < mySemiTotal) { playerRoundFinished.set(tid, true); }
+          else if (myQ >= mySemiTotal + 10) { playerRoundFinished.set(tid, true); }
+          else { playerRoundFinished.set(tid, myQ >= mySemiTotal && myQ < mySemiTotal + 10 ? false : true); }
+        } else {
+          playerRoundFinished.set(tid, myQ >= 10);
         }
-        deadlineByTournamentId[tid] = this.getDeadline(latest);
       }
     }
 
@@ -957,6 +1105,8 @@ export class TournamentsService {
       const opponentSlot = playerSlot % 2 === 0 ? playerSlot + 1 : playerSlot - 1;
       if (opponentSlot < 0 || opponentSlot >= order.length) return { result: 'incomplete' };
       const opponentId = order[opponentSlot];
+      // Kicked opponent (-1 in playerOrder) → auto-win
+      if (opponentId === -1) return { result: 'won' };
 
       const myProgress = progressByTidAndUser.get(t.id)?.get(userId);
       const oppProgress = progressByTidAndUser.get(t.id)?.get(opponentId);
@@ -993,7 +1143,7 @@ export class TournamentsService {
       const otherSlots: [number, number] = playerSlot < 2 ? [2, 3] : [0, 1];
       const p1Id = order[otherSlots[0]];
       const p2Id = order[otherSlots[1]];
-      if (p1Id == null || p2Id == null) return null;
+      if (p1Id == null || p2Id == null || p1Id === -1 || p2Id === -1) return null;
       const prog1 = progressByTidAndUser.get(t.id)?.get(p1Id);
       const prog2 = progressByTidAndUser.get(t.id)?.get(p2Id);
       const q1 = prog1?.q ?? 0;
@@ -1225,10 +1375,18 @@ export class TournamentsService {
         questionsTotal,
         correctAnswersInRound,
         completedAt: completedAtByTid.get(t.id) ?? null,
+        roundFinished: playerRoundFinished.get(t.id) ?? false,
       };
     };
 
+    const isKicked = (t: Tournament): boolean => {
+      const order = t.playerOrder;
+      if (!order) return false;
+      return !order.includes(userId);
+    };
+
     const getResultLabel = (t: Tournament): string => {
+      if (isKicked(t)) return 'Время истекло';
       const prog = progressByTid.get(t.id);
       const answered = prog?.q ?? 0;
 
@@ -1271,8 +1429,9 @@ export class TournamentsService {
     };
 
     const belongsToHistory = (t: Tournament): boolean => {
+      if (isKicked(t)) return true; // Kicked player → always in history
       const label = getResultLabel(t);
-      if (label === 'Поражение' || label === 'Победа') return true;
+      if (label === 'Время истекло' || label === 'Поражение' || label === 'Победа') return true;
       if (currentTournamentId === t.id && !isTimeExpired(t)) return false;
       return isTimeExpired(t);
     };
@@ -1361,15 +1520,21 @@ export class TournamentsService {
     const playerIndex = tournament.players?.findIndex((p) => p.id === userId) ?? -1;
     if (playerIndex < 0) throw new BadRequestException('You are not in this tournament');
 
-    const lastActivity = await this.getLastActivityDate(tournamentId, tournament.createdAt ?? new Date());
-    const deadline = this.getDeadline(lastActivity);
-
     const playerSlot = playerIndex;
     const semiIndex = playerSlot < 2 ? 0 : 1;
     const positionInSemi = playerSlot % 2;
     const isCreator = playerSlot === 0;
 
     const progress = await this.tournamentProgressRepository.findOne({ where: { userId, tournamentId } });
+    // Per-player deadline based on roundStartedAt
+    let deadline: string;
+    if (progress?.roundStartedAt) {
+      deadline = this.getDeadline(progress.roundStartedAt);
+    } else {
+      const entries = await this.tournamentEntryRepository.find({ where: { tournament: { id: tournamentId }, user: { id: userId } } as any });
+      const joinedAt = entries.length > 0 ? entries[0]!.joinedAt : (tournament.createdAt ?? new Date());
+      deadline = this.getDeadline(joinedAt);
+    }
     const opponentSlot = playerSlot % 2 === 0 ? playerSlot + 1 : playerSlot - 1;
     const opponent = opponentSlot >= 0 && (tournament.players?.length ?? 0) > opponentSlot ? tournament.players![opponentSlot]! : null;
     let tiebreakerRound = 0;
@@ -2247,6 +2412,11 @@ export class TournamentsService {
         progress.lockedAnswerCount = Math.max(progress.lockedAnswerCount ?? 0, chosenToSave.length);
       }
 
+      // Per-player 24h timer: reset roundStartedAt when crossing phase boundary
+      if (!progress.roundStartedAt) {
+        progress.roundStartedAt = new Date();
+      }
+
       // Re-read from DB right before save to prevent lost-update race condition:
       // another concurrent request may have saved newer data between our initial read and now.
       const freshRows = await this.tournamentProgressRepository.query(
@@ -2287,6 +2457,17 @@ export class TournamentsService {
         if (freshCount > progress.questionsAnsweredCount) {
           progress.questionsAnsweredCount = freshCount;
         }
+
+        // Reset roundStartedAt on phase boundary crossing (semi→TB, TB→final, etc.)
+        const prevQ = freshCount;
+        const semiTBLen = (progress.tiebreakerRoundsCorrect ?? []).length;
+        const boundaries: number[] = [this.QUESTIONS_PER_ROUND];
+        for (let r = 1; r <= semiTBLen + 1; r++) boundaries.push(this.QUESTIONS_PER_ROUND + r * this.TIEBREAKER_QUESTIONS);
+        const fStart = this.QUESTIONS_PER_ROUND + semiTBLen * this.TIEBREAKER_QUESTIONS;
+        boundaries.push(fStart + this.QUESTIONS_PER_ROUND);
+        for (const b of boundaries) {
+          if (prevQ < b && safeCount >= b) { progress.roundStartedAt = new Date(); break; }
+        }
       }
 
       await this.tournamentProgressRepository.save(progress);
@@ -2305,6 +2486,7 @@ export class TournamentsService {
         lockedAnswerCount: answerFinal ? safeCount : 0,
         ...(safeTimeLeft !== null && { timeLeftSeconds: safeTimeLeft, leftAt: new Date() }),
         ...(chosenToSave.length > 0 && { answersChosen: chosenToSave }),
+        roundStartedAt: new Date(),
       });
       await this.tournamentProgressRepository.save(progress);
     }
