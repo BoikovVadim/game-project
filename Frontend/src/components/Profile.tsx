@@ -944,6 +944,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     finalTiebreakerAllQuestions?: { id: number; question: string; options: string[]; correctAnswer: number }[][];
     finalTiebreakerRoundsCorrect?: number[];
     opponentAnswersByRound?: number[][];
+    opponentInfoByRound?: { id: number; nickname: string }[];
   } | null>(null);
   const [questionsReviewLoading, setQuestionsReviewLoading] = useState(false);
   const [questionsReviewError, setQuestionsReviewError] = useState('');
@@ -2162,6 +2163,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         finalTiebreakerAllQuestions?: { id: number; question: string; options: string[]; correctAnswer: number }[][];
         finalTiebreakerRoundsCorrect?: number[];
         opponentAnswersByRound?: number[][];
+        opponentInfoByRound?: { id: number; nickname: string }[];
       }>(`/tournaments/${tournamentId}/training-state`, { headers: { Authorization: `Bearer ${token}` } });
       const answersChosenRaw = data.answersChosen ?? (data as { answers_chosen?: number[] }).answers_chosen;
       setQuestionsReviewData({
@@ -2179,6 +2181,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         finalTiebreakerAllQuestions: data.finalTiebreakerAllQuestions ?? [],
         finalTiebreakerRoundsCorrect: data.finalTiebreakerRoundsCorrect ?? [],
         opponentAnswersByRound: data.opponentAnswersByRound ?? [],
+        opponentInfoByRound: data.opponentInfoByRound ?? [],
       });
     } catch (e: unknown) {
       const msg = axios.isAxiosError(e) && e.response?.data?.message ? String(e.response.data.message) : 'Не удалось загрузить вопросы';
@@ -5153,6 +5156,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                     })
                   : [];
                 const oppRounds = questionsReviewData.opponentAnswersByRound ?? [];
+                const oppInfoRounds = questionsReviewData.opponentInfoByRound ?? [];
                 const userSemiIdx = questionsReviewData.userSemiIndex ?? 0;
                 const n = questionsReviewData.questionsAnsweredCount;
                 const semiQuestions = userSemiIdx === 0 ? questionsReviewData.questionsSemi1 : questionsReviewData.questionsSemi2;
@@ -5195,9 +5199,17 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                 const answeredInRound = Math.min(activeTab.questions.length, Math.max(0, n - activeTab.startIdx));
                 const questionsToShow = activeTab.questions.slice(0, answeredInRound);
                 const oppAC = oppRounds[activeTab.oppRoundIdx] ?? [];
+                const oppInfo = oppInfoRounds[activeTab.oppRoundIdx] ?? null;
 
                 return (
                   <>
+                    {/* Legend */}
+                    <div className="qr-legend">
+                      <span className="qr-legend-item"><span className="qr-check qr-check--correct">✓</span> Правильный ответ</span>
+                      <span className="qr-legend-item"><span className="qr-check qr-check--mine">✓</span> Мой ответ</span>
+                      <span className="qr-legend-item"><span className="qr-check qr-check--opp">✓</span> Ответ соперника</span>
+                      <span className="qr-legend-item"><span className="qr-cross">✗</span> Нет ответа</span>
+                    </div>
                     {tabs.length > 1 && (
                       <div className="questions-review-tabs">
                         {tabs.map((tab, ti) => (
@@ -5206,6 +5218,11 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                       </div>
                     )}
                     <div className="questions-review-body">
+                      {oppInfo && oppInfo.id > 0 && (
+                        <p className="qr-opponent-line">
+                          Соперник: <button type="button" className="qr-opponent-link" onClick={() => { closeQuestionsReview(); openBracket(questionsReviewTournamentId!); }}>{oppInfo.nickname}</button>
+                        </p>
+                      )}
                       <p className="questions-review-stats">
                         {activeTab.label}: верно <strong>{activeTab.correctCount}</strong> из <strong>{answeredInRound}</strong> вопросов{answeredInRound < activeTab.questions.length ? ` (отвечено ${answeredInRound} из ${activeTab.questions.length})` : ''}.
                       </p>
@@ -5220,7 +5237,8 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                             const oppRaw = oppAC[idx];
                             const oppChoice = typeof oppRaw === 'number' && !Number.isNaN(oppRaw) && oppRaw >= 0 && oppRaw < (q.options?.length ?? 0) ? oppRaw : -1;
                             const correctIdx = Number(q.correctAnswer);
-                            const noAnswer = playerChoice === -1;
+                            const noMyAnswer = playerChoice === -1;
+                            const noOppAnswer = oppChoice === -1;
                             return (
                               <div key={q.id ?? idx} className="questions-review-question">
                                 <p className="questions-review-question-text">
@@ -5231,9 +5249,9 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                   <thead>
                                     <tr>
                                       <th>Ответ</th>
-                                      <th className="qr-th-icon" title="Правильный ответ">✓</th>
-                                      <th className="qr-th-icon" title="Мой ответ">{noAnswer ? <span className="qr-no-answer">Нет ответа</span> : '✓'}</th>
-                                      <th className="qr-th-icon" title="Ответ соперника">✓</th>
+                                      <th className="qr-th-icon qr-th-correct" title="Правильный ответ">✓</th>
+                                      <th className="qr-th-icon qr-th-mine" title="Мой ответ">{noMyAnswer ? <span className="qr-cross">✗</span> : '✓'}</th>
+                                      <th className="qr-th-icon qr-th-opp" title="Ответ соперника">{noOppAnswer ? <span className="qr-cross">✗</span> : '✓'}</th>
                                     </tr>
                                   </thead>
                                   <tbody>

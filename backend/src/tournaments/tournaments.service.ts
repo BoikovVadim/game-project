@@ -1575,6 +1575,7 @@ export class TournamentsService {
     finalTiebreakerAllQuestions: { id: number; question: string; options: string[]; correctAnswer: number }[][];
     finalTiebreakerRoundsCorrect: number[];
     opponentAnswersByRound: number[][];
+    opponentInfoByRound: { id: number; nickname: string }[];
   }> {
     const tournament = await this.tournamentRepository.findOne({
       where: { id: tournamentId },
@@ -1801,8 +1802,9 @@ export class TournamentsService {
       finalTiebreakerAllQuestions.push(qs);
     }
 
-    // ---- Opponent answers per round (for question review table) ----
+    // ---- Opponent answers + info per round (for question review table) ----
     const opponentAnswersByRound: number[][] = [];
+    const opponentInfoByRound: { id: number; nickname: string }[] = [];
     const fetchOppAC = async (oppUserId: number): Promise<number[]> => {
       const oppProg = await this.tournamentProgressRepository.findOne({ where: { userId: oppUserId, tournamentId } });
       if (!oppProg) return [];
@@ -1819,6 +1821,8 @@ export class TournamentsService {
       }
       return ac;
     };
+    const getOppNickname = (user: User | undefined | null): string =>
+      user?.nickname || user?.username || `Игрок #${user?.id ?? '?'}`;
 
     const QPR = this.QUESTIONS_PER_ROUND;
     const TBQ = this.TIEBREAKER_QUESTIONS;
@@ -1826,12 +1830,17 @@ export class TournamentsService {
     // Semi opponent
     const semiOppSlot = playerIndex % 2 === 0 ? playerIndex + 1 : playerIndex - 1;
     let semiOppAC: number[] = [];
+    let semiOppUser: User | null = null;
     if (semiOppSlot >= 0 && semiOppSlot < (tournament.players?.length ?? 0)) {
-      semiOppAC = await fetchOppAC(tournament.players![semiOppSlot]!.id);
+      semiOppUser = tournament.players![semiOppSlot]!;
+      semiOppAC = await fetchOppAC(semiOppUser.id);
     }
+    const semiOppInfo = semiOppUser ? { id: semiOppUser.id, nickname: getOppNickname(semiOppUser) } : { id: 0, nickname: '—' };
     opponentAnswersByRound.push(semiOppAC.slice(0, QPR));
+    opponentInfoByRound.push(semiOppInfo);
     for (let r = 0; r < semiTiebreakerAllQuestions.length; r++) {
       opponentAnswersByRound.push(semiOppAC.slice(QPR + r * TBQ, QPR + (r + 1) * TBQ));
+      opponentInfoByRound.push(semiOppInfo);
     }
 
     // Final opponent (winner of the other semi pair)
@@ -1842,12 +1851,16 @@ export class TournamentsService {
       const p2 = otherSlots[1] < players.length ? await this.tournamentProgressRepository.findOne({ where: { userId: players[otherSlots[1]]!.id, tournamentId } }) : null;
       const finalist = await this.findSemiWinner(p1, p2);
       if (finalist) {
+        const finalistUser = players.find((u) => u.id === finalist.userId) ?? null;
+        const finalOppInfo = finalistUser ? { id: finalistUser.id, nickname: getOppNickname(finalistUser) } : { id: 0, nickname: '—' };
         const fAC = await fetchOppAC(finalist.userId);
         const fTBCount = finalist.tiebreakerRoundsCorrect?.length ?? 0;
         const fFinalStart = QPR + fTBCount * TBQ;
         opponentAnswersByRound.push(fAC.slice(fFinalStart, fFinalStart + QPR));
+        opponentInfoByRound.push(finalOppInfo);
         for (let r = 0; r < finalTiebreakerAllQuestions.length; r++) {
           opponentAnswersByRound.push(fAC.slice(fFinalStart + QPR + r * TBQ, fFinalStart + QPR + (r + 1) * TBQ));
+          opponentInfoByRound.push(finalOppInfo);
         }
       }
     }
@@ -1878,6 +1891,7 @@ export class TournamentsService {
       finalTiebreakerAllQuestions,
       finalTiebreakerRoundsCorrect: progress?.finalTiebreakerRoundsCorrect ?? [],
       opponentAnswersByRound,
+      opponentInfoByRound,
     };
   }
 

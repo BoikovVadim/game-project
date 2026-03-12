@@ -5707,15 +5707,7 @@ button.bracket-player-name-btn:active {
   width: 44px;
   text-align: center !important;
 }
-.qr-th-icon:nth-child(2) { color: #0d7d0d !important; font-size: 15px; }
-.qr-th-icon:nth-child(3) { color: #b8960a !important; font-size: 15px; }
-.qr-th-icon:nth-child(4) { color: #1976d2 !important; font-size: 15px; }
-.qr-no-answer {
-  font-size: clamp(9px, 0.4vw + 5px, 10px);
-  color: #d32f2f;
-  font-weight: 700;
-  white-space: nowrap;
-}
+.qr-th-icon { font-size: 15px; }
 .qr-table tbody td {
   padding: 6px;
   border-bottom: 1px solid #eee;
@@ -5737,6 +5729,63 @@ button.bracket-player-name-btn:active {
 .qr-check--correct { color: #0d7d0d; }
 .qr-check--mine    { color: #b8960a; }
 .qr-check--opp     { color: #1976d2; }
+
+/* Cross for "no answer" */
+.qr-cross {
+  font-size: clamp(13px, 0.7vw + 7px, 16px);
+  font-weight: 900;
+  color: #d32f2f;
+  line-height: 1;
+}
+
+/* Legend */
+.qr-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  background: #f5f5f5;
+  border-radius: 8px;
+  font-size: clamp(10px, 0.45vw + 6px, 12px);
+  color: #555;
+}
+.qr-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+.qr-legend-item .qr-check,
+.qr-legend-item .qr-cross {
+  font-size: 14px;
+}
+
+/* Opponent name */
+.qr-opponent-line {
+  margin: 0 0 6px;
+  font-size: clamp(11px, 0.5vw + 7px, 13px);
+  color: #555;
+}
+.qr-opponent-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: #1976d2;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.qr-opponent-link:hover {
+  color: #0d47a1;
+}
+
+/* Column header colors */
+.qr-th-correct { color: #0d7d0d !important; }
+.qr-th-mine    { color: #b8960a !important; }
+.qr-th-opp     { color: #1976d2 !important; }
 
 /* ---------- Gender & Birthdate ---------- */
 .gender-selector {
@@ -6417,6 +6466,9 @@ button.bracket-player-name-btn:active {
   .qr-td-icon { width: 32px; }
   .qr-table { font-size: 11px; }
   .qr-check { font-size: 14px; }
+  .qr-legend { gap: 6px 12px; padding: 6px 10px; font-size: 10px; }
+  .qr-legend-item .qr-check,
+  .qr-legend-item .qr-cross { font-size: 12px; }
 
   .confrontation-carousel-slide .confrontation-carousel-card {
     width: clamp(140px, 40vw, 200px);
