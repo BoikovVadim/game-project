@@ -17,7 +17,10 @@ import { generateLiterature } from '../tournaments/question-generators/literatur
 import { generateMusicFilm } from '../tournaments/question-generators/music-film';
 import { generateHistoryScience } from '../tournaments/question-generators/history-science';
 import { generateNatureTechCulture } from '../tournaments/question-generators/nature-tech-culture';
+import { generateGeo500 } from '../tournaments/question-generators/expand-geo-500';
 import { generateCulture500 } from '../tournaments/question-generators/expand-culture-500';
+import { generateHistory500 } from '../tournaments/question-generators/expand-history-500';
+import { generateNatureTech500 } from '../tournaments/question-generators/expand-nature-tech-500';
 
 async function run() {
   console.log('Инициализация приложения...');
@@ -35,6 +38,9 @@ async function run() {
     { name: 'HistoryScience', fn: generateHistoryScience },
     { name: 'NatureTechCulture', fn: generateNatureTechCulture },
     { name: 'Culture500', fn: generateCulture500 },
+    { name: 'Geo500', fn: generateGeo500 },
+    { name: 'History500', fn: generateHistory500 },
+    { name: 'NatureTech500', fn: generateNatureTech500 },
   ];
 
   const allQuestions: RawQuestion[] = [];
