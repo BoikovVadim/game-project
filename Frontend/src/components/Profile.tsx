@@ -3381,7 +3381,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                             const continueTarget = [...(gameHistory?.active ?? [])]
                               .filter((t) => t.userStatus === 'not_passed' && t.resultLabel !== 'Ожидание соперника' && t.resultLabel !== 'Время истекло' && (!t.deadline || new Date(t.deadline) > new Date()))
                               .sort((a, b) => a.id - b.id)[0] ?? null;
-                            const hasActiveGames = (gameHistory?.active?.length ?? 0) > 0;
+                            const hasActiveGames = (gameHistory?.active ?? []).some((t) => t.resultLabel !== 'Ожидание соперника');
                             if (continueTarget) {
                               return (
                                 <button
@@ -3759,7 +3759,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                   const continueTarget = [...(gameHistory?.active ?? [])]
                                     .filter((t) => t.userStatus === 'not_passed' && t.resultLabel !== 'Ожидание соперника' && t.resultLabel !== 'Время истекло' && (!t.deadline || new Date(t.deadline) > new Date()))
                                     .sort((a, b) => a.id - b.id)[0] ?? null;
-                                  const hasActiveGames = (gameHistory?.active?.length ?? 0) > 0;
+                                  const hasActiveGames = (gameHistory?.active ?? []).some((t) => t.resultLabel !== 'Ожидание соперника');
                                   if (continueTarget) {
                                     return (
                                       <button

@@ -107,9 +107,7 @@ export class TournamentsService {
     const myTBLen = (myProg.tiebreakerRoundsCorrect ?? []).length;
     const mySemiTotal = this.QUESTIONS_PER_ROUND + myTBLen * this.TIEBREAKER_QUESTIONS;
 
-    if (oppId == null || oppId <= 0) {
-      return myQ >= mySemiTotal;
-    }
+    if (oppId == null || oppId <= 0) return false;
 
     const oppProg = allProgress.find((p) => p.tournamentId === myProg.tournamentId && p.userId === oppId);
     if (!oppProg || oppProg.semiFinalCorrectCount == null) return false;
@@ -1016,10 +1014,7 @@ export class TournamentsService {
         if (myQ < 10) {
           playerRoundFinished.set(tid, false);
         } else if (oppId == null || oppId <= 0) {
-          // Opponent kicked or absent → auto-won semi, check final progress
-          if (myQ < mySemiTotal) { playerRoundFinished.set(tid, true); }
-          else if (myQ >= mySemiTotal + 10) { playerRoundFinished.set(tid, true); }
-          else { playerRoundFinished.set(tid, false); }
+          playerRoundFinished.set(tid, myQ >= 10);
         } else if (mySemi != null && oppProg?.semiFinalCorrectCount != null && mySemi === oppProg.semiFinalCorrectCount) {
           // Tie in semi — check if current tiebreaker round is answered
           const oppTBLen = (oppProg.tiebreakerRoundsCorrect ?? []).length;
@@ -1170,8 +1165,7 @@ export class TournamentsService {
       const opponentSlot = playerSlot % 2 === 0 ? playerSlot + 1 : playerSlot - 1;
       if (opponentSlot < 0 || opponentSlot >= order.length) return { result: 'incomplete' };
       const opponentId = order[opponentSlot];
-      // Kicked opponent (-1 in playerOrder) → auto-win
-      if (opponentId === -1) return { result: 'won' };
+      if (opponentId <= 0) return { result: 'incomplete' };
 
       const myProgress = progressByTidAndUser.get(t.id)?.get(userId);
       const oppProgress = progressByTidAndUser.get(t.id)?.get(opponentId);
@@ -1510,6 +1504,7 @@ export class TournamentsService {
       if (isKicked(t)) return true;
       const label = getResultLabel(t);
       if (label === 'Время истекло' || label === 'Поражение' || label === 'Победа') return true;
+      if (label === 'Ожидание соперника') return false;
       if (playerRoundFinished.get(t.id) && !isTimeExpired(t)) return false;
       if (currentTournamentId === t.id && !isTimeExpired(t)) return false;
       return isTimeExpired(t);
@@ -2893,16 +2888,14 @@ export class TournamentsService {
     };
 
     const semi1Players = order.length >= 2 ? toSemiPlayers(0, 1) : players.slice(0, 2).map((p) => toPlayer(p));
-    const semi2Players = order.length >= 4 ? toSemiPlayers(2, 3) : order.length > 2 ? toSemiPlayers(2, Math.min(3, order.length - 1)) : [];
+    const semi2Players = order.length > 2 ? toSemiPlayers(2, 3) : [];
 
     const semiWinner = (slot0: number, slot1: number): User | null => {
       const uid0 = slot0 < order.length ? order[slot0] : -1;
       const uid1 = slot1 < order.length ? order[slot1] : -1;
       const p0 = uid0 > 0 ? players.find((p) => p.id === uid0) ?? null : null;
       const p1 = uid1 > 0 ? players.find((p) => p.id === uid1) ?? null : null;
-      if (!p0 && !p1) return null;
-      if (!p0) return p1;
-      if (!p1) return p0;
+      if (!p0 || !p1) return null;
       const prog0 = progressByUser.get(p0.id);
       const prog1 = progressByUser.get(p1.id);
       const loserIdx = getSemiLoserIndex(prog0, prog1);
