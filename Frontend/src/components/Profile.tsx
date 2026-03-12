@@ -5009,17 +5009,18 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                       {[0, 1].map((i) => {
                         const p = bracketView.semi1.players[i];
                         const opp = bracketView.semi1.players[1 - i];
-                        const isWinner = p && !p.isLoser && opp?.isLoser === true;
-                        const displayName = truncateBracketName(p ? (p.nickname?.trim() || `Игрок ${p.id}`) : 'Ожидание игрока');
+                        const isReal = p != null && p.id > 0;
+                        const isWinner = isReal && !p.isLoser && opp?.isLoser === true;
+                        const displayName = truncateBracketName(isReal ? (p.nickname?.trim() || `Игрок ${p.id}`) : 'Ожидание игрока');
                         const answered = p?.questionsAnswered ?? 0;
                         const total = answered >= 10 ? 10 : answered;
                         const correct = p?.semiScore ?? (answered <= 10 ? (p?.correctAnswersCount ?? 0) : 0);
                         void correct;
-                        const pAvatar = p && p.id === user?.id ? avatar : (p?.avatarUrl ?? null);
+                        const pAvatar = isReal && p.id === user?.id ? avatar : (isReal ? (p.avatarUrl ?? null) : null);
                         return (
-                          <div key={p ? p.id : `s1-${i}`} className={`bracket-player-slot ${!p ? 'bracket-slot-empty' : ''} ${p?.isLoser ? 'bracket-slot-loser' : ''}`}>
+                          <div key={isReal ? p.id : `s1-${i}`} className={`bracket-player-slot ${!isReal ? 'bracket-slot-empty' : ''} ${isReal && p.isLoser ? 'bracket-slot-loser' : ''}`}>
                             <span className="bracket-player-info">
-                              {p && (
+                              {isReal && (
                                 <span className="bracket-player-avatar">
                                   {pAvatar ? (
                                     <img src={pAvatar} alt="" />
@@ -5029,7 +5030,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                 </span>
                               )}
                               {isWinner && <span className="bracket-winner-label">Победитель</span>}
-                              {p ? (
+                              {isReal ? (
                                 <BracketPlayerName
                                   playerId={p.id}
                                   displayName={displayName}
@@ -5042,7 +5043,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                               ) : (
                                 <span className="bracket-player-name">{displayName}</span>
                               )}
-                              {p && total > 0 && (
+                              {isReal && total > 0 && (
                                 <span className="bracket-player-score">{correct}/{total} ({Math.round((correct / total) * 100)}%)</span>
                               )}
                             </span>
@@ -5057,17 +5058,18 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                       {[0, 1].map((i) => {
                         const p = bracketView.semi2?.players[i];
                         const opp = bracketView.semi2?.players[1 - i];
-                        const isWinner = p && !p.isLoser && opp?.isLoser === true;
-                        const displayName = truncateBracketName(p ? (p.nickname?.trim() || `Игрок ${p.id}`) : 'Ожидание игрока');
+                        const isReal = p != null && p.id > 0;
+                        const isWinner = isReal && !p.isLoser && opp?.isLoser === true;
+                        const displayName = truncateBracketName(isReal ? (p.nickname?.trim() || `Игрок ${p.id}`) : 'Ожидание игрока');
                         const answered = p?.questionsAnswered ?? 0;
                         const total = answered >= 10 ? 10 : answered;
                         const correct = p?.semiScore ?? (answered <= 10 ? (p?.correctAnswersCount ?? 0) : 0);
                         void correct;
-                        const pAvatar = p && p.id === user?.id ? avatar : (p?.avatarUrl ?? null);
+                        const pAvatar = isReal && p.id === user?.id ? avatar : (isReal ? (p.avatarUrl ?? null) : null);
                         return (
-                          <div key={p ? p.id : `s2-${i}`} className={`bracket-player-slot ${!p ? 'bracket-slot-empty' : ''} ${p?.isLoser ? 'bracket-slot-loser' : ''}`}>
+                          <div key={isReal ? p.id : `s2-${i}`} className={`bracket-player-slot ${!isReal ? 'bracket-slot-empty' : ''} ${isReal && p.isLoser ? 'bracket-slot-loser' : ''}`}>
                             <span className="bracket-player-info">
-                              {p && (
+                              {isReal && (
                                 <span className="bracket-player-avatar">
                                   {pAvatar ? (
                                     <img src={pAvatar} alt="" />
@@ -5077,7 +5079,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                 </span>
                               )}
                               {isWinner && <span className="bracket-winner-label">Победитель</span>}
-                              {p ? (
+                              {isReal ? (
                                 <BracketPlayerName
                                   playerId={p.id}
                                   displayName={displayName}
@@ -5090,7 +5092,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                               ) : (
                                 <span className="bracket-player-name">{displayName}</span>
                               )}
-                              {p && total > 0 && (
+                              {isReal && total > 0 && (
                                 <span className="bracket-player-score">{correct}/{total} ({Math.round((correct / total) * 100)}%)</span>
                               )}
                             </span>
@@ -5119,17 +5121,18 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                         : null;
                       return [0, 1].map((i) => {
                         const p = fp[i];
-                        const isWinner = p != null && finalWinnerId === p.id;
-                        const isLoser = bothFinished && p != null && finalWinnerId != null && finalWinnerId !== p.id;
-                        const displayName = truncateBracketName(p ? (p.nickname?.trim() || `Игрок ${p.id}`) : 'Ожидание игрока');
+                        const isReal = p != null && p.id > 0;
+                        const isWinner = isReal && finalWinnerId === p.id;
+                        const isLoser = bothFinished && isReal && finalWinnerId != null && finalWinnerId !== p.id;
+                        const displayName = truncateBracketName(isReal ? (p.nickname?.trim() || `Игрок ${p.id}`) : 'Ожидание игрока');
                         const answered = p?.finalAnswered ?? 0;
                         const total = answered >= 10 ? 10 : answered;
                         const correct = p?.finalScore ?? p?.finalCorrect ?? 0;
-                        const pAvatar = p && p.id === user?.id ? avatar : (p?.avatarUrl ?? null);
+                        const pAvatar = isReal && p.id === user?.id ? avatar : (isReal ? (p.avatarUrl ?? null) : null);
                         return (
-                          <div key={p ? p.id : `f-${i}`} className={`bracket-player-slot ${!p ? 'bracket-slot-empty' : ''} ${isLoser ? 'bracket-slot-loser' : ''}`}>
+                          <div key={isReal ? p.id : `f-${i}`} className={`bracket-player-slot ${!isReal ? 'bracket-slot-empty' : ''} ${isLoser ? 'bracket-slot-loser' : ''}`}>
                             <span className="bracket-player-info">
-                              {p && (
+                              {isReal && (
                                 <span className="bracket-player-avatar">
                                   {pAvatar ? (
                                     <img src={pAvatar} alt="" />
@@ -5139,7 +5142,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                 </span>
                               )}
                               {isWinner && <span className="bracket-winner-label">Победитель</span>}
-                              {p ? (
+                              {isReal ? (
                                 <BracketPlayerName
                                   playerId={p.id}
                                   displayName={displayName}
@@ -5152,7 +5155,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                               ) : (
                                 <span className="bracket-player-name">{displayName}</span>
                               )}
-                              {p && (
+                              {isReal && (
                                 <span className="bracket-player-score">{correct}/{total > 0 ? total : 10} ({total > 0 ? Math.round((correct / total) * 100) : 0}%)</span>
                               )}
                             </span>
