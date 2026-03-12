@@ -440,6 +440,9 @@ export class TournamentsService {
 
   /** Находит все турниры за деньги с эскроу в статусе held и дедлайном в прошлом, обрабатывает их (возврат или выплата). */
   private async processAllExpiredEscrows(): Promise<void> {
+    await this.tournamentEscrowRepository.query(
+      'UPDATE tournament_escrow SET status = \'held\' WHERE status = \'processing\' AND "createdAt" < NOW() - INTERVAL \'5 minutes\'',
+    );
     const held = await this.tournamentEscrowRepository.find({ where: { status: 'held' } });
     const tournamentIds = [...new Set(held.map((e) => e.tournamentId))];
     for (const tid of tournamentIds) {
@@ -489,23 +492,31 @@ export class TournamentsService {
 
     if (winners.length === 1) {
       const winnerId = winners[0]!;
-      await this.usersService.addToBalanceL(
-        winnerId,
-        prize,
-        `Выигрыш за турнир, ${getLeagueName(leagueAmount)}, ID ${tournamentId}`,
-        'win',
-        tournamentId,
-      );
-      await this.usersService.distributeReferralRewards(winnerId, leagueAmount, tournamentId);
+      if (prize > 0 && winnerId > 0) {
+        await this.usersService.addToBalanceL(
+          winnerId,
+          prize,
+          `Выигрыш за турнир, ${getLeagueName(leagueAmount)}, ID ${tournamentId}`,
+          'win',
+          tournamentId,
+        );
+        await this.usersService.distributeReferralRewards(winnerId, leagueAmount, tournamentId);
+      }
       await this.tournamentEscrowRepository.query(
         'UPDATE tournament_escrow SET status = \'paid_to_winner\' WHERE "tournamentId" = $1 AND status = \'processing\'',
         [tournamentId],
       );
     } else {
       for (const row of claimed) {
+        const uid = row.userId ?? (row as any).userid;
+        const amt = Number(row.amount ?? (row as any).amt ?? 0);
+        if (!uid || uid <= 0 || !amt || amt <= 0) {
+          console.warn(`[processTournamentEscrow] Skipping invalid escrow row ${row.id}: userId=${uid}, amount=${amt}, tournamentId=${tournamentId}`);
+          continue;
+        }
         await this.usersService.addToBalanceL(
-          row.userId,
-          row.amount,
+          uid,
+          amt,
           `${getLeagueName(leagueAmount)}, ID ${tournamentId}`,
           'refund',
           tournamentId,
@@ -1578,7 +1589,20 @@ export class TournamentsService {
       } else if (realPlayers < 4) {
         const done4 = t.status === TournamentStatus.FINISHED || deadlineAt < now;
         if (done4 && answered >= QUESTIONS_PER_ROUND) {
-          passed = (semiResult.result === 'won' || semiResult.result === 'incomplete');
+          if (semiResult.result === 'won' || semiResult.result === 'incomplete') {
+            passed = true;
+          } else if (semiResult.result === 'tie') {
+            const tbR = semiResult.tiebreakerRound ?? 1;
+            const rEnd = QUESTIONS_PER_ROUND + tbR * TIEBREAKER_QUESTIONS;
+            if (answered >= rEnd) {
+              const opPr = opponentId > 0 ? progressByTidAndUser.get(t.id)?.get(opponentId) : null;
+              passed = (opPr?.q ?? 0) < rEnd;
+            } else {
+              passed = false;
+            }
+          } else {
+            passed = false;
+          }
         } else {
           passed = false;
         }
@@ -1802,6 +1826,19 @@ export class TournamentsService {
         if (semiRes4.result === 'won') return 'Победа';
         if (semiRes4.result === 'lost') return 'Поражение';
         if (semiRes4.result === 'incomplete') return 'Победа';
+        if (semiRes4.result === 'tie') {
+          const tbR4 = semiRes4.tiebreakerRound ?? 1;
+          const rEnd4 = QUESTIONS_PER_ROUND + tbR4 * TIEBREAKER_QUESTIONS;
+          if (answered >= rEnd4) return 'Победа';
+          const ord4 = t.playerOrder ?? [];
+          const sl4 = ord4.indexOf(userId);
+          const os4 = sl4 >= 0 ? (sl4 % 2 === 0 ? sl4 + 1 : sl4 - 1) : -1;
+          const oid4 = os4 >= 0 && os4 < ord4.length ? ord4[os4] : -1;
+          if (oid4 > 0) {
+            const opPr4 = progressByTidAndUser.get(t.id)?.get(oid4);
+            if ((opPr4?.q ?? 0) >= rEnd4) return 'Поражение';
+          }
+        }
         return 'Время истекло';
       }
 
@@ -1869,6 +1906,14 @@ export class TournamentsService {
             const tbRound2 = semiRes2.tiebreakerRound ?? 1;
             const roundEnd2 = QUESTIONS_PER_ROUND + tbRound2 * TIEBREAKER_QUESTIONS;
             if (answered2 >= roundEnd2) return 'Победа';
+            const ord2 = t.playerOrder ?? [];
+            const sl2 = ord2.indexOf(userId);
+            const os2 = sl2 >= 0 ? (sl2 % 2 === 0 ? sl2 + 1 : sl2 - 1) : -1;
+            const oid2 = os2 >= 0 && os2 < ord2.length ? ord2[os2] : -1;
+            if (oid2 > 0) {
+              const opPr2 = progressByTidAndUser.get(t.id)?.get(oid2);
+              if ((opPr2?.q ?? 0) >= roundEnd2) return 'Поражение';
+            }
           }
         }
         return 'Время истекло';
