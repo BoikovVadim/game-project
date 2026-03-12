@@ -1242,7 +1242,17 @@ export class TournamentsService {
     const QUESTIONS_PER_ROUND = 10;
     const TIEBREAKER_QUESTIONS = 10;
 
-    type ProgressData = { q: number; semiCorrect: number | null; totalCorrect: number; currentIndex: number; tiebreakerRounds: number[]; finalTiebreakerRounds: number[] };
+    type ProgressData = {
+      userId: number;
+      q: number;
+      semiCorrect: number | null;
+      totalCorrect: number;
+      currentIndex: number;
+      tiebreakerRounds: number[];
+      finalTiebreakerRounds: number[];
+      roundStartedAt: Date | null;
+      leftAt: Date | null;
+    };
     const progressByTid = new Map<number, ProgressData>();
     const progressByTidAndUser = new Map<number, Map<number, ProgressData>>();
 
@@ -1342,12 +1352,15 @@ export class TournamentsService {
           }
         }
         const data: ProgressData = {
+          userId: p.userId,
           q: adjustedQ,
           semiCorrect: p.semiFinalCorrectCount,
           totalCorrect: p.correctAnswersCount ?? 0,
           currentIndex: p.currentQuestionIndex,
           tiebreakerRounds: Array.isArray(p.tiebreakerRoundsCorrect) ? p.tiebreakerRoundsCorrect : [],
           finalTiebreakerRounds: Array.isArray((p as any).finalTiebreakerRoundsCorrect) ? (p as any).finalTiebreakerRoundsCorrect : [],
+          roundStartedAt: p.roundStartedAt ?? null,
+          leftAt: p.leftAt ?? null,
         };
         if (p.userId === userId) progressByTid.set(p.tournamentId, data);
         if (!progressByTidAndUser.has(p.tournamentId)) {
@@ -1461,6 +1474,44 @@ export class TournamentsService {
 
     const now = new Date();
 
+    const toDate = (value: Date | string | null | undefined): Date | null => {
+      if (!value) return null;
+      const dt = value instanceof Date ? value : new Date(value);
+      return Number.isNaN(dt.getTime()) ? null : dt;
+    };
+
+    const maxDate = (...values: (Date | string | null | undefined)[]): Date | null => {
+      const dates = values
+        .map((value) => toDate(value))
+        .filter((value): value is Date => value instanceof Date);
+      if (dates.length === 0) return null;
+      return new Date(Math.max(...dates.map((value) => value.getTime())));
+    };
+
+    const getCompletionDateFromUsers = (
+      t: Tournament,
+      ids: number[],
+      fallback?: Date | string | null,
+    ): Date | null => {
+      const dates: (Date | string | null | undefined)[] = [];
+      for (const uid of ids) {
+        if (!(uid > 0)) continue;
+        const prog = progressByTidAndUser.get(t.id)?.get(uid);
+        if (!prog) continue;
+        dates.push(prog.leftAt, prog.roundStartedAt);
+      }
+      return maxDate(...dates, fallback ?? t.createdAt);
+    };
+
+    const getTournamentCompletionDate = (t: Tournament, fallback?: Date | string | null): Date | null => {
+      const order = t.playerOrder ?? [];
+      return getCompletionDateFromUsers(
+        t,
+        order.filter((id): id is number => Number(id) > 0),
+        fallback ?? t.createdAt,
+      );
+    };
+
     /** Количество вопросов в полуфинальной фазе (10 + тайбрейкеры) */
     const semiPhaseQuestions = (prog: ProgressData): number =>
       QUESTIONS_PER_ROUND + prog.tiebreakerRounds.length * TIEBREAKER_QUESTIONS;
@@ -1508,19 +1559,39 @@ export class TournamentsService {
       const answered = userProgress?.q ?? 0;
       let passed: boolean;
       let userCompleted = t.status === TournamentStatus.FINISHED;
+      const order = t.playerOrder ?? [];
+      const playerSlot = order.indexOf(userId);
+      const opponentSlot = playerSlot >= 0 ? (playerSlot % 2 === 0 ? playerSlot + 1 : playerSlot - 1) : -1;
+      const opponentId = opponentSlot >= 0 && opponentSlot < order.length ? (order[opponentSlot] ?? -1) : -1;
+      const deadlineAt = toDate(deadlineByTournamentId[t.id] ?? this.getRoundDeadline(t.createdAt)) ?? now;
       let row = await this.tournamentResultRepository.findOne({ where: { userId, tournamentId: t.id } });
+      let completionDate = maxDate(row?.completedAt ?? null);
 
       const realPlayers = (t.playerOrder?.filter((id: number) => id > 0).length) ?? 0;
+      const userNotInOrder = !!t.playerOrder && !t.playerOrder.includes(userId);
       const semiResult = getMoneySemiResult(t);
 
-      if (realPlayers < 4) {
+      if (userNotInOrder) {
         passed = false;
+        userCompleted = true;
+        completionDate = completionDate ?? deadlineAt;
+      } else if (realPlayers < 4) {
+        passed = false;
+        if (t.status === TournamentStatus.FINISHED) {
+          userCompleted = true;
+          completionDate = completionDate ?? maxDate(getTournamentCompletionDate(t, deadlineAt), deadlineAt);
+        }
       } else if (semiResult.result === 'lost') {
         lostSemiByTid.set(t.id, true);
         passed = false;
         userCompleted = true;
+        completionDate = completionDate ?? getCompletionDateFromUsers(t, [userId, opponentId], deadlineAt);
       } else if (semiResult.result === 'tie') {
         passed = false;
+        if (deadlineAt < now) {
+          userCompleted = true;
+          completionDate = completionDate ?? deadlineAt;
+        }
       } else if (semiResult.result === 'won' && userProgress) {
         const mySemiTotal = semiPhaseQuestions(userProgress);
         if (answered >= mySemiTotal + QUESTIONS_PER_ROUND) {
@@ -1528,28 +1599,44 @@ export class TournamentsService {
           if (fr === 'won') {
             passed = true;
             userCompleted = true;
+            const otherFinalist = getOtherFinalist(t);
+            completionDate = completionDate ?? getCompletionDateFromUsers(t, [userId, otherFinalist?.userId ?? -1], deadlineAt);
           } else if (fr === 'lost') {
             passed = false;
             userCompleted = true;
+            const otherFinalist = getOtherFinalist(t);
+            completionDate = completionDate ?? getCompletionDateFromUsers(t, [userId, otherFinalist?.userId ?? -1], deadlineAt);
           } else {
             passed = false;
+            if (deadlineAt < now) {
+              userCompleted = true;
+              completionDate = completionDate ?? deadlineAt;
+            }
           }
         } else {
           passed = false;
+          if (deadlineAt < now) {
+            userCompleted = true;
+            completionDate = completionDate ?? deadlineAt;
+          }
         }
       } else {
         passed = row?.passed === 1 ? true : false;
+        if (deadlineAt < now) {
+          userCompleted = true;
+          completionDate = completionDate ?? deadlineAt;
+        }
       }
 
       if (row) {
         row.passed = passed ? 1 : 0;
-        if (!row.completedAt && userCompleted) row.completedAt = new Date();
+        if (userCompleted) row.completedAt = completionDate ?? row.completedAt ?? deadlineAt;
         if (!userCompleted && row.completedAt) row.completedAt = null as any;
         await this.tournamentResultRepository.save(row);
       } else {
         row = this.tournamentResultRepository.create({
           userId, tournamentId: t.id, passed: passed ? 1 : 0,
-          ...(userCompleted ? { completedAt: new Date() } : {}),
+          ...(userCompleted ? { completedAt: completionDate ?? deadlineAt } : {}),
         });
         await this.tournamentResultRepository.save(row);
       }
