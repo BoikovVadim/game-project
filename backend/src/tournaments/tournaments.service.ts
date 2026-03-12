@@ -1619,7 +1619,7 @@ export class TournamentsService {
       const realPlayers = (t.playerOrder?.filter((id: number) => id > 0).length) ?? 0;
       const semiResult = getMoneySemiResult(t);
 
-      if (realPlayers < 4) {
+      if (realPlayers <= 2) {
         const done4 = t.status === TournamentStatus.FINISHED || deadlineAt < now;
         if (done4 && answered >= QUESTIONS_PER_ROUND) {
           if (semiResult.result === 'won') {
@@ -1962,16 +1962,6 @@ export class TournamentsService {
 
     const activeTournamentsRaw = tournaments.filter((t) => !belongsToHistory(t));
     const completedTournamentsRaw = tournaments.filter((t) => belongsToHistory(t));
-
-    for (const t of completedTournamentsRaw) {
-      if (t.gameType === 'money' && isTimeExpired(t)) {
-        try {
-          await this.processTournamentEscrow(t.id);
-        } catch (err) {
-          console.error('[getMyTournaments] processTournamentEscrow', t.id, err);
-        }
-      }
-    }
 
     // Если выиграл полуфинал — турнир и в активных (есть финал), и в истории (пройден этап ПФ = Победа).
     const moneySemiWonFinalPending = tournaments.filter(
