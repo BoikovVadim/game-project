@@ -749,23 +749,25 @@ export class UsersService implements OnModuleInit {
 
     const manager = this.userRepository.manager;
 
-    const gamesPlayedRow = await manager.query(
-      'SELECT COUNT(DISTINCT tp."tournamentId") as cnt FROM tournament_players_user tp INNER JOIN tournament t ON t.id = tp."tournamentId" WHERE tp."userId" = $1',
+    const progressRows = await manager.query(
+      `SELECT p."questionsAnsweredCount", p."tiebreakerRoundsCorrect", p."finalTiebreakerRoundsCorrect", t."gameType"
+       FROM tournament_progress p
+       INNER JOIN tournament t ON t.id = p."tournamentId"
+       WHERE p."userId" = $1 AND p."questionsAnsweredCount" > 0`,
       [userId],
     );
-    const gamesPlayed = Number(gamesPlayedRow?.[0]?.cnt) || 0;
-
-    const trainingRow = await manager.query(
-      `SELECT COUNT(DISTINCT tp."tournamentId") as cnt FROM tournament_players_user tp INNER JOIN tournament t ON t.id = tp."tournamentId" WHERE tp."userId" = $1 AND (t."gameType" = 'training' OR t."gameType" IS NULL)`,
-      [userId],
-    );
-    const gamesPlayedTraining = Number(trainingRow?.[0]?.cnt) || 0;
-
-    const moneyRow = await manager.query(
-      `SELECT COUNT(DISTINCT tp."tournamentId") as cnt FROM tournament_players_user tp INNER JOIN tournament t ON t.id = tp."tournamentId" WHERE tp."userId" = $1 AND t."gameType" = 'money'`,
-      [userId],
-    );
-    const gamesPlayedMoney = Number(moneyRow?.[0]?.cnt) || 0;
+    let gamesPlayed = 0;
+    let gamesPlayedTraining = 0;
+    let gamesPlayedMoney = 0;
+    for (const row of progressRows) {
+      const rounds = UsersService.countRoundsFromRow(row);
+      gamesPlayed += rounds;
+      if (row.gameType === 'money') {
+        gamesPlayedMoney += rounds;
+      } else {
+        gamesPlayedTraining += rounds;
+      }
+    }
 
     // Победы за деньги: passed=1 в tournament_result.
     const winsMoneyRow = await manager.query(
@@ -995,15 +997,16 @@ export class UsersService implements OnModuleInit {
     const desc = true; // больше = лучше для всех метрик
 
     switch (metric) {
-      case 'gamesPlayed':
+      case 'gamesPlayed': {
+        const rSQL = UsersService.roundsPerProgressSQL();
         query = `SELECT u.id as "userId", COALESCE(u.nickname, u.username) as "displayName",
-          (SELECT COUNT(DISTINCT tp."tournamentId") FROM tournament_players_user tp
-           INNER JOIN tournament t ON t.id = tp."tournamentId" WHERE tp."userId" = u.id) as val
+          (SELECT COALESCE(SUM(${rSQL}), 0) FROM tournament_progress p WHERE p."userId" = u.id AND p."questionsAnsweredCount" > 0) as val
           FROM "user" u
-          WHERE (SELECT COUNT(DISTINCT tp."tournamentId") FROM tournament_players_user tp WHERE tp."userId" = u.id) > 0
+          WHERE (SELECT COUNT(*) FROM tournament_progress p WHERE p."userId" = u.id AND p."questionsAnsweredCount" > 0) > 0
           ORDER BY val DESC, u.id DESC`;
         valueCol = 'val';
         break;
+      }
       case 'wins':
         query = `SELECT u.id as "userId", COALESCE(u.nickname, u.username) as "displayName",
           (SELECT COUNT(*) FROM tournament_result r INNER JOIN tournament t ON t.id = r."tournamentId"
@@ -1154,8 +1157,9 @@ export class UsersService implements OnModuleInit {
     }
     let totalGamesPlayed = 0;
     try {
+      const rSQL = UsersService.roundsPerProgressSQL();
       const rows = await manager.query(
-        `SELECT COUNT(*) as cnt FROM tournament_progress WHERE "questionsAnsweredCount" > 0`,
+        `SELECT COALESCE(SUM(${rSQL}), 0) as cnt FROM tournament_progress p WHERE p."questionsAnsweredCount" > 0`,
       );
       totalGamesPlayed = Number(rows?.[0]?.cnt ?? 0) || 0;
     } catch (e) {
@@ -1226,17 +1230,20 @@ export class UsersService implements OnModuleInit {
     let rows: { d: string; val: number }[] = [];
     try {
       switch (metric) {
-        case 'gamesPlayed':
+        case 'gamesPlayed': {
+          const rSQL = UsersService.roundsPerProgressSQL();
           rows = (await manager.query(
-            `SELECT t."createdAt"::date::text as d, COUNT(DISTINCT t.id) as val
-             FROM tournament t
-             INNER JOIN tournament_players_user tp ON tp."tournamentId" = t.id
-             WHERE tp."userId" = $1 AND t."createdAt"::date >= $2::date AND t."createdAt"::date <= $3::date
+            `SELECT t."createdAt"::date::text as d, COALESCE(SUM(${rSQL}), 0) as val
+             FROM tournament_progress p
+             INNER JOIN tournament t ON t.id = p."tournamentId"
+             WHERE p."userId" = $1 AND p."questionsAnsweredCount" > 0
+             AND t."createdAt"::date >= $2::date AND t."createdAt"::date <= $3::date
              ${gameTypeFilter}
              GROUP BY t."createdAt"::date::text`,
             [userId, fromStr, toStr],
           )) as { d: string; val: number }[];
           break;
+        }
         case 'wins': {
           const byDate = new Map<string, number>();
           for (const day of days) byDate.set(day, 0);
@@ -1401,5 +1408,40 @@ export class UsersService implements OnModuleInit {
     }
     const data = days.map((date) => ({ date, value: byDate.get(date) ?? 0 }));
     return { data, availableMetrics };
+  }
+
+  private static readonly QUESTIONS_PER_ROUND = 10;
+  private static readonly TIEBREAKER_QUESTIONS = 10;
+
+  private static parseJsonArray(val: unknown): number[] {
+    if (Array.isArray(val)) return val;
+    if (typeof val === 'string' && val !== 'null' && val !== '') {
+      try { const parsed = JSON.parse(val); if (Array.isArray(parsed)) return parsed; } catch {}
+    }
+    return [];
+  }
+
+  static countRoundsFromRow(row: { questionsAnsweredCount: number; tiebreakerRoundsCorrect?: unknown; finalTiebreakerRoundsCorrect?: unknown }): number {
+    const q = row.questionsAnsweredCount ?? 0;
+    if (q <= 0) return 0;
+
+    let rounds = 1; // semifinal
+
+    const semiTB = UsersService.parseJsonArray(row.tiebreakerRoundsCorrect);
+    rounds += semiTB.length;
+
+    const semiTotal = UsersService.QUESTIONS_PER_ROUND + semiTB.length * UsersService.TIEBREAKER_QUESTIONS;
+    if (q > semiTotal) rounds += 1; // final
+
+    const finalTB = UsersService.parseJsonArray(row.finalTiebreakerRoundsCorrect);
+    rounds += finalTB.length;
+
+    return rounds;
+  }
+
+  static roundsPerProgressSQL(): string {
+    const semiTB = `CASE WHEN p."tiebreakerRoundsCorrect" IS NOT NULL AND p."tiebreakerRoundsCorrect" NOT IN ('null','') THEN json_array_length(p."tiebreakerRoundsCorrect"::json) ELSE 0 END`;
+    const finalTB = `CASE WHEN p."finalTiebreakerRoundsCorrect" IS NOT NULL AND p."finalTiebreakerRoundsCorrect" NOT IN ('null','') THEN json_array_length(p."finalTiebreakerRoundsCorrect"::json) ELSE 0 END`;
+    return `(CASE WHEN p."questionsAnsweredCount" > 0 THEN 1 ELSE 0 END + ${semiTB} + CASE WHEN p."questionsAnsweredCount" > 10 + (${semiTB}) * 10 THEN 1 ELSE 0 END + ${finalTB})`;
   }
 }
