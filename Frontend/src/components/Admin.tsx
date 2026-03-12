@@ -88,6 +88,73 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
     return sub === 'transactions' ? 'transactions' : sub === 'questions' ? 'questions' : 'overview';
   });
   type QuestionStatRow = { topic: string; count: number };
+  const topicNames: Record<string, string> = {
+    math_addition: 'Математика: сложение',
+    math_subtraction: 'Математика: вычитание',
+    math_multiplication: 'Математика: умножение',
+    math_division: 'Математика: деление',
+    logic_sequences: 'Логика: последовательности',
+    history_russia: 'История России',
+    history_world: 'Всемирная история',
+    science: 'Наука',
+    capitals: 'Столицы',
+    currencies: 'Валюты',
+    countries_facts: 'Факты о странах',
+    flags: 'Флаги',
+    landmarks: 'Достопримечательности',
+    architecture: 'Архитектура',
+    wonders_of_world: 'Чудеса света',
+    mountains: 'Горы',
+    geography_facts: 'Географические факты',
+    rivers: 'Реки',
+    oceans: 'Океаны',
+    deserts: 'Пустыни',
+    volcanoes: 'Вулканы',
+    islands: 'Острова',
+    english_words: 'Английский язык',
+    russian_literature: 'Русская литература',
+    foreign_literature: 'Зарубежная литература',
+    russian_poetry: 'Русская поэзия',
+    music: 'Музыка',
+    films: 'Кино',
+    animals: 'Животные',
+    birds: 'Птицы',
+    sea_creatures: 'Морские обитатели',
+    insects_reptiles: 'Насекомые и рептилии',
+    dinosaurs: 'Динозавры',
+    plants_flowers: 'Растения и цветы',
+    trees: 'Деревья',
+    cars: 'Автомобили',
+    trains: 'Поезда',
+    aviation: 'Авиация',
+    ships: 'Корабли',
+    it_programming: 'IT и программирование',
+    ai_robotics: 'ИИ и робототехника',
+    internet: 'Интернет',
+    social_media: 'Соцсети',
+    gadgets_brands: 'Гаджеты и бренды',
+    religions: 'Религии',
+    space: 'Космос',
+    space_missions: 'Космические миссии',
+    astronomy: 'Астрономия',
+    psychology: 'Психология',
+    cooking: 'Кулинария',
+    weather: 'Погода и климат',
+    minerals: 'Минералы',
+    world_records: 'Мировые рекорды',
+    nature: 'Природа',
+    technology: 'Технологии',
+    culture: 'Культура',
+    geo: 'География',
+    literature: 'Литература',
+    music_film: 'Музыка и кино',
+    cooking_extras: 'Кулинария (доп.)',
+    psychology_facts: 'Психология (факты)',
+    history_500: 'История (расш.)',
+    culture_500: 'Культура (расш.)',
+    nature_tech_500: 'Природа и техника (расш.)',
+    geo_500: 'География (расш.)',
+  };
   const [questionStats, setQuestionStats] = useState<QuestionStatRow[]>([]);
   const [questionStatsLoading, setQuestionStatsLoading] = useState(false);
   const questionStatsLoadedRef = React.useRef(false);
@@ -1362,7 +1429,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                           {sortedQuestionStats.map((row, i) => (
                             <tr key={row.topic}>
                               <td style={{ textAlign: 'center' }}>{i + 1}</td>
-                              <td className="admin-td-left">{row.topic}</td>
+                              <td className="admin-td-left">{topicNames[row.topic] || row.topic}</td>
                               <td style={{ textAlign: 'center', fontWeight: 600 }}>{row.count.toLocaleString('ru-RU')}</td>
                             </tr>
                           ))}
