@@ -1621,6 +1621,10 @@ export class TournamentsService {
       const rp = getRealPlayerCount(t);
 
       if (rp < 4 && t.status === TournamentStatus.FINISHED) {
+        if (answered >= QUESTIONS_PER_ROUND) {
+          const semiRes4 = getMoneySemiResult(t);
+          if (semiRes4.result === 'lost') return 'Поражение';
+        }
         return 'Время истекло';
       }
 
