@@ -21,8 +21,8 @@ export function generateMath(): RawQuestion[] {
     if (a > 9999) continue;
     push('math_subtraction', `Сколько будет ${a} − ${b}?`, mathOpts(res), res);
   }
-  for (let i = 0; i < 15000; i++) {
-    const a = rnd(2, 999), b = rnd(2, 9), ans = a * b;
+  for (let i = 0; i < 20000; i++) {
+    const a = rnd(2, 999), b = rnd(2, 99), ans = a * b;
     if (ans < 10 || ans > 99999) continue;
     push('math_multiplication', `Сколько будет ${a} × ${b}?`, mathOpts(ans), ans);
   }
