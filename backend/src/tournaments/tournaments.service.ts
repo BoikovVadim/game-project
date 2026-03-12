@@ -1633,7 +1633,7 @@ export class TournamentsService {
       if (isNotInOrder(t)) return true;
       const label = getResultLabel(t);
       if (label === 'Время истекло' || label === 'Поражение' || label === 'Победа') return true;
-      if (label === 'Ожидание соперника') return false;
+      if (label === 'Ожидание соперника') return isTimeExpired(t);
       if (playerRoundFinished.get(t.id) && !isTimeExpired(t)) return false;
       if (currentTournamentId === t.id && !isTimeExpired(t)) return false;
       return isTimeExpired(t);
