@@ -5426,6 +5426,7 @@ button.bracket-player-name-btn:active {
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
   border: 1px solid rgba(0, 0, 0, 0.08);
   min-width: clamp(170px, 11.6vw + 30px, 220px);
+  width: max-content;
 }
 
 .bracket-player-tooltip-avatar {
@@ -5481,6 +5482,7 @@ button.bracket-player-name-btn:active {
   font-size: clamp(10px, 0.5vw + 6px, 12px);
   color: #555;
   text-align: left;
+  white-space: nowrap;
 }
 
 .bracket-player-score-wrap {
