@@ -1500,7 +1500,7 @@ export class TournamentsService {
       if (isKicked(t)) return true;
       const label = getResultLabel(t);
       if (label === 'Время истекло' || label === 'Поражение' || label === 'Победа') return true;
-      if (playerRoundFinished.get(t.id)) return false;
+      if (playerRoundFinished.get(t.id) && !isTimeExpired(t)) return false;
       if (currentTournamentId === t.id && !isTimeExpired(t)) return false;
       return isTimeExpired(t);
     };
@@ -1508,7 +1508,7 @@ export class TournamentsService {
     const getDisplayResultLabel = (t: Tournament, inCompleted: boolean): string => {
       const label = getResultLabel(t);
       if (isKicked(t)) return 'Время истекло';
-      if (inCompleted && isTimeExpired(t) && label !== 'Поражение' && label !== 'Победа' && label !== 'Ожидание соперника') {
+      if (inCompleted && isTimeExpired(t) && label !== 'Поражение' && label !== 'Победа') {
         return 'Время истекло';
       }
       return label;
