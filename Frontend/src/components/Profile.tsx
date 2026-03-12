@@ -82,13 +82,20 @@ const LEAGUE_IMAGES: Record<number, string> = {
   1000000: '/leagues/league-almaz.jpg',
 };
 
-// Предзагрузка всех изображений лиг — при переключении карусели не будет мигания
-(() => {
-  Object.values(LEAGUE_IMAGES).forEach((src) => {
-    const img = new Image();
-    img.src = src;
-  });
-})();
+const preloadedLeagueImages = new Set<string>();
+
+const preloadLeagueImage = (src?: string | null) => {
+  if (!src || typeof window === 'undefined' || preloadedLeagueImages.has(src)) return;
+  const img = new Image();
+  img.decoding = 'async';
+  img.src = src;
+  const markReady = () => preloadedLeagueImages.add(src);
+  img.onload = markReady;
+  img.onerror = markReady;
+  if (typeof img.decode === 'function') {
+    img.decode().then(markReady).catch(() => {});
+  }
+};
 
 /** Выигрыш победителя: 4 игрока × ставка − 20% с каждого из 3 проигравших = 3.4 × ставка L */
 function getLeaguePrize(stake: number): number {
@@ -1302,6 +1309,23 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
       localStorage.setItem(SELECTED_LEAGUE_STORAGE_KEY, String(selectedLeague));
     }
   }, [gameMode, selectedLeague]);
+
+  useEffect(() => {
+    const list = allLeagues ?? [];
+    const n = list.length;
+    if (n === 0) return;
+    const indexes = new Set<number>([
+      leagueCarouselIndex,
+      (leagueCarouselIndex - 2 + n) % n,
+      (leagueCarouselIndex - 1 + n) % n,
+      (leagueCarouselIndex + 1) % n,
+      (leagueCarouselIndex + 2) % n,
+    ]);
+    indexes.forEach((idx) => {
+      const amount = list[idx];
+      preloadLeagueImage(LEAGUE_IMAGES[amount]);
+    });
+  }, [allLeagues, leagueCarouselIndex]);
 
   useEffect(() => {
     const saveOnUnload = () => {
