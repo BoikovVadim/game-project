@@ -1507,6 +1507,7 @@ export class TournamentsService {
       const userProgress = progressByTid.get(t.id);
       const answered = userProgress?.q ?? 0;
       let passed: boolean;
+      let userCompleted = t.status === TournamentStatus.FINISHED;
       let row = await this.tournamentResultRepository.findOne({ where: { userId, tournamentId: t.id } });
 
       const realPlayers = (t.playerOrder?.filter((id: number) => id > 0).length) ?? 0;
@@ -1517,15 +1518,22 @@ export class TournamentsService {
       } else if (semiResult.result === 'lost') {
         lostSemiByTid.set(t.id, true);
         passed = false;
+        userCompleted = true;
       } else if (semiResult.result === 'tie') {
         passed = false;
       } else if (semiResult.result === 'won' && userProgress) {
         const mySemiTotal = semiPhaseQuestions(userProgress);
         if (answered >= mySemiTotal + QUESTIONS_PER_ROUND) {
           const fr = getFinalResult(t, userProgress);
-          if (fr === 'won') passed = true;
-          else if (fr === 'lost') passed = false;
-          else passed = false;
+          if (fr === 'won') {
+            passed = true;
+            userCompleted = true;
+          } else if (fr === 'lost') {
+            passed = false;
+            userCompleted = true;
+          } else {
+            passed = false;
+          }
         } else {
           passed = false;
         }
@@ -1535,13 +1543,13 @@ export class TournamentsService {
 
       if (row) {
         row.passed = passed ? 1 : 0;
-        if (!row.completedAt && t.status === TournamentStatus.FINISHED) row.completedAt = new Date();
-        if (t.status !== TournamentStatus.FINISHED && row.completedAt) row.completedAt = null as any;
+        if (!row.completedAt && userCompleted) row.completedAt = new Date();
+        if (!userCompleted && row.completedAt) row.completedAt = null as any;
         await this.tournamentResultRepository.save(row);
       } else {
         row = this.tournamentResultRepository.create({
           userId, tournamentId: t.id, passed: passed ? 1 : 0,
-          ...(t.status === TournamentStatus.FINISHED ? { completedAt: new Date() } : {}),
+          ...(userCompleted ? { completedAt: new Date() } : {}),
         });
         await this.tournamentResultRepository.save(row);
       }
