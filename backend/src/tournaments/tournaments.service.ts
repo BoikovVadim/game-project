@@ -1060,7 +1060,7 @@ export class TournamentsService {
           if (tbWon) {
             if (myQ < mySemiTotal) { playerRoundFinished.set(tid, true); }
             else if (myQ >= mySemiTotal + 10) { playerRoundFinished.set(tid, true); }
-            else { playerRoundFinished.set(tid, hasOtherFinalist(t) ? false : true); }
+            else { playerRoundFinished.set(tid, false); }
           } else if (tbLost) {
             playerRoundFinished.set(tid, true);
           } else {
@@ -1071,7 +1071,7 @@ export class TournamentsService {
         } else if (mySemi != null && oppProg?.semiFinalCorrectCount != null && mySemi > oppProg.semiFinalCorrectCount) {
           if (myQ < mySemiTotal) { playerRoundFinished.set(tid, true); }
           else if (myQ >= mySemiTotal + 10) { playerRoundFinished.set(tid, true); }
-          else { playerRoundFinished.set(tid, hasOtherFinalist(t) ? false : true); }
+          else { playerRoundFinished.set(tid, false); }
         } else {
           playerRoundFinished.set(tid, myQ >= 10);
         }
@@ -1523,11 +1523,7 @@ export class TournamentsService {
       if (semiResult.result === 'won') {
         if (!prog) return 'Этап не пройден';
         const mySemiTotal = semiPhaseQuestions(prog);
-        if (answered < mySemiTotal) return 'Этап не пройден';
-        if (answered < mySemiTotal + QUESTIONS_PER_ROUND) {
-          const otherFinalist = getOtherFinalist(t);
-          return otherFinalist ? 'Этап не пройден' : 'Ожидание соперника';
-        }
+        if (answered < mySemiTotal + QUESTIONS_PER_ROUND) return 'Этап не пройден';
         if (getPlayerCount(t) < 4) return 'Ожидание соперника';
         const fr = getFinalResult(t, prog);
         if (fr === 'won') return 'Победа';
