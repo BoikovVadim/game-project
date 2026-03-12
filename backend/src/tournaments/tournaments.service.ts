@@ -555,7 +555,7 @@ export class TournamentsService {
     const finalQuestionCount = await this.questionRepository.count({
       where: { tournament: { id: tournamentId }, roundIndex: 2 },
     });
-    const canPayFinalPrize = realPlayerCount > 2 && finalQuestionCount > 0;
+    const canPayFinalPrize = realPlayerCount === 4 && finalQuestionCount > 0;
 
     if (winners.length === 1) {
       if (!canPayFinalPrize) {
@@ -1632,26 +1632,9 @@ export class TournamentsService {
       const realPlayers = (t.playerOrder?.filter((id: number) => id > 0).length) ?? 0;
       const semiResult = getMoneySemiResult(t);
 
-      if (realPlayers <= 2) {
+      if (realPlayers < 4) {
         const done4 = t.status === TournamentStatus.FINISHED || deadlineAt < now;
-        if (done4 && answered >= QUESTIONS_PER_ROUND) {
-          if (semiResult.result === 'won') {
-            passed = true;
-          } else if (semiResult.result === 'tie') {
-            const tbR = semiResult.tiebreakerRound ?? 1;
-            const rEnd = QUESTIONS_PER_ROUND + tbR * TIEBREAKER_QUESTIONS;
-            if (answered >= rEnd) {
-              const opPr = opponentId > 0 ? progressByTidAndUser.get(t.id)?.get(opponentId) : null;
-              passed = (opPr?.q ?? 0) < rEnd;
-            } else {
-              passed = false;
-            }
-          } else {
-            passed = false;
-          }
-        } else {
-          passed = false;
-        }
+        passed = false;
         if (done4) {
           userCompleted = true;
           completionDate = completionDate ?? getCompletionDateFromUsers(t, [userId, opponentId > 0 ? opponentId : -1]);
@@ -1876,19 +1859,8 @@ export class TournamentsService {
         }
         if (answered < QUESTIONS_PER_ROUND) return 'Время истекло';
         const semiRes4 = getMoneySemiResult(t);
-        if (semiRes4.result === 'won') return 'Победа';
         if (semiRes4.result === 'lost') return 'Поражение';
-        if (semiRes4.result === 'incomplete') return 'Ожидание соперника';
-        if (semiRes4.result === 'tie') {
-          const tbR4 = semiRes4.tiebreakerRound ?? 1;
-          const rEnd4 = QUESTIONS_PER_ROUND + tbR4 * TIEBREAKER_QUESTIONS;
-          if (answered >= rEnd4) return 'Победа';
-          if (oid4 > 0) {
-            const opPr4 = progressByTidAndUser.get(t.id)?.get(oid4);
-            if ((opPr4?.q ?? 0) >= rEnd4) return 'Поражение';
-          }
-        }
-        return 'Время истекло';
+        return 'Ожидание соперника';
       }
 
       if (t.status === TournamentStatus.FINISHED) {
@@ -2693,7 +2665,7 @@ export class TournamentsService {
   private async didUserWinSemiFinal(tournament: Tournament, userId: number): Promise<boolean> {
     const order = tournament.playerOrder ?? [];
     const realPlayerCount = order.filter((id) => id > 0).length;
-    if (tournament.gameType === 'money' && realPlayerCount <= 2) return false;
+    if (tournament.gameType === 'money' && realPlayerCount < 4) return false;
     const playerSlot = order.indexOf(userId);
     if (playerSlot < 0) return false;
     const opponentSlot = playerSlot % 2 === 0 ? playerSlot + 1 : playerSlot - 1;
@@ -3121,6 +3093,9 @@ export class TournamentsService {
     }
 
     await saveResult(semiLoserId, false);
+
+    const realPlayerCount = order.filter((id) => id > 0).length;
+    if (tournament.gameType === 'money' && realPlayerCount < 4) return;
 
     if (semiResult !== 'won') return;
 
