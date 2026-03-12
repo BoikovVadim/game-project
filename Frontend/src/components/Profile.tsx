@@ -944,11 +944,11 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     finalTiebreakerAllQuestions?: { id: number; question: string; options: string[]; correctAnswer: number }[][];
     finalTiebreakerRoundsCorrect?: number[];
     opponentAnswersByRound?: number[][];
-    opponentInfoByRound?: { id: number; nickname: string }[];
+    opponentInfoByRound?: { id: number; nickname: string; avatarUrl?: string | null }[];
   } | null>(null);
   const [questionsReviewLoading, setQuestionsReviewLoading] = useState(false);
   const [questionsReviewError, setQuestionsReviewError] = useState('');
-  const [oppTooltip, setOppTooltip] = useState<{ loading: boolean; data: null | PlayerStats; visible: boolean }>({ loading: false, data: null, visible: false });
+  const [oppTooltip, setOppTooltip] = useState<{ loading: boolean; data: null | PlayerStats; visible: boolean; avatarUrl?: string | null }>({ loading: false, data: null, visible: false });
 
   const [referralCode, setReferralCode] = useState<string | null>(null);
   const [referralLinkCopied, setReferralLinkCopied] = useState(false);
@@ -2165,7 +2165,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         finalTiebreakerAllQuestions?: { id: number; question: string; options: string[]; correctAnswer: number }[][];
         finalTiebreakerRoundsCorrect?: number[];
         opponentAnswersByRound?: number[][];
-        opponentInfoByRound?: { id: number; nickname: string }[];
+        opponentInfoByRound?: { id: number; nickname: string; avatarUrl?: string | null }[];
       }>(`/tournaments/${tournamentId}/training-state`, { headers: { Authorization: `Bearer ${token}` } });
       const answersChosenRaw = data.answersChosen ?? (data as { answers_chosen?: number[] }).answers_chosen;
       setQuestionsReviewData({
@@ -2193,11 +2193,11 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     }
   }, [token]);
 
-  const loadOppStats = (userId: number) => {
+  const loadOppStats = (userId: number, avatarUrl?: string | null) => {
     if (oppTooltip.data && oppTooltip.visible) { setOppTooltip((p) => ({ ...p, visible: false })); return; }
-    setOppTooltip({ loading: true, data: null, visible: true });
+    setOppTooltip({ loading: true, data: null, visible: true, avatarUrl });
     axios.get<PlayerStats>(`/users/${userId}/public-stats`, { headers: { Authorization: `Bearer ${token}` } })
-      .then((res) => setOppTooltip({ loading: false, data: res.data, visible: true }))
+      .then((res) => setOppTooltip({ loading: false, data: res.data, visible: true, avatarUrl }))
       .catch(() => setOppTooltip({ loading: false, data: null, visible: false }));
   };
 
@@ -5239,14 +5239,16 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                         <p className="qr-opponent-line">
                           Соперник:{' '}
                           <span className="qr-opponent-name-wrap">
-                            <button type="button" className="qr-opponent-link" onClick={() => loadOppStats(oppInfo.id)}>{oppInfo.nickname}</button>
+                            <button type="button" className="qr-opponent-link" onClick={() => loadOppStats(oppInfo.id, oppInfo.avatarUrl)}>{oppInfo.nickname}</button>
                             {oppTooltip.visible && (
                               <div className="bracket-player-tooltip qr-opponent-tooltip" onClick={() => setOppTooltip((p) => ({ ...p, visible: false }))} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && setOppTooltip((p) => ({ ...p, visible: false }))}>
                                 {oppTooltip.loading ? (
                                   <div className="bracket-player-tooltip-inner"><span className="qr-opponent-tooltip-loading">Загрузка…</span></div>
                                 ) : oppTooltip.data ? (
                                   <div className="bracket-player-tooltip-inner">
-                                    <div className="bracket-player-tooltip-avatar"><DollarIcon /></div>
+                                    <div className="bracket-player-tooltip-avatar">
+                                      {oppTooltip.avatarUrl ? <img src={oppTooltip.avatarUrl} alt="" /> : <DollarIcon />}
+                                    </div>
                                     <div className="bracket-player-tooltip-stats">
                                       <div className="bracket-player-tooltip-name">{oppInfo.nickname}</div>
                                       <div className="bracket-player-tooltip-stat"><strong>Лига:</strong> {oppTooltip.data.maxLeagueName ?? '—'}</div>

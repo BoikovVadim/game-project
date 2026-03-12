@@ -1810,7 +1810,7 @@ export class TournamentsService {
     finalTiebreakerAllQuestions: { id: number; question: string; options: string[]; correctAnswer: number }[][];
     finalTiebreakerRoundsCorrect: number[];
     opponentAnswersByRound: number[][];
-    opponentInfoByRound: { id: number; nickname: string }[];
+    opponentInfoByRound: { id: number; nickname: string; avatarUrl: string | null }[];
   }> {
     const tournament = await this.tournamentRepository.findOne({
       where: { id: tournamentId },
@@ -2039,7 +2039,7 @@ export class TournamentsService {
 
     // ---- Opponent answers + info per round (for question review table) ----
     const opponentAnswersByRound: number[][] = [];
-    const opponentInfoByRound: { id: number; nickname: string }[] = [];
+    const opponentInfoByRound: { id: number; nickname: string; avatarUrl: string | null }[] = [];
     const fetchOppAC = async (oppUserId: number): Promise<number[]> => {
       const oppProg = await this.tournamentProgressRepository.findOne({ where: { userId: oppUserId, tournamentId } });
       if (!oppProg) return [];
@@ -2070,7 +2070,7 @@ export class TournamentsService {
       semiOppUser = tournament.players![semiOppSlot]!;
       semiOppAC = await fetchOppAC(semiOppUser.id);
     }
-    const semiOppInfo = semiOppUser ? { id: semiOppUser.id, nickname: getOppNickname(semiOppUser) } : { id: 0, nickname: '—' };
+    const semiOppInfo = semiOppUser ? { id: semiOppUser.id, nickname: getOppNickname(semiOppUser), avatarUrl: semiOppUser.avatarUrl ?? null } : { id: 0, nickname: '—', avatarUrl: null };
     opponentAnswersByRound.push(semiOppAC.slice(0, QPR));
     opponentInfoByRound.push(semiOppInfo);
     for (let r = 0; r < semiTiebreakerAllQuestions.length; r++) {
@@ -2087,7 +2087,7 @@ export class TournamentsService {
       const finalist = await this.findSemiWinner(p1, p2);
       if (finalist) {
         const finalistUser = players.find((u) => u.id === finalist.userId) ?? null;
-        const finalOppInfo = finalistUser ? { id: finalistUser.id, nickname: getOppNickname(finalistUser) } : { id: 0, nickname: '—' };
+        const finalOppInfo = finalistUser ? { id: finalistUser.id, nickname: getOppNickname(finalistUser), avatarUrl: finalistUser.avatarUrl ?? null } : { id: 0, nickname: '—', avatarUrl: null };
         const fAC = await fetchOppAC(finalist.userId);
         const fTBCount = finalist.tiebreakerRoundsCorrect?.length ?? 0;
         const fFinalStart = QPR + fTBCount * TBQ;
