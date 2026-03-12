@@ -25,3 +25,4 @@ Thumbs.db
 .temp
 .tmp
 node_modules
+fix_*.sql
