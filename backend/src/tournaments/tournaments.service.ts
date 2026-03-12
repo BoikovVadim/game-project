@@ -2683,8 +2683,10 @@ export class TournamentsService {
       }
     };
 
-    if (players.length < 4) {
+    if (players.length <= 2) {
       await saveResult(semiLoserId, false);
+      await saveResult(semiWinnerId, true);
+      await this.tournamentRepository.update({ id: tournamentId }, { status: TournamentStatus.FINISHED });
       return;
     }
 
@@ -2695,11 +2697,16 @@ export class TournamentsService {
     const otherSlots: [number, number] = playerSlot < 2 ? [2, 3] : [0, 1];
     const opp1 = players[otherSlots[0]];
     const opp2 = players[otherSlots[1]];
-    if (!opp1 || !opp2) return;
+    if (!opp1 && !opp2) return;
 
-    const p1 = await this.tournamentProgressRepository.findOne({ where: { userId: opp1.id, tournamentId } });
-    const p2 = await this.tournamentProgressRepository.findOne({ where: { userId: opp2.id, tournamentId } });
-    const finalistProgress = this.findSemiWinner(p1, p2);
+    const p1 = opp1 ? await this.tournamentProgressRepository.findOne({ where: { userId: opp1.id, tournamentId } }) : null;
+    const p2 = opp2 ? await this.tournamentProgressRepository.findOne({ where: { userId: opp2.id, tournamentId } }) : null;
+    let finalistProgress: TournamentProgress | null = null;
+    if (opp1 && opp2) {
+      finalistProgress = this.findSemiWinner(p1, p2);
+    } else {
+      finalistProgress = p1 || p2;
+    }
     if (!finalistProgress) return;
 
     const finalistId = finalistProgress.userId;
