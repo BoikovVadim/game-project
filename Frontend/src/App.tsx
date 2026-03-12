@@ -117,6 +117,15 @@ function AppContent() {
     return () => window.removeEventListener('token-refresh', onRefresh);
   }, []);
 
+  useEffect(() => {
+    const root = document.getElementById('root');
+    if (!root) return;
+    if (hasToken) {
+      root.style.background = '';
+      document.body.style.background = '';
+    }
+  }, [hasToken]);
+
   const handleLogin = (newToken: string) => {
     localStorage.setItem('token', newToken);
     setToken(newToken);

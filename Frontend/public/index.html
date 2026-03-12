@@ -28,7 +28,7 @@
         @media(max-width:767px){#ls-sidebar{display:none!important;}}
       </style>
     </div>
-    <script>(function(){var h=window.location.hash||'';if(h.indexOf('#/admin')===0||h==='#/'||h.indexOf('#/login')===0||h.indexOf('#/register')===0||h.indexOf('#/forgot')===0||h.indexOf('#/reset')===0||h.indexOf('#/offer')===0||h.indexOf('#/verify')===0){var s=document.getElementById('ls-sidebar');if(s)s.style.display='none';}})();</script>
+    <script>(function(){var h=window.location.hash||'';var pub=h==='#/'||h.indexOf('#/?')===0||h.indexOf('#/about')===0||h.indexOf('#/offer')===0||h.indexOf('#/privacy')===0||h.indexOf('#/payment-terms')===0||h.indexOf('#/tournament-rules')===0||h.indexOf('#/balance-rules')===0||h.indexOf('#/contacts')===0||h.indexOf('#/register')===0||h.indexOf('#/login')===0;var noSidebar=pub||h.indexOf('#/admin')===0||h.indexOf('#/forgot')===0||h.indexOf('#/reset')===0||h.indexOf('#/verify')===0;if(noSidebar){var s=document.getElementById('ls-sidebar');if(s)s.style.display='none';}if(pub){var ls=document.getElementById('loading-screen');if(ls)ls.style.background='#111';document.body.style.background='#111';var r=document.getElementById('root');if(r)r.style.background='#111';}})();</script>
     <div id="root"></div>
     <noscript><p style="padding:24px;text-align:center;">Для работы сайта включите JavaScript.</p></noscript>
     <script>
