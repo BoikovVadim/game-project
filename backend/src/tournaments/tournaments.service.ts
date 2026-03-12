@@ -2491,6 +2491,15 @@ export class TournamentsService {
           });
           isSemiTied = oppProg?.semiFinalCorrectCount != null
             && oppProg.semiFinalCorrectCount === progress.semiFinalCorrectCount;
+          if (isSemiTied && semiTBRounds.length > 0) {
+            const oppTBRounds = oppProg?.tiebreakerRoundsCorrect ?? [];
+            for (let r = 0; r < Math.min(semiTBRounds.length, oppTBRounds.length); r++) {
+              if ((semiTBRounds[r] ?? 0) !== (oppTBRounds[r] ?? 0)) {
+                isSemiTied = false;
+                break;
+              }
+            }
+          }
         }
 
         if (isSemiTied) {
