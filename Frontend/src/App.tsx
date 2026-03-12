@@ -1,7 +1,6 @@
 import React, { Suspense, useState, useEffect } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
 import Register from './components/Register.tsx';
-import Login from './components/Login.tsx';
 import VerifyEmail from './components/VerifyEmail.tsx';
 import VerifyCode from './components/VerifyCode.tsx';
 import ForgotPassword from './components/ForgotPassword.tsx';
