@@ -1429,16 +1429,18 @@ export class TournamentsService {
     };
 
     const belongsToHistory = (t: Tournament): boolean => {
-      if (isKicked(t)) return true; // Kicked player → always in history
+      if (isKicked(t)) return true;
       const label = getResultLabel(t);
       if (label === 'Время истекло' || label === 'Поражение' || label === 'Победа') return true;
+      if (playerRoundFinished.get(t.id)) return false;
       if (currentTournamentId === t.id && !isTimeExpired(t)) return false;
       return isTimeExpired(t);
     };
 
     const getDisplayResultLabel = (t: Tournament, inCompleted: boolean): string => {
       const label = getResultLabel(t);
-      if (inCompleted && isTimeExpired(t) && label !== 'Поражение' && label !== 'Победа') {
+      if (isKicked(t)) return 'Время истекло';
+      if (inCompleted && isTimeExpired(t) && label !== 'Поражение' && label !== 'Победа' && label !== 'Ожидание соперника') {
         return 'Время истекло';
       }
       return label;

@@ -875,7 +875,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   const selectedLeagueRef = useRef(5);
 
   const [gameHistory, setGameHistory] = useState<{
-    active: { id: number; status: string; createdAt: string; playersCount: number; deadline?: string; userStatus?: 'passed' | 'not_passed'; stage?: string; resultLabel?: string; roundForQuestions?: 'semi' | 'final' }[];
+    active: { id: number; status: string; createdAt: string; playersCount: number; deadline?: string; userStatus?: 'passed' | 'not_passed'; stage?: string; resultLabel?: string; roundForQuestions?: 'semi' | 'final'; roundFinished?: boolean }[];
     completed: { id: number; status: string; createdAt: string; playersCount: number; userStatus?: 'passed' | 'not_passed'; stage?: string; resultLabel?: string; roundForQuestions?: 'semi' | 'final' }[];
   } | null>(null);
 
@@ -1262,7 +1262,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     const params = new URLSearchParams({ mode });
     if (currentTournamentId) params.set('currentTournamentId', String(currentTournamentId));
     axios.get<{
-      active: { id: number; status: string; createdAt: string; playersCount: number; deadline?: string; userStatus?: 'passed' | 'not_passed'; stage?: string; resultLabel?: string }[];
+      active: { id: number; status: string; createdAt: string; playersCount: number; deadline?: string; userStatus?: 'passed' | 'not_passed'; stage?: string; resultLabel?: string; roundFinished?: boolean }[];
       completed: { id: number; status: string; createdAt: string; playersCount: number; userStatus?: 'passed' | 'not_passed'; stage?: string; resultLabel?: string }[];
     }>(`/tournaments/my?${params}`, { headers: { Authorization: `Bearer ${token}` } })
       .then((res) => setGameHistory(res.data))
@@ -1736,7 +1736,8 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     }
   };
 
-  const semiScore = trainingRoundScores[0];
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _semiScore = trainingRoundScores[0];
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const goNextRound = async () => {
@@ -3441,7 +3442,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                           {(t as any).questionsTotal ?? 10}/{(t as any).questionsAnswered ?? 0}/{(t as any).correctAnswersInRound ?? 0}
                                         </button>
                                       </td>
-                                      <td>{t.deadline ? (new Date(t.deadline) > new Date() ? formatTimeLeft(t.deadline) : 'Время вышло') : '—'}</td>
+                                      <td>{t.roundFinished ? 'Ожидание соперника' : t.deadline ? (new Date(t.deadline) > new Date() ? formatTimeLeft(t.deadline) : 'Время вышло') : '—'}</td>
                                       <td>
                                         <span className={`game-history-status game-history-status--${t.resultLabel === 'Победа' ? 'victory' : t.resultLabel === 'Поражение' ? 'defeat' : t.resultLabel === 'Время истекло' ? 'time-expired' : t.resultLabel === 'Финал' ? 'final-ready' : t.resultLabel === 'Доп. раунд' ? 'tiebreaker' : t.resultLabel === 'Ожидание соперника' ? 'stage-passed' : 'stage-not-passed'}`}>
                                           {t.resultLabel ?? 'Этап не пройден'}
@@ -3838,7 +3839,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                             {(t as any).questionsTotal ?? 10}/{(t as any).questionsAnswered ?? 0}/{(t as any).correctAnswersInRound ?? 0}
                                           </button>
                                         </td>
-                                        <td>{t.deadline ? (new Date(t.deadline) > new Date() ? formatTimeLeft(t.deadline) : 'Время вышло') : '—'}</td>
+                                        <td>{t.roundFinished ? 'Ожидание соперника' : t.deadline ? (new Date(t.deadline) > new Date() ? formatTimeLeft(t.deadline) : 'Время вышло') : '—'}</td>
                                         <td><span className={`game-history-status game-history-status--${t.resultLabel === 'Победа' ? 'victory' : t.resultLabel === 'Поражение' ? 'defeat' : t.resultLabel === 'Время истекло' ? 'time-expired' : t.resultLabel === 'Доп. раунд' ? 'tiebreaker' : t.resultLabel === 'Ожидание соперника' ? 'stage-passed' : 'stage-not-passed'}`}>{t.resultLabel ?? 'Этап не пройден'}</span></td>
                                       </tr>
                                     ))}
@@ -4981,8 +4982,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                         const answered = p?.questionsAnswered ?? 0;
                         const total = answered >= 10 ? 10 : answered;
                         const correct = p?.semiScore ?? (answered <= 10 ? (p?.correctAnswersCount ?? 0) : 0);
-                        const tbRound = p?.tiebreakerRound ?? 0;
-                        const tbAnswered = p?.tiebreakerAnswered ?? 0;
+                        void correct;
                         const pAvatar = p && p.id === user?.id ? avatar : (p?.avatarUrl ?? null);
                         return (
                           <div key={p ? p.id : `s1-${i}`} className={`bracket-player-slot ${!p ? 'bracket-slot-empty' : ''} ${p?.isLoser ? 'bracket-slot-loser' : ''}`}>
@@ -5030,8 +5030,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                         const answered = p?.questionsAnswered ?? 0;
                         const total = answered >= 10 ? 10 : answered;
                         const correct = p?.semiScore ?? (answered <= 10 ? (p?.correctAnswersCount ?? 0) : 0);
-                        const tbRound = p?.tiebreakerRound ?? 0;
-                        const tbAnswered = p?.tiebreakerAnswered ?? 0;
+                        void correct;
                         const pAvatar = p && p.id === user?.id ? avatar : (p?.avatarUrl ?? null);
                         return (
                           <div key={p ? p.id : `s2-${i}`} className={`bracket-player-slot ${!p ? 'bracket-slot-empty' : ''} ${p?.isLoser ? 'bracket-slot-loser' : ''}`}>
