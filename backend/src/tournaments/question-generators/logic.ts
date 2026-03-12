@@ -5,12 +5,19 @@ function seqStr(nums: number[]): string {
 }
 
 function nearOpts(correct: number, spread = 0): string[] {
-  const s = spread || Math.max(2, Math.abs(Math.round(correct * 0.15)));
+  let s = spread || Math.max(2, Math.abs(Math.round(correct * 0.15)));
+  if (s < 3) s = 3;
   const wrong = new Set<number>();
-  while (wrong.size < 3) {
+  let attempts = 0;
+  while (wrong.size < 3 && attempts < 200) {
+    attempts++;
     const d = rnd(1, s) * (Math.random() < 0.5 ? -1 : 1);
     const v = correct + d;
     if (v !== correct && v > 0) wrong.add(v);
+    if (attempts % 50 === 0) s += 2;
+  }
+  while (wrong.size < 3) {
+    wrong.add(correct + wrong.size + 1);
   }
   return shuffle([correct, ...wrong]).map(String);
 }

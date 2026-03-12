@@ -769,25 +769,8 @@ export class UsersService implements OnModuleInit {
       }
     }
 
-    // Победы за деньги: passed=1 в tournament_result.
-    const winsMoneyRow = await manager.query(
-      `SELECT COUNT(*) as cnt FROM tournament_result r
-       INNER JOIN tournament t ON t.id = r."tournamentId"
-       WHERE r."userId" = $1 AND r.passed = 1 AND t."gameType" = 'money'`,
-      [userId],
-    );
-    const winsMoney = Number(winsMoneyRow?.[0]?.cnt) || 0;
-
-    // Победы в тренировках: passed=1 в tournament_result (победа в финале).
-    const winsTrainingRow = await manager.query(
-      `SELECT COUNT(*) as cnt FROM tournament_result r
-       INNER JOIN tournament t ON t.id = r."tournamentId"
-       WHERE r."userId" = $1 AND r.passed = 1 AND (t."gameType" = 'training' OR t."gameType" IS NULL)`,
-      [userId],
-    );
-    const winsTraining = Number(winsTrainingRow?.[0]?.cnt) || 0;
-
-    const wins = winsMoney + winsTraining;
+    // Победы (полуфинал + финал) для всех типов игр.
+    const { wins, winsTraining, winsMoney } = await UsersService.countAllWins(manager, userId);
 
     const QUESTIONS_PER_ROUND = 10;
 
@@ -1008,13 +991,7 @@ export class UsersService implements OnModuleInit {
         break;
       }
       case 'wins':
-        query = `SELECT u.id as "userId", COALESCE(u.nickname, u.username) as "displayName",
-          (SELECT COUNT(*) FROM tournament_result r INNER JOIN tournament t ON t.id = r."tournamentId"
-           WHERE r."userId" = u.id AND r.passed = 1 AND t."gameType" = 'money') as val
-          FROM "user" u
-          WHERE (SELECT COUNT(*) FROM tournament_result r INNER JOIN tournament t ON t.id = r."tournamentId"
-                 WHERE r."userId" = u.id AND r.passed = 1 AND t."gameType" = 'money') > 0
-          ORDER BY val DESC, u.id DESC`;
+        query = '';
         valueCol = 'val';
         break;
       case 'totalWinnings':
@@ -1072,6 +1049,9 @@ export class UsersService implements OnModuleInit {
       const cached = await this.cache.get<typeof rankings>(cacheKey);
       if (cached) {
         rankings = cached;
+      } else if (metric === 'wins') {
+        rankings = await UsersService.computeWinsRankings(manager);
+        await this.cache.set(cacheKey, rankings, 60000);
       } else {
         const rows = (await manager.query(query)) as { userId: number; displayName: string; val: number }[];
         rankings = rows.map((r, i) => ({
@@ -1248,70 +1228,48 @@ export class UsersService implements OnModuleInit {
           const byDate = new Map<string, number>();
           for (const day of days) byDate.set(day, 0);
 
-          if (gameType === 'money' || gameType === 'all') {
-            const moneyRows = (await manager.query(
-              `SELECT t."createdAt"::date::text as d, COUNT(*) as val
-               FROM tournament_result r
-               INNER JOIN tournament t ON t.id = r."tournamentId"
-               WHERE r."userId" = $1 AND r.passed = 1 AND t."gameType" = 'money' AND t."createdAt"::date >= $2::date AND t."createdAt"::date <= $3::date
-               GROUP BY t."createdAt"::date::text`,
-              [userId, fromStr, toStr],
-            )) as { d: string; val: number }[];
-            for (const r of moneyRows) {
-              const d = r.d && String(r.d).slice(0, 10);
-              if (d) byDate.set(d, (byDate.get(d) ?? 0) + (Number(r.val) || 0));
-            }
-          }
+          const userTourn = (await manager.query(
+            `SELECT t.id as "tournamentId", t."playerOrder", t."createdAt"::date::text as d
+             FROM tournament_progress p
+             INNER JOIN tournament t ON t.id = p."tournamentId"
+             WHERE p."userId" = $1 AND p."questionsAnsweredCount" >= 10
+             AND t."createdAt"::date >= $2::date AND t."createdAt"::date <= $3::date
+             ${gameTypeFilter}`,
+            [userId, fromStr, toStr],
+          )) as any[];
 
-          if (gameType === 'training' || gameType === 'all') {
-            const trainingToursRow = (await manager.query(
-              `SELECT t.id as tid, t."createdAt"::date::text as d
-               FROM tournament t
-               INNER JOIN tournament_players_user tpu ON tpu."tournamentId" = t.id
-               WHERE (t."gameType" = 'training' OR t."gameType" IS NULL) AND tpu."userId" = $1
-               AND t.id IN (SELECT "tournamentId" FROM tournament_players_user GROUP BY "tournamentId" HAVING COUNT(*) = 2)
-               AND t."createdAt"::date >= $2::date AND t."createdAt"::date <= $3::date`,
-              [userId, fromStr, toStr],
-            )) as { tid: number; d: string }[];
-            const QUESTIONS_PER_ROUND = 10;
-            for (const row of trainingToursRow) {
-              const tid = row.tid;
+          if (userTourn.length > 0) {
+            const tids = userTourn.map((r: any) => Number(r.tournamentId));
+
+            const finalWins = (await manager.query(
+              `SELECT "tournamentId" FROM tournament_result
+               WHERE "userId" = $1 AND passed = 1
+               AND "tournamentId" IN (${tids.map((_: any, i: number) => `$${i + 2}`).join(',')})`,
+              [userId, ...tids],
+            )) as any[];
+            const finalWinTids = new Set(finalWins.map((r: any) => Number(r.tournamentId)));
+
+            const allProg = (await manager.query(
+              `SELECT "tournamentId", "userId", "questionsAnsweredCount", "semiFinalCorrectCount", "tiebreakerRoundsCorrect"
+               FROM tournament_progress
+               WHERE "tournamentId" IN (${tids.map((_: any, i: number) => `$${i + 1}`).join(',')})`,
+              tids,
+            )) as any[];
+            const progressByTid = UsersService.buildProgressMap(allProg);
+
+            for (const row of userTourn) {
+              const tid = Number(row.tournamentId);
               const dateStr = row.d && String(row.d).slice(0, 10);
               if (!dateStr || !days.includes(dateStr)) continue;
-              const progressRows = (await manager.query(
-                `SELECT p."userId", p."semiFinalCorrectCount" as semi, p."questionsAnsweredCount" as q, p."tiebreakerRoundsCorrect" as tb
-                 FROM tournament_progress p WHERE p."tournamentId" = $1`,
-                [tid],
-              )) as { userId: number; semi: number | null; q: number; tb: string | null }[];
-              const byUser = new Map<number, { semi: number; q: number; tb: number[] }>();
-              for (const r of progressRows) {
-                let tb: number[] = [];
-                try {
-                  tb = typeof r.tb === 'string' ? (JSON.parse(r.tb || '[]') as number[]) : (r.tb as number[] | null) ?? [];
-                } catch {
-                  tb = [];
-                }
-                byUser.set(r.userId, { semi: r.semi ?? 0, q: r.q, tb });
-              }
-              if (byUser.size !== 2) continue;
-              const [[uidA, progA], [uidB, progB]] = Array.from(byUser.entries());
-              if (progA.q < QUESTIONS_PER_ROUND || progB.q < QUESTIONS_PER_ROUND) continue;
-              const myProg = uidA === userId ? progA : progB;
-              const oppProg = uidA === userId ? progB : progA;
-              let won = false;
-              if (myProg.semi > oppProg.semi) won = true;
-              else if (myProg.semi === oppProg.semi) {
-                for (let r = 0; r < 50; r++) {
-                  const myR = myProg.tb[r] ?? 0;
-                  const oppR = oppProg.tb[r] ?? 0;
-                  if (myR > oppR) {
-                    won = true;
-                    break;
-                  }
-                  if (myR < oppR) break;
-                }
-              }
-              if (won) byDate.set(dateStr, (byDate.get(dateStr) ?? 0) + 1);
+
+              const po = UsersService.parseJsonArray(row.playerOrder);
+              const progMap = progressByTid.get(tid);
+
+              let w = 0;
+              if (UsersService.didWinSemifinal(userId, po, progMap)) w++;
+              if (finalWinTids.has(tid)) w++;
+
+              if (w > 0) byDate.set(dateStr, (byDate.get(dateStr) ?? 0) + w);
             }
           }
 
@@ -1443,5 +1401,203 @@ export class UsersService implements OnModuleInit {
     const semiTB = `CASE WHEN p."tiebreakerRoundsCorrect" IS NOT NULL AND p."tiebreakerRoundsCorrect" NOT IN ('null','') THEN json_array_length(p."tiebreakerRoundsCorrect"::json) ELSE 0 END`;
     const finalTB = `CASE WHEN p."finalTiebreakerRoundsCorrect" IS NOT NULL AND p."finalTiebreakerRoundsCorrect" NOT IN ('null','') THEN json_array_length(p."finalTiebreakerRoundsCorrect"::json) ELSE 0 END`;
     return `(CASE WHEN p."questionsAnsweredCount" > 0 THEN 1 ELSE 0 END + ${semiTB} + CASE WHEN p."questionsAnsweredCount" > 10 + (${semiTB}) * 10 THEN 1 ELSE 0 END + ${finalTB})`;
+  }
+
+  /** Победил ли userId в полуфинале данного турнира (сравнение с соперником в паре по playerOrder). */
+  private static didWinSemifinal(
+    userId: number,
+    playerOrder: number[],
+    progressMap: Map<number, any> | undefined,
+  ): boolean {
+    if (!playerOrder || playerOrder.length < 2) return false;
+    const slot = playerOrder.indexOf(userId);
+    if (slot < 0) return false;
+    const oppSlot = slot % 2 === 0 ? slot + 1 : slot - 1;
+    if (oppSlot < 0 || oppSlot >= playerOrder.length) return false;
+    const oppId = playerOrder[oppSlot];
+    if (oppId === -1) return true;
+
+    const myProg = progressMap?.get(userId);
+    const oppProg = progressMap?.get(oppId);
+    if (!myProg) return false;
+
+    const myQ = Number(myProg.questionsAnsweredCount) || 0;
+    const oppQ = Number(oppProg?.questionsAnsweredCount) || 0;
+    if (myQ < 10 || oppQ < 10) return false;
+
+    const mySemi = Number(myProg.semiFinalCorrectCount) || 0;
+    const oppSemi = Number(oppProg?.semiFinalCorrectCount) || 0;
+
+    if (mySemi > oppSemi) return true;
+    if (mySemi < oppSemi) return false;
+
+    const myTB = UsersService.parseJsonArray(myProg.tiebreakerRoundsCorrect);
+    const oppTB = UsersService.parseJsonArray(oppProg?.tiebreakerRoundsCorrect);
+
+    for (let r = 0; r < Math.max(myTB.length, oppTB.length); r++) {
+      const myR = myTB[r] ?? 0;
+      const oppR = oppTB[r] ?? 0;
+      if (myR > oppR) return true;
+      if (myR < oppR) return false;
+    }
+
+    const semiTotal = 10 + myTB.length * 10;
+    if (myQ > semiTotal) return true;
+
+    return false;
+  }
+
+  /** Строит Map<tournamentId, Map<userId, progress>> из массива raw-строк. */
+  private static buildProgressMap(rows: any[]): Map<number, Map<number, any>> {
+    const m = new Map<number, Map<number, any>>();
+    for (const p of rows) {
+      const tid = Number(p.tournamentId);
+      if (!m.has(tid)) m.set(tid, new Map());
+      m.get(tid)!.set(Number(p.userId), p);
+    }
+    return m;
+  }
+
+  /** Подсчёт всех побед (полуфинал + финал) для одного пользователя. */
+  static async countAllWins(
+    manager: any,
+    userId: number,
+  ): Promise<{ wins: number; winsTraining: number; winsMoney: number }> {
+    const finalWinsRows = await manager.query(
+      `SELECT r."tournamentId", t."gameType"
+       FROM tournament_result r
+       INNER JOIN tournament t ON t.id = r."tournamentId"
+       WHERE r."userId" = $1 AND r.passed = 1`,
+      [userId],
+    );
+    const finalWinTids = new Set(finalWinsRows.map((r: any) => Number(r.tournamentId)));
+
+    const userTournRows = await manager.query(
+      `SELECT t.id as "tournamentId", t."playerOrder", t."gameType"
+       FROM tournament_progress p
+       INNER JOIN tournament t ON t.id = p."tournamentId"
+       WHERE p."userId" = $1 AND p."questionsAnsweredCount" >= 10`,
+      [userId],
+    );
+
+    const tids = userTournRows.map((r: any) => Number(r.tournamentId));
+
+    if (tids.length === 0) {
+      let w = 0, wT = 0, wM = 0;
+      for (const r of finalWinsRows) { w++; if (r.gameType === 'money') wM++; else wT++; }
+      return { wins: w, winsTraining: wT, winsMoney: wM };
+    }
+
+    const allProgress = await manager.query(
+      `SELECT "tournamentId", "userId", "questionsAnsweredCount", "semiFinalCorrectCount", "tiebreakerRoundsCorrect"
+       FROM tournament_progress
+       WHERE "tournamentId" IN (${tids.map((_: any, i: number) => `$${i + 1}`).join(',')})`,
+      tids,
+    );
+
+    const progressByTid = UsersService.buildProgressMap(allProgress);
+
+    let wins = 0, winsTraining = 0, winsMoney = 0;
+    const countedTids = new Set<number>();
+
+    for (const row of userTournRows) {
+      const tid = Number(row.tournamentId);
+      const gt = row.gameType;
+      const po = UsersService.parseJsonArray(row.playerOrder);
+      const progMap = progressByTid.get(tid);
+      countedTids.add(tid);
+
+      if (UsersService.didWinSemifinal(userId, po, progMap)) {
+        wins++; if (gt === 'money') winsMoney++; else winsTraining++;
+      }
+      if (finalWinTids.has(tid)) {
+        wins++; if (gt === 'money') winsMoney++; else winsTraining++;
+      }
+    }
+
+    for (const r of finalWinsRows) {
+      const tid = Number(r.tournamentId);
+      if (!countedTids.has(tid)) {
+        wins++; if (r.gameType === 'money') winsMoney++; else winsTraining++;
+      }
+    }
+
+    return { wins, winsTraining, winsMoney };
+  }
+
+  /** Рейтинг побед (все пользователи): полуфинал + финал, все типы игр. */
+  private static async computeWinsRankings(
+    manager: any,
+  ): Promise<{ rank: number; userId: number; displayName: string; value: number; valueFormatted: string }[]> {
+    const allFinalWins = await manager.query(
+      `SELECT r."userId", r."tournamentId" FROM tournament_result r WHERE r.passed = 1`,
+    );
+
+    const allUserTourn = await manager.query(
+      `SELECT p."userId", t.id as "tournamentId", t."playerOrder"
+       FROM tournament_progress p
+       INNER JOIN tournament t ON t.id = p."tournamentId"
+       WHERE p."questionsAnsweredCount" >= 10`,
+    );
+
+    const allProgress = await manager.query(
+      `SELECT "tournamentId", "userId", "questionsAnsweredCount", "semiFinalCorrectCount", "tiebreakerRoundsCorrect"
+       FROM tournament_progress`,
+    );
+
+    const progressByTid = UsersService.buildProgressMap(allProgress);
+
+    const finalWinsByUser = new Map<number, Set<number>>();
+    for (const r of allFinalWins) {
+      const uid = Number(r.userId);
+      if (!finalWinsByUser.has(uid)) finalWinsByUser.set(uid, new Set());
+      finalWinsByUser.get(uid)!.add(Number(r.tournamentId));
+    }
+
+    const winsByUser = new Map<number, number>();
+    const countedByUser = new Map<number, Set<number>>();
+
+    for (const row of allUserTourn) {
+      const uid = Number(row.userId);
+      const tid = Number(row.tournamentId);
+      const po = UsersService.parseJsonArray(row.playerOrder);
+      const progMap = progressByTid.get(tid);
+
+      let w = 0;
+      if (UsersService.didWinSemifinal(uid, po, progMap)) w++;
+      if (finalWinsByUser.get(uid)?.has(tid)) w++;
+
+      if (w > 0) winsByUser.set(uid, (winsByUser.get(uid) ?? 0) + w);
+      if (!countedByUser.has(uid)) countedByUser.set(uid, new Set());
+      countedByUser.get(uid)!.add(tid);
+    }
+
+    for (const [uid, tids] of finalWinsByUser) {
+      const counted = countedByUser.get(uid);
+      for (const tid of tids) {
+        if (!counted?.has(tid)) {
+          winsByUser.set(uid, (winsByUser.get(uid) ?? 0) + 1);
+        }
+      }
+    }
+
+    const allUsers = await manager.query(
+      `SELECT id, COALESCE(nickname, username) as "displayName" FROM "user"`,
+    );
+    const userNames = new Map<number, string>(
+      allUsers.map((u: any) => [Number(u.id), String(u.displayName || `Игрок ${u.id}`).trim() || `Игрок ${u.id}`]),
+    );
+
+    const entries = [...winsByUser.entries()]
+      .filter(([, v]) => v > 0)
+      .sort((a, b) => b[1] - a[1] || b[0] - a[0]);
+
+    return entries.map(([uid, val], i) => ({
+      rank: i + 1,
+      userId: uid,
+      displayName: userNames.get(uid) ?? `Игрок ${uid}`,
+      value: val,
+      valueFormatted: String(val.toLocaleString('ru-RU')),
+    }));
   }
 }
