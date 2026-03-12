@@ -1163,13 +1163,14 @@ export class TournamentsService {
       userStatus: 'passed' | 'not_passed',
       resultLabel: string,
       roundForQuestions?: 'semi' | 'final',
+      stageOverride?: string,
     ) => {
       const prog = progressByTid.get(t.id);
       const answered = prog?.q ?? 0;
       const semiCorrect = prog?.semiCorrect ?? (answered <= QUESTIONS_PER_ROUND ? (prog?.totalCorrect ?? 0) : 0);
       const totalCorrect = prog?.totalCorrect ?? 0;
       const tbRounds = prog?.tiebreakerRounds ?? [];
-      const stage = getStage(t);
+      const stage = stageOverride ?? getStage(t);
       const semiRes = getMoneySemiResult(t);
       const inSemiPhase = semiRes.result !== 'won';
       const round: 'semi' | 'final' =
@@ -1297,15 +1298,14 @@ export class TournamentsService {
       }
     }
 
-    // Если выиграл полуфинал — турнир и в активных (есть финал), и в истории (пройден этап).
+    // Если выиграл полуфинал — турнир и в активных (есть финал), и в истории (пройден этап ПФ = Победа).
     const moneySemiWonFinalPending = tournaments.filter(
       (t) =>
         getMoneySemiResult(t).result === 'won' &&
-        (progressByTid.get(t.id)?.q ?? 0) < 2 * QUESTIONS_PER_ROUND &&
         !belongsToHistory(t),
     );
     const semiWonCompletedItems = moneySemiWonFinalPending.map((t) =>
-      toItem(t, deadlineByTournamentId[t.id] ?? '', 'passed', 'Ожидание соперника', 'semi'),
+      toItem(t, deadlineByTournamentId[t.id] ?? '', 'passed', 'Победа', 'semi', 'Полуфинал'),
     );
 
     const activeRaw = activeTournamentsRaw.map((t) =>
