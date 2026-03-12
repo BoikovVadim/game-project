@@ -948,7 +948,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   } | null>(null);
   const [questionsReviewLoading, setQuestionsReviewLoading] = useState(false);
   const [questionsReviewError, setQuestionsReviewError] = useState('');
-  const [oppTooltip, setOppTooltip] = useState<{ loading: boolean; data: null | { gamesPlayed: number; wins: number; winRatePercent: number | null; correctAnswers: number; totalQuestions: number }; visible: boolean }>({ loading: false, data: null, visible: false });
+  const [oppTooltip, setOppTooltip] = useState<{ loading: boolean; data: null | PlayerStats; visible: boolean }>({ loading: false, data: null, visible: false });
 
   const [referralCode, setReferralCode] = useState<string | null>(null);
   const [referralLinkCopied, setReferralLinkCopied] = useState(false);
@@ -2196,7 +2196,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   const loadOppStats = (userId: number) => {
     if (oppTooltip.data && oppTooltip.visible) { setOppTooltip((p) => ({ ...p, visible: false })); return; }
     setOppTooltip({ loading: true, data: null, visible: true });
-    axios.get<{ gamesPlayed: number; wins: number; winRatePercent: number | null; correctAnswers: number; totalQuestions: number }>(`/users/${userId}/public-stats`, { headers: { Authorization: `Bearer ${token}` } })
+    axios.get<PlayerStats>(`/users/${userId}/public-stats`, { headers: { Authorization: `Bearer ${token}` } })
       .then((res) => setOppTooltip({ loading: false, data: res.data, visible: true }))
       .catch(() => setOppTooltip({ loading: false, data: null, visible: false }));
   };
@@ -5241,20 +5241,27 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                           <span className="qr-opponent-name-wrap">
                             <button type="button" className="qr-opponent-link" onClick={() => loadOppStats(oppInfo.id)}>{oppInfo.nickname}</button>
                             {oppTooltip.visible && (
-                              <span className="qr-opponent-tooltip">
+                              <div className="bracket-player-tooltip qr-opponent-tooltip" onClick={() => setOppTooltip((p) => ({ ...p, visible: false }))} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && setOppTooltip((p) => ({ ...p, visible: false }))}>
                                 {oppTooltip.loading ? (
-                                  <span className="qr-opponent-tooltip-loading">Загрузка…</span>
+                                  <div className="bracket-player-tooltip-inner"><span className="qr-opponent-tooltip-loading">Загрузка…</span></div>
                                 ) : oppTooltip.data ? (
-                                  <>
-                                    <span className="qr-opponent-tooltip-row">Игр сыграно: <strong>{oppTooltip.data.gamesPlayed}</strong></span>
-                                    <span className="qr-opponent-tooltip-row">Побед: <strong>{oppTooltip.data.wins}</strong></span>
-                                    <span className="qr-opponent-tooltip-row">Винрейт: <strong>{oppTooltip.data.winRatePercent != null ? `${oppTooltip.data.winRatePercent}%` : '—'}</strong></span>
-                                    <span className="qr-opponent-tooltip-row">Верных ответов: <strong>{oppTooltip.data.correctAnswers}</strong> из <strong>{oppTooltip.data.totalQuestions}</strong></span>
-                                  </>
+                                  <div className="bracket-player-tooltip-inner">
+                                    <div className="bracket-player-tooltip-avatar"><DollarIcon /></div>
+                                    <div className="bracket-player-tooltip-stats">
+                                      <div className="bracket-player-tooltip-name">{oppInfo.nickname}</div>
+                                      <div className="bracket-player-tooltip-stat"><strong>Лига:</strong> {oppTooltip.data.maxLeagueName ?? '—'}</div>
+                                      <div className="bracket-player-tooltip-stat">Сыграно раундов: {formatNum(oppTooltip.data.gamesPlayed ?? 0)}</div>
+                                      <div className="bracket-player-tooltip-stat">Сыгранных матчей: {formatNum(oppTooltip.data.completedMatches ?? 0)}</div>
+                                      <div className="bracket-player-tooltip-stat"><strong>Сумма выигрыша:</strong> {formatNum(oppTooltip.data.totalWinnings ?? 0)} {CURRENCY}</div>
+                                      <div className="bracket-player-tooltip-stat"><strong>Выиграно турниров:</strong> {formatNum(oppTooltip.data.wins ?? 0)}</div>
+                                      <div className="bracket-player-tooltip-stat"><strong>Верных ответов:</strong> {formatNum(oppTooltip.data.correctAnswers ?? 0)} из {formatNum(oppTooltip.data.totalQuestions ?? 0)}</div>
+                                      <div className="bracket-player-tooltip-stat"><strong>% верных ответов:</strong> {(oppTooltip.data.totalQuestions ?? 0) > 0 ? `${(((oppTooltip.data.correctAnswers ?? 0) / (oppTooltip.data.totalQuestions ?? 1)) * 100).toFixed(2)}%` : '—'}</div>
+                                    </div>
+                                  </div>
                                 ) : (
-                                  <span className="qr-opponent-tooltip-loading">Нет данных</span>
+                                  <div className="bracket-player-tooltip-inner"><span className="qr-opponent-tooltip-loading">Нет данных</span></div>
                                 )}
-                              </span>
+                              </div>
                             )}
                           </span>
                         </p>
