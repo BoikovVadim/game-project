@@ -4146,5 +4146,5 @@ export function generateNatureTech500(): RawQuestion[] {
     ...expand('weather', WEATHER),
     ...expand('minerals', MINERALS),
     ...expand('world_records', WORLD_RECORDS),
-  ];
+];
 }

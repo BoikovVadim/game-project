@@ -2,7 +2,7 @@ import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException,
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Tournament, TournamentStatus, TOURNAMENT_DEADLINE_HOURS } from './tournament.entity';
+import { Tournament, TournamentStatus, ROUND_DEADLINE_HOURS, WAITING_DEADLINE_HOURS } from './tournament.entity';
 import { Question } from './question.entity';
 import { QuestionPoolItem } from './question-pool.entity';
 import { TournamentEntry } from './tournament-entry.entity';
@@ -81,9 +81,12 @@ export class TournamentsService {
 
   private readonly logger = new Logger(TournamentsService.name);
 
-  private getDeadline(from: Date): string {
-    const deadline = new Date(from.getTime() + TOURNAMENT_DEADLINE_HOURS * 60 * 60 * 1000);
-    return deadline.toISOString();
+  private getRoundDeadline(from: Date): string {
+    return new Date(from.getTime() + ROUND_DEADLINE_HOURS * 3600000).toISOString();
+  }
+
+  private getWaitingDeadline(from: Date): string {
+    return new Date(from.getTime() + WAITING_DEADLINE_HOURS * 3600000).toISOString();
   }
 
   private isPlayerInFinalPhase(
@@ -150,68 +153,42 @@ export class TournamentsService {
       this.logger.error('[Cron] processAllExpiredEscrows failed', err);
     }
     try {
-      await this.closeExpiredTournaments();
+      await this.cancelUnfilledTournaments();
     } catch (err) {
-      this.logger.error('[Cron] closeExpiredTournaments failed', err);
+      this.logger.error('[Cron] cancelUnfilledTournaments failed', err);
+    }
+    try {
+      await this.closeTimedOutRounds();
+    } catch (err) {
+      this.logger.error('[Cron] closeTimedOutRounds failed', err);
     }
   }
 
   /**
-   * Находит турниры с истёкшим 48ч дедлайном (createdAt + 48h < now).
-   * Определяет победителя или завершает без победителя (возврат денег).
+   * Отменяет турниры, в которых за 24ч от создания не набралось 4 игрока.
    */
-  private async closeExpiredTournaments(): Promise<void> {
-    const cutoff = new Date(Date.now() - TOURNAMENT_DEADLINE_HOURS * 60 * 60 * 1000);
-    const expiredTournaments = await this.tournamentRepository
+  private async cancelUnfilledTournaments(): Promise<void> {
+    const cutoff = new Date(Date.now() - WAITING_DEADLINE_HOURS * 3600000);
+    const tournaments = await this.tournamentRepository
       .createQueryBuilder('t')
       .where('t.status IN (:...statuses)', { statuses: [TournamentStatus.WAITING, TournamentStatus.ACTIVE] })
       .andWhere('t."createdAt" < :cutoff', { cutoff })
       .leftJoinAndSelect('t.players', 'players')
       .getMany();
 
-    for (const tournament of expiredTournaments) {
+    for (const tournament of tournaments) {
       try {
-        this.sortPlayersByOrder(tournament);
         const order = tournament.playerOrder ?? [];
+        const realCount = order.filter((id) => id > 0).length;
+        if (realCount >= 4) continue;
+
         const allProg = await this.tournamentProgressRepository.find({ where: { tournamentId: tournament.id } });
-
-        const saveResult = async (uid: number, passed: boolean) => {
-          let row = await this.tournamentResultRepository.findOne({
-            where: { userId: uid, tournamentId: tournament.id },
-          });
-          if (row) {
-            row.passed = passed ? 1 : 0;
-            await this.tournamentResultRepository.save(row);
-          } else {
-            await this.tournamentResultRepository.save(
-              this.tournamentResultRepository.create({
-                userId: uid, tournamentId: tournament.id, passed: passed ? 1 : 0,
-              }),
-            );
-          }
-        };
-
-        let winnerId: number | null = null;
+        this.logger.log(`[cancelUnfilledTournaments] Tournament ${tournament.id}: only ${realCount} players, cancelling`);
 
         for (const prog of allProg) {
-          const uid = prog.userId;
-          if (!order.includes(uid)) continue;
-          const inFinal = this.isPlayerInFinalPhase(prog, allProg, tournament);
-          if (!inFinal) continue;
-          const myTBLen = (prog.tiebreakerRoundsCorrect ?? []).length;
-          const mySemiTotal = this.QUESTIONS_PER_ROUND + myTBLen * this.TIEBREAKER_QUESTIONS;
-          const answered = prog.questionsAnsweredCount ?? 0;
-          if (answered >= mySemiTotal + this.QUESTIONS_PER_ROUND) {
-            winnerId = uid;
-            break;
-          }
-        }
-
-        this.logger.log(`[closeExpiredTournaments] Tournament ${tournament.id} expired. Winner: ${winnerId ?? 'none'}`);
-
-        const realPlayerIds = allProg.map((p) => p.userId);
-        for (const uid of realPlayerIds) {
-          await saveResult(uid, uid === winnerId);
+          let row = await this.tournamentResultRepository.findOne({ where: { userId: prog.userId, tournamentId: tournament.id } });
+          if (row) { row.passed = 0; await this.tournamentResultRepository.save(row); }
+          else { await this.tournamentResultRepository.save(this.tournamentResultRepository.create({ userId: prog.userId, tournamentId: tournament.id, passed: 0 })); }
         }
 
         tournament.status = TournamentStatus.FINISHED;
@@ -221,7 +198,163 @@ export class TournamentsService {
           await this.processTournamentEscrow(tournament.id);
         }
       } catch (err) {
-        this.logger.error(`[closeExpiredTournaments] Error for tournament ${tournament.id}`, err);
+        this.logger.error(`[cancelUnfilledTournaments] Error for tournament ${tournament.id}`, err);
+      }
+    }
+  }
+
+  /**
+   * Проверяет per-round 24ч дедлайны: если игрок не ответил за 24ч — соперник побеждает.
+   */
+  private async closeTimedOutRounds(): Promise<void> {
+    const activeTournaments = await this.tournamentRepository
+      .createQueryBuilder('t')
+      .where('t.status IN (:...statuses)', { statuses: [TournamentStatus.WAITING, TournamentStatus.ACTIVE] })
+      .leftJoinAndSelect('t.players', 'players')
+      .getMany();
+
+    const now = new Date();
+    const roundCutoffMs = ROUND_DEADLINE_HOURS * 3600000;
+
+    for (const tournament of activeTournaments) {
+      try {
+        const order = tournament.playerOrder ?? [];
+        const realCount = order.filter((id) => id > 0).length;
+        if (realCount < 2) continue;
+
+        this.sortPlayersByOrder(tournament);
+        const allProg = await this.tournamentProgressRepository.find({ where: { tournamentId: tournament.id } });
+        const entries = await this.tournamentEntryRepository.find({ where: { tournament: { id: tournament.id } } as any });
+
+        const getPlayerRoundStart = (uid: number): Date | null => {
+          const prog = allProg.find((p) => p.userId === uid);
+          if (prog?.roundStartedAt) return prog.roundStartedAt;
+          const entry = entries.find((e: any) => (e.userId ?? e.user?.id) === uid);
+          if (entry?.joinedAt) return entry.joinedAt;
+          return null;
+        };
+
+        const isTimedOut = (uid: number): boolean => {
+          const start = getPlayerRoundStart(uid);
+          if (!start) return false;
+          return now.getTime() - start.getTime() > roundCutoffMs;
+        };
+
+        const playerFinishedCurrentRound = (uid: number): boolean => {
+          const prog = allProg.find((p) => p.userId === uid);
+          if (!prog) return false;
+          const q = prog.questionsAnsweredCount ?? 0;
+          const tbLen = (prog.tiebreakerRoundsCorrect ?? []).length;
+          const semiTotal = this.QUESTIONS_PER_ROUND + tbLen * this.TIEBREAKER_QUESTIONS;
+          const inFinal = this.isPlayerInFinalPhase(prog, allProg, tournament);
+          if (!inFinal) return q >= semiTotal && q % this.QUESTIONS_PER_ROUND === 0;
+          return q >= semiTotal + this.QUESTIONS_PER_ROUND;
+        };
+
+        const saveResult = async (uid: number, passed: boolean) => {
+          let row = await this.tournamentResultRepository.findOne({ where: { userId: uid, tournamentId: tournament.id } });
+          if (row) { row.passed = passed ? 1 : 0; await this.tournamentResultRepository.save(row); }
+          else { await this.tournamentResultRepository.save(this.tournamentResultRepository.create({ userId: uid, tournamentId: tournament.id, passed: passed ? 1 : 0 })); }
+        };
+
+        let tournamentResolved = false;
+
+        // Check each semi-final pair
+        for (const pair of [[0, 1], [2, 3]] as const) {
+          const id1 = pair[0] < order.length ? order[pair[0]] : -1;
+          const id2 = pair[1] < order.length ? order[pair[1]] : -1;
+          if (id1 <= 0 || id2 <= 0) continue;
+
+          const p1Finished = playerFinishedCurrentRound(id1);
+          const p2Finished = playerFinishedCurrentRound(id2);
+          const p1Timeout = !p1Finished && isTimedOut(id1);
+          const p2Timeout = !p2Finished && isTimedOut(id2);
+
+          if (!p1Timeout && !p2Timeout) continue;
+
+          if (p1Finished && p2Timeout) {
+            this.logger.log(`[closeTimedOutRounds] T${tournament.id}: player ${id2} timed out, ${id1} wins`);
+            await saveResult(id2, false);
+          } else if (p2Finished && p1Timeout) {
+            this.logger.log(`[closeTimedOutRounds] T${tournament.id}: player ${id1} timed out, ${id2} wins`);
+            await saveResult(id1, false);
+          } else if (p1Timeout && p2Timeout) {
+            this.logger.log(`[closeTimedOutRounds] T${tournament.id}: both ${id1} and ${id2} timed out`);
+            await saveResult(id1, false);
+            await saveResult(id2, false);
+          }
+        }
+
+        // Check if tournament can be fully resolved
+        // Find finalists (players who won their semi-final)
+        const finalists: number[] = [];
+        for (const prog of allProg) {
+          if (this.isPlayerInFinalPhase(prog, allProg, tournament)) {
+            finalists.push(prog.userId);
+          }
+        }
+
+        // Check final timeout between finalists
+        if (finalists.length === 2) {
+          const f1 = finalists[0], f2 = finalists[1];
+          const f1Finished = playerFinishedCurrentRound(f1);
+          const f2Finished = playerFinishedCurrentRound(f2);
+          const f1Timeout = !f1Finished && isTimedOut(f1);
+          const f2Timeout = !f2Finished && isTimedOut(f2);
+
+          if (f1Finished && f2Timeout) {
+            this.logger.log(`[closeTimedOutRounds] T${tournament.id} final: ${f2} timed out, ${f1} wins`);
+            await saveResult(f1, true);
+            await saveResult(f2, false);
+            tournamentResolved = true;
+          } else if (f2Finished && f1Timeout) {
+            this.logger.log(`[closeTimedOutRounds] T${tournament.id} final: ${f1} timed out, ${f2} wins`);
+            await saveResult(f2, true);
+            await saveResult(f1, false);
+            tournamentResolved = true;
+          } else if (f1Timeout && f2Timeout) {
+            this.logger.log(`[closeTimedOutRounds] T${tournament.id} final: both finalists timed out`);
+            await saveResult(f1, false);
+            await saveResult(f2, false);
+            tournamentResolved = true;
+          }
+        } else if (finalists.length === 1) {
+          // Only one finalist emerged (the other semi had both timeout or one timeout)
+          const fId = finalists[0];
+          const fFinished = playerFinishedCurrentRound(fId);
+          const fTimeout = !fFinished && isTimedOut(fId);
+
+          // Check if the other semi-final is fully resolved (both timed out or one lost)
+          const fSlot = order.indexOf(fId);
+          const otherPair: [number, number] = fSlot < 2 ? [2, 3] : [0, 1];
+          const oid1 = otherPair[0] < order.length ? order[otherPair[0]] : -1;
+          const oid2 = otherPair[1] < order.length ? order[otherPair[1]] : -1;
+          const bothOtherTimedOut = (oid1 <= 0 || isTimedOut(oid1)) && (oid2 <= 0 || isTimedOut(oid2));
+
+          if (bothOtherTimedOut && fFinished) {
+            this.logger.log(`[closeTimedOutRounds] T${tournament.id}: sole finalist ${fId} wins (other semi timed out)`);
+            await saveResult(fId, true);
+            if (oid1 > 0) await saveResult(oid1, false);
+            if (oid2 > 0) await saveResult(oid2, false);
+            tournamentResolved = true;
+          } else if (bothOtherTimedOut && fTimeout) {
+            this.logger.log(`[closeTimedOutRounds] T${tournament.id}: sole finalist ${fId} also timed out, no winner`);
+            await saveResult(fId, false);
+            if (oid1 > 0) await saveResult(oid1, false);
+            if (oid2 > 0) await saveResult(oid2, false);
+            tournamentResolved = true;
+          }
+        }
+
+        if (tournamentResolved) {
+          tournament.status = TournamentStatus.FINISHED;
+          await this.tournamentRepository.save(tournament);
+          if (tournament.gameType === 'money') {
+            await this.processTournamentEscrow(tournament.id);
+          }
+        }
+      } catch (err) {
+        this.logger.error(`[closeTimedOutRounds] Error for tournament ${tournament.id}`, err);
       }
     }
   }
@@ -234,8 +367,7 @@ export class TournamentsService {
       try {
         const tournament = await this.tournamentRepository.findOne({ where: { id: tid } });
         if (!tournament || tournament.gameType !== 'money') continue;
-        const deadline = this.getDeadline(tournament.createdAt ?? new Date());
-        if (new Date(deadline) >= new Date()) continue;
+        if (tournament.status !== TournamentStatus.FINISHED) continue;
         await this.processTournamentEscrow(tid);
       } catch (err) {
         console.error('[processAllExpiredEscrows] tournament', tid, err);
@@ -260,8 +392,7 @@ export class TournamentsService {
       );
     if (!claimed || claimed.length === 0) return;
 
-    const deadline = this.getDeadline(tournament.createdAt ?? new Date());
-    if (new Date(deadline) >= new Date()) {
+    if (tournament.status !== TournamentStatus.FINISHED) {
       await this.tournamentEscrowRepository.query(
         'UPDATE tournament_escrow SET status = \'held\' WHERE "tournamentId" = $1 AND status = \'processing\'',
         [tournamentId],
@@ -480,7 +611,7 @@ export class TournamentsService {
 
     const semiIndex = playerSlot < 2 ? 0 : 1;
     const gameStartedAt = tournament.createdAt;
-    const deadline = this.getDeadline(tournament.createdAt);
+    const deadline = this.getRoundDeadline(tournament.createdAt);
 
     return {
       tournamentId: tournament.id,
@@ -736,7 +867,7 @@ export class TournamentsService {
     });
     for (const entry of expiredEntries) {
       if (!entry.tournament) continue;
-      const dl = this.getDeadline(entry.tournament.createdAt ?? new Date());
+      const dl = this.getWaitingDeadline(entry.tournament.createdAt ?? new Date());
       if (new Date(dl) < new Date()) {
         entry.tournament.status = TournamentStatus.FINISHED;
         await this.tournamentRepository.save(entry.tournament);
@@ -865,7 +996,7 @@ export class TournamentsService {
       positionInSemi,
       isCreator,
       gameStartedAt: joinedAt.toISOString(),
-      deadline: this.getDeadline(tournament.createdAt),
+      deadline: this.getRoundDeadline(tournament.createdAt),
     };
   }
 
@@ -921,10 +1052,20 @@ export class TournamentsService {
         .where('p.tournamentId IN (:...ids)', { ids: allIds })
         .getMany();
 
+      const entriesByTid = new Map<number, Date>();
+      if (allIds.length > 0) {
+        const allEntries = await this.tournamentEntryRepository.find({ where: { user: { id: userId } } as any });
+        for (const e of allEntries) {
+          const tid2 = (e as any).tournamentId ?? (e.tournament as any)?.id;
+          if (tid2 && e.joinedAt) entriesByTid.set(tid2, e.joinedAt);
+        }
+      }
       for (const tid of allIds) {
-        const t = tournaments.find((t2) => t2.id === tid);
-        deadlineByTournamentId[tid] = this.getDeadline(t?.createdAt ?? new Date());
         const myProg = allProgress.find((p) => p.tournamentId === tid && p.userId === userId);
+        const roundStart = myProg?.roundStartedAt ?? entriesByTid.get(tid) ?? null;
+        deadlineByTournamentId[tid] = roundStart
+          ? this.getRoundDeadline(roundStart)
+          : this.getRoundDeadline(new Date());
         roundStartedAtByTid.set(tid, myProg?.roundStartedAt ? myProg.roundStartedAt.toISOString() : null);
       }
 
@@ -1283,7 +1424,7 @@ export class TournamentsService {
             if (fr === 'won') passed = true;
             else if (fr === 'lost') passed = false;
             else {
-              const deadline = deadlineByTournamentId[t.id] ?? this.getDeadline(t.createdAt);
+              const deadline = deadlineByTournamentId[t.id] ?? this.getRoundDeadline(t.createdAt);
               passed = new Date(deadline) < now;
             }
           } else {
@@ -1483,7 +1624,7 @@ export class TournamentsService {
     };
 
     const isTimeExpired = (t: Tournament): boolean => {
-      const deadline = deadlineByTournamentId[t.id] ?? this.getDeadline(t.createdAt);
+      const deadline = deadlineByTournamentId[t.id] ?? this.getRoundDeadline(t.createdAt);
       return new Date(deadline) < now;
     };
 
@@ -1531,7 +1672,7 @@ export class TournamentsService {
     );
 
     const activeRaw = activeTournamentsRaw.map((t) =>
-      toItem(t, deadlineByTournamentId[t.id] ?? this.getDeadline(t.createdAt), getUserStatus(t), getDisplayResultLabel(t, false)),
+      toItem(t, deadlineByTournamentId[t.id] ?? this.getRoundDeadline(t.createdAt), getUserStatus(t), getDisplayResultLabel(t, false)),
     );
     const active = activeRaw.slice().sort((a, b) => {
       const tA = new Date(a.createdAt).getTime();
@@ -1589,7 +1730,8 @@ export class TournamentsService {
     const isCreator = playerSlot === 0;
 
     const progress = await this.tournamentProgressRepository.findOne({ where: { userId, tournamentId } });
-    const deadline = this.getDeadline(tournament.createdAt ?? new Date());
+    const roundStart = progress?.roundStartedAt ?? tournament.createdAt ?? new Date();
+    const deadline = this.getRoundDeadline(roundStart);
     const opponentSlot = playerSlot % 2 === 0 ? playerSlot + 1 : playerSlot - 1;
     const opponent = opponentSlot >= 0 && (tournament.players?.length ?? 0) > opponentSlot ? tournament.players![opponentSlot]! : null;
     let tiebreakerRound = 0;
@@ -1855,12 +1997,11 @@ export class TournamentsService {
       }
     }
 
-    let deadline: string;
-    deadline = this.getDeadline(tournament.createdAt ?? new Date());
-
     const progress = await this.tournamentProgressRepository.findOne({
       where: { userId, tournamentId },
     });
+    const roundStart = progress?.roundStartedAt ?? tournament.createdAt ?? new Date();
+    const deadline = this.getRoundDeadline(roundStart);
     const questionsAnsweredCount = progress?.questionsAnsweredCount ?? 0;
     const currentQuestionIndex = progress?.currentQuestionIndex ?? 0;
     const timeLeftSeconds = progress?.timeLeftSeconds ?? null;
@@ -2715,7 +2856,7 @@ export class TournamentsService {
     let progressList = await this.tournamentProgressRepository.find({
       where: { tournamentId, userId: In(players.map((p) => p.id)) },
     });
-    const baseDeadline = this.getDeadline(tournament.createdAt ?? new Date());
+    const baseDeadline = this.getRoundDeadline(tournament.createdAt ?? new Date());
     // Backfill: если ровно 10 ответов, но semiFinalCorrectCount не установлен — восстанавливаем из correctAnswersCount.
     // При 10 ответах correctAnswersCount = верные в полуфинале. При 11+ это уже сумма полуфинал+финал — не трогаем.
     for (const p of progressList) {
