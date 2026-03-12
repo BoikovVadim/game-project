@@ -10,6 +10,7 @@ import { TournamentResult } from './tournament-result.entity';
 import { TournamentProgress } from './tournament-progress.entity';
 import { TournamentEscrow } from './tournament-escrow.entity';
 import { User } from '../users/user.entity';
+import { Transaction } from '../users/transaction.entity';
 import { UsersService } from '../users/users.service';
 
 /** Все лиги по возрастанию: 5, 10, 20, 50, …, до 1 млн. */
@@ -75,6 +76,8 @@ export class TournamentsService {
     private readonly tournamentEscrowRepository: Repository<TournamentEscrow>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
+    @InjectRepository(Transaction)
+    private readonly transactionRepository: Repository<Transaction>,
     @Inject(forwardRef(() => UsersService))
     private readonly usersService: UsersService,
   ) {}
@@ -538,13 +541,21 @@ export class TournamentsService {
       where: { tournamentId },
     });
     const winners = results.filter((r) => r.passed === 1).map((r) => r.userId);
+    const existingWinTransactions = await this.transactionRepository.find({
+      where: { tournamentId, category: 'win' },
+    });
+    const existingRefundTransactions = await this.transactionRepository.find({
+      where: { tournamentId, category: 'refund' },
+    });
+    const refundedUserIds = new Set(existingRefundTransactions.map((tx) => tx.userId));
 
     const leagueAmount = tournament.leagueAmount ?? 0;
     const prize = getLeaguePrize(leagueAmount);
 
     if (winners.length === 1) {
       const winnerId = winners[0]!;
-      if (prize > 0 && winnerId > 0) {
+      const winnerAlreadyPaid = existingWinTransactions.some((tx) => tx.userId === winnerId);
+      if (prize > 0 && winnerId > 0 && !winnerAlreadyPaid) {
         await this.usersService.addToBalanceL(
           winnerId,
           prize,
@@ -553,6 +564,8 @@ export class TournamentsService {
           tournamentId,
         );
         await this.usersService.distributeReferralRewards(winnerId, leagueAmount, tournamentId);
+      } else if (winnerAlreadyPaid) {
+        this.logger.warn(`[processTournamentEscrow] Skip duplicate winner payout for tournament ${tournamentId}, user ${winnerId}`);
       }
       await this.tournamentEscrowRepository.query(
         'UPDATE tournament_escrow SET status = \'paid_to_winner\' WHERE "tournamentId" = $1 AND status = \'processing\'',
@@ -564,6 +577,10 @@ export class TournamentsService {
         const amt = Number(row.amount ?? (row as any).amt ?? 0);
         if (!uid || uid <= 0 || !amt || amt <= 0) {
           console.warn(`[processTournamentEscrow] Skipping invalid escrow row ${row.id}: userId=${uid}, amount=${amt}, tournamentId=${tournamentId}`);
+          continue;
+        }
+        if (refundedUserIds.has(uid)) {
+          this.logger.warn(`[processTournamentEscrow] Skip duplicate refund for tournament ${tournamentId}, user ${uid}`);
           continue;
         }
         await this.usersService.addToBalanceL(
