@@ -49,7 +49,7 @@ const PaymentTerms: React.FC = () => (
           <h2>6. Возвраты</h2>
           <p>6.1. Возврат вступительного взноса возможен, если турнир не состоялся по техническим причинам Платформы.</p>
           <p>6.2. В случае нарушения правил участником возврат не производится.</p>
-          <p>6.3. По вопросам возврата обращайтесь на <a href="mailto:support@legendgames.ru">support@legendgames.ru</a>.</p>
+          <p>6.3. По вопросам возврата обращайтесь на <a href="mailto:LegendGames555@yandex.com">LegendGames555@yandex.com</a>.</p>
         </section>
 
         <section>

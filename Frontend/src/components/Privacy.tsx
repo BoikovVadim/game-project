@@ -68,7 +68,7 @@ const Privacy: React.FC = () => (
             <li>Потребовать удаления своих персональных данных</li>
             <li>Отозвать согласие на обработку персональных данных</li>
           </ul>
-          <p>Для реализации своих прав обратитесь на <a href="mailto:support@legendgames.ru">support@legendgames.ru</a>.</p>
+          <p>Для реализации своих прав обратитесь на <a href="mailto:LegendGames555@yandex.com">LegendGames555@yandex.com</a>.</p>
         </section>
 
         <section>
