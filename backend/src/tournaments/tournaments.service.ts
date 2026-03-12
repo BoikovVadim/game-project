@@ -1576,10 +1576,15 @@ export class TournamentsService {
         userCompleted = true;
         completionDate = completionDate ?? deadlineAt;
       } else if (realPlayers < 4) {
-        passed = false;
-        if (t.status === TournamentStatus.FINISHED) {
+        const done4 = t.status === TournamentStatus.FINISHED || deadlineAt < now;
+        if (done4 && answered >= QUESTIONS_PER_ROUND) {
+          passed = (semiResult.result === 'won' || semiResult.result === 'incomplete');
+        } else {
+          passed = false;
+        }
+        if (done4) {
           userCompleted = true;
-          completionDate = completionDate ?? maxDate(getTournamentCompletionDate(t, deadlineAt), deadlineAt);
+          completionDate = completionDate ?? getCompletionDateFromUsers(t, [userId, opponentId > 0 ? opponentId : -1], t.createdAt);
         }
       } else if (semiResult.result === 'lost') {
         lostSemiByTid.set(t.id, true);
@@ -1618,10 +1623,16 @@ export class TournamentsService {
           completionDate = completionDate ?? (deadlineAt < now ? deadlineAt : semiWinCompletionDate);
         }
       } else {
-        passed = row?.passed === 1 ? true : false;
-        if (deadlineAt < now) {
+        if (deadlineAt < now && answered >= QUESTIONS_PER_ROUND) {
+          passed = true;
           userCompleted = true;
-          completionDate = completionDate ?? deadlineAt;
+          completionDate = completionDate ?? getCompletionDateFromUsers(t, [userId, opponentId], t.createdAt);
+        } else {
+          passed = row?.passed === 1 ? true : false;
+          if (deadlineAt < now) {
+            userCompleted = true;
+            completionDate = completionDate ?? deadlineAt;
+          }
         }
       }
 
@@ -1783,11 +1794,14 @@ export class TournamentsService {
       const answered = prog?.q ?? 0;
       const rp = getRealPlayerCount(t);
 
-      if (rp < 4 && t.status === TournamentStatus.FINISHED) {
-        if (answered >= QUESTIONS_PER_ROUND) {
-          const semiRes4 = getMoneySemiResult(t);
-          if (semiRes4.result === 'lost') return 'Поражение';
-        }
+      if (rp < 4) {
+        const done = t.status === TournamentStatus.FINISHED || isTimeExpired(t);
+        if (!done) return 'Ожидание соперника';
+        if (answered < QUESTIONS_PER_ROUND) return 'Время истекло';
+        const semiRes4 = getMoneySemiResult(t);
+        if (semiRes4.result === 'won') return 'Победа';
+        if (semiRes4.result === 'lost') return 'Поражение';
+        if (semiRes4.result === 'incomplete') return 'Победа';
         return 'Время истекло';
       }
 
@@ -1796,8 +1810,6 @@ export class TournamentsService {
         if (resultByTournamentId.get(t.id) === true) return 'Победа';
         return 'Поражение';
       }
-
-      if (rp < 4) return 'Ожидание соперника';
 
       if (answered < QUESTIONS_PER_ROUND) return 'Этап не пройден';
 
@@ -1824,7 +1836,6 @@ export class TournamentsService {
     };
 
     const getUserStatus = (t: Tournament): 'passed' | 'not_passed' => {
-      if (getRealPlayerCount(t) < 4) return 'not_passed';
       return resultByTournamentId.get(t.id) === true ? 'passed' : 'not_passed';
     };
 
@@ -1848,6 +1859,18 @@ export class TournamentsService {
       const label = getResultLabel(t);
       if (isNotInOrder(t)) return 'Время истекло';
       if (inCompleted && isTimeExpired(t) && label !== 'Поражение' && label !== 'Победа') {
+        const prog2 = progressByTid.get(t.id);
+        const answered2 = prog2?.q ?? 0;
+        if (answered2 >= QUESTIONS_PER_ROUND) {
+          const semiRes2 = getMoneySemiResult(t);
+          if (semiRes2.result === 'won') return 'Победа';
+          if (semiRes2.result === 'incomplete') return 'Победа';
+          if (semiRes2.result === 'tie') {
+            const tbRound2 = semiRes2.tiebreakerRound ?? 1;
+            const roundEnd2 = QUESTIONS_PER_ROUND + tbRound2 * TIEBREAKER_QUESTIONS;
+            if (answered2 >= roundEnd2) return 'Победа';
+          }
+        }
         return 'Время истекло';
       }
       return label;
