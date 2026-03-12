@@ -26,11 +26,11 @@ const LandingHome: React.FC<LandingHomeProps> = ({ onLogin }) => {
     <LandingLayout>
       <section className="landing-hero">
         <div className="landing-hero-text">
-          <h1>Интеллектуальные<br/>турниры на <em>Legend Games</em></h1>
+          <h1>Побеждай знаниями<br/>на <em>Legend Games</em></h1>
           <p>
-            Соревновательная платформа, где побеждают знания.
-            Участвуйте в турнирах, проверяйте свою эрудицию
-            и поднимайтесь в рейтинге среди тысяч участников.
+            Соревновательная платформа интеллектуальных турниров.
+            Участвуйте, демонстрируйте эрудицию
+            и получайте вознаграждения за победы.
           </p>
         </div>
 
@@ -55,39 +55,78 @@ const LandingHome: React.FC<LandingHomeProps> = ({ onLogin }) => {
         </div>
       </section>
 
+      <section className="landing-how-it-works">
+        <h2>Как это работает</h2>
+        <div className="landing-steps">
+          <div className="landing-step">
+            <div className="landing-step-number">1</div>
+            <h3>Зарегистрируйтесь</h3>
+            <p>Создайте аккаунт за минуту и получите доступ к личному кабинету со всем функционалом платформы.</p>
+          </div>
+          <div className="landing-step-arrow">&#10132;</div>
+          <div className="landing-step">
+            <div className="landing-step-number">2</div>
+            <h3>Пополните баланс</h3>
+            <p>Внесите средства через ЮKassa — быстро и безопасно. Суммы от 100 ₽ до 10 000 ₽.</p>
+          </div>
+          <div className="landing-step-arrow">&#10132;</div>
+          <div className="landing-step">
+            <div className="landing-step-number">3</div>
+            <h3>Участвуйте в турнирах</h3>
+            <p>Соревнуйтесь с другими участниками в формате 4 игроков. Турнир формируется автоматически.</p>
+          </div>
+          <div className="landing-step-arrow">&#10132;</div>
+          <div className="landing-step">
+            <div className="landing-step-number">4</div>
+            <h3>Получайте вознаграждения</h3>
+            <p>Побеждайте и выводите средства от 100 ₽. Выплата — до 3 рабочих дней.</p>
+          </div>
+        </div>
+      </section>
+
       <section className="landing-features">
         <h2>Почему Legend Games?</h2>
         <div className="landing-features-grid">
           <div className="landing-feature-card">
-            <div className="landing-feature-icon">&#128187;</div>
-            <h3>Информационный онлайн-сервис</h3>
-            <p>Цифровая платформа с полным функционалом: личный кабинет, статистика, управление балансом — всё в одном месте.</p>
+            <div className="landing-feature-icon">&#127942;</div>
+            <h3>Вознаграждения за победы</h3>
+            <p>Получайте вознаграждения за участие и победу в соревновательных мероприятиях. Выводите средства удобным способом.</p>
           </div>
           <div className="landing-feature-card">
-            <div className="landing-feature-icon">&#128218;</div>
-            <h3>Соревнования навыков и знаний</h3>
-            <p>Мероприятия основаны на пользовательских навыках, знаниях и действиях. Результат зависит только от вас.</p>
+            <div className="landing-feature-icon">&#129504;</div>
+            <h3>Соревнования навыков</h3>
+            <p>Результат зависит только от ваших знаний и навыков. Никакой случайности — побеждает сильнейший.</p>
           </div>
           <div className="landing-feature-card">
             <div className="landing-feature-icon">&#9878;</div>
             <h3>Прозрачные правила</h3>
-            <p>Результаты формируются автоматически на основе действий участников. Равные условия для каждого пользователя.</p>
+            <p>Результаты формируются автоматически на основе действий участников. Равные условия для каждого.</p>
           </div>
           <div className="landing-feature-card">
             <div className="landing-feature-icon">&#9889;</div>
             <h3>Мгновенные результаты</h3>
-            <p>Итоги соревновательных мероприятий доступны сразу после завершения. Автоматическое определение победителей.</p>
+            <p>Итоги турниров доступны сразу после завершения. Вознаграждение начисляется на баланс автоматически.</p>
           </div>
           <div className="landing-feature-card">
             <div className="landing-feature-icon">&#128274;</div>
             <h3>Безопасные платежи</h3>
-            <p>Пополнение внутреннего баланса через сертифицированные платёжные системы. Данные карт не хранятся на платформе.</p>
+            <p>Пополнение и вывод средств через сертифицированные платёжные системы. Данные карт защищены.</p>
           </div>
           <div className="landing-feature-card">
-            <div className="landing-feature-icon">&#127942;</div>
-            <h3>Цифровые услуги</h3>
-            <p>Все услуги оказываются исключительно в электронном виде. Доступ к функционалу платформы через личный кабинет.</p>
+            <div className="landing-feature-icon">&#128187;</div>
+            <h3>Удобный личный кабинет</h3>
+            <p>Статистика, управление балансом, история турниров и запрос на вывод средств — всё в одном месте.</p>
           </div>
+        </div>
+      </section>
+
+      <section className="landing-rewards-banner">
+        <div className="landing-rewards-content">
+          <h2>Выигрывайте и выводите средства</h2>
+          <p>Минимальная сумма для вывода — <strong>100 ₽</strong>. Срок обработки — до <strong>3 рабочих дней</strong>. Пополнение баланса от 100 ₽ до 10 000 ₽ через ЮKassa.</p>
+          <button type="button" className="landing-hero-cta" onClick={() => switchTab('register')}>
+            Начать играть
+          </button>
         </div>
       </section>
     </LandingLayout>
