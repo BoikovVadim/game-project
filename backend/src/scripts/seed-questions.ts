@@ -62,7 +62,8 @@ async function run() {
   });
   console.log(`\nВсего уникальных вопросов (до балансировки): ${unique.length}`);
 
-  // --- Балансировка: ограничить раздутые категории до макс. размера обычных ---
+  // --- Балансировка: ограничить раздутые категории до фиксированного лимита ---
+  const CATEGORY_CAP = 200;
   const BLOATED_PREFIXES = ['math_', 'logic_', 'english_'];
   const isBloated = (topic: string) => BLOATED_PREFIXES.some((p) => topic.startsWith(p));
 
@@ -73,21 +74,16 @@ async function run() {
     byTopic.set(q.topic, arr);
   }
 
-  let maxNormal = 0;
-  for (const [topic, qs] of byTopic) {
-    if (!isBloated(topic) && qs.length > maxNormal) maxNormal = qs.length;
-  }
-  console.log(`Макс. размер обычной категории: ${maxNormal}`);
+  console.log(`Лимит для раздутых категорий: ${CATEGORY_CAP}`);
 
   const balanced: RawQuestion[] = [];
   for (const [topic, qs] of byTopic) {
-    if (isBloated(topic) && qs.length > maxNormal) {
-      // Случайная выборка maxNormal вопросов
+    if (isBloated(topic) && qs.length > CATEGORY_CAP) {
       for (let i = qs.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [qs[i], qs[j]] = [qs[j], qs[i]];
       }
-      const trimmed = qs.slice(0, maxNormal);
+      const trimmed = qs.slice(0, CATEGORY_CAP);
       console.log(`  ${topic}: ${qs.length} → ${trimmed.length} (ограничено)`);
       balanced.push(...trimmed);
     } else {
