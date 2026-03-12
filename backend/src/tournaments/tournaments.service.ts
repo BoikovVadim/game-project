@@ -1438,25 +1438,25 @@ export class TournamentsService {
       let passed: boolean;
       let row = await this.tournamentResultRepository.findOne({ where: { userId, tournamentId: t.id } });
 
+      const realPlayers = (t.playerOrder?.filter((id: number) => id > 0).length) ?? 0;
       const semiResult = getMoneySemiResult(t);
-      if (semiResult.result === 'lost') {
+
+      if (realPlayers < 4) {
+        passed = false;
+      } else if (semiResult.result === 'lost') {
         lostSemiByTid.set(t.id, true);
         passed = false;
       } else if (semiResult.result === 'tie') {
         passed = false;
       } else if (semiResult.result === 'won' && userProgress) {
-        if (getPlayerCount(t) <= 2) {
-          passed = true;
+        const mySemiTotal = semiPhaseQuestions(userProgress);
+        if (answered >= mySemiTotal + QUESTIONS_PER_ROUND) {
+          const fr = getFinalResult(t, userProgress);
+          if (fr === 'won') passed = true;
+          else if (fr === 'lost') passed = false;
+          else passed = false;
         } else {
-          const mySemiTotal = semiPhaseQuestions(userProgress);
-          if (answered >= mySemiTotal + QUESTIONS_PER_ROUND) {
-            const fr = getFinalResult(t, userProgress);
-            if (fr === 'won') passed = true;
-            else if (fr === 'lost') passed = false;
-            else passed = false;
-          } else {
-            passed = false;
-          }
+          passed = false;
         }
       } else {
         passed = row?.passed === 1 ? true : false;
@@ -1611,17 +1611,26 @@ export class TournamentsService {
       return !order.includes(userId);
     };
 
+    const getRealPlayerCount = (t: Tournament): number =>
+      (t.playerOrder?.filter((id: number) => id > 0).length) ?? 0;
+
     const getResultLabel = (t: Tournament): string => {
       if (isNotInOrder(t)) return 'Время истекло';
       const prog = progressByTid.get(t.id);
       const answered = prog?.q ?? 0;
+      const rp = getRealPlayerCount(t);
+
+      if (rp < 4 && t.status === TournamentStatus.FINISHED) {
+        return 'Время истекло';
+      }
 
       if (t.status === TournamentStatus.FINISHED) {
         if (answered < QUESTIONS_PER_ROUND) return 'Время истекло';
         if (resultByTournamentId.get(t.id) === true) return 'Победа';
-        if (getPlayerCount(t) < 2) return 'Победа';
         return 'Поражение';
       }
+
+      if (rp < 4) return 'Ожидание соперника';
 
       if (answered < QUESTIONS_PER_ROUND) return 'Этап не пройден';
 
@@ -1635,7 +1644,6 @@ export class TournamentsService {
       }
       if (semiResult.result === 'lost') return 'Поражение';
       if (semiResult.result === 'won') {
-        if (getPlayerCount(t) <= 2) return 'Победа';
         if (!prog) return 'Этап не пройден';
         const mySemiTotal = semiPhaseQuestions(prog);
         if (answered < mySemiTotal + QUESTIONS_PER_ROUND) return 'Этап не пройден';
@@ -1649,10 +1657,7 @@ export class TournamentsService {
     };
 
     const getUserStatus = (t: Tournament): 'passed' | 'not_passed' => {
-      if (getPlayerCount(t) < 2) {
-        const answered = progressByTid.get(t.id)?.q ?? 0;
-        return answered >= QUESTIONS_PER_ROUND ? 'passed' : 'not_passed';
-      }
+      if (getRealPlayerCount(t) < 4) return 'not_passed';
       return resultByTournamentId.get(t.id) === true ? 'passed' : 'not_passed';
     };
 
