@@ -796,6 +796,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   const [answerForCurrentQuestion, setAnswerForCurrentQuestion] = useState<number | null>(null);
   const [trainingCorrectCount, setTrainingCorrectCount] = useState(0);
   const [tiebreakerBase, setTiebreakerBase] = useState(0);
+  const [semiPhaseTotal, setSemiPhaseTotal] = useState(10);
   const QUESTION_TIMER_SEC = 5;
   const [timeLeft, setTimeLeft] = useState(QUESTION_TIMER_SEC);
   const timeLeftRef = useRef(QUESTION_TIMER_SEC);
@@ -1632,7 +1633,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         setTrainingAnswers((prev) => [...prev, -1]);
         setFullAnswersChosen((prev) => {
           const arr = [...prev];
-          const timerBase = trainingRound !== null && trainingRound >= 2 ? 10 : 0;
+          const timerBase = trainingRound !== null && trainingRound >= 2 ? semiPhaseTotal : 0;
           const gIdx = timerBase + trainingQuestionIndex;
           while (arr.length <= gIdx) arr.push(-1);
           arr[gIdx] = -1;
@@ -1641,7 +1642,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         setBlinkKey((k) => k + 1);
         // Немедленно фиксируем timeout на сервере (answerFinal) — перезаписать будет нельзя
         if (trainingData?.tournamentId && token) {
-          const toBase = trainingRound === 3 ? tiebreakerBase : (trainingRound !== null && trainingRound >= 2 ? 10 : 0);
+          const toBase = trainingRound === 3 ? tiebreakerBase : (trainingRound !== null && trainingRound >= 2 ? semiPhaseTotal : 0);
           const toGIdx = toBase + trainingQuestionIndex;
           const toAnswers = [...fullAnswersChosenRef.current];
           while (toAnswers.length <= toGIdx) toAnswers.push(-1);
@@ -1655,7 +1656,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     }, 50);
 
     if (trainingData?.tournamentId && token) {
-      const psBase = trainingRound === 3 ? tiebreakerBase : (trainingRound !== null && trainingRound >= 2 ? 10 : 0);
+      const psBase = trainingRound === 3 ? tiebreakerBase : (trainingRound !== null && trainingRound >= 2 ? semiPhaseTotal : 0);
       const psGIdx = psBase + trainingQuestionIndex;
       const psAnswers = [...fullAnswersChosenRef.current];
       while (psAnswers.length <= psGIdx) psAnswers.push(-1);
@@ -1688,7 +1689,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     setBlinkKey((k) => k + 1);
     const newRoundAnswers = [...trainingAnswers, answerIndex];
     setTrainingAnswers(newRoundAnswers);
-    const base = trainingRound === 3 ? tiebreakerBase : (trainingRound !== null && trainingRound >= 2 ? 10 : 0);
+    const base = trainingRound === 3 ? tiebreakerBase : (trainingRound !== null && trainingRound >= 2 ? semiPhaseTotal : 0);
     const globalIdx = base + trainingQuestionIndex;
     setFullAnswersChosen((prev) => {
       const arr = [...prev];
@@ -1710,7 +1711,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   };
 
   const goToNextQuestion = () => {
-    const roundBase = trainingRound === 3 ? tiebreakerBase : (trainingRound !== null && trainingRound >= 2 ? 10 : 0);
+    const roundBase = trainingRound === 3 ? tiebreakerBase : (trainingRound !== null && trainingRound >= 2 ? semiPhaseTotal : 0);
     const totalAnswered = roundBase + trainingQuestionIndex + 1;
     const currentIndex = totalAnswered;
     const correctThisRound = isLastQuestion ? currentQuestions.filter((q, i) => q.correctAnswer === trainingAnswers[i]).length : 0;
@@ -1909,7 +1910,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
       clearInterval(trainingTimerRef.current);
       trainingTimerRef.current = null;
     }
-    const base = trainingRound === 3 ? tiebreakerBase : (trainingRound >= 2 ? 10 : 0);
+    const base = trainingRound === 3 ? tiebreakerBase : (trainingRound >= 2 ? semiPhaseTotal : 0);
     const wasAnswered = answerForCurrentQuestion !== null;
     const hasActiveQuestion = !wasAnswered && !!currentQuestion && !trainingRoundComplete;
     const count = base + trainingQuestionIndex + (wasAnswered || hasActiveQuestion ? 1 : 0);
@@ -2001,6 +2002,9 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
       const tbPhase = data.tiebreakerPhase;
       const tbQuestions = data.questionsTiebreaker ?? [];
       const tbBase = data.tiebreakerBase ?? 0;
+      const semiTBR = (data as any).semiTiebreakerRoundsCorrect ?? [];
+      const spt = 10 + semiTBR.length * 10;
+      setSemiPhaseTotal(spt);
       if (sr === 'tie' && tbQuestions.length > 0) {
         setTiebreakerBase(tbBase);
         setTrainingRound(3);
@@ -2036,11 +2040,11 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         setTrainingRoundScores([]);
         setTrainingRoundComplete(false);
       } else if (cur >= 10 && sr === 'won' && data.questionsFinal && data.questionsFinal.length > 0) {
-        if (cur < 20) {
-          const indexInFinal = cur - 10;
+        if (cur < spt + 10) {
+          const indexInFinal = cur - spt;
           setTrainingRound(2);
-          setTrainingQuestionIndex(indexInFinal);
-          setTrainingAnswers(ac.length >= cur ? ac.slice(10, cur) : [...ac.slice(10), ...Array(Math.max(0, indexInFinal - Math.max(0, ac.length - 10))).fill(-1)]);
+          setTrainingQuestionIndex(Math.max(0, indexInFinal));
+          setTrainingAnswers(ac.length >= cur ? ac.slice(spt, cur) : [...ac.slice(spt), ...Array(Math.max(0, indexInFinal - Math.max(0, ac.length - spt))).fill(-1)]);
           setTrainingRoundScores([data.semiFinalCorrectCount ?? data.correctAnswersCount ?? 0]);
           setTrainingRoundComplete(indexInFinal >= 10);
         } else {
@@ -2048,7 +2052,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
           const finalScore = (data.correctAnswersCount ?? 0) - semiScore;
           setTrainingRound(2);
           setTrainingQuestionIndex(10);
-          setTrainingAnswers(ac.length >= 20 ? ac.slice(10, 20) : [...ac.slice(10), ...Array(10 - Math.max(0, ac.length - 10)).fill(-1)]);
+          setTrainingAnswers(ac.length >= spt + 10 ? ac.slice(spt, spt + 10) : [...ac.slice(spt), ...Array(10 - Math.max(0, ac.length - spt)).fill(-1)]);
           setTrainingRoundScores([semiScore, finalScore]);
           setTrainingRoundComplete(true);
         }
@@ -2278,6 +2282,9 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         const semiIdx = data.semiIndex ?? 0;
         const sr = trainData.semiResult;
         const tbPhase2 = (trainData as any).tiebreakerPhase ?? null;
+        const semiTBR2 = (trainData as any).semiTiebreakerRoundsCorrect ?? [];
+        const spt2 = 10 + semiTBR2.length * 10;
+        setSemiPhaseTotal(spt2);
         const tbQuestions2: TrainingQuestion[] = (trainData as any).questionsTiebreaker ?? [];
         const tbBase2: number = (trainData as any).tiebreakerBase ?? 0;
         if (sr === 'tie' && tbQuestions2.length > 0) {
@@ -2315,11 +2322,11 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
           setTrainingRoundScores([]);
           setTrainingRoundComplete(false);
         } else if (sr === 'won' && trainData.questionsFinal && trainData.questionsFinal.length > 0 && cur >= 10) {
-          if (cur < 20) {
+          if (cur < spt2 + 10) {
             setTrainingRound(2);
-            const indexInFinal = cur - 10;
-            setTrainingQuestionIndex(indexInFinal);
-            setTrainingAnswers(ac.length >= cur ? ac.slice(10, cur) : [...ac.slice(10), ...Array(Math.max(0, indexInFinal - Math.max(0, ac.length - 10))).fill(-1)]);
+            const indexInFinal = cur - spt2;
+            setTrainingQuestionIndex(Math.max(0, indexInFinal));
+            setTrainingAnswers(ac.length >= cur ? ac.slice(spt2, cur) : [...ac.slice(spt2), ...Array(Math.max(0, indexInFinal - Math.max(0, ac.length - spt2))).fill(-1)]);
             setTrainingRoundScores([trainData.semiFinalCorrectCount ?? trainData.correctAnswersCount ?? 0]);
             setTrainingRoundComplete(false);
           } else {
@@ -2327,7 +2334,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
             const finalScore = (trainData.correctAnswersCount ?? 0) - semiScore;
             setTrainingRound(2);
             setTrainingQuestionIndex(10);
-            setTrainingAnswers(ac.length >= 20 ? ac.slice(10, 20) : [...ac.slice(10), ...Array(10 - Math.max(0, ac.length - 10)).fill(-1)]);
+            setTrainingAnswers(ac.length >= spt2 + 10 ? ac.slice(spt2, spt2 + 10) : [...ac.slice(spt2), ...Array(10 - Math.max(0, ac.length - spt2)).fill(-1)]);
             setTrainingRoundScores([semiScore, finalScore]);
             setTrainingRoundComplete(true);
           }
