@@ -314,72 +314,6 @@
   color: #ff6b6b !important;
 }
 
-/* ===== How it works ===== */
-.landing-how-it-works {
-  padding: clamp(40px, 5vw, 80px) clamp(16px, 3vw, 40px);
-  background: #111;
-  text-align: center;
-  border-bottom: 1px solid #222;
-}
-
-.landing-how-it-works h2 {
-  font-size: clamp(22px, 1.5vw + 10px, 34px);
-  font-weight: 700;
-  color: #fff;
-  margin: 0 0 48px;
-}
-
-.landing-steps {
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 0;
-  max-width: 1080px;
-  margin: 0 auto;
-}
-
-.landing-step {
-  flex: 1;
-  max-width: 220px;
-  padding: 0 12px;
-}
-
-.landing-step-number {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: var(--gold-gradient);
-  color: #111;
-  font-size: 22px;
-  font-weight: 800;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0 auto 16px;
-}
-
-.landing-step h3 {
-  font-size: 16px;
-  font-weight: 700;
-  color: #fff;
-  margin: 0 0 8px;
-}
-
-.landing-step p {
-  font-size: 13px;
-  color: #999;
-  line-height: 1.5;
-  margin: 0;
-}
-
-.landing-step-arrow {
-  color: var(--gold-mid);
-  font-size: 28px;
-  padding-top: 10px;
-  flex-shrink: 0;
-  opacity: 0.6;
-}
-
 /* ===== Features ===== */
 .landing-features {
   padding: clamp(40px, 5vw, 80px) clamp(16px, 3vw, 40px);
@@ -440,41 +374,6 @@
   margin: 0;
 }
 
-/* ===== Rewards Banner ===== */
-.landing-rewards-banner {
-  padding: clamp(40px, 5vw, 72px) clamp(16px, 3vw, 40px);
-  background: linear-gradient(135deg, #1a1a1a 0%, #111 50%, #1a1500 100%);
-  text-align: center;
-  border-top: 2px solid var(--gold-dark);
-}
-
-.landing-rewards-content {
-  max-width: 640px;
-  margin: 0 auto;
-}
-
-.landing-rewards-content h2 {
-  font-size: clamp(22px, 1.5vw + 10px, 32px);
-  font-weight: 700;
-  color: #fff;
-  margin: 0 0 16px;
-}
-
-.landing-rewards-content p {
-  font-size: clamp(14px, 0.8vw + 8px, 17px);
-  color: #aaa;
-  line-height: 1.6;
-  margin: 0 0 28px;
-}
-
-.landing-rewards-content p strong {
-  color: var(--gold-mid);
-}
-
-.landing-rewards-content .landing-hero-cta {
-  display: inline-block;
-}
-
 /* ===== Footer ===== */
 .landing-footer {
   background: #111;
@@ -528,25 +427,6 @@
 
 .landing-info-page .offer-page {
   flex: 1;
-}
-
-/* ===== Mobile: Steps ===== */
-@media (max-width: 768px) {
-  .landing-steps {
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .landing-step {
-    max-width: 320px;
-  }
-
-  .landing-step-arrow {
-    transform: rotate(90deg);
-    padding: 0;
-    font-size: 24px;
-  }
 }
 
 /* ===== Mobile ===== */
