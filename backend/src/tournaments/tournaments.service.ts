@@ -89,6 +89,12 @@ export class TournamentsService {
     return new Date(from.getTime() + WAITING_DEADLINE_HOURS * 3600000).toISOString();
   }
 
+  private isWaitingTournamentExpired(tournament: Tournament, now: Date): boolean {
+    const createdAt = tournament.createdAt instanceof Date ? tournament.createdAt : new Date(tournament.createdAt);
+    if (Number.isNaN(createdAt.getTime())) return true;
+    return createdAt.getTime() + WAITING_DEADLINE_HOURS * 3600000 <= now.getTime();
+  }
+
   private getSemiHeadToHeadState(
     myQ: number,
     mySemi: number | null | undefined,
@@ -620,6 +626,7 @@ export class TournamentsService {
     const waitingTournament = waitingTournaments.find((t) => {
       if (t.players.some((p) => p.id === userId)) return false;
       if (t.players.length >= 4) return false;
+      if (this.isWaitingTournamentExpired(t, now)) return false;
       return true;
     });
 
@@ -982,6 +989,7 @@ export class TournamentsService {
       if ((t.leagueAmount ?? 0) !== leagueAmount) return false;
       if (t.players.some((p) => p.id === userId)) return false;
       if (t.players.length >= 4) return false;
+      if (this.isWaitingTournamentExpired(t, now)) return false;
       return true;
     });
 
