@@ -2401,9 +2401,12 @@ export class TournamentsService {
     }
 
     const myProgress = await this.tournamentProgressRepository.findOne({ where: { userId, tournamentId: tournament.id } });
-    const oppProgress = await this.tournamentProgressRepository.findOne({ where: { userId: oppId, tournamentId: tournament.id } });
-
     const myQ = myProgress?.questionsAnsweredCount ?? 0;
+    const myTBLen = (myProgress?.tiebreakerRoundsCorrect ?? []).length;
+    const mySemiTotal = this.QUESTIONS_PER_ROUND + myTBLen * this.TIEBREAKER_QUESTIONS;
+    if (myQ > mySemiTotal) return true;
+
+    const oppProgress = await this.tournamentProgressRepository.findOne({ where: { userId: oppId, tournamentId: tournament.id } });
     const oppQ = oppProgress?.questionsAnsweredCount ?? 0;
 
     if (myQ < this.QUESTIONS_PER_ROUND || oppQ < this.QUESTIONS_PER_ROUND) return false;
@@ -2443,6 +2446,10 @@ export class TournamentsService {
     const myQ = myProgress?.questionsAnsweredCount ?? 0;
 
     if (myQ < this.QUESTIONS_PER_ROUND) return 'playing';
+
+    const myTBLen = (myProgress?.tiebreakerRoundsCorrect ?? []).length;
+    const mySemiTotal = this.QUESTIONS_PER_ROUND + myTBLen * this.TIEBREAKER_QUESTIONS;
+    if (myQ > mySemiTotal) return 'won';
 
     const order = tournament.playerOrder ?? [];
     const playerSlot = order.indexOf(userId);
