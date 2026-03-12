@@ -112,7 +112,17 @@ export class TournamentsService {
     const oppProg = allProgress.find((p) => p.tournamentId === myProg.tournamentId && p.userId === oppId);
     if (!oppProg || oppProg.semiFinalCorrectCount == null) return false;
 
-    if (mySemi <= oppProg.semiFinalCorrectCount) return false;
+    if (mySemi < oppProg.semiFinalCorrectCount) return false;
+    if (mySemi === oppProg.semiFinalCorrectCount) {
+      const myTB = myProg.tiebreakerRoundsCorrect ?? [];
+      const oppTB = oppProg.tiebreakerRoundsCorrect ?? [];
+      let won = false;
+      for (let r = 0; r < Math.max(myTB.length, oppTB.length); r++) {
+        if ((myTB[r] ?? 0) > (oppTB[r] ?? 0)) { won = true; break; }
+        if ((myTB[r] ?? 0) < (oppTB[r] ?? 0)) return false;
+      }
+      if (!won) return false;
+    }
 
     return myQ >= mySemiTotal;
   }
@@ -1016,10 +1026,25 @@ export class TournamentsService {
         } else if (oppId == null || oppId <= 0) {
           playerRoundFinished.set(tid, myQ >= 10);
         } else if (mySemi != null && oppProg?.semiFinalCorrectCount != null && mySemi === oppProg.semiFinalCorrectCount) {
-          // Tie in semi — check if current tiebreaker round is answered
-          const oppTBLen = (oppProg.tiebreakerRoundsCorrect ?? []).length;
-          const nextTBEnd = 10 + Math.max(myTBLen, oppTBLen) * 10 + 10;
-          playerRoundFinished.set(tid, myQ >= nextTBEnd - 10 && myQ % 10 === 0 && myQ > 10);
+          const myTB = myProg.tiebreakerRoundsCorrect ?? [];
+          const oppTB = oppProg.tiebreakerRoundsCorrect ?? [];
+          let tbWon = false;
+          let tbLost = false;
+          for (let r = 0; r < Math.max(myTB.length, oppTB.length); r++) {
+            if ((myTB[r] ?? 0) > (oppTB[r] ?? 0)) { tbWon = true; break; }
+            if ((myTB[r] ?? 0) < (oppTB[r] ?? 0)) { tbLost = true; break; }
+          }
+          if (tbWon) {
+            if (myQ < mySemiTotal) { playerRoundFinished.set(tid, true); }
+            else if (myQ >= mySemiTotal + 10) { playerRoundFinished.set(tid, true); }
+            else { playerRoundFinished.set(tid, false); }
+          } else if (tbLost) {
+            playerRoundFinished.set(tid, true);
+          } else {
+            const oppTBLen = oppTB.length;
+            const nextTBEnd = 10 + Math.max(myTBLen, oppTBLen) * 10 + 10;
+            playerRoundFinished.set(tid, myQ >= nextTBEnd - 10 && myQ % 10 === 0 && myQ > 10);
+          }
         } else if (mySemi != null && oppProg?.semiFinalCorrectCount != null && mySemi > oppProg.semiFinalCorrectCount) {
           // Won semi — check if in final
           if (myQ < mySemiTotal) { playerRoundFinished.set(tid, true); }
