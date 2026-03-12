@@ -83,10 +83,16 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
   const [statsData, setStatsData] = useState<{ period: string; registrations: number; withdrawals: number; topups: number; gameIncome: number }[]>([]);
   const [statsMetrics, setStatsMetrics] = useState<Set<string>>(() => new Set(['registrations', 'topups', 'withdrawals', 'gameIncome']));
 
-  const [statsSubTab, setStatsSubTab] = useState<'overview' | 'transactions'>(() => {
+  const [statsSubTab, setStatsSubTab] = useState<'overview' | 'transactions' | 'questions'>(() => {
     const sub = searchParams.get('statsTab');
-    return sub === 'transactions' ? 'transactions' : 'overview';
+    return sub === 'transactions' ? 'transactions' : sub === 'questions' ? 'questions' : 'overview';
   });
+  type QuestionStatRow = { topic: string; count: number };
+  const [questionStats, setQuestionStats] = useState<QuestionStatRow[]>([]);
+  const [questionStatsLoading, setQuestionStatsLoading] = useState(false);
+  const questionStatsLoadedRef = React.useRef(false);
+  const [qsSortBy, setQsSortBy] = useState<'topic' | 'count'>('count');
+  const [qsSortDir, setQsSortDir] = useState<'asc' | 'desc'>('desc');
   type TxRow = { id: number; userId: number; username: string; email: string; amount: number; description: string; category: string; createdAt: string };
   const [txList, setTxList] = useState<TxRow[]>([]);
   const [txLoading, setTxLoading] = useState(false);
@@ -114,6 +120,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
     }
     const sTab = searchParams.get('statsTab');
     if (sTab === 'transactions') setStatsSubTab('transactions');
+    else if (sTab === 'questions') setStatsSubTab('questions');
     else if (sTab === 'overview' || !sTab) setStatsSubTab((prev) => sTab === 'overview' ? 'overview' : prev);
   }, [searchParams]);
 
@@ -419,6 +426,30 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
     if (!isAdmin || !token || section !== 'statistics' || statsSubTab !== 'transactions') return;
     fetchTransactions();
   }, [isAdmin, token, section, statsSubTab, fetchTransactions]);
+
+  const fetchQuestionStats = React.useCallback(() => {
+    if (!token) return;
+    if (!questionStatsLoadedRef.current) setQuestionStatsLoading(true);
+    axios.get<QuestionStatRow[]>('/admin/question-stats', { headers })
+      .then((r) => setQuestionStats(Array.isArray(r.data) ? r.data : []))
+      .catch(() => setQuestionStats([]))
+      .finally(() => { setQuestionStatsLoading(false); questionStatsLoadedRef.current = true; });
+  }, [token, headers]);
+
+  useEffect(() => {
+    if (!isAdmin || !token || section !== 'statistics' || statsSubTab !== 'questions') return;
+    fetchQuestionStats();
+  }, [isAdmin, token, section, statsSubTab, fetchQuestionStats]);
+
+  const sortedQuestionStats = React.useMemo(() => {
+    const list = [...questionStats];
+    const dir = qsSortDir === 'asc' ? 1 : -1;
+    list.sort((a, b) => {
+      if (qsSortBy === 'count') return (a.count - b.count) * dir;
+      return a.topic.localeCompare(b.topic, 'ru') * dir;
+    });
+    return list;
+  }, [questionStats, qsSortBy, qsSortDir]);
 
   const sortedTxList = React.useMemo(() => {
     const list = [...txList];
@@ -1064,6 +1095,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
           <div className="admin-stats-subtabs">
             <button type="button" className={`admin-stats-subtab${statsSubTab === 'overview' ? ' active' : ''}`} onClick={() => { setStatsSubTab('overview'); setSearchParams((p) => { const n = new URLSearchParams(p); n.set('statsTab', 'overview'); return n; }, { replace: true }); }}>Обзор</button>
             <button type="button" className={`admin-stats-subtab${statsSubTab === 'transactions' ? ' active' : ''}`} onClick={() => { setStatsSubTab('transactions'); setSearchParams((p) => { const n = new URLSearchParams(p); n.set('statsTab', 'transactions'); return n; }, { replace: true }); }}>Транзакции</button>
+            <button type="button" className={`admin-stats-subtab${statsSubTab === 'questions' ? ' active' : ''}`} onClick={() => { setStatsSubTab('questions'); setSearchParams((p) => { const n = new URLSearchParams(p); n.set('statsTab', 'questions'); return n; }, { replace: true }); }}>Вопросы</button>
           </div>
           {statsSubTab === 'overview' && (() => {
             const totals = statsData.reduce((acc, d) => ({
@@ -1286,6 +1318,60 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                   </table>
                 </div>
               )}
+            </div>
+          )}
+          {statsSubTab === 'questions' && (
+            <div className="admin-stats-section">
+              {questionStatsLoading && !questionStatsLoadedRef.current ? (
+                <p>Загрузка...</p>
+              ) : questionStats.length === 0 ? (
+                <p className="admin-stats-empty">Нет данных о вопросах</p>
+              ) : (() => {
+                const totalQuestions = questionStats.reduce((s, r) => s + r.count, 0);
+                const toggleSort = (col: 'topic' | 'count') => {
+                  if (qsSortBy === col) setQsSortDir((d) => d === 'asc' ? 'desc' : 'asc');
+                  else { setQsSortBy(col); setQsSortDir(col === 'count' ? 'desc' : 'asc'); }
+                };
+                const arrow = (col: 'topic' | 'count') => qsSortBy === col ? (qsSortDir === 'asc' ? ' ▲' : ' ▼') : '';
+                return (
+                  <>
+                    <div className="admin-stats-kpi" style={{ marginBottom: 16 }}>
+                      <div className="admin-stats-kpi-card" style={{ borderColor: '#8884d8' }}>
+                        <div className="admin-stats-kpi-value">{totalQuestions.toLocaleString('ru-RU')}</div>
+                        <div className="admin-stats-kpi-label">Всего вопросов</div>
+                      </div>
+                      <div className="admin-stats-kpi-card" style={{ borderColor: '#82ca9d' }}>
+                        <div className="admin-stats-kpi-value">{questionStats.length}</div>
+                        <div className="admin-stats-kpi-label">Категорий</div>
+                      </div>
+                    </div>
+                    <div className="admin-table-wrap">
+                      <table className="admin-table">
+                        <thead>
+                          <tr>
+                            <th style={{ width: 50, textAlign: 'center' }}>№</th>
+                            <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => toggleSort('topic')}>
+                              Категория{arrow('topic')}
+                            </th>
+                            <th style={{ cursor: 'pointer', userSelect: 'none', textAlign: 'center' }} onClick={() => toggleSort('count')}>
+                              Вопросов{arrow('count')}
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {sortedQuestionStats.map((row, i) => (
+                            <tr key={row.topic}>
+                              <td style={{ textAlign: 'center' }}>{i + 1}</td>
+                              <td className="admin-td-left">{row.topic}</td>
+                              <td style={{ textAlign: 'center', fontWeight: 600 }}>{row.count.toLocaleString('ru-RU')}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           )}
         </section>

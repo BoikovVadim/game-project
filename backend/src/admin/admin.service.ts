@@ -378,4 +378,16 @@ export class AdminService {
       return [];
     }
   }
+
+  async getQuestionStats(): Promise<{ topic: string; count: number }[]> {
+    try {
+      const rows: { topic: string; count: string }[] = await this.dataSource.query(
+        `SELECT topic, COUNT(*)::text AS count FROM question_pool GROUP BY topic ORDER BY COUNT(*) DESC`,
+      );
+      return rows.map((r) => ({ topic: r.topic, count: Number(r.count) }));
+    } catch (e) {
+      console.error('[AdminService.getQuestionStats]', e);
+      return [];
+    }
+  }
 }

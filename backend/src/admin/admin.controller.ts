@@ -65,6 +65,11 @@ export class AdminController {
     return this.adminService.getTransactions(category);
   }
 
+  @Get('question-stats')
+  getQuestionStats() {
+    return this.adminService.getQuestionStats();
+  }
+
   @Post('users/:id/set-admin')
   setUserAdmin(
     @Param('id', ParseIntPipe) id: number,
