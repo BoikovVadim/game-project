@@ -60,21 +60,55 @@ async function run() {
     seen.add(q.question);
     return true;
   });
-  console.log(`\nВсего уникальных вопросов: ${unique.length}`);
+  console.log(`\nВсего уникальных вопросов (до балансировки): ${unique.length}`);
+
+  // --- Балансировка: ограничить раздутые категории до макс. размера обычных ---
+  const BLOATED_PREFIXES = ['math_', 'logic_', 'english_'];
+  const isBloated = (topic: string) => BLOATED_PREFIXES.some((p) => topic.startsWith(p));
+
+  const byTopic = new Map<string, RawQuestion[]>();
+  for (const q of unique) {
+    const arr = byTopic.get(q.topic) || [];
+    arr.push(q);
+    byTopic.set(q.topic, arr);
+  }
+
+  let maxNormal = 0;
+  for (const [topic, qs] of byTopic) {
+    if (!isBloated(topic) && qs.length > maxNormal) maxNormal = qs.length;
+  }
+  console.log(`Макс. размер обычной категории: ${maxNormal}`);
+
+  const balanced: RawQuestion[] = [];
+  for (const [topic, qs] of byTopic) {
+    if (isBloated(topic) && qs.length > maxNormal) {
+      // Случайная выборка maxNormal вопросов
+      for (let i = qs.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [qs[i], qs[j]] = [qs[j], qs[i]];
+      }
+      const trimmed = qs.slice(0, maxNormal);
+      console.log(`  ${topic}: ${qs.length} → ${trimmed.length} (ограничено)`);
+      balanced.push(...trimmed);
+    } else {
+      balanced.push(...qs);
+    }
+  }
+  console.log(`Всего после балансировки: ${balanced.length}`);
 
   console.log('Очистка таблицы question_pool...');
   await repo.clear();
 
   const BATCH = 500;
   let inserted = 0;
-  for (let i = 0; i < unique.length; i += BATCH) {
-    const batch = unique.slice(i, i + BATCH).map((q) =>
+  for (let i = 0; i < balanced.length; i += BATCH) {
+    const batch = balanced.slice(i, i + BATCH).map((q) =>
       repo.create({ topic: q.topic, question: q.question, options: q.options, correctAnswer: q.correctAnswer }),
     );
     await repo.save(batch);
     inserted += batch.length;
-    if (inserted % 5000 === 0 || i + BATCH >= unique.length) {
-      console.log(`  Вставлено: ${inserted}/${unique.length}`);
+    if (inserted % 5000 === 0 || i + BATCH >= balanced.length) {
+      console.log(`  Вставлено: ${inserted}/${balanced.length}`);
     }
   }
 
