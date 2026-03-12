@@ -1420,7 +1420,7 @@ export class UsersService implements OnModuleInit {
     const oppSlot = slot % 2 === 0 ? slot + 1 : slot - 1;
     if (oppSlot < 0 || oppSlot >= playerOrder.length) return false;
     const oppId = playerOrder[oppSlot];
-    if (oppId === -1) return true;
+    if (oppId == null || oppId <= 0) return false;
 
     const myProg = progressMap?.get(userId);
     const oppProg = progressMap?.get(oppId);

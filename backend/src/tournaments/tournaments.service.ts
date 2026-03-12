@@ -621,9 +621,7 @@ export class TournamentsService {
     }
     const waitingTournament = waitingTournaments.find((t) => {
       if (t.players.some((p) => p.id === userId)) return false;
-      // Check for vacant slot or room for new player
-      const hasVacantSlot = t.playerOrder?.includes(-1) ?? false;
-      if (!hasVacantSlot && t.players.length >= 4) return false;
+      if (t.players.length >= 4) return false;
       return true;
     });
 
@@ -635,15 +633,8 @@ export class TournamentsService {
     if (waitingTournament) {
       tournament = waitingTournament;
       tournament.players.push(user);
-      // Fill vacant slot (-1) if available, otherwise append
-      const vacantIdx = tournament.playerOrder?.indexOf(-1) ?? -1;
-      if (vacantIdx >= 0 && tournament.playerOrder) {
-        tournament.playerOrder[vacantIdx] = user.id;
-        playerSlot = vacantIdx;
-      } else {
-        tournament.playerOrder = [...(tournament.playerOrder ?? []), user.id];
-        playerSlot = tournament.playerOrder.length - 1;
-      }
+      tournament.playerOrder = [...(tournament.playerOrder ?? []), user.id];
+      playerSlot = tournament.playerOrder.length - 1;
       isCreator = false;
       await this.tournamentRepository.save(tournament);
       await this.tournamentEntryRepository.save(
@@ -992,8 +983,7 @@ export class TournamentsService {
     const waitingTournament = waitingTournaments.find((t) => {
       if ((t.leagueAmount ?? 0) !== leagueAmount) return false;
       if (t.players.some((p) => p.id === userId)) return false;
-      const hasVacantSlot = t.playerOrder?.includes(-1) ?? false;
-      if (!hasVacantSlot && t.players.length >= 4) return false;
+      if (t.players.length >= 4) return false;
       return true;
     });
 
@@ -1006,14 +996,8 @@ export class TournamentsService {
     if (waitingTournament) {
       tournament = waitingTournament;
       tournament.players.push(user);
-      const vacantIdx = tournament.playerOrder?.indexOf(-1) ?? -1;
-      if (vacantIdx >= 0 && tournament.playerOrder) {
-        tournament.playerOrder[vacantIdx] = user.id;
-        playerSlot = vacantIdx;
-      } else {
-        tournament.playerOrder = [...(tournament.playerOrder ?? []), user.id];
-        playerSlot = tournament.playerOrder.length - 1;
-      }
+      tournament.playerOrder = [...(tournament.playerOrder ?? []), user.id];
+      playerSlot = tournament.playerOrder.length - 1;
       isCreator = false;
       await this.tournamentRepository.save(tournament);
       await this.tournamentEntryRepository.save(
@@ -1579,14 +1563,9 @@ export class TournamentsService {
       let completionDate = maxDate(row?.completedAt ?? null);
 
       const realPlayers = (t.playerOrder?.filter((id: number) => id > 0).length) ?? 0;
-      const userNotInOrder = !!t.playerOrder && !t.playerOrder.includes(userId);
       const semiResult = getMoneySemiResult(t);
 
-      if (userNotInOrder) {
-        passed = false;
-        userCompleted = true;
-        completionDate = completionDate ?? deadlineAt;
-      } else if (realPlayers < 4) {
+      if (realPlayers < 4) {
         const done4 = t.status === TournamentStatus.FINISHED || deadlineAt < now;
         if (done4 && answered >= QUESTIONS_PER_ROUND) {
           if (semiResult.result === 'won' || semiResult.result === 'incomplete') {
@@ -1803,17 +1782,10 @@ export class TournamentsService {
       };
     };
 
-    const isNotInOrder = (t: Tournament): boolean => {
-      const order = t.playerOrder;
-      if (!order) return false;
-      return !order.includes(userId);
-    };
-
     const getRealPlayerCount = (t: Tournament): number =>
       (t.playerOrder?.filter((id: number) => id > 0).length) ?? 0;
 
     const getResultLabel = (t: Tournament): string => {
-      if (isNotInOrder(t)) return 'Время истекло';
       const prog = progressByTid.get(t.id);
       const answered = prog?.q ?? 0;
       const rp = getRealPlayerCount(t);
@@ -1883,7 +1855,6 @@ export class TournamentsService {
 
     const belongsToHistory = (t: Tournament): boolean => {
       if (t.status === TournamentStatus.FINISHED) return true;
-      if (isNotInOrder(t)) return true;
       const label = getResultLabel(t);
       if (label === 'Время истекло' || label === 'Поражение' || label === 'Победа') return true;
       if (label === 'Ожидание соперника') return isTimeExpired(t);
@@ -1894,7 +1865,6 @@ export class TournamentsService {
 
     const getDisplayResultLabel = (t: Tournament, inCompleted: boolean): string => {
       const label = getResultLabel(t);
-      if (isNotInOrder(t)) return 'Время истекло';
       if (inCompleted && isTimeExpired(t) && label !== 'Поражение' && label !== 'Победа') {
         const prog2 = progressByTid.get(t.id);
         const answered2 = prog2?.q ?? 0;
