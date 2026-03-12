@@ -2656,7 +2656,15 @@ export class TournamentsService {
     if (freshMy && freshOpp) {
       const fMyS = freshMy.semiFinalCorrectCount ?? 0;
       const fOpS = freshOpp.semiFinalCorrectCount ?? 0;
-      if (fMyS === fOpS) return; // actually a tie — abort
+      if (fMyS === fOpS) {
+        const myTBFresh = freshMy.tiebreakerRoundsCorrect ?? [];
+        const oppTBFresh = freshOpp.tiebreakerRoundsCorrect ?? [];
+        let tbResolved = false;
+        for (let r = 0; r < Math.min(myTBFresh.length, oppTBFresh.length); r++) {
+          if ((myTBFresh[r] ?? 0) !== (oppTBFresh[r] ?? 0)) { tbResolved = true; break; }
+        }
+        if (!tbResolved) return;
+      }
     }
 
     const semiWinnerId = semiResult === 'won' ? userId : opponentId;
