@@ -5781,6 +5781,50 @@ button.bracket-player-name-btn:active {
 .qr-opponent-link:hover {
   color: #0d47a1;
 }
+.qr-opponent-name-wrap {
+  position: relative;
+  display: inline-block;
+}
+.qr-opponent-tooltip {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 6px);
+  z-index: 100;
+  background: #fff;
+  border: 1px solid #d0d0d0;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  padding: 8px 12px;
+  min-width: 180px;
+  white-space: nowrap;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.qr-opponent-tooltip::before {
+  content: '';
+  position: absolute;
+  top: -6px;
+  left: 14px;
+  width: 10px;
+  height: 10px;
+  background: #fff;
+  border-left: 1px solid #d0d0d0;
+  border-top: 1px solid #d0d0d0;
+  transform: rotate(45deg);
+}
+.qr-opponent-tooltip-row {
+  font-size: 12px;
+  color: #333;
+  line-height: 1.5;
+}
+.qr-opponent-tooltip-row strong {
+  color: #1a1a1a;
+}
+.qr-opponent-tooltip-loading {
+  font-size: 12px;
+  color: #888;
+}
 
 /* Column header colors */
 .qr-th-correct { color: #0d7d0d !important; }

@@ -948,6 +948,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   } | null>(null);
   const [questionsReviewLoading, setQuestionsReviewLoading] = useState(false);
   const [questionsReviewError, setQuestionsReviewError] = useState('');
+  const [oppTooltip, setOppTooltip] = useState<{ loading: boolean; data: null | { gamesPlayed: number; wins: number; winRatePercent: number | null; correctAnswers: number; totalQuestions: number }; visible: boolean }>({ loading: false, data: null, visible: false });
 
   const [referralCode, setReferralCode] = useState<string | null>(null);
   const [referralLinkCopied, setReferralLinkCopied] = useState(false);
@@ -2192,10 +2193,19 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     }
   }, [token]);
 
+  const loadOppStats = (userId: number) => {
+    if (oppTooltip.data && oppTooltip.visible) { setOppTooltip((p) => ({ ...p, visible: false })); return; }
+    setOppTooltip({ loading: true, data: null, visible: true });
+    axios.get<{ gamesPlayed: number; wins: number; winRatePercent: number | null; correctAnswers: number; totalQuestions: number }>(`/users/${userId}/public-stats`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => setOppTooltip({ loading: false, data: res.data, visible: true }))
+      .catch(() => setOppTooltip({ loading: false, data: null, visible: false }));
+  };
+
   const closeQuestionsReview = () => {
     setQuestionsReviewTournamentId(null);
     setQuestionsReviewData(null);
     setQuestionsReviewError('');
+    setOppTooltip({ loading: false, data: null, visible: false });
     const base = `${window.location.pathname}${window.location.search}`;
     const h = window.location.hash.replace(/^#/, '');
     const parts = h.split('&').filter((p) => !p.startsWith('questions=') && !p.startsWith('questionsRound='));
@@ -5227,7 +5237,26 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                     <div className="questions-review-body">
                       {oppInfo && oppInfo.id > 0 && (
                         <p className="qr-opponent-line">
-                          Соперник: <button type="button" className="qr-opponent-link" onClick={() => { closeQuestionsReview(); openBracket(questionsReviewTournamentId!); }}>{oppInfo.nickname}</button>
+                          Соперник:{' '}
+                          <span className="qr-opponent-name-wrap">
+                            <button type="button" className="qr-opponent-link" onClick={() => loadOppStats(oppInfo.id)}>{oppInfo.nickname}</button>
+                            {oppTooltip.visible && (
+                              <span className="qr-opponent-tooltip">
+                                {oppTooltip.loading ? (
+                                  <span className="qr-opponent-tooltip-loading">Загрузка…</span>
+                                ) : oppTooltip.data ? (
+                                  <>
+                                    <span className="qr-opponent-tooltip-row">Игр сыграно: <strong>{oppTooltip.data.gamesPlayed}</strong></span>
+                                    <span className="qr-opponent-tooltip-row">Побед: <strong>{oppTooltip.data.wins}</strong></span>
+                                    <span className="qr-opponent-tooltip-row">Винрейт: <strong>{oppTooltip.data.winRatePercent != null ? `${oppTooltip.data.winRatePercent}%` : '—'}</strong></span>
+                                    <span className="qr-opponent-tooltip-row">Верных ответов: <strong>{oppTooltip.data.correctAnswers}</strong> из <strong>{oppTooltip.data.totalQuestions}</strong></span>
+                                  </>
+                                ) : (
+                                  <span className="qr-opponent-tooltip-loading">Нет данных</span>
+                                )}
+                              </span>
+                            )}
+                          </span>
                         </p>
                       )}
                       <p className="questions-review-stats">
