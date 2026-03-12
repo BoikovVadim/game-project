@@ -599,11 +599,15 @@ export class TournamentsService {
     if (!user) throw new NotFoundException('User not found');
 
     const now = new Date();
-    const waitingTournaments = await this.tournamentRepository.find({
-      where: { status: TournamentStatus.WAITING, gameType: 'training' },
+    const reusableTournaments = await this.tournamentRepository.find({
+      where: [
+        { status: TournamentStatus.WAITING, gameType: 'training' },
+        { status: TournamentStatus.ACTIVE, gameType: 'training' },
+      ],
       relations: ['players'],
+      order: { id: 'ASC' },
     });
-    const waitingIds = waitingTournaments.map((t) => t.id);
+    const waitingIds = reusableTournaments.map((t) => t.id);
     const waitingEntries = waitingIds.length > 0
       ? await this.tournamentEntryRepository.find({ where: { tournament: { id: In(waitingIds) } } as any })
       : [];
@@ -623,10 +627,10 @@ export class TournamentsService {
         if (!prev || p.leftAt > prev) lastActivityByTid.set(p.tournamentId, p.leftAt);
       }
     }
-    const waitingTournament = waitingTournaments.find((t) => {
+    const waitingTournament = reusableTournaments.find((t) => {
       if (t.players.some((p) => p.id === userId)) return false;
       if (t.players.length >= 4) return false;
-      if (this.isWaitingTournamentExpired(t, now)) return false;
+      if (t.status === TournamentStatus.WAITING && this.isWaitingTournamentExpired(t, now)) return false;
       return true;
     });
 
@@ -960,12 +964,16 @@ export class TournamentsService {
       }
     }
 
-    const waitingTournaments = await this.tournamentRepository.find({
-      where: { status: TournamentStatus.WAITING, gameType: 'money' },
+    const reusableTournaments = await this.tournamentRepository.find({
+      where: [
+        { status: TournamentStatus.WAITING, gameType: 'money', leagueAmount },
+        { status: TournamentStatus.ACTIVE, gameType: 'money', leagueAmount },
+      ],
       relations: ['players'],
+      order: { id: 'ASC' },
     });
     const now = new Date();
-    const moneyWaitingIds = waitingTournaments.map((t) => t.id);
+    const moneyWaitingIds = reusableTournaments.map((t) => t.id);
     const moneyWaitingEntries = moneyWaitingIds.length > 0
       ? await this.tournamentEntryRepository.find({ where: { tournament: { id: In(moneyWaitingIds) } } as any })
       : [];
@@ -985,11 +993,10 @@ export class TournamentsService {
         if (!prev || p.leftAt > prev) moneyLastActivityByTid.set(p.tournamentId, p.leftAt);
       }
     }
-    const waitingTournament = waitingTournaments.find((t) => {
-      if ((t.leagueAmount ?? 0) !== leagueAmount) return false;
+    const waitingTournament = reusableTournaments.find((t) => {
       if (t.players.some((p) => p.id === userId)) return false;
       if (t.players.length >= 4) return false;
-      if (this.isWaitingTournamentExpired(t, now)) return false;
+      if (t.status === TournamentStatus.WAITING && this.isWaitingTournamentExpired(t, now)) return false;
       return true;
     });
 
