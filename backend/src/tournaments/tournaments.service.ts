@@ -1005,6 +1005,29 @@ export class TournamentsService {
       }
 
       // Determine if player has finished current round (no timer needed)
+      const hasOtherFinalist = (t: Tournament): boolean => {
+        const order = t.playerOrder;
+        if (!order || order.length < 4) return false;
+        const pSlot = order.indexOf(userId);
+        if (pSlot < 0) return false;
+        const os: [number, number] = pSlot < 2 ? [2, 3] : [0, 1];
+        const id1 = order[os[0]]; const id2 = order[os[1]];
+        if (id1 == null || id2 == null || id1 <= 0 || id2 <= 0) return false;
+        const pr1 = allProgress.find((p) => p.tournamentId === t.id && p.userId === id1);
+        const pr2 = allProgress.find((p) => p.tournamentId === t.id && p.userId === id2);
+        if (!pr1 || !pr2) return false;
+        if ((pr1.questionsAnsweredCount ?? 0) < 10 || (pr2.questionsAnsweredCount ?? 0) < 10) return false;
+        const s1 = pr1.semiFinalCorrectCount ?? 0;
+        const s2 = pr2.semiFinalCorrectCount ?? 0;
+        if (s1 !== s2) return true;
+        const tb1 = pr1.tiebreakerRoundsCorrect ?? [];
+        const tb2 = pr2.tiebreakerRoundsCorrect ?? [];
+        for (let r = 0; r < Math.max(tb1.length, tb2.length); r++) {
+          if ((tb1[r] ?? 0) !== (tb2[r] ?? 0)) return true;
+        }
+        return false;
+      };
+
       for (const tid of allIds) {
         const myProg = allProgress.find((p) => p.tournamentId === tid && p.userId === userId);
         if (!myProg) { playerRoundFinished.set(tid, false); continue; }
@@ -1037,7 +1060,7 @@ export class TournamentsService {
           if (tbWon) {
             if (myQ < mySemiTotal) { playerRoundFinished.set(tid, true); }
             else if (myQ >= mySemiTotal + 10) { playerRoundFinished.set(tid, true); }
-            else { playerRoundFinished.set(tid, false); }
+            else { playerRoundFinished.set(tid, hasOtherFinalist(t) ? false : true); }
           } else if (tbLost) {
             playerRoundFinished.set(tid, true);
           } else {
@@ -1046,10 +1069,9 @@ export class TournamentsService {
             playerRoundFinished.set(tid, myQ >= nextTBEnd - 10 && myQ % 10 === 0 && myQ > 10);
           }
         } else if (mySemi != null && oppProg?.semiFinalCorrectCount != null && mySemi > oppProg.semiFinalCorrectCount) {
-          // Won semi — check if in final
           if (myQ < mySemiTotal) { playerRoundFinished.set(tid, true); }
           else if (myQ >= mySemiTotal + 10) { playerRoundFinished.set(tid, true); }
-          else { playerRoundFinished.set(tid, false); }
+          else { playerRoundFinished.set(tid, hasOtherFinalist(t) ? false : true); }
         } else {
           playerRoundFinished.set(tid, myQ >= 10);
         }
@@ -1501,7 +1523,11 @@ export class TournamentsService {
       if (semiResult.result === 'won') {
         if (!prog) return 'Этап не пройден';
         const mySemiTotal = semiPhaseQuestions(prog);
-        if (answered < mySemiTotal + QUESTIONS_PER_ROUND) return 'Этап не пройден';
+        if (answered < mySemiTotal) return 'Этап не пройден';
+        if (answered < mySemiTotal + QUESTIONS_PER_ROUND) {
+          const otherFinalist = getOtherFinalist(t);
+          return otherFinalist ? 'Этап не пройден' : 'Ожидание соперника';
+        }
         if (getPlayerCount(t) < 4) return 'Ожидание соперника';
         const fr = getFinalResult(t, prog);
         if (fr === 'won') return 'Победа';
@@ -2646,9 +2672,7 @@ export class TournamentsService {
     };
 
     if (players.length < 4) {
-      await saveResult(semiWinnerId, true);
       await saveResult(semiLoserId, false);
-      await this.tournamentRepository.update({ id: tournamentId }, { status: TournamentStatus.FINISHED });
       return;
     }
 
