@@ -2,7 +2,7 @@ import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException,
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { Tournament, TournamentStatus, ROUND_DEADLINE_HOURS, WAITING_DEADLINE_HOURS } from './tournament.entity';
+import { Tournament, TournamentStatus, ROUND_DEADLINE_HOURS } from './tournament.entity';
 import { Question } from './question.entity';
 import { QuestionPoolItem } from './question-pool.entity';
 import { TournamentEntry } from './tournament-entry.entity';
@@ -83,16 +83,6 @@ export class TournamentsService {
 
   private getRoundDeadline(from: Date): string {
     return new Date(from.getTime() + ROUND_DEADLINE_HOURS * 3600000).toISOString();
-  }
-
-  private getWaitingDeadline(from: Date): string {
-    return new Date(from.getTime() + WAITING_DEADLINE_HOURS * 3600000).toISOString();
-  }
-
-  private isWaitingTournamentExpired(tournament: Tournament, now: Date): boolean {
-    const createdAt = tournament.createdAt instanceof Date ? tournament.createdAt : new Date(tournament.createdAt);
-    if (Number.isNaN(createdAt.getTime())) return true;
-    return createdAt.getTime() + WAITING_DEADLINE_HOURS * 3600000 <= now.getTime();
   }
 
   private getSemiHeadToHeadState(
@@ -247,46 +237,10 @@ export class TournamentsService {
   }
 
   /**
-   * Отменяет турниры, в которых за 24ч от создания не набралось 4 игрока.
+   * Старые недозаполненные турниры остаются открытыми для новых игроков.
    */
   private async cancelUnfilledTournaments(): Promise<void> {
-    const cutoff = new Date(Date.now() - WAITING_DEADLINE_HOURS * 3600000);
-    const tournaments = await this.tournamentRepository
-      .createQueryBuilder('t')
-      .where('t.status IN (:...statuses)', { statuses: [TournamentStatus.WAITING, TournamentStatus.ACTIVE] })
-      .andWhere('t."createdAt" < :cutoff', { cutoff })
-      .leftJoinAndSelect('t.players', 'players')
-      .getMany();
-
-    for (const tournament of tournaments) {
-      try {
-        const order = tournament.playerOrder ?? [];
-        const realCount = order.filter((id) => id > 0).length;
-        if (realCount >= 4) continue;
-
-        const allProg = await this.tournamentProgressRepository.find({ where: { tournamentId: tournament.id } });
-
-        const anyoneStarted = allProg.some((p) => (p.questionsAnsweredCount ?? 0) > 0);
-        if (anyoneStarted) continue;
-
-        this.logger.log(`[cancelUnfilledTournaments] Tournament ${tournament.id}: only ${realCount} players and no progress, cancelling`);
-
-        for (const prog of allProg) {
-          let row = await this.tournamentResultRepository.findOne({ where: { userId: prog.userId, tournamentId: tournament.id } });
-          if (row) { row.passed = 0; if (!row.completedAt) row.completedAt = new Date(); await this.tournamentResultRepository.save(row); }
-          else { await this.tournamentResultRepository.save(this.tournamentResultRepository.create({ userId: prog.userId, tournamentId: tournament.id, passed: 0, completedAt: new Date() })); }
-        }
-
-        tournament.status = TournamentStatus.FINISHED;
-        await this.tournamentRepository.save(tournament);
-
-        if (tournament.gameType === 'money') {
-          await this.processTournamentEscrow(tournament.id);
-        }
-      } catch (err) {
-        this.logger.error(`[cancelUnfilledTournaments] Error for tournament ${tournament.id}`, err);
-      }
-    }
+    return;
   }
 
   /**
@@ -586,7 +540,7 @@ export class TournamentsService {
   async startTraining(userId: number): Promise<{
     tournamentId: number;
     gameStartedAt: string;
-    deadline: string;
+    deadline: string | null;
     questionsSemi1: { id: number; question: string; options: string[]; correctAnswer: number }[];
     questionsSemi2: { id: number; question: string; options: string[]; correctAnswer: number }[];
     questionsFinal: { id: number; question: string; options: string[]; correctAnswer: number }[];
@@ -598,7 +552,6 @@ export class TournamentsService {
     const user = await this.userRepository.findOneBy({ id: userId });
     if (!user) throw new NotFoundException('User not found');
 
-    const now = new Date();
     const reusableTournaments = await this.tournamentRepository.find({
       where: [
         { status: TournamentStatus.WAITING, gameType: 'training' },
@@ -630,7 +583,6 @@ export class TournamentsService {
     const waitingTournament = reusableTournaments.find((t) => {
       if (t.players.some((p) => p.id === userId)) return false;
       if (t.players.length >= 4) return false;
-      if (t.status === TournamentStatus.WAITING && this.isWaitingTournamentExpired(t, now)) return false;
       return true;
     });
 
@@ -700,13 +652,11 @@ export class TournamentsService {
     const questionsSemi2 = questions.filter((q) => q.roundIndex === 1).map(toDto);
 
     const semiIndex = playerSlot < 2 ? 0 : 1;
-    const gameStartedAt = tournament.createdAt;
-    const deadline = this.getRoundDeadline(tournament.createdAt);
 
     return {
       tournamentId: tournament.id,
-      gameStartedAt: gameStartedAt.toISOString(),
-      deadline,
+      gameStartedAt: joinedAt.toISOString(),
+      deadline: null,
       questionsSemi1,
       questionsSemi2,
       questionsFinal: [],
@@ -920,7 +870,7 @@ export class TournamentsService {
     positionInSemi: number;
     isCreator: boolean;
     gameStartedAt: string;
-    deadline: string;
+    deadline: string | null;
   }> {
     const { allowedLeagues, balance } = await this.getAllowedLeagues(userId);
     if (!allowedLeagues.includes(leagueAmount)) {
@@ -947,23 +897,6 @@ export class TournamentsService {
     const user = await this.userRepository.findOneBy({ id: userId });
     if (!user) throw new NotFoundException('User not found');
 
-    // Auto-cleanup: mark expired waiting tournaments for this user as finished
-    const expiredEntries = await this.tournamentEntryRepository.find({
-      where: {
-        user: { id: userId },
-        tournament: { status: TournamentStatus.WAITING, gameType: 'money', leagueAmount },
-      },
-      relations: ['tournament'],
-    });
-    for (const entry of expiredEntries) {
-      if (!entry.tournament) continue;
-      const dl = this.getWaitingDeadline(entry.tournament.createdAt ?? new Date());
-      if (new Date(dl) < new Date()) {
-        entry.tournament.status = TournamentStatus.FINISHED;
-        await this.tournamentRepository.save(entry.tournament);
-      }
-    }
-
     const reusableTournaments = await this.tournamentRepository.find({
       where: [
         { status: TournamentStatus.WAITING, gameType: 'money', leagueAmount },
@@ -972,7 +905,6 @@ export class TournamentsService {
       relations: ['players'],
       order: { id: 'ASC' },
     });
-    const now = new Date();
     const moneyWaitingIds = reusableTournaments.map((t) => t.id);
     const moneyWaitingEntries = moneyWaitingIds.length > 0
       ? await this.tournamentEntryRepository.find({ where: { tournament: { id: In(moneyWaitingIds) } } as any })
@@ -996,7 +928,6 @@ export class TournamentsService {
     const waitingTournament = reusableTournaments.find((t) => {
       if (t.players.some((p) => p.id === userId)) return false;
       if (t.players.length >= 4) return false;
-      if (t.status === TournamentStatus.WAITING && this.isWaitingTournamentExpired(t, now)) return false;
       return true;
     });
 
@@ -1083,7 +1014,7 @@ export class TournamentsService {
       positionInSemi,
       isCreator,
       gameStartedAt: joinedAt.toISOString(),
-      deadline: this.getRoundDeadline(tournament.createdAt),
+      deadline: null,
     };
   }
 

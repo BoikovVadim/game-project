@@ -28,7 +28,7 @@ type GameMode = null | 'training' | 'money';
 type TrainingQuestion = { id: number; question: string; options: string[]; correctAnswer: number };
 type TrainingData = {
   tournamentId: number;
-  deadline: string;
+  deadline: string | null;
   questionsSemi1: TrainingQuestion[];
   questionsSemi2: TrainingQuestion[];
   questionsFinal: TrainingQuestion[];
@@ -846,7 +846,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     semiIndex: number;
     positionInSemi: number;
     isCreator: boolean;
-    deadline: string;
+    deadline: string | null;
   } | null>(null);
   const [tournamentJoinLoading, setTournamentJoinLoading] = useState(false);
   const tournamentJoinInProgressRef = useRef(false);
@@ -1523,7 +1523,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     try {
       const { data } = await axios.post<{
         tournamentId: number;
-        deadline: string;
+        deadline: string | null;
         questionsSemi1: TrainingQuestion[];
         questionsSemi2: TrainingQuestion[];
         questionsFinal: TrainingQuestion[];
@@ -1814,13 +1814,13 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         semiIndex: number;
         positionInSemi: number;
         isCreator: boolean;
-        deadline: string;
+        deadline: string | null;
       }>('/tournaments/join', { leagueAmount }, { headers: { Authorization: `Bearer ${token}` } });
       setTournamentJoinInfo(data);
       addNotification({ type: 'game_started', title: 'Турнир начался', text: `Вы присоединились к турниру в лиге ${leagueAmount} L. Удачи!`, meta: { goToGames: true, gameMode: 'money' } });
       const { data: trainData } = await axios.get<{
         tournamentId: number;
-        deadline: string;
+        deadline: string | null;
         questionsSemi1: TrainingQuestion[];
         questionsSemi2: TrainingQuestion[];
         questionsFinal: TrainingQuestion[];
@@ -1952,7 +1952,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     try {
       const { data } = await axios.get<{
         tournamentId: number;
-        deadline: string;
+        deadline: string | null;
         questionsSemi1: TrainingQuestion[];
         questionsSemi2: TrainingQuestion[];
         questionsFinal: TrainingQuestion[];
@@ -2241,13 +2241,13 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         semiIndex: number;
         positionInSemi: number;
         isCreator: boolean;
-        deadline: string;
+        deadline: string | null;
       }>(`/tournaments/${tournamentId}/state`, { headers: { Authorization: `Bearer ${token}` } });
       setTournamentJoinInfo(data);
       setContinueTournamentError('');
       const { data: trainData } = await axios.get<{
         tournamentId: number;
-        deadline: string;
+        deadline: string | null;
         questionsSemi1: TrainingQuestion[];
         questionsSemi2: TrainingQuestion[];
         questionsFinal: TrainingQuestion[];
