@@ -4,7 +4,7 @@ import { Repository, In } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Tournament, TournamentStatus, GAME_DEADLINE_HOURS } from './tournament.entity';
 import { Question } from './question.entity';
-import { QUESTION_POOL, CATEGORIES, QuestionCategory } from './questions-pool';
+import { QuestionPoolItem } from './question-pool.entity';
 import { TournamentEntry } from './tournament-entry.entity';
 import { TournamentResult } from './tournament-result.entity';
 import { TournamentProgress } from './tournament-progress.entity';
@@ -63,6 +63,8 @@ export class TournamentsService {
     private readonly tournamentRepository: Repository<Tournament>,
     @InjectRepository(Question)
     private readonly questionRepository: Repository<Question>,
+    @InjectRepository(QuestionPoolItem)
+    private readonly questionPoolRepository: Repository<QuestionPoolItem>,
     @InjectRepository(TournamentEntry)
     private readonly tournamentEntryRepository: Repository<TournamentEntry>,
     @InjectRepository(TournamentResult)
@@ -209,43 +211,44 @@ export class TournamentsService {
     return out;
   }
 
-  /** Берёт n вопросов, равномерно распределяя по категориям (math/geo/science/culture ≈ 25% каждая). */
-  private pickBalanced(n: number): typeof QUESTION_POOL {
-    const byCategory = new Map<QuestionCategory, typeof QUESTION_POOL>();
-    for (const cat of CATEGORIES) {
-      byCategory.set(cat, this.shuffle(QUESTION_POOL.filter((q) => q.category === cat)));
+  private async pickFromDB(n: number): Promise<{ question: string; options: string[]; correctAnswer: number }[]> {
+    const rows = await this.questionPoolRepository
+      .createQueryBuilder('q')
+      .orderBy('RANDOM()')
+      .limit(n * 3)
+      .getMany();
+    const seen = new Set<string>();
+    const unique: typeof rows = [];
+    for (const r of rows) {
+      if (seen.has(r.question)) continue;
+      seen.add(r.question);
+      unique.push(r);
+      if (unique.length >= n) break;
     }
-    const perCat = Math.floor(n / CATEGORIES.length);
-    const remainder = n - perCat * CATEGORIES.length;
-    const out: typeof QUESTION_POOL = [];
-    const cats = this.shuffle([...CATEGORIES]);
-    cats.forEach((cat, i) => {
-      const pool = byCategory.get(cat) ?? [];
-      const take = perCat + (i < remainder ? 1 : 0);
-      out.push(...pool.slice(0, take));
-    });
-    return this.shuffle(out);
+    return this.shuffle(unique).slice(0, n).map((r) => ({
+      question: r.question,
+      options: r.options,
+      correctAnswer: r.correctAnswer,
+    }));
   }
 
-  private pickRandomQuestions(n: number): Omit<Question, 'id' | 'tournament' | 'roundIndex'>[] {
-    return this.pickBalanced(n);
+  private async pickRandomQuestions(n: number): Promise<Omit<Question, 'id' | 'tournament' | 'roundIndex'>[]> {
+    return this.pickFromDB(n);
   }
 
-  /** Полуфиналы: одни и те же 10 вопросов в разном порядке. */
-  private pickQuestionsForSemi(): {
+  private async pickQuestionsForSemi(): Promise<{
     semi1: Omit<Question, 'id' | 'tournament' | 'roundIndex'>[];
     semi2: Omit<Question, 'id' | 'tournament' | 'roundIndex'>[];
-  } {
-    const semiQuestions = this.pickBalanced(10);
+  }> {
+    const semiQuestions = await this.pickFromDB(10);
     return {
       semi1: semiQuestions,
       semi2: this.shuffle([...semiQuestions]),
     };
   }
 
-  /** Генерирует 10 новых вопросов для финала (вызывается когда игрок прошёл полуфинал). */
-  private pickQuestionsForFinal(): Omit<Question, 'id' | 'tournament' | 'roundIndex'>[] {
-    return this.pickBalanced(10);
+  private async pickQuestionsForFinal(): Promise<Omit<Question, 'id' | 'tournament' | 'roundIndex'>[]> {
+    return this.pickFromDB(10);
   }
 
   /** Тренировка: присоединиться к существующему турниру или создать новый (до 4 игроков, как money-режим, но без ставки). */
@@ -323,7 +326,7 @@ export class TournamentsService {
       await this.tournamentRepository.save(tournament);
       playerSlot = 0;
       isCreator = true;
-      const { semi1, semi2 } = this.pickQuestionsForSemi();
+      const { semi1, semi2 } = await this.pickQuestionsForSemi();
       for (const q of semi1) {
         const row = this.questionRepository.create({ ...q, tournament, roundIndex: 0 });
         await this.questionRepository.save(row);
@@ -346,7 +349,7 @@ export class TournamentsService {
       order: { roundIndex: 'ASC', id: 'ASC' },
     });
     if (questions.filter((q) => q.roundIndex === 0).length === 0) {
-      const generated = this.pickQuestionsForSemi();
+      const generated = await this.pickQuestionsForSemi();
       for (const q of generated.semi1) {
         const row = this.questionRepository.create({ ...q, tournament, roundIndex: 0 });
         await this.questionRepository.save(row);
@@ -406,7 +409,7 @@ export class TournamentsService {
       });
       await this.tournamentRepository.save(tournament);
       playerSlot = 0;
-      const questions = this.generateQuestions();
+      const questions = (await this.pickFromDB(10)).map((q, i) => ({ ...q, roundIndex: 0 }));
       for (const q of questions) {
         const question = this.questionRepository.create({ ...q, tournament });
         await this.questionRepository.save(question);
@@ -690,7 +693,7 @@ export class TournamentsService {
       await this.tournamentRepository.save(tournament);
       playerSlot = 0;
       isCreator = true;
-      const { semi1, semi2 } = this.pickQuestionsForSemi();
+      const { semi1, semi2 } = await this.pickQuestionsForSemi();
       for (const q of semi1) {
         const row = this.questionRepository.create({ ...q, tournament, roundIndex: 0 });
         await this.questionRepository.save(row);
@@ -1408,7 +1411,7 @@ export class TournamentsService {
                 return { id: q.id, question: q.question, options: fixed.options, correctAnswer: fixed.correctAnswer };
               });
             } else if (existing.length < this.TIEBREAKER_QUESTIONS && (myQ > this.QUESTIONS_PER_ROUND || oppQ > this.QUESTIONS_PER_ROUND)) {
-              const pool = this.pickRandomQuestions(this.TIEBREAKER_QUESTIONS);
+              const pool = await this.pickRandomQuestions(this.TIEBREAKER_QUESTIONS);
               for (const q of pool) {
                 const row = this.questionRepository.create({ ...q, tournament, roundIndex });
                 await this.questionRepository.save(row);
@@ -1571,6 +1574,7 @@ export class TournamentsService {
     semiTiebreakerRoundsCorrect: number[];
     finalTiebreakerAllQuestions: { id: number; question: string; options: string[]; correctAnswer: number }[][];
     finalTiebreakerRoundsCorrect: number[];
+    opponentAnswersByRound: number[][];
   }> {
     const tournament = await this.tournamentRepository.findOne({
       where: { id: tournamentId },
@@ -1587,7 +1591,7 @@ export class TournamentsService {
     });
 
     if (questions.filter((q) => q.roundIndex === 0).length === 0) {
-      const { semi1, semi2 } = this.pickQuestionsForSemi();
+      const { semi1, semi2 } = await this.pickQuestionsForSemi();
       for (const q of semi1) {
         const row = this.questionRepository.create({ ...q, tournament, roundIndex: 0 });
         await this.questionRepository.save(row);
@@ -1619,7 +1623,7 @@ export class TournamentsService {
     if (questionsFinal.length === 0) {
       const wonSemi = await this.didUserWinSemiFinal(tournament, userId);
       if (wonSemi) {
-        const finalPool = this.pickQuestionsForFinal();
+        const finalPool = await this.pickQuestionsForFinal();
         const created: typeof questionsFinal = [];
         for (const q of finalPool) {
           const row = this.questionRepository.create({ ...q, tournament, roundIndex: 2 });
@@ -1693,7 +1697,7 @@ export class TournamentsService {
             order: { id: 'ASC' },
           });
           if (existing.length < this.TIEBREAKER_QUESTIONS) {
-            const pool = this.pickRandomQuestions(this.TIEBREAKER_QUESTIONS);
+            const pool = await this.pickRandomQuestions(this.TIEBREAKER_QUESTIONS);
             for (const q of pool) {
               const row = this.questionRepository.create({ ...q, tournament, roundIndex });
               await this.questionRepository.save(row);
@@ -1764,7 +1768,7 @@ export class TournamentsService {
                   order: { id: 'ASC' },
                 });
                 if (existing.length < this.TIEBREAKER_QUESTIONS) {
-                  const pool = this.pickRandomQuestions(this.TIEBREAKER_QUESTIONS);
+                  const pool = await this.pickRandomQuestions(this.TIEBREAKER_QUESTIONS);
                   for (const q of pool) {
                     const row = this.questionRepository.create({ ...q, tournament, roundIndex });
                     await this.questionRepository.save(row);
@@ -1797,6 +1801,57 @@ export class TournamentsService {
       finalTiebreakerAllQuestions.push(qs);
     }
 
+    // ---- Opponent answers per round (for question review table) ----
+    const opponentAnswersByRound: number[][] = [];
+    const fetchOppAC = async (oppUserId: number): Promise<number[]> => {
+      const oppProg = await this.tournamentProgressRepository.findOne({ where: { userId: oppUserId, tournamentId } });
+      if (!oppProg) return [];
+      let ac = this.normalizeAnswersChosen(oppProg.answersChosen);
+      if (oppProg.id != null) {
+        const rawRows = await this.tournamentProgressRepository.query(
+          'SELECT "answersChosen" FROM tournament_progress WHERE id = $1', [oppProg.id],
+        );
+        const rawVal = rawRows?.[0]?.answersChosen ?? rawRows?.[0]?.answers_chosen;
+        if (rawVal != null) {
+          const fromRaw = this.normalizeAnswersChosen(rawVal);
+          if (fromRaw.length > ac.length) ac = fromRaw;
+        }
+      }
+      return ac;
+    };
+
+    const QPR = this.QUESTIONS_PER_ROUND;
+    const TBQ = this.TIEBREAKER_QUESTIONS;
+
+    // Semi opponent
+    const semiOppSlot = playerIndex % 2 === 0 ? playerIndex + 1 : playerIndex - 1;
+    let semiOppAC: number[] = [];
+    if (semiOppSlot >= 0 && semiOppSlot < (tournament.players?.length ?? 0)) {
+      semiOppAC = await fetchOppAC(tournament.players![semiOppSlot]!.id);
+    }
+    opponentAnswersByRound.push(semiOppAC.slice(0, QPR));
+    for (let r = 0; r < semiTiebreakerAllQuestions.length; r++) {
+      opponentAnswersByRound.push(semiOppAC.slice(QPR + r * TBQ, QPR + (r + 1) * TBQ));
+    }
+
+    // Final opponent (winner of the other semi pair)
+    if (questionsFinal.length > 0) {
+      const otherSlots: [number, number] = playerIndex < 2 ? [2, 3] : [0, 1];
+      const players = tournament.players ?? [];
+      const p1 = otherSlots[0] < players.length ? await this.tournamentProgressRepository.findOne({ where: { userId: players[otherSlots[0]]!.id, tournamentId } }) : null;
+      const p2 = otherSlots[1] < players.length ? await this.tournamentProgressRepository.findOne({ where: { userId: players[otherSlots[1]]!.id, tournamentId } }) : null;
+      const finalist = await this.findSemiWinner(p1, p2);
+      if (finalist) {
+        const fAC = await fetchOppAC(finalist.userId);
+        const fTBCount = finalist.tiebreakerRoundsCorrect?.length ?? 0;
+        const fFinalStart = QPR + fTBCount * TBQ;
+        opponentAnswersByRound.push(fAC.slice(fFinalStart, fFinalStart + QPR));
+        for (let r = 0; r < finalTiebreakerAllQuestions.length; r++) {
+          opponentAnswersByRound.push(fAC.slice(fFinalStart + QPR + r * TBQ, fFinalStart + QPR + (r + 1) * TBQ));
+        }
+      }
+    }
+
     return {
       tournamentId: tournament.id,
       deadline,
@@ -1822,6 +1877,7 @@ export class TournamentsService {
       semiTiebreakerRoundsCorrect: progress?.tiebreakerRoundsCorrect ?? [],
       finalTiebreakerAllQuestions,
       finalTiebreakerRoundsCorrect: progress?.finalTiebreakerRoundsCorrect ?? [],
+      opponentAnswersByRound,
     };
   }
 
@@ -2593,18 +2649,4 @@ export class TournamentsService {
     return { updated };
   }
 
-  private generateQuestions(): Omit<Question, 'id' | 'tournament'>[] {
-    return [
-      { question: 'What is 234 + 567?', options: ['800', '801', '802', '803'], correctAnswer: 1, roundIndex: 0 },
-      { question: 'Capital of France?', options: ['London', 'Berlin', 'Paris', 'Madrid'], correctAnswer: 2, roundIndex: 0 },
-      { question: 'What is the largest planet?', options: ['Earth', 'Mars', 'Jupiter', 'Saturn'], correctAnswer: 2, roundIndex: 0 },
-      { question: 'Who wrote Romeo and Juliet?', options: ['Shakespeare', 'Dickens', 'Hemingway', 'Tolkien'], correctAnswer: 0, roundIndex: 0 },
-      { question: 'What is H2O?', options: ['Water', 'Oxygen', 'Hydrogen', 'Carbon'], correctAnswer: 0, roundIndex: 0 },
-      { question: 'How many continents are there?', options: ['5', '6', '7', '8'], correctAnswer: 2, roundIndex: 0 },
-      { question: 'What color is the sky?', options: ['Green', 'Blue', 'Red', 'Yellow'], correctAnswer: 1, roundIndex: 0 },
-      { question: 'What is 120 * 5?', options: ['600', '500', '610', '650'], correctAnswer: 0, roundIndex: 0 },
-      { question: 'Who painted the Mona Lisa?', options: ['Van Gogh', 'Picasso', 'Da Vinci', 'Michelangelo'], correctAnswer: 2, roundIndex: 0 },
-      { question: 'What is the currency of Japan?', options: ['Yen', 'Won', 'Dollar', 'Euro'], correctAnswer: 0, roundIndex: 0 },
-    ];
-  }
 }

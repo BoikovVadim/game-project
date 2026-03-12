@@ -943,6 +943,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     semiTiebreakerRoundsCorrect?: number[];
     finalTiebreakerAllQuestions?: { id: number; question: string; options: string[]; correctAnswer: number }[][];
     finalTiebreakerRoundsCorrect?: number[];
+    opponentAnswersByRound?: number[][];
   } | null>(null);
   const [questionsReviewLoading, setQuestionsReviewLoading] = useState(false);
   const [questionsReviewError, setQuestionsReviewError] = useState('');
@@ -2160,6 +2161,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         semiTiebreakerRoundsCorrect?: number[];
         finalTiebreakerAllQuestions?: { id: number; question: string; options: string[]; correctAnswer: number }[][];
         finalTiebreakerRoundsCorrect?: number[];
+        opponentAnswersByRound?: number[][];
       }>(`/tournaments/${tournamentId}/training-state`, { headers: { Authorization: `Bearer ${token}` } });
       const answersChosenRaw = data.answersChosen ?? (data as { answers_chosen?: number[] }).answers_chosen;
       setQuestionsReviewData({
@@ -2176,6 +2178,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         semiTiebreakerRoundsCorrect: data.semiTiebreakerRoundsCorrect ?? [],
         finalTiebreakerAllQuestions: data.finalTiebreakerAllQuestions ?? [],
         finalTiebreakerRoundsCorrect: data.finalTiebreakerRoundsCorrect ?? [],
+        opponentAnswersByRound: data.opponentAnswersByRound ?? [],
       });
     } catch (e: unknown) {
       const msg = axios.isAxiosError(e) && e.response?.data?.message ? String(e.response.data.message) : 'Не удалось загрузить вопросы';
@@ -5149,6 +5152,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                       return n < 0 ? -1 : Math.floor(n);
                     })
                   : [];
+                const oppRounds = questionsReviewData.opponentAnswersByRound ?? [];
                 const userSemiIdx = questionsReviewData.userSemiIndex ?? 0;
                 const n = questionsReviewData.questionsAnsweredCount;
                 const semiQuestions = userSemiIdx === 0 ? questionsReviewData.questionsSemi1 : questionsReviewData.questionsSemi2;
@@ -5161,26 +5165,27 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                 const semiTBSum = semiTBCorrects.reduce((a: number, b: number) => a + b, 0);
                 const finalTBSum = finalTBCorrects.reduce((a: number, b: number) => a + b, 0);
 
-                type ReviewTab = { label: string; questions: typeof semiQuestions; startIdx: number; correctCount: number };
+                type ReviewTab = { label: string; questions: typeof semiQuestions; startIdx: number; correctCount: number; oppRoundIdx: number };
                 const tabs: ReviewTab[] = [];
+                let oppIdx = 0;
 
-                tabs.push({ label: userSemiIdx === 0 ? 'Полуфинал 1' : 'Полуфинал 2', questions: semiQuestions, startIdx: 0, correctCount: semiCorrect });
+                tabs.push({ label: userSemiIdx === 0 ? 'Полуфинал 1' : 'Полуфинал 2', questions: semiQuestions, startIdx: 0, correctCount: semiCorrect, oppRoundIdx: oppIdx++ });
 
                 let cursor = 10;
                 for (let r = 0; r < semiTBAll.length; r++) {
                   if (n <= cursor) break;
-                  tabs.push({ label: semiTBAll.length === 1 ? 'Доп. раунд (ПФ)' : `Доп. раунд ${r + 1} (ПФ)`, questions: semiTBAll[r], startIdx: cursor, correctCount: semiTBCorrects[r] ?? 0 });
+                  tabs.push({ label: semiTBAll.length === 1 ? 'Доп. раунд (ПФ)' : `Доп. раунд ${r + 1} (ПФ)`, questions: semiTBAll[r], startIdx: cursor, correctCount: semiTBCorrects[r] ?? 0, oppRoundIdx: oppIdx++ });
                   cursor += 10;
                 }
 
                 if (finalQuestions.length > 0 && n > cursor) {
                   const finalBaseCorrect = Math.max(0, questionsReviewData.correctAnswersCount - semiCorrect - semiTBSum - finalTBSum);
-                  tabs.push({ label: 'Финал', questions: finalQuestions, startIdx: cursor, correctCount: finalBaseCorrect });
+                  tabs.push({ label: 'Финал', questions: finalQuestions, startIdx: cursor, correctCount: finalBaseCorrect, oppRoundIdx: oppIdx++ });
                   cursor += 10;
 
                   for (let r = 0; r < finalTBAll.length; r++) {
                     if (n <= cursor) break;
-                    tabs.push({ label: finalTBAll.length === 1 ? 'Доп. раунд (Ф)' : `Доп. раунд ${r + 1} (Ф)`, questions: finalTBAll[r], startIdx: cursor, correctCount: finalTBCorrects[r] ?? 0 });
+                    tabs.push({ label: finalTBAll.length === 1 ? 'Доп. раунд (Ф)' : `Доп. раунд ${r + 1} (Ф)`, questions: finalTBAll[r], startIdx: cursor, correctCount: finalTBCorrects[r] ?? 0, oppRoundIdx: oppIdx++ });
                     cursor += 10;
                   }
                 }
@@ -5189,6 +5194,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                 if (!activeTab) return null;
                 const answeredInRound = Math.min(activeTab.questions.length, Math.max(0, n - activeTab.startIdx));
                 const questionsToShow = activeTab.questions.slice(0, answeredInRound);
+                const oppAC = oppRounds[activeTab.oppRoundIdx] ?? [];
 
                 return (
                   <>
@@ -5209,33 +5215,38 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                         <div className="questions-review-round">
                           <h4>{activeTab.label}</h4>
                           {questionsToShow.map((q, idx) => {
-                            const globalIndex = activeTab.startIdx + idx;
-                            const rawChoice = ac[globalIndex];
+                            const rawChoice = ac[activeTab.startIdx + idx];
                             const playerChoice = typeof rawChoice === 'number' && !Number.isNaN(rawChoice) && rawChoice >= 0 && rawChoice < (q.options?.length ?? 0) ? rawChoice : -1;
+                            const oppRaw = oppAC[idx];
+                            const oppChoice = typeof oppRaw === 'number' && !Number.isNaN(oppRaw) && oppRaw >= 0 && oppRaw < (q.options?.length ?? 0) ? oppRaw : -1;
                             const correctIdx = Number(q.correctAnswer);
+                            const noAnswer = playerChoice === -1;
                             return (
-                              <div key={q.id ?? globalIndex} className="questions-review-question">
-                                <div className="questions-review-question-header">
-                                  <p className="questions-review-question-text">
-                                    <span className="questions-review-question-id">ID: {q.id ?? '—'}</span>
-                                    {' '}{idx + 1}. {q.question}
-                                  </p>
-                                  {playerChoice === -1 && <span className="questions-review-no-answer-badge">Нет ответа</span>}
-                                </div>
-                                <ul className="questions-review-options">
-                                  {q.options.map((opt, oi) => (
-                                    <li
-                                      key={oi}
-                                      className={`questions-review-option-row ${oi === correctIdx ? 'questions-review-option-correct' : ''} ${oi === playerChoice ? 'questions-review-option-player' : ''}`}
-                                    >
-                                      <span className="questions-review-option-text">{opt}</span>
-                                      <span className="questions-review-badges">
-                                        {oi === correctIdx && <span className="questions-review-correct-badge" aria-label="Правильный ответ">Правильный ответ</span>}
-                                        {oi === playerChoice && <span className="questions-review-player-label" aria-label="Ваш выбор">Мой ответ</span>}
-                                      </span>
-                                    </li>
-                                  ))}
-                                </ul>
+                              <div key={q.id ?? idx} className="questions-review-question">
+                                <p className="questions-review-question-text">
+                                  <span className="questions-review-question-id">ID: {q.id ?? '—'}</span>
+                                  {' '}{idx + 1}. {q.question}
+                                </p>
+                                <table className="qr-table">
+                                  <thead>
+                                    <tr>
+                                      <th>Ответ</th>
+                                      <th className="qr-th-icon" title="Правильный ответ">✓</th>
+                                      <th className="qr-th-icon" title="Мой ответ">{noAnswer ? <span className="qr-no-answer">Нет ответа</span> : '✓'}</th>
+                                      <th className="qr-th-icon" title="Ответ соперника">✓</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {q.options.map((opt, oi) => (
+                                      <tr key={oi}>
+                                        <td className="qr-td-text">{opt}</td>
+                                        <td className="qr-td-icon">{oi === correctIdx && <span className="qr-check qr-check--correct">✓</span>}</td>
+                                        <td className="qr-td-icon">{oi === playerChoice && <span className="qr-check qr-check--mine">✓</span>}</td>
+                                        <td className="qr-td-icon">{oi === oppChoice && <span className="qr-check qr-check--opp">✓</span>}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
                               </div>
                             );
                           })}
