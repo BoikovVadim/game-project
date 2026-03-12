@@ -1453,10 +1453,7 @@ export class TournamentsService {
             const fr = getFinalResult(t, userProgress);
             if (fr === 'won') passed = true;
             else if (fr === 'lost') passed = false;
-            else {
-              const deadline = deadlineByTournamentId[t.id] ?? this.getRoundDeadline(t.createdAt);
-              passed = new Date(deadline) < now;
-            }
+            else passed = false;
           } else {
             passed = false;
           }
