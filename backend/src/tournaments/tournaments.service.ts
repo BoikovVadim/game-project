@@ -974,10 +974,15 @@ export class TournamentsService {
         if (myProg?.roundStartedAt) {
           deadlineByTournamentId[tid] = this.getDeadline(myProg.roundStartedAt, hours);
         } else if (myProg) {
-          const entries = await this.tournamentEntryRepository.find({ where: { tournament: { id: tid }, user: { id: userId } } as any });
-          const joinedAt = entries.length > 0 ? entries[0]!.joinedAt : (tournaments.find((t) => t.id === tid)?.createdAt ?? new Date());
-          deadlineByTournamentId[tid] = this.getDeadline(joinedAt, hours);
-          await this.tournamentProgressRepository.update({ id: myProg.id }, { roundStartedAt: joinedAt });
+          let fallbackDate: Date;
+          if (isInFinal) {
+            fallbackDate = new Date();
+          } else {
+            const entries = await this.tournamentEntryRepository.find({ where: { tournament: { id: tid }, user: { id: userId } } as any });
+            fallbackDate = entries.length > 0 ? entries[0]!.joinedAt : (tournaments.find((t) => t.id === tid)?.createdAt ?? new Date());
+          }
+          deadlineByTournamentId[tid] = this.getDeadline(fallbackDate, hours);
+          await this.tournamentProgressRepository.update({ id: myProg.id }, { roundStartedAt: fallbackDate });
         } else {
           const t = tournaments.find((t2) => t2.id === tid);
           deadlineByTournamentId[tid] = this.getDeadline(t?.createdAt ?? new Date(), hours);
