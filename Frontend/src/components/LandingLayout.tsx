@@ -44,10 +44,6 @@ const LandingLayout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
           </div>
         </nav>
 
-        <div className="landing-auth-buttons">
-          <Link to="/" className="landing-btn-login">Вход</Link>
-          <Link to="/?tab=register" className="landing-btn-register">Регистрация</Link>
-        </div>
       </header>
 
       <main style={{ flex: 1 }}>{children}</main>
