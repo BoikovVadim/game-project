@@ -1737,10 +1737,10 @@ export class TournamentsService {
     if (tournament.status !== TournamentStatus.WAITING && tournament.status !== TournamentStatus.ACTIVE) {
       throw new BadRequestException('Tournament is not active');
     }
-    const playerIndex = tournament.players?.findIndex((p) => p.id === userId) ?? -1;
-    if (playerIndex < 0) throw new BadRequestException('You are not in this tournament');
+    const order = tournament.playerOrder ?? [];
+    const playerSlot = order.indexOf(userId);
+    if (playerSlot < 0) throw new BadRequestException('You are not in this tournament');
 
-    const playerSlot = playerIndex;
     const semiIndex = playerSlot < 2 ? 0 : 1;
     const positionInSemi = playerSlot % 2;
     const isCreator = playerSlot === 0;
@@ -1749,7 +1749,8 @@ export class TournamentsService {
     const roundStart = progress?.roundStartedAt ?? tournament.createdAt ?? new Date();
     const deadline = this.getRoundDeadline(roundStart);
     const opponentSlot = playerSlot % 2 === 0 ? playerSlot + 1 : playerSlot - 1;
-    const opponent = opponentSlot >= 0 && (tournament.players?.length ?? 0) > opponentSlot ? tournament.players![opponentSlot]! : null;
+    const oppIdState = opponentSlot >= 0 && opponentSlot < order.length ? order[opponentSlot] : -1;
+    const opponent = oppIdState > 0 ? (tournament.players?.find((p) => p.id === oppIdState) ?? null) : null;
     let tiebreakerRound = 0;
     let tiebreakerQuestions: { id: number; question: string; options: string[]; correctAnswer: number }[] = [];
 
@@ -1846,13 +1847,16 @@ export class TournamentsService {
         const semiResult = await this.computeSemiResult(tournament, userId);
         if (semiResult !== 'won') {
           effectivePassed = false;
-        } else if (players.length < 4) {
+        } else if ((tournament.playerOrder?.length ?? 0) < 4) {
           effectivePassed = false;
         } else {
-          const playerSlot = players.findIndex((p) => p.id === userId);
-          const otherSlots: [number, number] = playerSlot < 2 ? [2, 3] : [0, 1];
-          const opp1 = players[otherSlots[0]];
-          const opp2 = players[otherSlots[1]];
+          const cOrder = tournament.playerOrder ?? [];
+          const cPlayerSlot = cOrder.indexOf(userId);
+          const otherSlots: [number, number] = cPlayerSlot < 2 ? [2, 3] : [0, 1];
+          const opp1Id = otherSlots[0] < cOrder.length ? cOrder[otherSlots[0]] : -1;
+          const opp2Id = otherSlots[1] < cOrder.length ? cOrder[otherSlots[1]] : -1;
+          const opp1 = opp1Id > 0 ? (players.find((p) => p.id === opp1Id) ?? null) : null;
+          const opp2 = opp2Id > 0 ? (players.find((p) => p.id === opp2Id) ?? null) : null;
           let finalistProgress: TournamentProgress | null = null;
           if (opp1 && opp2) {
             const p1 = await this.tournamentProgressRepository.findOne({ where: { userId: opp1.id, tournamentId } });
@@ -2024,8 +2028,8 @@ export class TournamentsService {
     const leftAt = progress?.leftAt ?? null;
     const correctAnswersCount = progress?.correctAnswersCount ?? 0;
     const semiFinalCorrectCount = progress?.semiFinalCorrectCount ?? null;
-    const playerIndex = tournament.players?.findIndex((p) => p.id === userId) ?? -1;
-    const userSemiIndex = playerIndex >= 0 ? (playerIndex < 2 ? 0 : 1) : 0;
+    const playerSlotForSemi = (tournament.playerOrder ?? []).indexOf(userId);
+    const userSemiIndex = playerSlotForSemi >= 0 ? (playerSlotForSemi < 2 ? 0 : 1) : 0;
 
     // answersChosen — массив выбранных вариантов по вопросам (0–9 полуфинал). Нужен для бейджей «Мой ответ» в просмотре.
     let answersChosen = this.normalizeAnswersChosen(progress?.answersChosen);
@@ -2050,10 +2054,10 @@ export class TournamentsService {
     if (semiResult === 'tie' && progress) {
       tiebreakerPhase = 'semi';
       const myTB = progress.tiebreakerRoundsCorrect ?? [];
-      const oppSlot = playerIndex % 2 === 0 ? playerIndex + 1 : playerIndex - 1;
-      const opponent = oppSlot >= 0 && (tournament.players?.length ?? 0) > oppSlot ? tournament.players![oppSlot]! : null;
-      const oppProgress = opponent
-        ? await this.tournamentProgressRepository.findOne({ where: { userId: opponent.id, tournamentId } })
+      const oppSlotTB = playerSlotForSemi % 2 === 0 ? playerSlotForSemi + 1 : playerSlotForSemi - 1;
+      const oppIdTB = oppSlotTB >= 0 && oppSlotTB < (tournament.playerOrder?.length ?? 0) ? (tournament.playerOrder![oppSlotTB] ?? -1) : -1;
+      const oppProgress = oppIdTB > 0
+        ? await this.tournamentProgressRepository.findOne({ where: { userId: oppIdTB, tournamentId } })
         : null;
       const oppTB = oppProgress?.tiebreakerRoundsCorrect ?? [];
       const myQ = questionsAnsweredCount;
@@ -2093,17 +2097,19 @@ export class TournamentsService {
       const myTBCount = progress.tiebreakerRoundsCorrect?.length ?? 0;
       const mySemiTotal = this.QUESTIONS_PER_ROUND + myTBCount * this.TIEBREAKER_QUESTIONS;
       if (questionsAnsweredCount >= mySemiTotal + this.QUESTIONS_PER_ROUND) {
-        const oppSlot = playerIndex % 2 === 0 ? playerIndex + 1 : playerIndex - 1;
-        const otherSlots: [number, number] = playerIndex < 2 ? [2, 3] : [0, 1];
-        const players = tournament.players ?? [];
-        const opp1 = players[otherSlots[0]];
-        const opp2 = players[otherSlots[1]];
+        const fOrder = tournament.playerOrder ?? [];
+        const otherSlots: [number, number] = playerSlotForSemi < 2 ? [2, 3] : [0, 1];
+        const fOpp1Id = otherSlots[0] < fOrder.length ? fOrder[otherSlots[0]] : -1;
+        const fOpp2Id = otherSlots[1] < fOrder.length ? fOrder[otherSlots[1]] : -1;
         let finalistProgress: TournamentProgress | null = null;
-        if (opp1 && opp2) {
-          const p1 = await this.tournamentProgressRepository.findOne({ where: { userId: opp1.id, tournamentId } });
-          const p2 = await this.tournamentProgressRepository.findOne({ where: { userId: opp2.id, tournamentId } });
-          const winner = await this.findSemiWinner(p1, p2);
-          finalistProgress = winner;
+        if (fOpp1Id > 0 && fOpp2Id > 0) {
+          const p1 = await this.tournamentProgressRepository.findOne({ where: { userId: fOpp1Id, tournamentId } });
+          const p2 = await this.tournamentProgressRepository.findOne({ where: { userId: fOpp2Id, tournamentId } });
+          finalistProgress = this.findSemiWinner(p1, p2);
+        } else if (fOpp1Id > 0) {
+          finalistProgress = await this.tournamentProgressRepository.findOne({ where: { userId: fOpp1Id, tournamentId } });
+        } else if (fOpp2Id > 0) {
+          finalistProgress = await this.tournamentProgressRepository.findOne({ where: { userId: fOpp2Id, tournamentId } });
         }
 
         if (finalistProgress) {
@@ -2200,12 +2206,13 @@ export class TournamentsService {
     const TBQ = this.TIEBREAKER_QUESTIONS;
 
     // Semi opponent
-    const semiOppSlot = playerIndex % 2 === 0 ? playerIndex + 1 : playerIndex - 1;
+    const semiOppSlot = playerSlotForSemi % 2 === 0 ? playerSlotForSemi + 1 : playerSlotForSemi - 1;
+    const semiOppIdLookup = semiOppSlot >= 0 && semiOppSlot < (tournament.playerOrder?.length ?? 0) ? (tournament.playerOrder![semiOppSlot] ?? -1) : -1;
     let semiOppAC: number[] = [];
     let semiOppUser: User | null = null;
-    if (semiOppSlot >= 0 && semiOppSlot < (tournament.players?.length ?? 0)) {
-      semiOppUser = tournament.players![semiOppSlot]!;
-      semiOppAC = await fetchOppAC(semiOppUser.id);
+    if (semiOppIdLookup > 0) {
+      semiOppUser = tournament.players?.find((p) => p.id === semiOppIdLookup) ?? null;
+      if (semiOppUser) semiOppAC = await fetchOppAC(semiOppUser.id);
     }
     const semiOppInfo = semiOppUser ? { id: semiOppUser.id, nickname: getOppNickname(semiOppUser), avatarUrl: semiOppUser.avatarUrl ?? null } : { id: 0, nickname: '—', avatarUrl: null };
     opponentAnswersByRound.push(semiOppAC.slice(0, QPR));
@@ -2217,13 +2224,15 @@ export class TournamentsService {
 
     // Final opponent (winner of the other semi pair)
     if (questionsFinal.length > 0) {
-      const otherSlots: [number, number] = playerIndex < 2 ? [2, 3] : [0, 1];
-      const players = tournament.players ?? [];
-      const p1 = otherSlots[0] < players.length ? await this.tournamentProgressRepository.findOne({ where: { userId: players[otherSlots[0]]!.id, tournamentId } }) : null;
-      const p2 = otherSlots[1] < players.length ? await this.tournamentProgressRepository.findOne({ where: { userId: players[otherSlots[1]]!.id, tournamentId } }) : null;
-      const finalist = await this.findSemiWinner(p1, p2);
+      const fOtherSlots: [number, number] = playerSlotForSemi < 2 ? [2, 3] : [0, 1];
+      const fOrder2 = tournament.playerOrder ?? [];
+      const fOppId1 = fOtherSlots[0] < fOrder2.length ? fOrder2[fOtherSlots[0]] : -1;
+      const fOppId2 = fOtherSlots[1] < fOrder2.length ? fOrder2[fOtherSlots[1]] : -1;
+      const p1 = fOppId1 > 0 ? await this.tournamentProgressRepository.findOne({ where: { userId: fOppId1, tournamentId } }) : null;
+      const p2 = fOppId2 > 0 ? await this.tournamentProgressRepository.findOne({ where: { userId: fOppId2, tournamentId } }) : null;
+      const finalist = this.findSemiWinner(p1, p2);
       if (finalist) {
-        const finalistUser = players.find((u) => u.id === finalist.userId) ?? null;
+        const finalistUser = (tournament.players ?? []).find((u) => u.id === finalist.userId) ?? null;
         const finalOppInfo = finalistUser ? { id: finalistUser.id, nickname: getOppNickname(finalistUser), avatarUrl: finalistUser.avatarUrl ?? null } : { id: 0, nickname: '—', avatarUrl: null };
         const fAC = await fetchOppAC(finalist.userId);
         const fTBCount = finalist.tiebreakerRoundsCorrect?.length ?? 0;
@@ -2380,16 +2389,19 @@ export class TournamentsService {
    * либо он выиграл тайбрейкер.
    */
   private async didUserWinSemiFinal(tournament: Tournament, userId: number): Promise<boolean> {
-    const players = tournament.players ?? [];
-    const playerSlot = players.findIndex((p) => p.id === userId);
+    const order = tournament.playerOrder ?? [];
+    const playerSlot = order.indexOf(userId);
     if (playerSlot < 0) return false;
     const opponentSlot = playerSlot % 2 === 0 ? playerSlot + 1 : playerSlot - 1;
-    if (opponentSlot < 0 || opponentSlot >= players.length) return false;
-    const opponent = players[opponentSlot];
-    if (!opponent) return false;
+    const oppId = opponentSlot >= 0 && opponentSlot < order.length ? order[opponentSlot] : -1;
+
+    if (oppId == null || oppId <= 0) {
+      const myProgress = await this.tournamentProgressRepository.findOne({ where: { userId, tournamentId: tournament.id } });
+      return (myProgress?.questionsAnsweredCount ?? 0) >= this.QUESTIONS_PER_ROUND;
+    }
 
     const myProgress = await this.tournamentProgressRepository.findOne({ where: { userId, tournamentId: tournament.id } });
-    const oppProgress = await this.tournamentProgressRepository.findOne({ where: { userId: opponent.id, tournamentId: tournament.id } });
+    const oppProgress = await this.tournamentProgressRepository.findOne({ where: { userId: oppId, tournamentId: tournament.id } });
 
     const myQ = myProgress?.questionsAnsweredCount ?? 0;
     const oppQ = oppProgress?.questionsAnsweredCount ?? 0;
@@ -2432,14 +2444,14 @@ export class TournamentsService {
 
     if (myQ < this.QUESTIONS_PER_ROUND) return 'playing';
 
-    const playerSlot = players.findIndex((p) => p.id === userId);
+    const order = tournament.playerOrder ?? [];
+    const playerSlot = order.indexOf(userId);
     if (playerSlot < 0) return 'playing';
     const opponentSlot = playerSlot % 2 === 0 ? playerSlot + 1 : playerSlot - 1;
-    if (opponentSlot < 0 || opponentSlot >= players.length) return 'waiting';
-    const opponent = players[opponentSlot];
-    if (!opponent) return 'waiting';
+    const oppId = opponentSlot >= 0 && opponentSlot < order.length ? order[opponentSlot] : -1;
+    if (oppId == null || oppId <= 0) return 'won';
 
-    const oppProgress = await this.tournamentProgressRepository.findOne({ where: { userId: opponent.id, tournamentId: tournament.id } });
+    const oppProgress = await this.tournamentProgressRepository.findOne({ where: { userId: oppId, tournamentId: tournament.id } });
     const oppQ = oppProgress?.questionsAnsweredCount ?? 0;
 
     if (oppQ < this.QUESTIONS_PER_ROUND) return 'waiting';
@@ -2719,11 +2731,12 @@ export class TournamentsService {
     if (players.length < 2) return;
     this.sortPlayersByOrder(tournament);
 
-    const playerSlot = players.findIndex((p) => p.id === userId);
+    const order = tournament.playerOrder ?? [];
+    const playerSlot = order.indexOf(userId);
     if (playerSlot < 0) return;
     const opponentSlot = playerSlot % 2 === 0 ? playerSlot + 1 : playerSlot - 1;
-    if (opponentSlot < 0 || opponentSlot >= players.length) return;
-    const opponentId = players[opponentSlot]!.id;
+    const opponentId = opponentSlot >= 0 && opponentSlot < order.length ? order[opponentSlot] : -1;
+    if (opponentId <= 0) return;
 
     const myProgress = await this.tournamentProgressRepository.findOne({ where: { userId, tournamentId } });
     const oppProgress = await this.tournamentProgressRepository.findOne({ where: { userId: opponentId, tournamentId } });
@@ -2781,14 +2794,14 @@ export class TournamentsService {
     if (semiResult !== 'won') return;
 
     const otherSlots: [number, number] = playerSlot < 2 ? [2, 3] : [0, 1];
-    const opp1 = players[otherSlots[0]];
-    const opp2 = players[otherSlots[1]];
-    if (!opp1 && !opp2) return;
+    const opp1Id = otherSlots[0] < order.length ? order[otherSlots[0]] : -1;
+    const opp2Id = otherSlots[1] < order.length ? order[otherSlots[1]] : -1;
+    if (opp1Id <= 0 && opp2Id <= 0) return;
 
-    const p1 = opp1 ? await this.tournamentProgressRepository.findOne({ where: { userId: opp1.id, tournamentId } }) : null;
-    const p2 = opp2 ? await this.tournamentProgressRepository.findOne({ where: { userId: opp2.id, tournamentId } }) : null;
+    const p1 = opp1Id > 0 ? await this.tournamentProgressRepository.findOne({ where: { userId: opp1Id, tournamentId } }) : null;
+    const p2 = opp2Id > 0 ? await this.tournamentProgressRepository.findOne({ where: { userId: opp2Id, tournamentId } }) : null;
     let finalistProgress: TournamentProgress | null = null;
-    if (opp1 && opp2) {
+    if (opp1Id > 0 && opp2Id > 0) {
       finalistProgress = this.findSemiWinner(p1, p2);
     } else {
       finalistProgress = p1 || p2;
