@@ -115,7 +115,9 @@ export class TournamentsService {
     }
 
     const oppProg = allProgress.find((p) => p.tournamentId === myProg.tournamentId && p.userId === oppId);
-    if (!oppProg || oppProg.semiFinalCorrectCount == null) return false;
+    if (!oppProg || oppProg.semiFinalCorrectCount == null) {
+      return myQ > mySemiTotal;
+    }
 
     if (mySemi < oppProg.semiFinalCorrectCount) return false;
     if (mySemi === oppProg.semiFinalCorrectCount) {
@@ -1274,6 +1276,17 @@ export class TournamentsService {
 
     const lostSemiByTid = new Map<number, boolean>();
 
+    const tidsWithFinalQuestions = new Set<number>();
+    if (allIds.length > 0) {
+      const fqRows = await this.questionRepository
+        .createQueryBuilder('q')
+        .select('DISTINCT q.tournamentId', 'tid')
+        .where('q.tournamentId IN (:...ids)', { ids: allIds })
+        .andWhere('q.roundIndex = 2')
+        .getRawMany();
+      for (const row of fqRows) tidsWithFinalQuestions.add(Number(row.tid));
+    }
+
     const getPlayerCount = (t: Tournament): number =>
       t.playerOrder?.length ?? t.players?.length ?? 0;
 
@@ -1310,6 +1323,12 @@ export class TournamentsService {
       const oppTB = oppProgress?.tiebreakerRounds ?? [];
 
       if (myQ < QUESTIONS_PER_ROUND || oppQ < QUESTIONS_PER_ROUND) return { result: 'incomplete' };
+
+      const myTBLenLocal = myTB.length;
+      const mySemiTotalLocal = QUESTIONS_PER_ROUND + myTBLenLocal * TIEBREAKER_QUESTIONS;
+      if (myQ > mySemiTotalLocal && tidsWithFinalQuestions.has(t.id)) {
+        return { result: 'won' };
+      }
 
       if (mySemi > oppSemi) return { result: 'won' };
       if (mySemi < oppSemi) return { result: 'lost' };
@@ -1449,6 +1468,7 @@ export class TournamentsService {
       if (row) {
         row.passed = passed ? 1 : 0;
         if (!row.completedAt && t.status === TournamentStatus.FINISHED) row.completedAt = new Date();
+        if (t.status !== TournamentStatus.FINISHED && row.completedAt) row.completedAt = null as any;
         await this.tournamentResultRepository.save(row);
       } else {
         row = this.tournamentResultRepository.create({
@@ -2401,10 +2421,18 @@ export class TournamentsService {
     }
 
     const myProgress = await this.tournamentProgressRepository.findOne({ where: { userId, tournamentId: tournament.id } });
+    const allProgWin = await this.tournamentProgressRepository.find({ where: { tournamentId: tournament.id } });
+    if (this.isPlayerInFinalPhase(myProgress, allProgWin, tournament)) return true;
+
     const myQ = myProgress?.questionsAnsweredCount ?? 0;
-    const myTBLen = (myProgress?.tiebreakerRoundsCorrect ?? []).length;
-    const mySemiTotal = this.QUESTIONS_PER_ROUND + myTBLen * this.TIEBREAKER_QUESTIONS;
-    if (myQ > mySemiTotal) return true;
+    const myTBLenW = (myProgress?.tiebreakerRoundsCorrect ?? []).length;
+    const mySemiTotalW = this.QUESTIONS_PER_ROUND + myTBLenW * this.TIEBREAKER_QUESTIONS;
+    if (myQ > mySemiTotalW) {
+      const finalQCount = await this.questionRepository.count({
+        where: { tournament: { id: tournament.id }, roundIndex: 2 },
+      });
+      if (finalQCount > 0) return true;
+    }
 
     const oppProgress = await this.tournamentProgressRepository.findOne({ where: { userId: oppId, tournamentId: tournament.id } });
     const oppQ = oppProgress?.questionsAnsweredCount ?? 0;
@@ -2447,9 +2475,17 @@ export class TournamentsService {
 
     if (myQ < this.QUESTIONS_PER_ROUND) return 'playing';
 
-    const myTBLen = (myProgress?.tiebreakerRoundsCorrect ?? []).length;
-    const mySemiTotal = this.QUESTIONS_PER_ROUND + myTBLen * this.TIEBREAKER_QUESTIONS;
-    if (myQ > mySemiTotal) return 'won';
+    const allProgForCheck = await this.tournamentProgressRepository.find({ where: { tournamentId: tournament.id } });
+    if (this.isPlayerInFinalPhase(myProgress, allProgForCheck, tournament)) return 'won';
+
+    const myTBLenCS = (myProgress?.tiebreakerRoundsCorrect ?? []).length;
+    const mySemiTotalCS = this.QUESTIONS_PER_ROUND + myTBLenCS * this.TIEBREAKER_QUESTIONS;
+    if (myQ > mySemiTotalCS) {
+      const finalQCount = await this.questionRepository.count({
+        where: { tournament: { id: tournament.id }, roundIndex: 2 },
+      });
+      if (finalQCount > 0) return 'won';
+    }
 
     const order = tournament.playerOrder ?? [];
     const playerSlot = order.indexOf(userId);
