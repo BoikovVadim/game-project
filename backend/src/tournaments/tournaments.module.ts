@@ -8,12 +8,13 @@ import { TournamentEntry } from './tournament-entry.entity';
 import { TournamentResult } from './tournament-result.entity';
 import { TournamentProgress } from './tournament-progress.entity';
 import { TournamentEscrow } from './tournament-escrow.entity';
+import { QuestionPoolItem } from './question-pool.entity';
 import { User } from '../users/user.entity';
 import { UsersModule } from '../users/users.module';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Tournament, Question, TournamentEntry, TournamentResult, TournamentProgress, TournamentEscrow, User]),
+    TypeOrmModule.forFeature([Tournament, Question, QuestionPoolItem, TournamentEntry, TournamentResult, TournamentProgress, TournamentEscrow, User]),
     forwardRef(() => UsersModule),
   ],
   providers: [TournamentsService],
