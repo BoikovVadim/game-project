@@ -150,9 +150,9 @@ export class TournamentsService {
       this.logger.error('[Cron] processAllExpiredEscrows failed', err);
     }
     try {
-      await this.kickExpiredPlayers();
+      await this.closeExpiredTournaments();
     } catch (err) {
-      this.logger.error('[Cron] kickExpiredPlayers failed', err);
+      this.logger.error('[Cron] closeExpiredTournaments failed', err);
     }
   }
 
@@ -160,7 +160,7 @@ export class TournamentsService {
    * Находит турниры с истёкшим 48ч дедлайном (createdAt + 48h < now).
    * Определяет победителя или завершает без победителя (возврат денег).
    */
-  private async kickExpiredPlayers(): Promise<void> {
+  private async closeExpiredTournaments(): Promise<void> {
     const cutoff = new Date(Date.now() - TOURNAMENT_DEADLINE_HOURS * 60 * 60 * 1000);
     const expiredTournaments = await this.tournamentRepository
       .createQueryBuilder('t')
@@ -194,7 +194,6 @@ export class TournamentsService {
         let winnerId: number | null = null;
 
         for (const prog of allProg) {
-          if (prog.kicked) continue;
           const uid = prog.userId;
           if (!order.includes(uid)) continue;
           const inFinal = this.isPlayerInFinalPhase(prog, allProg, tournament);
@@ -208,7 +207,7 @@ export class TournamentsService {
           }
         }
 
-        this.logger.log(`[kickExpiredPlayers] Tournament ${tournament.id} expired. Winner: ${winnerId ?? 'none'}`);
+        this.logger.log(`[closeExpiredTournaments] Tournament ${tournament.id} expired. Winner: ${winnerId ?? 'none'}`);
 
         const realPlayerIds = allProg.map((p) => p.userId);
         for (const uid of realPlayerIds) {
@@ -222,7 +221,7 @@ export class TournamentsService {
           await this.processTournamentEscrow(tournament.id);
         }
       } catch (err) {
-        this.logger.error(`[kickExpiredPlayers] Error for tournament ${tournament.id}`, err);
+        this.logger.error(`[closeExpiredTournaments] Error for tournament ${tournament.id}`, err);
       }
     }
   }
@@ -401,7 +400,7 @@ export class TournamentsService {
     }
     const waitingTournament = waitingTournaments.find((t) => {
       if (t.players.some((p) => p.id === userId)) return false;
-      // Check for vacant slot (kicked player) or room for new player
+      // Check for vacant slot or room for new player
       const hasVacantSlot = t.playerOrder?.includes(-1) ?? false;
       if (!hasVacantSlot && t.players.length >= 4) return false;
       return true;
@@ -1432,26 +1431,14 @@ export class TournamentsService {
       };
     };
 
-    const kickedByTid = new Map<number, boolean>();
-    if (allIds.length > 0) {
-      const kickedRows = await this.tournamentProgressRepository
-        .createQueryBuilder('p')
-        .select(['p.tournamentId', 'p.kicked'])
-        .where('p.userId = :userId', { userId })
-        .andWhere('p.tournamentId IN (:...ids)', { ids: allIds })
-        .getMany();
-      for (const r of kickedRows) kickedByTid.set(r.tournamentId, r.kicked === true);
-    }
-
-    const isKicked = (t: Tournament): boolean => {
-      if (kickedByTid.get(t.id)) return true;
+    const isNotInOrder = (t: Tournament): boolean => {
       const order = t.playerOrder;
       if (!order) return false;
       return !order.includes(userId);
     };
 
     const getResultLabel = (t: Tournament): string => {
-      if (isKicked(t)) return 'Время истекло';
+      if (isNotInOrder(t)) return 'Время истекло';
       const prog = progressByTid.get(t.id);
       const answered = prog?.q ?? 0;
 
@@ -1502,7 +1489,7 @@ export class TournamentsService {
 
     const belongsToHistory = (t: Tournament): boolean => {
       if (t.status === TournamentStatus.FINISHED) return true;
-      if (isKicked(t)) return true;
+      if (isNotInOrder(t)) return true;
       const label = getResultLabel(t);
       if (label === 'Время истекло' || label === 'Поражение' || label === 'Победа') return true;
       if (label === 'Ожидание соперника') return false;
@@ -1513,7 +1500,7 @@ export class TournamentsService {
 
     const getDisplayResultLabel = (t: Tournament, inCompleted: boolean): string => {
       const label = getResultLabel(t);
-      if (isKicked(t)) return 'Время истекло';
+      if (isNotInOrder(t)) return 'Время истекло';
       if (inCompleted && isTimeExpired(t) && label !== 'Поражение' && label !== 'Победа') {
         return 'Время истекло';
       }
