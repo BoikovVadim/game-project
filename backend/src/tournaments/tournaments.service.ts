@@ -551,8 +551,21 @@ export class TournamentsService {
 
     const leagueAmount = tournament.leagueAmount ?? 0;
     const prize = getLeaguePrize(leagueAmount);
+    const realPlayerCount = (tournament.playerOrder?.filter((id) => id > 0).length) ?? 0;
+    const finalQuestionCount = await this.questionRepository.count({
+      where: { tournament: { id: tournamentId }, roundIndex: 2 },
+    });
+    const canPayFinalPrize = realPlayerCount > 2 && finalQuestionCount > 0;
 
     if (winners.length === 1) {
+      if (!canPayFinalPrize) {
+        this.logger.warn(`[processTournamentEscrow] Skip payout for tournament ${tournamentId}: no valid final winner context`);
+        await this.tournamentEscrowRepository.query(
+          'UPDATE tournament_escrow SET status = \'held\' WHERE "tournamentId" = $1 AND status = \'processing\'',
+          [tournamentId],
+        );
+        return;
+      }
       const winnerId = winners[0]!;
       const winnerAlreadyPaid = existingWinTransactions.some((tx) => tx.userId === winnerId);
       if (prize > 0 && winnerId > 0 && !winnerAlreadyPaid) {
@@ -2679,6 +2692,8 @@ export class TournamentsService {
    */
   private async didUserWinSemiFinal(tournament: Tournament, userId: number): Promise<boolean> {
     const order = tournament.playerOrder ?? [];
+    const realPlayerCount = order.filter((id) => id > 0).length;
+    if (tournament.gameType === 'money' && realPlayerCount <= 2) return false;
     const playerSlot = order.indexOf(userId);
     if (playerSlot < 0) return false;
     const opponentSlot = playerSlot % 2 === 0 ? playerSlot + 1 : playerSlot - 1;
@@ -3095,6 +3110,10 @@ export class TournamentsService {
     };
 
     if (players.length <= 2) {
+      if (tournament.gameType === 'money') {
+        await saveResult(semiLoserId, false);
+        return;
+      }
       await saveResult(semiLoserId, false);
       await saveResult(semiWinnerId, true);
       await this.tournamentRepository.update({ id: tournamentId }, { status: TournamentStatus.FINISHED });
