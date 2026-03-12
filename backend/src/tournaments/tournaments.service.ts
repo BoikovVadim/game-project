@@ -1172,7 +1172,8 @@ export class TournamentsService {
         deadlineByTournamentId[tid] = sharedStart
           ? this.getRoundDeadline(sharedStart)
           : null;
-        roundStartedAtByTid.set(tid, sharedStart ? sharedStart.toISOString() : null);
+        const ownStart = myProg?.roundStartedAt ?? null;
+        roundStartedAtByTid.set(tid, ownStart ? (ownStart instanceof Date ? ownStart.toISOString() : String(ownStart)) : null);
       }
 
       // Determine if player has finished current round (no timer needed)
@@ -1507,24 +1508,29 @@ export class TournamentsService {
     const getCompletionDateFromUsers = (
       t: Tournament,
       ids: number[],
-      fallback?: Date | string | null,
     ): Date | null => {
-      const dates: (Date | string | null | undefined)[] = [];
+      const dates: Date[] = [];
       for (const uid of ids) {
         if (!(uid > 0)) continue;
         const prog = progressByTidAndUser.get(t.id)?.get(uid);
         if (!prog) continue;
-        dates.push(prog.leftAt, prog.roundStartedAt);
+        const la = toDate(prog.leftAt);
+        if (la) dates.push(la);
+        else {
+          const rs = toDate(prog.roundStartedAt);
+          if (rs) dates.push(rs);
+        }
       }
-      return maxDate(...dates, fallback ?? t.createdAt);
+      if (dates.length === 0) return null;
+      const result = new Date(Math.max(...dates.map((d) => d.getTime())));
+      return result > now ? now : result;
     };
 
-    const getTournamentCompletionDate = (t: Tournament, fallback?: Date | string | null): Date | null => {
+    const getTournamentCompletionDate = (t: Tournament): Date | null => {
       const order = t.playerOrder ?? [];
       return getCompletionDateFromUsers(
         t,
         order.filter((id): id is number => Number(id) > 0),
-        fallback ?? t.createdAt,
       );
     };
 
@@ -1609,67 +1615,67 @@ export class TournamentsService {
         }
         if (done4) {
           userCompleted = true;
-          completionDate = completionDate ?? getCompletionDateFromUsers(t, [userId, opponentId > 0 ? opponentId : -1], t.createdAt);
+          completionDate = completionDate ?? getCompletionDateFromUsers(t, [userId, opponentId > 0 ? opponentId : -1]);
         }
       } else if (semiResult.result === 'lost') {
         lostSemiByTid.set(t.id, true);
         passed = false;
         userCompleted = true;
-        completionDate = completionDate ?? getCompletionDateFromUsers(t, [userId, opponentId], deadlineAt);
+        completionDate = completionDate ?? getCompletionDateFromUsers(t, [userId, opponentId]);
       } else if (semiResult.result === 'tie') {
         passed = false;
         if (deadlineAt < now) {
           userCompleted = true;
-          completionDate = completionDate ?? deadlineAt;
+          completionDate = completionDate ?? getCompletionDateFromUsers(t, [userId, opponentId]);
         }
       } else if (semiResult.result === 'won' && userProgress) {
         const mySemiTotal = semiPhaseQuestions(userProgress);
-        const semiWinCompletionDate = getCompletionDateFromUsers(t, [userId, opponentId], deadlineAt);
+        const semiWinCompletionDate = getCompletionDateFromUsers(t, [userId, opponentId]);
         if (answered >= mySemiTotal + QUESTIONS_PER_ROUND) {
           const fr = getFinalResult(t, userProgress);
           if (fr === 'won') {
             passed = true;
             userCompleted = true;
             const otherFinalist = getOtherFinalist(t);
-            completionDate = completionDate ?? getCompletionDateFromUsers(t, [userId, otherFinalist?.userId ?? -1], deadlineAt);
+            completionDate = completionDate ?? getCompletionDateFromUsers(t, [userId, otherFinalist?.userId ?? -1]);
           } else if (fr === 'lost') {
             passed = false;
             userCompleted = true;
             const otherFinalist = getOtherFinalist(t);
-            completionDate = completionDate ?? getCompletionDateFromUsers(t, [userId, otherFinalist?.userId ?? -1], deadlineAt);
+            completionDate = completionDate ?? getCompletionDateFromUsers(t, [userId, otherFinalist?.userId ?? -1]);
           } else {
             passed = false;
             userCompleted = true;
-            completionDate = completionDate ?? (deadlineAt < now ? deadlineAt : semiWinCompletionDate);
+            completionDate = completionDate ?? semiWinCompletionDate;
           }
         } else {
           passed = false;
           userCompleted = true;
-          completionDate = completionDate ?? (deadlineAt < now ? deadlineAt : semiWinCompletionDate);
+          completionDate = completionDate ?? semiWinCompletionDate;
         }
       } else {
         if (deadlineAt < now && answered >= QUESTIONS_PER_ROUND) {
           passed = true;
           userCompleted = true;
-          completionDate = completionDate ?? getCompletionDateFromUsers(t, [userId, opponentId], t.createdAt);
+          completionDate = completionDate ?? getCompletionDateFromUsers(t, [userId, opponentId]);
         } else {
           passed = row?.passed === 1 ? true : false;
           if (deadlineAt < now) {
             userCompleted = true;
-            completionDate = completionDate ?? deadlineAt;
+            completionDate = completionDate ?? getCompletionDateFromUsers(t, [userId, opponentId]);
           }
         }
       }
 
       if (row) {
         row.passed = passed ? 1 : 0;
-        if (userCompleted) row.completedAt = completionDate ?? row.completedAt ?? deadlineAt;
+        if (userCompleted) row.completedAt = completionDate ?? row.completedAt ?? now;
         if (!userCompleted && row.completedAt) row.completedAt = null as any;
         await this.tournamentResultRepository.save(row);
       } else {
         row = this.tournamentResultRepository.create({
           userId, tournamentId: t.id, passed: passed ? 1 : 0,
-          ...(userCompleted ? { completedAt: completionDate ?? deadlineAt } : {}),
+          ...(userCompleted ? { completedAt: completionDate ?? now } : {}),
         });
         await this.tournamentResultRepository.save(row);
       }
