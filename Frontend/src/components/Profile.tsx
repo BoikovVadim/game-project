@@ -49,7 +49,7 @@ const LEAGUE_GEMS: Record<number, { name: string; color: string }> = {
   100: { name: 'Аметистовая лига', color: '#9966CC' },
   200: { name: 'Топазовая лига', color: '#FFC87C' },
   500: { name: 'Гранатовая лига', color: '#733635' },
-  1000: { name: 'Изумрудовая лига', color: '#50C878' },
+  1000: { name: 'Изумрудная лига', color: '#50C878' },
   2000: { name: 'Рубиновая лига', color: '#E0115F' },
   5000: { name: 'Сапфировая лига', color: '#0F52BA' },
   10000: { name: 'Опаловая лига', color: '#A8C3BC' },

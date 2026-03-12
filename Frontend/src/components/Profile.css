@@ -3915,6 +3915,10 @@ body.partner-modal-open {
   cursor: pointer;
   overflow: hidden;
   outline: none;
+  background: none;
+  padding: 0;
+  -webkit-appearance: none;
+  appearance: none;
   transition: box-shadow 0.3s ease, filter 0.25s ease;
 }
 

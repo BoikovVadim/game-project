@@ -1123,8 +1123,6 @@ export class TournamentsService {
           .execute();
       }
 
-      // Исправление бага: 11/20 → 10/10 — пользователь мог ответить на лишний вопрос в финале.
-      // Сбрасываем прогресс на 10, если semiFinalCorrectCount уже установлен (полуфинал пройден).
       // Backfill: если 10 ответов, но semiFinalCorrectCount не установлен — восстанавливаем из correctAnswersCount.
       if (allIds.length > 0) {
         const toFix = await this.tournamentProgressRepository.find({
@@ -1134,7 +1132,8 @@ export class TournamentsService {
           if (
             p.questionsAnsweredCount === QUESTIONS_PER_ROUND + 1 &&
             (p.currentQuestionIndex ?? 0) >= QUESTIONS_PER_ROUND &&
-            p.semiFinalCorrectCount != null
+            p.semiFinalCorrectCount != null &&
+            (p.lockedAnswerCount ?? 0) <= QUESTIONS_PER_ROUND
           ) {
             await this.tournamentProgressRepository.update(
               { id: p.id },
