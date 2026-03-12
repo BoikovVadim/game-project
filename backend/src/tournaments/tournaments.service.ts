@@ -124,7 +124,8 @@ export class TournamentsService {
     oppProg: TournamentProgress | undefined | null,
   ): Date | null {
     if (!myProg) return null;
-    if (!oppProg || (oppProg.questionsAnsweredCount ?? 0) < 1) return null;
+    if (!oppProg) return null;
+    if (!(myProg.roundStartedAt instanceof Date) || !(oppProg.roundStartedAt instanceof Date)) return null;
 
     const myQ = myProg.questionsAnsweredCount ?? 0;
     const oppQ = oppProg.questionsAnsweredCount ?? 0;
@@ -159,6 +160,51 @@ export class TournamentsService {
     }
 
     return maxStart(myProg, oppProg);
+  }
+
+  private async syncSemiPairStartOnJoin(
+    tournamentId: number,
+    playerOrder: number[] | null | undefined,
+    playerSlot: number,
+    joinedAt: Date,
+  ): Promise<void> {
+    if (!playerOrder || playerSlot < 0 || playerSlot >= playerOrder.length) return;
+    const opponentSlot = playerSlot % 2 === 0 ? playerSlot + 1 : playerSlot - 1;
+    if (opponentSlot < 0 || opponentSlot >= playerOrder.length) return;
+
+    const joinedUserId = playerOrder[playerSlot] ?? -1;
+    const opponentUserId = playerOrder[opponentSlot] ?? -1;
+    if (joinedUserId <= 0 || opponentUserId <= 0) return;
+
+    const pairUserIds = [joinedUserId, opponentUserId];
+    const existing = await this.tournamentProgressRepository.find({
+      where: { tournamentId, userId: In(pairUserIds) },
+    });
+    const progressByUserId = new Map(existing.map((row) => [row.userId, row]));
+
+    for (const pairUserId of pairUserIds) {
+      const existingProgress = progressByUserId.get(pairUserId);
+      if (existingProgress) {
+        existingProgress.roundStartedAt = joinedAt;
+        existingProgress.leftAt = null;
+        existingProgress.timeLeftSeconds = null;
+        await this.tournamentProgressRepository.save(existingProgress);
+        continue;
+      }
+
+      const progress = this.tournamentProgressRepository.create({
+        userId: pairUserId,
+        tournamentId,
+        questionsAnsweredCount: 0,
+        correctAnswersCount: 0,
+        currentQuestionIndex: 0,
+        lockedAnswerCount: 0,
+        roundStartedAt: joinedAt,
+        leftAt: null,
+        timeLeftSeconds: null,
+      });
+      await this.tournamentProgressRepository.save(progress);
+    }
   }
 
   private isPlayerInFinalPhase(
@@ -601,6 +647,7 @@ export class TournamentsService {
       await this.tournamentEntryRepository.save(
         this.tournamentEntryRepository.create({ tournament, user, joinedAt }),
       );
+      await this.syncSemiPairStartOnJoin(tournament.id, tournament.playerOrder, playerSlot, joinedAt);
     } else {
       tournament = this.tournamentRepository.create({
         status: TournamentStatus.WAITING,
@@ -947,6 +994,7 @@ export class TournamentsService {
       await this.tournamentEntryRepository.save(
         this.tournamentEntryRepository.create({ tournament, user, joinedAt }),
       );
+      await this.syncSemiPairStartOnJoin(tournament.id, tournament.playerOrder, playerSlot, joinedAt);
     } else {
       tournament = this.tournamentRepository.create({
         status: TournamentStatus.WAITING,
@@ -1766,7 +1814,21 @@ export class TournamentsService {
 
       if (rp < 4) {
         const done = t.status === TournamentStatus.FINISHED || isTimeExpired(t);
-        if (!done) return 'Ожидание соперника';
+        const ord4 = t.playerOrder ?? [];
+        const sl4 = ord4.indexOf(userId);
+        const os4 = sl4 >= 0 ? (sl4 % 2 === 0 ? sl4 + 1 : sl4 - 1) : -1;
+        const oid4 = os4 >= 0 && os4 < ord4.length ? ord4[os4] : -1;
+        if (!done) {
+          if (oid4 <= 0) return 'Ожидание соперника';
+          const semiRes4 = getMoneySemiResult(t);
+          if (answered < QUESTIONS_PER_ROUND) return 'Этап не пройден';
+          if (semiRes4.result === 'tie') {
+            const tbR4 = semiRes4.tiebreakerRound ?? 1;
+            const rEnd4 = QUESTIONS_PER_ROUND + tbR4 * TIEBREAKER_QUESTIONS;
+            if (answered < rEnd4) return 'Этап не пройден';
+          }
+          return 'Ожидание соперника';
+        }
         if (answered < QUESTIONS_PER_ROUND) return 'Время истекло';
         const semiRes4 = getMoneySemiResult(t);
         if (semiRes4.result === 'won') return 'Победа';
@@ -1776,10 +1838,6 @@ export class TournamentsService {
           const tbR4 = semiRes4.tiebreakerRound ?? 1;
           const rEnd4 = QUESTIONS_PER_ROUND + tbR4 * TIEBREAKER_QUESTIONS;
           if (answered >= rEnd4) return 'Победа';
-          const ord4 = t.playerOrder ?? [];
-          const sl4 = ord4.indexOf(userId);
-          const os4 = sl4 >= 0 ? (sl4 % 2 === 0 ? sl4 + 1 : sl4 - 1) : -1;
-          const oid4 = os4 >= 0 && os4 < ord4.length ? ord4[os4] : -1;
           if (oid4 > 0) {
             const opPr4 = progressByTidAndUser.get(t.id)?.get(oid4);
             if ((opPr4?.q ?? 0) >= rEnd4) return 'Поражение';
