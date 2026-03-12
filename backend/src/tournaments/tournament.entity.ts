@@ -9,6 +9,7 @@ export enum TournamentStatus {
 }
 
 export const GAME_DEADLINE_HOURS = 24;
+export const GAME_DEADLINE_HOURS_FINAL = 48;
 
 @Entity()
 @Index('IDX_tournament_status', ['status'])
