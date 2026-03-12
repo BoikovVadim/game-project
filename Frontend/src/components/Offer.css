@@ -77,6 +77,37 @@
   text-decoration: underline;
 }
 
+.offer-requisites {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0;
+}
+
+.offer-requisites td {
+  font-size: clamp(11px, 0.7vw + 6px, 14px);
+  line-height: 1.65;
+  color: #444;
+  padding: 8px 12px;
+  border-bottom: 1px solid #eee;
+  vertical-align: top;
+}
+
+.offer-requisites td:first-child {
+  font-weight: 600;
+  color: #333;
+  white-space: nowrap;
+  width: 1%;
+}
+
+.offer-requisites a {
+  color: #1a73e8;
+  text-decoration: none;
+}
+
+.offer-requisites a:hover {
+  text-decoration: underline;
+}
+
 @media (max-width: 640px) {
   .offer-page {
     padding: 16px 12px 40px;

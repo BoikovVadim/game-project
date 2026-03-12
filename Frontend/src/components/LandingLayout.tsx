@@ -64,7 +64,7 @@ const LandingLayout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
           <Link to="/contacts">Контакты</Link>
         </div>
         <div className="landing-footer-bottom">
-          <p>&copy; {new Date().getFullYear()} Legend Games. Все права защищены. Связь: <a href="mailto:support@legendgames.ru">support@legendgames.ru</a></p>
+          <p>&copy; {new Date().getFullYear()} АО «Ледженд Менеджмент». Все права защищены. Связь: <a href="mailto:LegendGames555@yandex.com">LegendGames555@yandex.com</a></p>
         </div>
       </footer>
     </div>

@@ -14,12 +14,30 @@ const Contacts: React.FC = () => (
         </section>
 
         <section>
+          <h2>Реквизиты</h2>
+          <table className="offer-requisites">
+            <tbody>
+              <tr><td>Наименование организации</td><td>АО «Ледженд Менеджмент»</td></tr>
+              <tr><td>ИНН</td><td>3804122300</td></tr>
+              <tr><td>ОГРН</td><td>1253800003050</td></tr>
+              <tr><td>Юридический адрес</td><td>665730, Иркутская область, г.о. Город Братск, г. Братск, ж/р Энергетик, ул. Юбилейная, д. 53, кв. 42</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section>
           <h2>Электронная почта</h2>
-          <p>Основной канал связи для всех обращений:</p>
           <p style={{ fontSize: '18px', fontWeight: 600 }}>
-            <a href="mailto:support@legendgames.ru">support@legendgames.ru</a>
+            <a href="mailto:LegendGames555@yandex.com">LegendGames555@yandex.com</a>
           </p>
           <p>Мы стараемся отвечать на обращения в течение 24 часов в рабочие дни.</p>
+        </section>
+
+        <section>
+          <h2>Телефон</h2>
+          <p style={{ fontSize: '18px', fontWeight: 600 }}>
+            <a href="tel:+79148791813">+7 914 879 18 13</a>
+          </p>
         </section>
 
         <section>
@@ -37,13 +55,6 @@ const Contacts: React.FC = () => (
             <li>Запрос на удаление персональных данных</li>
             <li>Сообщения о нарушениях</li>
           </ul>
-        </section>
-
-        <section>
-          <h2>Реквизиты</h2>
-          <p>Платформа: Legend Games</p>
-          <p>Сайт: <a href="/#/">legendgames.ru</a></p>
-          <p>Email: <a href="mailto:support@legendgames.ru">support@legendgames.ru</a></p>
         </section>
       </div>
     </div>
