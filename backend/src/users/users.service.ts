@@ -1050,7 +1050,14 @@ export class UsersService implements OnModuleInit {
       if (cached) {
         rankings = cached;
       } else if (metric === 'wins') {
-        rankings = await UsersService.computeWinsRankings(manager);
+        console.log('[getRankings] computing wins rankings...');
+        try {
+          rankings = await UsersService.computeWinsRankings(manager);
+          console.log('[getRankings] wins rankings computed, count:', rankings.length);
+        } catch (e) {
+          console.error('[getRankings] computeWinsRankings error:', e);
+          rankings = [];
+        }
         await this.cache.set(cacheKey, rankings, 60000);
       } else {
         const rows = (await manager.query(query)) as { userId: number; displayName: string; val: number }[];
@@ -1554,6 +1561,8 @@ export class UsersService implements OnModuleInit {
       finalWinsByUser.get(uid)!.add(Number(r.tournamentId));
     }
 
+    console.log('[computeWinsRankings] finalWins:', allFinalWins.length, 'userTourn:', allUserTourn.length, 'progress:', allProgress.length);
+
     const winsByUser = new Map<number, number>();
     const countedByUser = new Map<number, Set<number>>();
 
@@ -1564,8 +1573,10 @@ export class UsersService implements OnModuleInit {
       const progMap = progressByTid.get(tid);
 
       let w = 0;
-      if (UsersService.didWinSemifinal(uid, po, progMap)) w++;
-      if (finalWinsByUser.get(uid)?.has(tid)) w++;
+      const semiWin = UsersService.didWinSemifinal(uid, po, progMap);
+      if (semiWin) w++;
+      const finalWin = finalWinsByUser.get(uid)?.has(tid) ?? false;
+      if (finalWin) w++;
 
       if (w > 0) winsByUser.set(uid, (winsByUser.get(uid) ?? 0) + w);
       if (!countedByUser.has(uid)) countedByUser.set(uid, new Set());
@@ -1580,6 +1591,8 @@ export class UsersService implements OnModuleInit {
         }
       }
     }
+
+    console.log('[computeWinsRankings] winsByUser:', JSON.stringify([...winsByUser.entries()]));
 
     const allUsers = await manager.query(
       `SELECT id, COALESCE(nickname, username) as "displayName" FROM "user"`,
