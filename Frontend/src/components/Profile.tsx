@@ -63,23 +63,23 @@ const LEAGUE_GEMS: Record<number, { name: string; color: string }> = {
 
 /** Нейрокартинки лиг (путь в public) */
 const LEAGUE_IMAGES: Record<number, string> = {
-  5: '/leagues/league-amber.png',
-  10: '/leagues/league-coral.png',
-  20: '/leagues/league-jade.png',
-  50: '/leagues/league-agate.png',
-  100: '/leagues/league-amethyst.png',
-  200: '/leagues/league-topaz.png',
-  500: '/leagues/league-garnet.png',
-  1000: '/leagues/league-emerald.png',
-  2000: '/leagues/league-ruby.png',
-  5000: '/leagues/league-sapphire.png',
-  10000: '/leagues/league-opal.png',
-  20000: '/leagues/league-pearl.png',
-  50000: '/leagues/league-alexandrite.png',
-  100000: '/leagues/league-diamond.png',
-  200000: '/leagues/league-lapis.png',
-  500000: '/leagues/league-blackopal.png',
-  1000000: '/leagues/league-almaz.png',
+  5: '/leagues/league-amber.jpg',
+  10: '/leagues/league-coral.jpg',
+  20: '/leagues/league-jade.jpg',
+  50: '/leagues/league-agate.jpg',
+  100: '/leagues/league-amethyst.jpg',
+  200: '/leagues/league-topaz.jpg',
+  500: '/leagues/league-garnet.jpg',
+  1000: '/leagues/league-emerald.jpg',
+  2000: '/leagues/league-ruby.jpg',
+  5000: '/leagues/league-sapphire.jpg',
+  10000: '/leagues/league-opal.jpg',
+  20000: '/leagues/league-pearl.jpg',
+  50000: '/leagues/league-alexandrite.jpg',
+  100000: '/leagues/league-diamond.jpg',
+  200000: '/leagues/league-lapis.jpg',
+  500000: '/leagues/league-blackopal.jpg',
+  1000000: '/leagues/league-almaz.jpg',
 };
 
 // Предзагрузка всех изображений лиг — при переключении карусели не будет мигания
@@ -3684,6 +3684,9 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                                           src={LEAGUE_IMAGES[amount]}
                                                           alt=""
                                                           className="confrontation-league-image"
+                                                          loading="eager"
+                                                          decoding="async"
+                                                          fetchPriority={side === 'center' ? 'high' : 'low'}
                                                           onError={(e) => {
                                                             const t = e.target as HTMLImageElement;
                                                             if (t && !t.dataset.fallback) {
