@@ -183,7 +183,11 @@ export class TournamentsService {
         if (realCount >= 4) continue;
 
         const allProg = await this.tournamentProgressRepository.find({ where: { tournamentId: tournament.id } });
-        this.logger.log(`[cancelUnfilledTournaments] Tournament ${tournament.id}: only ${realCount} players, cancelling`);
+
+        const anyoneStarted = allProg.some((p) => (p.questionsAnsweredCount ?? 0) > 0);
+        if (anyoneStarted) continue;
+
+        this.logger.log(`[cancelUnfilledTournaments] Tournament ${tournament.id}: only ${realCount} players and no progress, cancelling`);
 
         for (const prog of allProg) {
           let row = await this.tournamentResultRepository.findOne({ where: { userId: prog.userId, tournamentId: tournament.id } });
