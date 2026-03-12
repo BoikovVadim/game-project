@@ -78,6 +78,16 @@ const LandingHome: React.FC<LandingHomeProps> = ({ onLogin }) => {
             <h3>Лиги и рейтинги</h3>
             <p>Разные уровни участия — от тренировок до соревновательных лиг. Растите вместе с платформой.</p>
           </div>
+          <div className="landing-feature-card">
+            <div className="landing-feature-icon">&#128274;</div>
+            <h3>Безопасные платежи</h3>
+            <p>Пополнение баланса через сертифицированные платёжные системы. Данные карт не хранятся на платформе.</p>
+          </div>
+          <div className="landing-feature-card">
+            <div className="landing-feature-icon">&#128187;</div>
+            <h3>Личный кабинет</h3>
+            <p>Полная статистика, история турниров, управление балансом и настройки профиля — всё в одном месте.</p>
+          </div>
         </div>
       </section>
     </LandingLayout>
