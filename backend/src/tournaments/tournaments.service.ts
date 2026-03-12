@@ -1508,6 +1508,13 @@ export class TournamentsService {
       const prog = progressByTid.get(t.id);
       const answered = prog?.q ?? 0;
 
+      if (t.status === TournamentStatus.FINISHED) {
+        if (answered < QUESTIONS_PER_ROUND) return 'Время истекло';
+        if (resultByTournamentId.get(t.id) === true) return 'Победа';
+        if (getPlayerCount(t) < 2) return 'Победа';
+        return 'Поражение';
+      }
+
       if (answered < QUESTIONS_PER_ROUND) return 'Этап не пройден';
 
       const semiResult = getMoneySemiResult(t);
@@ -1547,6 +1554,7 @@ export class TournamentsService {
     };
 
     const belongsToHistory = (t: Tournament): boolean => {
+      if (t.status === TournamentStatus.FINISHED) return true;
       if (isKicked(t)) return true;
       const label = getResultLabel(t);
       if (label === 'Время истекло' || label === 'Поражение' || label === 'Победа') return true;
