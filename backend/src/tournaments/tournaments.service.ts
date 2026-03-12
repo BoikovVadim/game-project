@@ -1206,11 +1206,8 @@ export class TournamentsService {
         const mySemi = myProg.semiFinalCorrectCount;
         const myTBLen = (myProg.tiebreakerRoundsCorrect ?? []).length;
         const mySemiTotal = 10 + myTBLen * 10;
-        const oppQ = oppProg?.questionsAnsweredCount ?? 0;
 
         if (myQ < 10) {
-          playerRoundFinished.set(tid, false);
-        } else if (oppProg && oppQ < 10) {
           playerRoundFinished.set(tid, false);
         } else if (oppId == null || oppId <= 0) {
           const realPlayers = (t.playerOrder?.filter((id: number) => id > 0).length) ?? 0;
@@ -1239,8 +1236,7 @@ export class TournamentsService {
           } else {
             const tbRound = semiState.tiebreakerRound ?? 1;
             const roundEnd = 10 + tbRound * 10;
-            if (oppQ < roundEnd) playerRoundFinished.set(tid, false);
-            else playerRoundFinished.set(tid, myQ >= roundEnd);
+            playerRoundFinished.set(tid, myQ >= roundEnd);
           }
         } else if (mySemi != null && oppProg?.semiFinalCorrectCount != null && mySemi > oppProg.semiFinalCorrectCount) {
           if (myQ < mySemiTotal) { playerRoundFinished.set(tid, true); }
