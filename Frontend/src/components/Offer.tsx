@@ -151,7 +151,6 @@ const Offer: React.FC = () => (
             <tr><td>ОГРН</td><td>1253800003050</td></tr>
             <tr><td>Юридический адрес</td><td>665730, Иркутская область, г.о. Город Братск, г. Братск, ж/р Энергетик, ул. Юбилейная, д. 53, кв. 42</td></tr>
             <tr><td>Электронная почта</td><td><a href="mailto:LegendGames555@yandex.com">LegendGames555@yandex.com</a></td></tr>
-            <tr><td>Телефон</td><td><a href="tel:+79148791813">+7 914 879 18 13</a></td></tr>
           </tbody>
         </table>
       </section>
