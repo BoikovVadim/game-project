@@ -13,6 +13,13 @@ const Profile = React.lazy(() => import('./components/Profile.tsx'));
 const Admin = React.lazy(() => import('./components/Admin.tsx'));
 const SupportChat = React.lazy(() => import('./components/SupportChat.tsx'));
 const Offer = React.lazy(() => import('./components/Offer.tsx'));
+const LandingHome = React.lazy(() => import('./components/LandingHome.tsx'));
+const About = React.lazy(() => import('./components/About.tsx'));
+const Privacy = React.lazy(() => import('./components/Privacy.tsx'));
+const PaymentTerms = React.lazy(() => import('./components/PaymentTerms.tsx'));
+const TournamentRules = React.lazy(() => import('./components/TournamentRules.tsx'));
+const BalanceRules = React.lazy(() => import('./components/BalanceRules.tsx'));
+const Contacts = React.lazy(() => import('./components/Contacts.tsx'));
 
 function getToken(): string {
   try {
@@ -42,7 +49,7 @@ function AppContent() {
     const root = document.getElementById('root');
     if (!root) { removeLoadingScreen(); return; }
     const observer = new MutationObserver(() => {
-      if (document.querySelector('.cabinet-sidebar, .admin-panel, .app-main form, .app-main nav')) {
+      if (document.querySelector('.cabinet-sidebar, .admin-panel, .app-main form, .app-main nav, .landing-header')) {
         observer.disconnect();
         removeLoadingScreen();
       }
@@ -128,7 +135,12 @@ function AppContent() {
   const isAdmin = location.pathname === '/admin' && hasToken;
   const isSupport = location.pathname === '/support' && hasToken;
   const isRedirecting = hasToken && (location.pathname === '/' || location.pathname === '/login');
-  const hideTopNav = isProfile || isAdmin || isSupport || isRedirecting;
+
+  const publicInfoPages = ['/', '/about', '/offer', '/privacy', '/payment-terms', '/tournament-rules', '/balance-rules', '/contacts'];
+  const isPublicPage = !hasToken && publicInfoPages.includes(location.pathname);
+  const hideTopNav = isProfile || isAdmin || isSupport || isRedirecting || isPublicPage;
+  const noPadding = hideTopNav || isPublicPage;
+
   return (
     <ErrorBoundary>
       <div className={`App${hideTopNav ? ' app-loggedin' : ''}${isProfile ? ' cabinet-open' : ''}${isAdmin ? ' admin-open' : ''}`}>
@@ -149,13 +161,19 @@ function AppContent() {
             <Link to="/register" style={{ color: '#111', textDecoration: 'none', fontWeight: 600, fontSize: 16 }}>Регистрация</Link>
           </nav>
         )}
-        <main className="app-main" style={{ flex: 1, padding: hideTopNav ? 0 : '24px 16px' }}>
+        <main className="app-main" style={{ flex: 1, padding: noPadding ? 0 : '24px 16px' }}>
           <Suspense fallback={<div style={{ minHeight: '100vh' }} />}>
           <Routes>
-            <Route path="/" element={hasToken ? <Navigate to="/profile" replace /> : <Login onLogin={handleLogin} />} />
+            <Route path="/" element={hasToken ? <Navigate to="/profile" replace /> : <LandingHome onLogin={handleLogin} />} />
             <Route path="/login" element={<Navigate to={hasToken ? '/profile' : '/'} replace />} />
             <Route path="/register" element={<Register />} />
             <Route path="/offer" element={<Offer />} />
+            <Route path="/about" element={<About />} />
+            <Route path="/privacy" element={<Privacy />} />
+            <Route path="/payment-terms" element={<PaymentTerms />} />
+            <Route path="/tournament-rules" element={<TournamentRules />} />
+            <Route path="/balance-rules" element={<BalanceRules />} />
+            <Route path="/contacts" element={<Contacts />} />
             <Route path="/verify-email" element={<VerifyEmail />} />
             <Route path="/verify-code" element={<VerifyCode onLogin={handleLogin} />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />

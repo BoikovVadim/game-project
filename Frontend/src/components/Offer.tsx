@@ -1,9 +1,11 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import LandingLayout from './LandingLayout';
 import './Offer.css';
 
 
 const Offer: React.FC = () => (
+  <LandingLayout>
   <div className="offer-page">
     <div className="offer-container">
       <h1>Пользовательское соглашение (Оферта)</h1>
@@ -169,6 +171,7 @@ const Offer: React.FC = () => (
       </div>
     </div>
   </div>
+  </LandingLayout>
 );
 
 export default Offer;

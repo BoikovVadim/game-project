@@ -1,0 +1,442 @@
+/* ===== Landing Header ===== */
+.landing-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 clamp(16px, 3vw, 40px);
+  height: 64px;
+  background: #111;
+  border-bottom: 2px solid var(--gold-dark);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.landing-logo {
+  font-size: clamp(18px, 1.4vw + 10px, 26px);
+  font-weight: 700;
+  color: #fff;
+  text-decoration: none;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.landing-logo span {
+  background: var(--gold-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.landing-nav {
+  display: flex;
+  align-items: center;
+  gap: clamp(10px, 1.5vw, 24px);
+}
+
+.landing-nav a {
+  color: #ccc;
+  text-decoration: none;
+  font-size: clamp(12px, 0.7vw + 7px, 15px);
+  font-weight: 500;
+  transition: color 0.2s;
+  white-space: nowrap;
+}
+
+.landing-nav a:hover,
+.landing-nav a.active {
+  color: var(--gold-mid);
+}
+
+.landing-nav-dropdown {
+  position: relative;
+}
+
+.landing-nav-dropdown-toggle {
+  background: none;
+  border: none;
+  color: #ccc;
+  font-size: clamp(12px, 0.7vw + 7px, 15px);
+  font-weight: 500;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: color 0.2s;
+  box-shadow: none;
+}
+
+.landing-nav-dropdown-toggle:hover,
+.landing-nav-dropdown.open .landing-nav-dropdown-toggle {
+  color: var(--gold-mid);
+}
+
+.landing-nav-dropdown-menu {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 6px 0;
+  min-width: 180px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  z-index: 50;
+}
+
+.landing-nav-dropdown.open .landing-nav-dropdown-menu {
+  display: block;
+}
+
+.landing-nav-dropdown-menu a {
+  display: block;
+  padding: 8px 16px;
+  color: #ccc;
+  font-size: 13px;
+}
+
+.landing-nav-dropdown-menu a:hover {
+  background: #262626;
+  color: var(--gold-mid);
+}
+
+.landing-auth-buttons {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.landing-btn-login {
+  background: none;
+  border: 1px solid var(--gold-dark);
+  color: var(--gold-mid);
+  padding: 7px 18px;
+  border-radius: 6px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.2s;
+  box-shadow: none;
+}
+
+.landing-btn-login:hover {
+  background: rgba(212, 175, 55, 0.1);
+  border-color: var(--gold-mid);
+  box-shadow: none;
+}
+
+.landing-btn-register {
+  background: var(--gold-gradient);
+  border: none;
+  color: #111;
+  padding: 8px 18px;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+
+.landing-btn-register:hover {
+  background: var(--gold-gradient-hover);
+  box-shadow: 0 2px 12px var(--gold-glow);
+}
+
+.landing-mobile-toggle {
+  display: none;
+  background: none;
+  border: none;
+  color: #ccc;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 4px;
+  box-shadow: none;
+}
+
+/* ===== Hero Section ===== */
+.landing-hero {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(30px, 4vw, 80px);
+  padding: clamp(40px, 5vw, 80px) clamp(16px, 3vw, 40px);
+  min-height: 60vh;
+  background: linear-gradient(170deg, #111 0%, #1a1a1a 50%, #111 100%);
+}
+
+.landing-hero-text {
+  flex: 1;
+  max-width: 520px;
+}
+
+.landing-hero-text h1 {
+  font-size: clamp(28px, 2.5vw + 12px, 48px);
+  font-weight: 800;
+  color: #fff;
+  line-height: 1.15;
+  margin: 0 0 16px;
+}
+
+.landing-hero-text h1 em {
+  font-style: normal;
+  background: var(--gold-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.landing-hero-text p {
+  font-size: clamp(14px, 0.8vw + 8px, 18px);
+  color: #aaa;
+  line-height: 1.6;
+  margin: 0 0 28px;
+}
+
+.landing-hero-cta {
+  display: inline-block;
+  background: var(--gold-gradient);
+  color: #111;
+  padding: 14px 32px;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 16px;
+  text-decoration: none;
+  transition: all 0.2s;
+  border: none;
+  cursor: pointer;
+}
+
+.landing-hero-cta:hover {
+  background: var(--gold-gradient-hover);
+  box-shadow: 0 4px 20px var(--gold-glow);
+}
+
+.landing-hero-form {
+  flex: 0 0 clamp(280px, 22vw + 60px, 380px);
+  background: #1e1e1e;
+  border: 1px solid #333;
+  border-radius: 14px;
+  padding: clamp(24px, 2vw + 8px, 36px);
+  box-shadow: 0 8px 40px rgba(0,0,0,0.4);
+}
+
+.landing-hero-form h2 {
+  color: #fff;
+  margin: 0 0 20px;
+  text-align: center;
+  font-size: clamp(18px, 1vw + 10px, 22px);
+}
+
+.landing-hero-form form {
+  max-width: none;
+}
+
+.landing-hero-form input {
+  background: #2a2a2a;
+  border-color: #444;
+  color: #fff;
+}
+
+.landing-hero-form input::placeholder {
+  color: #888;
+}
+
+.landing-hero-form input:focus {
+  border-color: var(--gold-dark);
+  box-shadow: 0 0 0 2px rgba(212,175,55,0.2);
+}
+
+.landing-hero-form button[type="submit"] {
+  margin-top: 8px;
+  color: #111;
+  font-size: 15px;
+}
+
+.landing-hero-form a {
+  color: var(--gold-mid);
+}
+
+.landing-hero-form p {
+  color: #aaa;
+}
+
+/* ===== Features ===== */
+.landing-features {
+  padding: clamp(40px, 5vw, 80px) clamp(16px, 3vw, 40px);
+  background: #f5f5f5;
+  text-align: center;
+}
+
+.landing-features h2 {
+  font-size: clamp(22px, 1.5vw + 10px, 34px);
+  font-weight: 700;
+  color: #111;
+  margin: 0 0 40px;
+}
+
+.landing-features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 24px;
+  max-width: 960px;
+  margin: 0 auto;
+}
+
+.landing-feature-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 28px 20px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.landing-feature-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+}
+
+.landing-feature-icon {
+  font-size: 36px;
+  margin-bottom: 14px;
+}
+
+.landing-feature-card h3 {
+  font-size: 17px;
+  font-weight: 700;
+  color: #222;
+  margin: 0 0 8px;
+}
+
+.landing-feature-card p {
+  font-size: 14px;
+  color: #666;
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* ===== Footer ===== */
+.landing-footer {
+  background: #111;
+  border-top: 2px solid var(--gold-dark);
+  padding: 32px clamp(16px, 3vw, 40px) 20px;
+  color: #888;
+}
+
+.landing-footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px 24px;
+  margin-bottom: 16px;
+}
+
+.landing-footer-links a {
+  color: #aaa;
+  text-decoration: none;
+  font-size: 13px;
+  transition: color 0.2s;
+}
+
+.landing-footer-links a:hover {
+  color: var(--gold-mid);
+}
+
+.landing-footer-bottom {
+  text-align: center;
+  font-size: 12px;
+  color: #666;
+  padding-top: 12px;
+  border-top: 1px solid #222;
+}
+
+.landing-footer-bottom a {
+  color: #888;
+  text-decoration: none;
+}
+
+.landing-footer-bottom a:hover {
+  color: var(--gold-mid);
+}
+
+/* ===== Info Pages ===== */
+.landing-info-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.landing-info-page .offer-page {
+  flex: 1;
+}
+
+/* ===== Mobile ===== */
+@media (max-width: 900px) {
+  .landing-nav {
+    display: none;
+    position: absolute;
+    top: 64px;
+    left: 0;
+    right: 0;
+    background: #1a1a1a;
+    flex-direction: column;
+    padding: 16px;
+    gap: 12px;
+    border-bottom: 1px solid #333;
+  }
+
+  .landing-nav.mobile-open {
+    display: flex;
+  }
+
+  .landing-mobile-toggle {
+    display: block;
+  }
+
+  .landing-auth-buttons {
+    display: none;
+  }
+
+  .landing-nav.mobile-open .landing-auth-mobile {
+    display: flex;
+    gap: 10px;
+    padding-top: 10px;
+    border-top: 1px solid #333;
+  }
+
+  .landing-hero {
+    flex-direction: column;
+    text-align: center;
+    min-height: auto;
+    padding-top: 40px;
+    padding-bottom: 40px;
+  }
+
+  .landing-hero-form {
+    flex: none;
+    width: 100%;
+    max-width: 380px;
+  }
+
+  .landing-header {
+    position: relative;
+  }
+}
+
+@media (max-width: 480px) {
+  .landing-hero-form {
+    padding: 20px 16px;
+  }
+
+  .landing-footer-links {
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+  }
+}
