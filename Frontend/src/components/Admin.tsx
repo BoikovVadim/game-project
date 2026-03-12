@@ -89,6 +89,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
   });
   type QuestionStatRow = { topic: string; count: number };
   const topicNames: Record<string, string> = {
+    math_logic: 'Математика и логика',
     math_addition: 'Математика: сложение',
     math_subtraction: 'Математика: вычитание',
     math_multiplication: 'Математика: умножение',

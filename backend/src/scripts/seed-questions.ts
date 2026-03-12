@@ -60,21 +60,61 @@ async function run() {
     seen.add(q.question);
     return true;
   });
-  console.log(`\nВсего уникальных вопросов: ${unique.length}`);
+  console.log(`\nВсего уникальных вопросов (до балансировки): ${unique.length}`);
+
+  // --- Балансировка ---
+  // 1) Объединяем math_* и logic_* в один топик «math_logic»
+  for (const q of unique) {
+    if (q.topic.startsWith('math_') || q.topic.startsWith('logic_')) {
+      q.topic = 'math_logic';
+    }
+  }
+
+  // 2) Считаем сколько вопросов в english_translation — это наш лимит
+  const byTopic = new Map<string, RawQuestion[]>();
+  for (const q of unique) {
+    const arr = byTopic.get(q.topic) || [];
+    arr.push(q);
+    byTopic.set(q.topic, arr);
+  }
+  const englishCount = (byTopic.get('english_translation') || []).length;
+  const cap = englishCount || 2400;
+  console.log(`Лимит (по уровню english_translation): ${cap}`);
+
+  // 3) Обрезаем math_logic и english_translation до cap
+  const shuffle = (arr: RawQuestion[]) => {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+  };
+
+  const balanced: RawQuestion[] = [];
+  for (const [topic, qs] of byTopic) {
+    if ((topic === 'math_logic' || topic === 'english_translation') && qs.length > cap) {
+      shuffle(qs);
+      const trimmed = qs.slice(0, cap);
+      console.log(`  ${topic}: ${qs.length} → ${trimmed.length}`);
+      balanced.push(...trimmed);
+    } else {
+      balanced.push(...qs);
+    }
+  }
+  console.log(`Всего после балансировки: ${balanced.length}`);
 
   console.log('Очистка таблицы question_pool...');
   await repo.clear();
 
   const BATCH = 500;
   let inserted = 0;
-  for (let i = 0; i < unique.length; i += BATCH) {
-    const batch = unique.slice(i, i + BATCH).map((q) =>
+  for (let i = 0; i < balanced.length; i += BATCH) {
+    const batch = balanced.slice(i, i + BATCH).map((q) =>
       repo.create({ topic: q.topic, question: q.question, options: q.options, correctAnswer: q.correctAnswer }),
     );
     await repo.save(batch);
     inserted += batch.length;
-    if (inserted % 5000 === 0 || i + BATCH >= unique.length) {
-      console.log(`  Вставлено: ${inserted}/${unique.length}`);
+    if (inserted % 5000 === 0 || i + BATCH >= balanced.length) {
+      console.log(`  Вставлено: ${inserted}/${balanced.length}`);
     }
   }
 
