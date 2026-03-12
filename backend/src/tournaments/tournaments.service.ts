@@ -1209,9 +1209,20 @@ export class TournamentsService {
       const playerSlot = order.indexOf(userId);
       if (playerSlot < 0) return { result: 'incomplete' };
       const opponentSlot = playerSlot % 2 === 0 ? playerSlot + 1 : playerSlot - 1;
-      if (opponentSlot < 0 || opponentSlot >= order.length) return { result: 'incomplete' };
+
+      const noOpponent =
+        opponentSlot < 0 ||
+        opponentSlot >= order.length ||
+        (order[opponentSlot] ?? -1) <= 0;
+
+      if (noOpponent) {
+        const myProgress = progressByTidAndUser.get(t.id)?.get(userId);
+        return (myProgress?.q ?? 0) >= QUESTIONS_PER_ROUND
+          ? { result: 'won' }
+          : { result: 'incomplete' };
+      }
+
       const opponentId = order[opponentSlot];
-      if (opponentId <= 0) return { result: 'incomplete' };
 
       const myProgress = progressByTidAndUser.get(t.id)?.get(userId);
       const oppProgress = progressByTidAndUser.get(t.id)?.get(opponentId);
@@ -1242,33 +1253,44 @@ export class TournamentsService {
       t: Tournament,
     ): ProgressData | null => {
       const order = t.playerOrder;
-      if (!order || order.length < 4) return null;
+      if (!order || order.length <= 2) return null;
       const playerSlot = order.indexOf(userId);
       if (playerSlot < 0) return null;
       const otherSlots: [number, number] = playerSlot < 2 ? [2, 3] : [0, 1];
-      const p1Id = order[otherSlots[0]];
-      const p2Id = order[otherSlots[1]];
-      if (p1Id == null || p2Id == null || p1Id === -1 || p2Id === -1) return null;
-      const prog1 = progressByTidAndUser.get(t.id)?.get(p1Id);
-      const prog2 = progressByTidAndUser.get(t.id)?.get(p2Id);
-      const q1 = prog1?.q ?? 0;
-      const q2 = prog2?.q ?? 0;
-      if (q1 < QUESTIONS_PER_ROUND || q2 < QUESTIONS_PER_ROUND) return null;
-      const semi1 = prog1?.semiCorrect ?? 0;
-      const semi2 = prog2?.semiCorrect ?? 0;
-      if (semi1 > semi2) return prog1!;
-      if (semi2 > semi1) return prog2!;
-      const tb1 = prog1?.tiebreakerRounds ?? [];
-      const tb2 = prog2?.tiebreakerRounds ?? [];
-      for (let r = 1; r <= 50; r++) {
-        const roundEnd = QUESTIONS_PER_ROUND + r * TIEBREAKER_QUESTIONS;
-        if (q1 < roundEnd || q2 < roundEnd) return null;
-        const r1 = tb1[r - 1] ?? 0;
-        const r2 = tb2[r - 1] ?? 0;
-        if (r1 > r2) return prog1!;
-        if (r2 > r1) return prog2!;
+      const p1Id = otherSlots[0] < order.length ? order[otherSlots[0]] : -1;
+      const p2Id = otherSlots[1] < order.length ? order[otherSlots[1]] : -1;
+      const p1Valid = p1Id != null && p1Id > 0;
+      const p2Valid = p2Id != null && p2Id > 0;
+
+      if (!p1Valid && !p2Valid) return null;
+
+      if (p1Valid && p2Valid) {
+        const prog1 = progressByTidAndUser.get(t.id)?.get(p1Id);
+        const prog2 = progressByTidAndUser.get(t.id)?.get(p2Id);
+        const q1 = prog1?.q ?? 0;
+        const q2 = prog2?.q ?? 0;
+        if (q1 < QUESTIONS_PER_ROUND || q2 < QUESTIONS_PER_ROUND) return null;
+        const semi1 = prog1?.semiCorrect ?? 0;
+        const semi2 = prog2?.semiCorrect ?? 0;
+        if (semi1 > semi2) return prog1!;
+        if (semi2 > semi1) return prog2!;
+        const tb1 = prog1?.tiebreakerRounds ?? [];
+        const tb2 = prog2?.tiebreakerRounds ?? [];
+        for (let r = 1; r <= 50; r++) {
+          const roundEnd = QUESTIONS_PER_ROUND + r * TIEBREAKER_QUESTIONS;
+          if (q1 < roundEnd || q2 < roundEnd) return null;
+          const r1 = tb1[r - 1] ?? 0;
+          const r2 = tb2[r - 1] ?? 0;
+          if (r1 > r2) return prog1!;
+          if (r2 > r1) return prog2!;
+        }
+        return null;
       }
-      return null;
+
+      const soloId = p1Valid ? p1Id : p2Id;
+      const soloProg = progressByTidAndUser.get(t.id)?.get(soloId);
+      if (!soloProg || (soloProg.q ?? 0) < QUESTIONS_PER_ROUND) return null;
+      return soloProg;
     };
 
     const now = new Date();
@@ -1288,7 +1310,7 @@ export class TournamentsService {
       t: Tournament,
       myProg: ProgressData,
     ): 'won' | 'lost' | 'tie' | 'incomplete' => {
-      if (getPlayerCount(t) < 4) return 'incomplete';
+      if (getPlayerCount(t) <= 2) return 'incomplete';
       const otherFin = getOtherFinalist(t);
       if (!otherFin) return 'incomplete';
       const mySemiTotal = semiPhaseQuestions(myProg);
@@ -1328,11 +1350,11 @@ export class TournamentsService {
       } else if (semiResult.result === 'tie') {
         passed = false;
       } else if (semiResult.result === 'won' && userProgress) {
-        const mySemiTotal = semiPhaseQuestions(userProgress);
-        if (answered >= mySemiTotal + QUESTIONS_PER_ROUND) {
-          if (getPlayerCount(t) < 4) {
-            passed = false;
-          } else {
+        if (getPlayerCount(t) <= 2) {
+          passed = true;
+        } else {
+          const mySemiTotal = semiPhaseQuestions(userProgress);
+          if (answered >= mySemiTotal + QUESTIONS_PER_ROUND) {
             const fr = getFinalResult(t, userProgress);
             if (fr === 'won') passed = true;
             else if (fr === 'lost') passed = false;
@@ -1340,9 +1362,9 @@ export class TournamentsService {
               const deadline = deadlineByTournamentId[t.id] ?? this.getDeadline(t.createdAt);
               passed = new Date(deadline) < now;
             }
+          } else {
+            passed = false;
           }
-        } else {
-          passed = false;
         }
       } else {
         passed = row?.passed === 1 ? true : false;
@@ -1527,10 +1549,10 @@ export class TournamentsService {
       }
       if (semiResult.result === 'lost') return 'Поражение';
       if (semiResult.result === 'won') {
+        if (getPlayerCount(t) <= 2) return 'Победа';
         if (!prog) return 'Этап не пройден';
         const mySemiTotal = semiPhaseQuestions(prog);
         if (answered < mySemiTotal + QUESTIONS_PER_ROUND) return 'Этап не пройден';
-        if (getPlayerCount(t) < 4) return 'Ожидание соперника';
         const fr = getFinalResult(t, prog);
         if (fr === 'won') return 'Победа';
         if (fr === 'lost') return 'Поражение';
