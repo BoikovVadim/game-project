@@ -1050,10 +1050,8 @@ export class UsersService implements OnModuleInit {
       if (cached) {
         rankings = cached;
       } else if (metric === 'wins') {
-        console.log('[getRankings] computing wins rankings...');
         try {
           rankings = await UsersService.computeWinsRankings(manager);
-          console.log('[getRankings] wins rankings computed, count:', rankings.length);
         } catch (e) {
           console.error('[getRankings] computeWinsRankings error:', e);
           rankings = [];
@@ -1561,8 +1559,6 @@ export class UsersService implements OnModuleInit {
       finalWinsByUser.get(uid)!.add(Number(r.tournamentId));
     }
 
-    console.log('[computeWinsRankings] finalWins:', allFinalWins.length, 'userTourn:', allUserTourn.length, 'progress:', allProgress.length);
-
     const winsByUser = new Map<number, number>();
     const countedByUser = new Map<number, Set<number>>();
 
@@ -1591,8 +1587,6 @@ export class UsersService implements OnModuleInit {
         }
       }
     }
-
-    console.log('[computeWinsRankings] winsByUser:', JSON.stringify([...winsByUser.entries()]));
 
     const allUsers = await manager.query(
       `SELECT id, COALESCE(nickname, username) as "displayName" FROM "user"`,
