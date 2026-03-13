@@ -41,6 +41,8 @@ type ProjectCostDashboardData = {
   currentTotal: number;
   todayTotal: number;
   updatedAt: string | null;
+  totalDurationMinutes: number;
+  totalDurationLabel: string;
   history: ProjectCostHistoryRow[];
 };
 
@@ -823,8 +825,8 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
     if (!token) return;
     if (!projectCostLoadedRef.current) setProjectCostLoading(true);
     axios.get<ProjectCostDashboardData>('/admin/project-cost', { headers })
-      .then((r) => setProjectCostData(r.data ?? { currentTotal: 0, todayTotal: 0, updatedAt: null, history: [] }))
-      .catch(() => setProjectCostData({ currentTotal: 0, todayTotal: 0, updatedAt: null, history: [] }))
+      .then((r) => setProjectCostData(r.data ?? { currentTotal: 0, todayTotal: 0, updatedAt: null, totalDurationMinutes: 0, totalDurationLabel: '0 мин', history: [] }))
+      .catch(() => setProjectCostData({ currentTotal: 0, todayTotal: 0, updatedAt: null, totalDurationMinutes: 0, totalDurationLabel: '0 мин', history: [] }))
       .finally(() => {
         setProjectCostLoading(false);
         projectCostLoadedRef.current = true;
@@ -2111,7 +2113,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
               {projectCostLoading && !projectCostLoadedRef.current ? (
                 <p>Загрузка...</p>
               ) : (() => {
-                const dashboard = projectCostData ?? { currentTotal: 0, todayTotal: 0, updatedAt: null, history: [] };
+                const dashboard = projectCostData ?? { currentTotal: 0, todayTotal: 0, updatedAt: null, totalDurationMinutes: 0, totalDurationLabel: '0 мин', history: [] };
                 const latestChange = dashboard.history[0]?.amountChange ?? 0;
                 return (
                   <>
@@ -2132,6 +2134,10 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                       <div className="admin-stats-kpi-card admin-cost-kpi-card" style={{ borderColor: '#7c3aed' }}>
                         <div className="admin-stats-kpi-value">{dashboard.history.length.toLocaleString('ru-RU')}</div>
                         <div className="admin-stats-kpi-label">Записей в истории</div>
+                      </div>
+                      <div className="admin-stats-kpi-card admin-cost-kpi-card" style={{ borderColor: 'var(--gold-dark, #c9a227)' }}>
+                        <div className="admin-stats-kpi-value">{dashboard.totalDurationLabel}</div>
+                        <div className="admin-stats-kpi-label">Общее время по проекту</div>
                       </div>
                     </div>
 

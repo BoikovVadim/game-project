@@ -41,6 +41,23 @@ function sanitizeProjectCostDescription(value: string): string {
     .trim();
 }
 
+function parseDurationToMinutes(value: string | null | undefined): number {
+  const text = String(value ?? '').trim();
+  if (!text) return 0;
+  const hours = text.match(/(\d+)\s*ч/);
+  const minutes = text.match(/(\d+)\s*мин/);
+  return Number(hours?.[1] ?? 0) * 60 + Number(minutes?.[1] ?? 0);
+}
+
+function formatDurationLabel(totalMinutes: number): string {
+  const safeMinutes = Math.max(0, Math.round(totalMinutes));
+  const hours = Math.floor(safeMinutes / 60);
+  const minutes = safeMinutes % 60;
+  if (hours > 0 && minutes > 0) return `${hours} ч ${minutes} мин`;
+  if (hours > 0) return `${hours} ч`;
+  return `${minutes} мин`;
+}
+
 async function readProjectCostTrackingFile(): Promise<{ content: string; filePath: string; mtime: Date } | null> {
   const candidates = [
     path.resolve(process.cwd(), '.cursor', 'project-cost-tracking.md'),
@@ -442,6 +459,8 @@ export class AdminService {
     currentTotal: number;
     todayTotal: number;
     updatedAt: string | null;
+    totalDurationMinutes: number;
+    totalDurationLabel: string;
     history: {
       timestamp: string | null;
       date: string;
@@ -464,7 +483,7 @@ export class AdminService {
 
       const file = await readProjectCostTrackingFile();
       if (!file) {
-        return { currentTotal: 0, todayTotal: 0, updatedAt: null, history: [] };
+        return { currentTotal: 0, todayTotal: 0, updatedAt: null, totalDurationMinutes: 0, totalDurationLabel: '0 мин', history: [] };
       }
 
       const lines = file.content
@@ -497,6 +516,7 @@ export class AdminService {
       }
 
       const totalChanges = rawHistory.reduce((sum, entry) => sum + entry.amountChange, 0);
+      const totalDurationMinutes = rawHistory.reduce((sum, entry) => sum + parseDurationToMinutes(entry.duration), 0);
       let runningTotal = roundMoney(currentTotal - totalChanges);
       const historyAscending = [...rawHistory].reverse().map((entry) => {
         runningTotal = roundMoney(runningTotal + entry.amountChange);
@@ -510,11 +530,13 @@ export class AdminService {
         currentTotal,
         todayTotal: roundMoney(todayTotal),
         updatedAt: file.mtime ? file.mtime.toISOString() : null,
+        totalDurationMinutes,
+        totalDurationLabel: formatDurationLabel(totalDurationMinutes),
         history: historyAscending.reverse(),
       };
     } catch (e) {
       console.error('[AdminService.getProjectCostDashboard]', e);
-      return { currentTotal: 0, todayTotal: 0, updatedAt: null, history: [] };
+      return { currentTotal: 0, todayTotal: 0, updatedAt: null, totalDurationMinutes: 0, totalDurationLabel: '0 мин', history: [] };
     }
   }
 }
