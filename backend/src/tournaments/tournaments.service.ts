@@ -1253,18 +1253,30 @@ export class TournamentsService implements OnModuleInit {
 
     let tournaments: Tournament[];
     if (mode === 'money') {
-      // Турниры, где пользователь участвует: по progress (уже играл) И по entry (только присоединился — progress создаётся при первом открытии игры)
-      const [progressRows, entries] = await Promise.all([
-        this.tournamentProgressRepository.find({ where: { userId }, select: ['tournamentId'] }),
-        this.tournamentEntryRepository.find({
-          where: { user: { id: userId } },
-          relations: ['tournament'],
-        }),
-      ]);
+      // Турниры пользователя: progress + entry (сырой SQL для надёжности) + join players (как в training)
+      const progressRows = await this.tournamentProgressRepository.find({ where: { userId }, select: ['tournamentId'] });
       const progressTids = new Set(progressRows.map((p) => p.tournamentId).filter((id) => id > 0));
-      for (const e of entries) {
-        const tid = (e.tournament as any)?.id;
-        if (tid) progressTids.add(tid);
+      try {
+        const entryRows = await this.tournamentEntryRepository.manager.query(
+          'SELECT "tournamentId" FROM tournament_entry WHERE "userId" = $1',
+          [userId],
+        ) as { tournamentId: number }[];
+        for (const r of entryRows) {
+          if (r?.tournamentId) progressTids.add(r.tournamentId);
+        }
+      } catch (e) {
+        this.logger.warn('[getMyTournaments] tournament_entry fallback failed', (e as Error)?.message);
+      }
+      // Дублируем по join table players (как в training) — на случай рассинхрона
+      const qbPlayers = this.tournamentRepository
+        .createQueryBuilder('t')
+        .select('t.id', 'tid')
+        .innerJoin('t.players', 'p', 'p.id = :userId', { userId })
+        .where('t.gameType = :money', { money: 'money' })
+        .orWhere('(t.gameType IS NULL AND t."leagueAmount" IS NOT NULL)');
+      const byPlayers = await qbPlayers.getRawMany<{ tid: number }>();
+      for (const r of byPlayers) {
+        if (r?.tid) progressTids.add(r.tid);
       }
       const allTids = [...progressTids];
       if (allTids.length === 0) {
