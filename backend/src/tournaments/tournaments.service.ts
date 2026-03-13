@@ -1509,7 +1509,7 @@ export class TournamentsService implements OnModuleInit {
 
     const getMoneySemiResult = (
       t: Tournament,
-    ): { result: 'won' | 'lost' | 'tie' | 'incomplete'; tiebreakerRound?: number } => {
+    ): { result: 'won' | 'lost' | 'tie' | 'incomplete'; tiebreakerRound?: number; noOpponent?: boolean } => {
       const order = t.playerOrder;
       if (!order || order.length < 2) return { result: 'incomplete' };
       const playerSlot = order.indexOf(userId);
@@ -1521,12 +1521,8 @@ export class TournamentsService implements OnModuleInit {
         opponentSlot >= order.length ||
         (order[opponentSlot] ?? -1) <= 0;
 
-      if (noOpponent) {
-        const myProgress = progressByTidAndUser.get(t.id)?.get(userId);
-        return (myProgress?.q ?? 0) >= QUESTIONS_PER_ROUND
-          ? { result: 'won' }
-          : { result: 'incomplete' };
-      }
+      // В паре нет соперника (ожидание игрока) — не считаем победой, турнир остаётся в активных.
+      if (noOpponent) return { result: 'incomplete', noOpponent: true };
 
       const opponentId = order[opponentSlot];
 
@@ -1733,6 +1729,9 @@ export class TournamentsService implements OnModuleInit {
           userCompleted = true;
           completionDate = completionDate ?? semiWinCompletionDate;
         }
+      } else if (semiResult.result === 'incomplete' && semiResult.noOpponent) {
+        passed = false;
+        userCompleted = false;
       } else {
         if (deadlineAt < now && answered >= QUESTIONS_PER_ROUND) {
           passed = true;
@@ -2017,7 +2016,7 @@ export class TournamentsService implements OnModuleInit {
         if (answered2 >= QUESTIONS_PER_ROUND) {
           const semiRes2 = getMoneySemiResult(t);
           if (semiRes2.result === 'won') return 'Победа';
-          if (semiRes2.result === 'incomplete') return 'Победа';
+          if (semiRes2.result === 'incomplete') return semiRes2.noOpponent ? 'Ожидание соперника' : 'Победа';
           if (semiRes2.result === 'tie') {
             const tbRound2 = semiRes2.tiebreakerRound ?? 1;
             const roundEnd2 = QUESTIONS_PER_ROUND + tbRound2 * TIEBREAKER_QUESTIONS;
