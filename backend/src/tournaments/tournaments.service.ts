@@ -2021,7 +2021,7 @@ export class TournamentsService implements OnModuleInit {
 
       if (realPlayers < 4) {
         const done4 = t.status === TournamentStatus.FINISHED || deadlineAt < now;
-        passed = false;
+        passed = done4 && semiResult.result === 'won';
         if (done4) {
           userCompleted = true;
           completionDate = completionDate ?? getCompletionDateFromUsers(t, [userId, opponentId > 0 ? opponentId : -1]);
