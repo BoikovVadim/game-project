@@ -706,8 +706,8 @@ export class TournamentsService implements OnModuleInit {
       if (unique.length >= n) break;
     }
     return this.shuffle(unique).slice(0, n).map((r) => ({
-      question: r.question,
-      options: r.options,
+      question: this.sanitizeUtf8ForDisplay(r.question),
+      options: Array.isArray(r.options) ? r.options.map((o) => this.sanitizeUtf8ForDisplay(String(o))) : [],
       correctAnswer: r.correctAnswer,
     }));
   }
@@ -822,7 +822,10 @@ export class TournamentsService implements OnModuleInit {
     }
 
     const toDto = (q: { id: number; question: string; options: string[]; correctAnswer: number }) => ({
-      id: q.id, question: q.question, options: q.options, correctAnswer: q.correctAnswer,
+      id: q.id,
+      question: this.sanitizeUtf8ForDisplay(q.question),
+      options: (Array.isArray(q.options) ? q.options : []).map((o) => this.sanitizeUtf8ForDisplay(String(o))),
+      correctAnswer: q.correctAnswer,
     });
 
     let questions = await this.questionRepository.find({
@@ -2149,7 +2152,8 @@ export class TournamentsService implements OnModuleInit {
               });
               tiebreakerQuestions = questions.map((q) => {
                 const fixed = this.ensureQuestionOptions(q.question, q.options, q.correctAnswer);
-                return { id: q.id, question: q.question, options: fixed.options, correctAnswer: fixed.correctAnswer };
+                const qText = this.sanitizeUtf8ForDisplay(q.question);
+                return { id: q.id, question: qText, options: fixed.options.map((o) => this.sanitizeUtf8ForDisplay(String(o))), correctAnswer: fixed.correctAnswer };
               });
             } else if (existing.length < this.TIEBREAKER_QUESTIONS && (myQ > this.QUESTIONS_PER_ROUND || oppQ > this.QUESTIONS_PER_ROUND)) {
               const pool = await this.pickRandomQuestions(this.TIEBREAKER_QUESTIONS);
@@ -2163,7 +2167,8 @@ export class TournamentsService implements OnModuleInit {
               });
               tiebreakerQuestions = questions.map((q) => {
                 const fixed = this.ensureQuestionOptions(q.question, q.options, q.correctAnswer);
-                return { id: q.id, question: q.question, options: fixed.options, correctAnswer: fixed.correctAnswer };
+                const qText = this.sanitizeUtf8ForDisplay(q.question);
+                return { id: q.id, question: qText, options: fixed.options.map((o) => this.sanitizeUtf8ForDisplay(String(o))), correctAnswer: fixed.correctAnswer };
               });
             }
             break;
@@ -2352,11 +2357,12 @@ export class TournamentsService implements OnModuleInit {
     }
 
     const toDto = (q: Question) => {
-      const fixed = this.ensureQuestionOptions(q.question, q.options, q.correctAnswer);
+      const questionText = this.sanitizeUtf8ForDisplay(q.question);
+      const fixed = this.ensureQuestionOptions(questionText, q.options, q.correctAnswer);
       return {
         id: q.id,
-        question: q.question,
-        options: fixed.options,
+        question: questionText,
+        options: fixed.options.map((o) => this.sanitizeUtf8ForDisplay(String(o))),
         correctAnswer: fixed.correctAnswer,
       };
     };
@@ -2655,6 +2661,24 @@ export class TournamentsService implements OnModuleInit {
     if (op === '×' || op === '*') return a * b;
     if (op === '÷') return b !== 0 ? Math.floor(a / b) : null;
     return null;
+  }
+
+  /**
+   * Исправляет отображение текста при неправильной интерпретации кодировки (UTF-8 как Latin-1).
+   * Если после перекодирования из latin1 в utf8 получается больше кириллицы — используем исправленный вариант.
+   */
+  private sanitizeUtf8ForDisplay(s: string): string {
+    if (typeof s !== 'string' || !s) return s;
+    try {
+      const decoded = Buffer.from(s, 'latin1').toString('utf8');
+      const cyrillicDecoded = (decoded.match(/[\u0400-\u04FF]/g) || []).length;
+      const cyrillicOriginal = (s.match(/[\u0400-\u04FF]/g) || []).length;
+      if (cyrillicDecoded > cyrillicOriginal || (decoded !== s && cyrillicDecoded > 0 && cyrillicOriginal === 0))
+        return decoded;
+    } catch {
+      // ignore
+    }
+    return s;
   }
 
   /**

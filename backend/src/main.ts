@@ -30,6 +30,14 @@ async function bootstrap() {
   app.useGlobalFilters(new StatsExceptionFilter());
 
   app.use(compression());
+  app.use((_req, res, next) => {
+    const json = res.json.bind(res);
+    res.json = (body: any) => {
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      return json(body);
+    };
+    next();
+  });
   app.use(helmet({
     contentSecurityPolicy: false,
     crossOriginEmbedderPolicy: false,
