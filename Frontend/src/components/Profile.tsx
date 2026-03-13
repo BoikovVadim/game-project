@@ -3682,8 +3682,9 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                           }}
                                           aria-label="Предыдущая лига"
                                         >
-                                          ‹
+                                          <span className="confrontation-carousel-arrow-symbol">‹</span>
                                         </button>
+                                        <div className="confrontation-carousel-slide-wrap">
                                         <div className="confrontation-carousel-slide">
                                           {(() => {
                                             const list = allLeagues ?? [];
@@ -3752,6 +3753,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                             );
                                           })()}
                                         </div>
+                                        </div>
                                         <button
                                           type="button"
                                           className="confrontation-carousel-arrow confrontation-carousel-next"
@@ -3772,7 +3774,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                           }}
                                           aria-label="Следующая лига"
                                         >
-                                          ›
+                                          <span className="confrontation-carousel-arrow-symbol">›</span>
                                         </button>
                                       </div>
                                       <div className="confrontation-carousel-dots">

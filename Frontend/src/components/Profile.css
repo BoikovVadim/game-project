@@ -3766,12 +3766,22 @@ body.partner-modal-open {
   max-width: clamp(420px, 55vw + 50px, 900px);
   align-self: center;
   position: relative;
-  overflow: hidden;
+  overflow: visible;
+  padding: 0 clamp(28px, 2.5vw + 10px, 44px);
 }
 
 .confrontation-league-loading {
   text-align: center;
   color: #666;
+}
+
+.confrontation-carousel-slide-wrap {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 .confrontation-league-carousel {
@@ -3781,7 +3791,7 @@ body.partner-modal-open {
   gap: 0;
   margin-bottom: 12px;
   position: relative;
-  padding: 0 clamp(36px, 3vw + 12px, 56px);
+  padding: 0;
   height: clamp(100px, 11vw + 20px, 210px);
   min-height: clamp(100px, 11vw + 20px, 210px);
 }
@@ -3796,7 +3806,7 @@ body.partner-modal-open {
   height: clamp(32px, 3vw + 10px, 48px);
   font-size: clamp(20px, 2vw + 6px, 32px);
   font-weight: 300;
-  line-height: 1;
+  line-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3807,6 +3817,14 @@ body.partner-modal-open {
   z-index: 10;
   flex-shrink: 0;
   transition: color 0.2s ease, transform 0.2s ease;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.confrontation-carousel-arrow-symbol {
+  display: block;
+  line-height: 1;
+  transform: translateY(-0.04em);
 }
 
 .confrontation-carousel-arrow.confrontation-carousel-prev {
@@ -3818,13 +3836,21 @@ body.partner-modal-open {
   right: 0;
 }
 
-.confrontation-carousel-arrow:hover {
-  color: var(--gold-light, #fff0a8);
-  transform: translateY(-50%) scale(1.15);
+@media (hover: hover) {
+  .confrontation-carousel-arrow:hover {
+    color: var(--gold-light, #fff0a8);
+    transform: translateY(-50%) scale(1.15);
+  }
+  .confrontation-carousel-arrow:active {
+    color: var(--gold-dark, #c9a227);
+  }
 }
 
-.confrontation-carousel-arrow:active {
-  color: var(--gold-dark, #c9a227);
+@media (hover: none) {
+  .confrontation-carousel-arrow:active {
+    transform: translateY(-50%);
+    color: var(--gold-mid, #d4af37);
+  }
 }
 
 .confrontation-carousel-slide {
