@@ -3908,6 +3908,7 @@ body.partner-modal-open {
   display: block;
   position: relative;
   width: clamp(200px, 22vw + 40px, 420px);
+  aspect-ratio: 2 / 1;
   min-height: clamp(100px, 11vw + 20px, 210px);
   max-width: 100%;
   border: none;
@@ -3915,7 +3916,7 @@ body.partner-modal-open {
   cursor: pointer;
   overflow: hidden;
   outline: none;
-  background: none;
+  background: #e8e8e8;
   padding: 0;
   -webkit-appearance: none;
   appearance: none;
@@ -3940,6 +3941,7 @@ body.partner-modal-open {
 .confrontation-carousel-card-image {
   position: absolute;
   inset: 0;
+  background: #e8e8e8;
 }
 
 .confrontation-carousel-card-image .confrontation-league-image {

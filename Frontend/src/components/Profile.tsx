@@ -86,14 +86,11 @@ const preloadedLeagueImages = new Set<string>();
 
 const preloadLeagueImage = (src?: string | null) => {
   if (!src || typeof window === 'undefined' || preloadedLeagueImages.has(src)) return;
+  preloadedLeagueImages.add(src);
   const img = new Image();
-  img.decoding = 'async';
   img.src = src;
-  const markReady = () => preloadedLeagueImages.add(src);
-  img.onload = markReady;
-  img.onerror = markReady;
   if (typeof img.decode === 'function') {
-    img.decode().then(markReady).catch(() => {});
+    img.decode().catch(() => {});
   }
 };
 
@@ -1310,22 +1307,12 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     }
   }, [gameMode, selectedLeague]);
 
+  // Предзагрузка всех картинок лиг при появлении списка — чтобы при пролистывании картинки уже были в кэше
   useEffect(() => {
     const list = allLeagues ?? [];
-    const n = list.length;
-    if (n === 0) return;
-    const indexes = new Set<number>([
-      leagueCarouselIndex,
-      (leagueCarouselIndex - 2 + n) % n,
-      (leagueCarouselIndex - 1 + n) % n,
-      (leagueCarouselIndex + 1) % n,
-      (leagueCarouselIndex + 2) % n,
-    ]);
-    indexes.forEach((idx) => {
-      const amount = list[idx];
-      preloadLeagueImage(LEAGUE_IMAGES[amount]);
-    });
-  }, [allLeagues, leagueCarouselIndex]);
+    if (list.length === 0) return;
+    list.forEach((amount) => preloadLeagueImage(LEAGUE_IMAGES[amount]));
+  }, [allLeagues]);
 
   useEffect(() => {
     const saveOnUnload = () => {
@@ -3709,7 +3696,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                                           alt=""
                                                           className="confrontation-league-image"
                                                           loading="eager"
-                                                          decoding="async"
+                                                          decoding={side === 'center' ? 'sync' : 'async'}
                                                           fetchPriority={side === 'center' ? 'high' : 'low'}
                                                           onError={(e) => {
                                                             const t = e.target as HTMLImageElement;
