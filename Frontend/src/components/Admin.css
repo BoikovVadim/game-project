@@ -1064,6 +1064,69 @@
   cursor: pointer;
 }
 
+.admin-stats-controls--tournaments {
+  display: flex;
+  align-items: center;
+  gap: 8px 14px;
+  flex-wrap: wrap;
+}
+
+.admin-tournament-columns-reset {
+  padding: 6px 10px;
+  border: 1px solid #d0d0d0;
+  border-radius: 8px;
+  background: #fff;
+  color: #333;
+  font-size: clamp(11px, 0.5vw + 7px, 13px);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.admin-tournament-columns-reset:hover:not(:disabled) {
+  background: #f5f5f5;
+}
+
+.admin-tournament-columns-reset:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.admin-tournament-th-inner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.admin-tournament-th-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.admin-table .admin-tournament-th-move {
+  min-width: 22px;
+  padding: 2px 4px;
+  border: 1px solid #d0d0d0;
+  border-radius: 6px;
+  background: #fff;
+  color: #555;
+  font-size: 11px;
+  line-height: 1;
+  text-align: center;
+}
+
+.admin-table .admin-tournament-th-move:hover:not(:disabled) {
+  background: #f4f4f4;
+  border-color: #bdbdbd;
+  color: #222;
+}
+
+.admin-table .admin-tournament-th-move:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 .admin-stats-kpi {
   display: flex;
   flex-wrap: nowrap;

@@ -25,6 +25,73 @@ type WithdrawalRequestRow = {
 
 type UserRow = { id: number; username: string; email: string; balance: number; balanceRubles: number; isAdmin: boolean };
 
+type TournamentColumnKey =
+  | 'tournamentId'
+  | 'userNickname'
+  | 'userId'
+  | 'phase'
+  | 'stage'
+  | 'roundStartedAt'
+  | 'deadline'
+  | 'status'
+  | 'questions'
+  | 'userStatus'
+  | 'createdAt'
+  | 'playersCount'
+  | 'leagueAmount'
+  | 'resultLabel'
+  | 'correctAnswersInRound'
+  | 'completedAt';
+
+const DEFAULT_TOURNAMENT_COLUMNS: TournamentColumnKey[] = [
+  'tournamentId',
+  'userNickname',
+  'userId',
+  'phase',
+  'stage',
+  'roundStartedAt',
+  'deadline',
+  'status',
+  'questions',
+  'userStatus',
+  'createdAt',
+  'playersCount',
+  'leagueAmount',
+  'resultLabel',
+  'correctAnswersInRound',
+  'completedAt',
+];
+
+const TOURNAMENT_COLUMN_LABELS: Record<TournamentColumnKey, string> = {
+  tournamentId: 'ID турнира',
+  userNickname: 'Ник игрока',
+  userId: 'ID игрока',
+  phase: 'Фаза',
+  stage: 'Этап',
+  roundStartedAt: 'Старт раунда',
+  deadline: 'Осталось до конца',
+  status: 'Статус турнира',
+  questions: 'Вопросы',
+  userStatus: 'Статус',
+  createdAt: 'Создан',
+  playersCount: 'Игроков',
+  leagueAmount: 'Ставка лиги',
+  resultLabel: 'Результат',
+  correctAnswersInRound: 'Верных в раунде',
+  completedAt: 'Завершён',
+};
+
+const parseTournamentColumns = (raw: string | null): TournamentColumnKey[] => {
+  if (!raw) return DEFAULT_TOURNAMENT_COLUMNS;
+  const parsed = raw
+    .split(',')
+    .map((item) => item.trim())
+    .filter((item): item is TournamentColumnKey => DEFAULT_TOURNAMENT_COLUMNS.includes(item as TournamentColumnKey));
+  const unique = Array.from(new Set(parsed));
+  if (unique.length !== DEFAULT_TOURNAMENT_COLUMNS.length) return DEFAULT_TOURNAMENT_COLUMNS;
+  return unique;
+};
+
 const Admin: React.FC<AdminProps> = ({ token }) => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -172,6 +239,9 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
   const [tournamentsListError, setTournamentsListError] = useState<string | null>(null);
   const tournamentsListLoadedRef = React.useRef(false);
   const [tournamentIdFilter, setTournamentIdFilter] = useState<string>(() => searchParams.get('tournamentId') ?? '');
+  const [tournamentColumns, setTournamentColumns] = useState<TournamentColumnKey[]>(
+    () => parseTournamentColumns(searchParams.get('tournamentCols')),
+  );
   const [qsSortBy, setQsSortBy] = useState<'topic' | 'count'>('count');
   const [qsSortDir, setQsSortDir] = useState<'asc' | 'desc'>('desc');
   type TxRow = { id: number; userId: number; username: string; email: string; amount: number; description: string; category: string; createdAt: string };
@@ -206,6 +276,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
     else if (sTab === 'overview' || !sTab) setStatsSubTab((prev) => sTab === 'overview' ? 'overview' : prev);
     const tid = searchParams.get('tournamentId');
     if (tid !== null) setTournamentIdFilter(tid ?? '');
+    setTournamentColumns(parseTournamentColumns(searchParams.get('tournamentCols')));
   }, [searchParams]);
 
   const setSectionAndUrl = (next: 'withdrawals' | 'users' | 'credit' | 'support' | 'statistics' | 'news') => {
@@ -560,6 +631,64 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
     if (!isAdmin || !token || section !== 'statistics' || statsSubTab !== 'tournaments') return;
     fetchTournamentsList();
   }, [isAdmin, token, section, statsSubTab, fetchTournamentsList]);
+
+  const updateTournamentColumns = React.useCallback((nextColumns: TournamentColumnKey[]) => {
+    setTournamentColumns(nextColumns);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('tournamentCols', nextColumns.join(','));
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  const moveTournamentColumn = React.useCallback((column: TournamentColumnKey, direction: 'left' | 'right') => {
+    const index = tournamentColumns.indexOf(column);
+    if (index < 0) return;
+    const targetIndex = direction === 'left' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= tournamentColumns.length) return;
+    const next = [...tournamentColumns];
+    [next[index], next[targetIndex]] = [next[targetIndex], next[index]];
+    updateTournamentColumns(next);
+  }, [tournamentColumns, updateTournamentColumns]);
+
+  const renderTournamentCell = React.useCallback((row: TournamentListRow, column: TournamentColumnKey) => {
+    switch (column) {
+      case 'tournamentId':
+        return <td style={{ textAlign: 'center' }}>{row.tournamentId}</td>;
+      case 'userNickname':
+        return <td className="admin-td-left">{row.userNickname}</td>;
+      case 'userId':
+        return <td style={{ textAlign: 'center' }}>{row.userId}</td>;
+      case 'phase':
+        return <td style={{ textAlign: 'center' }}>{row.phase === 'active' ? 'Активный' : 'История'}</td>;
+      case 'stage':
+        return <td style={{ textAlign: 'center' }}>{row.stage ?? '—'}</td>;
+      case 'roundStartedAt':
+        return <td style={{ textAlign: 'center' }}>{row.roundStartedAt ? formatMoscowDateTime(row.roundStartedAt) : '—'}</td>;
+      case 'deadline':
+        return <td style={{ textAlign: 'center' }}>{formatTimeLeft(row.deadline)}</td>;
+      case 'status':
+        return <td style={{ textAlign: 'center' }}>{getTournamentStatusLabel(row.status)}</td>;
+      case 'questions':
+        return <td style={{ textAlign: 'center' }}>{`${row.questionsAnswered}/${row.questionsTotal}${row.correctAnswersInRound != null ? `/${row.correctAnswersInRound}` : ''}`}</td>;
+      case 'userStatus':
+        return <td style={{ textAlign: 'center' }}>{row.userStatus === 'passed' ? 'Пройден' : 'Не пройден'}</td>;
+      case 'createdAt':
+        return <td style={{ textAlign: 'center' }}>{row.createdAt ? formatMoscowDateTime(row.createdAt) : '—'}</td>;
+      case 'playersCount':
+        return <td style={{ textAlign: 'center' }}>{row.playersCount}</td>;
+      case 'leagueAmount':
+        return <td style={{ textAlign: 'center' }}>{row.leagueAmount != null ? row.leagueAmount : '—'}</td>;
+      case 'resultLabel':
+        return <td className="admin-td-left">{row.resultLabel ?? '—'}</td>;
+      case 'correctAnswersInRound':
+        return <td style={{ textAlign: 'center' }}>{row.correctAnswersInRound}</td>;
+      case 'completedAt':
+        return <td style={{ textAlign: 'center' }}>{row.completedAt ? formatMoscowDateTime(row.completedAt) : '—'}</td>;
+      default:
+        return <td>—</td>;
+    }
+  }, []);
 
   const sortedQuestionStats = React.useMemo(() => {
     const list = [...questionStats];
@@ -1443,7 +1572,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
           )}
           {statsSubTab === 'tournaments' && (
             <div className="admin-stats-section">
-              <div className="admin-stats-controls" style={{ marginBottom: 8 }}>
+              <div className="admin-stats-controls admin-stats-controls--tournaments" style={{ marginBottom: 8 }}>
                 <label>
                   Поиск по ID турнира:{' '}
                   <input
@@ -1463,6 +1592,14 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                     style={{ width: 160 }}
                   />
                 </label>
+                <button
+                  type="button"
+                  className="admin-tournament-columns-reset"
+                  onClick={() => updateTournamentColumns(DEFAULT_TOURNAMENT_COLUMNS)}
+                  disabled={tournamentColumns.join(',') === DEFAULT_TOURNAMENT_COLUMNS.join(',')}
+                >
+                  Сбросить порядок столбцов
+                </button>
               </div>
               {tournamentsListLoading && !tournamentsListLoadedRef.current ? (
                 <p>Загрузка...</p>
@@ -1480,43 +1617,45 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                     <table className="admin-table admin-table--tournaments">
                       <thead>
                         <tr>
-                          <th>ID турнира</th>
-                          <th>Ник игрока</th>
-                          <th>ID игрока</th>
-                          <th>Фаза</th>
-                          <th>Этап</th>
-                          <th>Старт раунда</th>
-                          <th>Осталось до конца</th>
-                          <th>Статус турнира</th>
-                          <th>Вопросы</th>
-                          <th>Статус</th>
-                          <th>Создан</th>
-                          <th>Игроков</th>
-                          <th>Ставка лиги</th>
-                          <th>Результат</th>
-                          <th>Верных в раунде</th>
-                          <th>Завершён</th>
+                          {tournamentColumns.map((column, index) => (
+                            <th key={column}>
+                              <div className="admin-tournament-th-inner">
+                                <span>{TOURNAMENT_COLUMN_LABELS[column]}</span>
+                                <span className="admin-tournament-th-actions">
+                                  <button
+                                    type="button"
+                                    className="admin-tournament-th-move"
+                                    onClick={() => moveTournamentColumn(column, 'left')}
+                                    disabled={index === 0}
+                                    aria-label={`Сдвинуть столбец «${TOURNAMENT_COLUMN_LABELS[column]}» влево`}
+                                    title="Сдвинуть влево"
+                                  >
+                                    ←
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="admin-tournament-th-move"
+                                    onClick={() => moveTournamentColumn(column, 'right')}
+                                    disabled={index === tournamentColumns.length - 1}
+                                    aria-label={`Сдвинуть столбец «${TOURNAMENT_COLUMN_LABELS[column]}» вправо`}
+                                    title="Сдвинуть вправо"
+                                  >
+                                    →
+                                  </button>
+                                </span>
+                              </div>
+                            </th>
+                          ))}
                         </tr>
                       </thead>
                       <tbody>
                         {filtered.map((row, idx) => (
                           <tr key={`${row.tournamentId}-${row.userId}-${idx}`}>
-                            <td style={{ textAlign: 'center' }}>{row.tournamentId}</td>
-                            <td className="admin-td-left">{row.userNickname}</td>
-                            <td style={{ textAlign: 'center' }}>{row.userId}</td>
-                            <td style={{ textAlign: 'center' }}>{row.phase === 'active' ? 'Активный' : 'История'}</td>
-                            <td style={{ textAlign: 'center' }}>{row.stage ?? '—'}</td>
-                            <td style={{ textAlign: 'center' }}>{row.roundStartedAt ? formatMoscowDateTime(row.roundStartedAt) : '—'}</td>
-                            <td style={{ textAlign: 'center' }}>{formatTimeLeft(row.deadline)}</td>
-                            <td style={{ textAlign: 'center' }}>{getTournamentStatusLabel(row.status)}</td>
-                            <td style={{ textAlign: 'center' }}>{`${row.questionsAnswered}/${row.questionsTotal}${row.correctAnswersInRound != null ? `/${row.correctAnswersInRound}` : ''}`}</td>
-                            <td style={{ textAlign: 'center' }}>{row.userStatus === 'passed' ? 'Пройден' : 'Не пройден'}</td>
-                            <td style={{ textAlign: 'center' }}>{row.createdAt ? formatMoscowDateTime(row.createdAt) : '—'}</td>
-                            <td style={{ textAlign: 'center' }}>{row.playersCount}</td>
-                            <td style={{ textAlign: 'center' }}>{row.leagueAmount != null ? row.leagueAmount : '—'}</td>
-                            <td className="admin-td-left">{row.resultLabel ?? '—'}</td>
-                            <td style={{ textAlign: 'center' }}>{row.correctAnswersInRound}</td>
-                            <td style={{ textAlign: 'center' }}>{row.completedAt ? formatMoscowDateTime(row.completedAt) : '—'}</td>
+                            {tournamentColumns.map((column) => (
+                              <React.Fragment key={column}>
+                                {renderTournamentCell(row, column)}
+                              </React.Fragment>
+                            ))}
                           </tr>
                         ))}
                       </tbody>

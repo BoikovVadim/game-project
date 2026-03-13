@@ -598,7 +598,7 @@ export class TournamentsService implements OnModuleInit {
 
         if (tournamentResolved) {
           tournament.status = TournamentStatus.FINISHED;
-          await this.tournamentRepository.save(tournament);
+          await this.tournamentRepository.update({ id: tournament.id }, { status: TournamentStatus.FINISHED });
           if (tournament.gameType === 'money') {
             await this.processTournamentEscrow(tournament.id);
           }
@@ -1333,6 +1333,48 @@ export class TournamentsService implements OnModuleInit {
       for (const t of fromPlayers) if (t.id > 0) tids.add(t.id);
     } catch (e) {
       this.logger.warn('[getMyTournaments] fromPlayers', (e as Error)?.message);
+    }
+    try {
+      const rawPlayerOrder = await this.tournamentRepository.manager.connection.query(
+        `SELECT t.id
+         FROM tournament t
+         WHERE EXISTS (
+           SELECT 1
+           FROM json_array_elements_text(
+             CASE
+               WHEN t."playerOrder" IS NULL OR t."playerOrder" IN ('', 'null') THEN '[]'::json
+               ELSE t."playerOrder"::json
+             END
+           ) AS ord(value)
+           WHERE (ord.value)::int = $1
+         )`,
+        [userId],
+      );
+      for (const row of (Array.isArray(rawPlayerOrder) ? rawPlayerOrder : [])) {
+        if (row?.id > 0) tids.add(Number(row.id));
+      }
+    } catch (e) {
+      this.logger.warn('[getMyTournaments] fromPlayerOrder', (e as Error)?.message);
+      try {
+        const rawPlayerOrderSnake = await this.tournamentRepository.manager.connection.query(
+          `SELECT t.id
+           FROM tournament t
+           WHERE EXISTS (
+             SELECT 1
+             FROM json_array_elements_text(
+               CASE
+                 WHEN t.player_order IS NULL OR t.player_order IN ('', 'null') THEN '[]'::json
+                 ELSE t.player_order::json
+               END
+             ) AS ord(value)
+             WHERE (ord.value)::int = $1
+           )`,
+          [userId],
+        );
+        for (const row of (Array.isArray(rawPlayerOrderSnake) ? rawPlayerOrderSnake : [])) {
+          if (row?.id > 0) tids.add(Number(row.id));
+        }
+      } catch (_) {}
     }
 
     if (tids.size === 0) {
@@ -2154,11 +2196,11 @@ export class TournamentsService implements OnModuleInit {
       return resultByTournamentId.get(t.id) === true ? 'passed' : 'not_passed';
     };
 
-    const isTimeExpired = (t: Tournament): boolean => {
+    function isTimeExpired(t: Tournament): boolean {
       const deadline = deadlineByTournamentId[t.id];
       if (!deadline) return false;
       return new Date(deadline) < now;
-    };
+    }
 
     const belongsToHistory = (t: Tournament): boolean => {
       if (t.status === TournamentStatus.FINISHED) {
@@ -2250,7 +2292,7 @@ export class TournamentsService implements OnModuleInit {
     return { active, completed };
   }
 
-  /** Восстановить tournament_players_user из tournament_entry и tournament_progress (все недостающие пары). После бага save(tournament) перезаписывал связь — игроки пропадали. */
+  /** Восстановить связи участников турниров из entry, progress и playerOrder. */
   async backfillTournamentPlayersFromEntry(): Promise<{ inserted: number }> {
     const dataSource = this.tournamentRepository.manager.connection;
     let totalInserted = 0;
@@ -2307,6 +2349,90 @@ export class TournamentsService implements OnModuleInit {
           )
         `;
         const r = await dataSource.query(qProgressSnake);
+        totalInserted += Number(typeof r?.rowCount === 'number' ? r.rowCount : (Array.isArray(r) ? r.length : 0)) || 0;
+      } catch (_) {}
+    }
+    try {
+      const qOrderPlayers = `
+        INSERT INTO tournament_players_user ("tournamentId", "userId")
+        SELECT t.id, (ord.value)::int
+        FROM tournament t
+        CROSS JOIN LATERAL json_array_elements_text(
+          CASE
+            WHEN t."playerOrder" IS NULL OR t."playerOrder" IN ('', 'null') THEN '[]'::json
+            ELSE t."playerOrder"::json
+          END
+        ) AS ord(value)
+        WHERE (ord.value)::int > 0
+          AND NOT EXISTS (
+            SELECT 1 FROM tournament_players_user tpu
+            WHERE tpu."tournamentId" = t.id AND tpu."userId" = (ord.value)::int
+          )
+      `;
+      const rOrderPlayers = await dataSource.query(qOrderPlayers);
+      totalInserted += Number(typeof rOrderPlayers?.rowCount === 'number' ? rOrderPlayers.rowCount : (Array.isArray(rOrderPlayers) ? rOrderPlayers.length : 0)) || 0;
+    } catch (e) {
+      this.logger.warn('[backfillTournamentPlayersFromEntry] playerOrder->players', (e as Error)?.message);
+      try {
+        const qOrderPlayersSnake = `
+          INSERT INTO tournament_players_user (tournament_id, user_id)
+          SELECT t.id, (ord.value)::int
+          FROM tournament t
+          CROSS JOIN LATERAL json_array_elements_text(
+            CASE
+              WHEN t.player_order IS NULL OR t.player_order IN ('', 'null') THEN '[]'::json
+              ELSE t.player_order::json
+            END
+          ) AS ord(value)
+          WHERE (ord.value)::int > 0
+            AND NOT EXISTS (
+              SELECT 1 FROM tournament_players_user tpu
+              WHERE tpu.tournament_id = t.id AND tpu.user_id = (ord.value)::int
+            )
+        `;
+        const r = await dataSource.query(qOrderPlayersSnake);
+        totalInserted += Number(typeof r?.rowCount === 'number' ? r.rowCount : (Array.isArray(r) ? r.length : 0)) || 0;
+      } catch (_) {}
+    }
+    try {
+      const qOrderEntries = `
+        INSERT INTO tournament_entry ("tournamentId", "userId", "joinedAt")
+        SELECT t.id, (ord.value)::int, COALESCE(t."createdAt", NOW())
+        FROM tournament t
+        CROSS JOIN LATERAL json_array_elements_text(
+          CASE
+            WHEN t."playerOrder" IS NULL OR t."playerOrder" IN ('', 'null') THEN '[]'::json
+            ELSE t."playerOrder"::json
+          END
+        ) AS ord(value)
+        WHERE (ord.value)::int > 0
+          AND NOT EXISTS (
+            SELECT 1 FROM tournament_entry te
+            WHERE te."tournamentId" = t.id AND te."userId" = (ord.value)::int
+          )
+      `;
+      const rOrderEntries = await dataSource.query(qOrderEntries);
+      totalInserted += Number(typeof rOrderEntries?.rowCount === 'number' ? rOrderEntries.rowCount : (Array.isArray(rOrderEntries) ? rOrderEntries.length : 0)) || 0;
+    } catch (e) {
+      this.logger.warn('[backfillTournamentPlayersFromEntry] playerOrder->entry', (e as Error)?.message);
+      try {
+        const qOrderEntriesSnake = `
+          INSERT INTO tournament_entry (tournament_id, user_id, joined_at)
+          SELECT t.id, (ord.value)::int, COALESCE(t.created_at, NOW())
+          FROM tournament t
+          CROSS JOIN LATERAL json_array_elements_text(
+            CASE
+              WHEN t.player_order IS NULL OR t.player_order IN ('', 'null') THEN '[]'::json
+              ELSE t.player_order::json
+            END
+          ) AS ord(value)
+          WHERE (ord.value)::int > 0
+            AND NOT EXISTS (
+              SELECT 1 FROM tournament_entry te
+              WHERE te.tournament_id = t.id AND te.user_id = (ord.value)::int
+            )
+        `;
+        const r = await dataSource.query(qOrderEntriesSnake);
         totalInserted += Number(typeof r?.rowCount === 'number' ? r.rowCount : (Array.isArray(r) ? r.length : 0)) || 0;
       } catch (_) {}
     }
