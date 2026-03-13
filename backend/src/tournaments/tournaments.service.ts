@@ -2338,7 +2338,21 @@ export class TournamentsService implements OnModuleInit {
     };
 
     const getUserStatus = (t: Tournament): 'passed' | 'not_passed' => {
-      return resultByTournamentId.get(t.id) === true ? 'passed' : 'not_passed';
+      const rp = getRealPlayerCount(t);
+      if (rp < 4) {
+        return getResultLabel(t) === 'Победа' ? 'passed' : 'not_passed';
+      }
+
+      const prog = progressByTid.get(t.id);
+      if (!prog) return 'not_passed';
+
+      const semiResult = getMoneySemiResult(t);
+      if (semiResult.result !== 'won') return 'not_passed';
+
+      const mySemiTotal = semiPhaseQuestions(prog);
+      if ((prog.q ?? 0) < mySemiTotal + QUESTIONS_PER_ROUND) return 'not_passed';
+
+      return getFinalResult(t, prog) === 'won' ? 'passed' : 'not_passed';
     };
 
     function isTimeExpired(t: Tournament): boolean {
