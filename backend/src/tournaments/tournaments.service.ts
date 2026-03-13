@@ -1,6 +1,6 @@
 import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, IsNull } from 'typeorm';
+import { Repository, In, IsNull, Not } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Tournament, TournamentStatus, ROUND_DEADLINE_HOURS } from './tournament.entity';
 import { Question } from './question.entity';
@@ -1232,12 +1232,20 @@ export class TournamentsService implements OnModuleInit {
     active: { id: number; status: string; createdAt: string; playersCount: number; leagueAmount: number | null; deadline: string | null; userStatus: 'passed' | 'not_passed'; stage?: string; resultLabel?: string; roundForQuestions: 'semi' | 'final'; questionsAnswered: number; questionsTotal: number; correctAnswersInRound: number; roundFinished?: boolean; roundStartedAt?: string | null }[];
     completed: { id: number; status: string; createdAt: string; playersCount: number; leagueAmount: number | null; userStatus: 'passed' | 'not_passed'; stage?: string; resultLabel?: string; roundForQuestions: 'semi' | 'final'; questionsAnswered: number; questionsTotal: number; correctAnswersInRound: number; completedAt?: string | null; roundStartedAt?: string | null }[];
   }> {
-    await this.tournamentRepository
-      .createQueryBuilder()
-      .update(Tournament)
-      .set({ gameType: 'training' })
-      .where('gameType IS NULL')
-      .execute();
+    // Старые записи: gameType IS NULL — если есть leagueAmount, то money, иначе training (не затирать денежные турниры)
+    await this.tournamentRepository.update(
+      { gameType: IsNull(), leagueAmount: Not(IsNull()) },
+      { gameType: 'money' },
+    );
+    await this.tournamentRepository.update(
+      { gameType: IsNull(), leagueAmount: IsNull() },
+      { gameType: 'training' },
+    );
+    // Восстановить денежные турниры, ошибочно помеченные как training (например после старого UPDATE)
+    await this.tournamentRepository.update(
+      { gameType: 'training', leagueAmount: Not(IsNull()) },
+      { gameType: 'money' },
+    );
 
     if (mode === 'money') {
       await this.processAllExpiredEscrows();
