@@ -868,6 +868,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   const [leagueCarouselIndex, setLeagueCarouselIndex] = useState(0);
   /** Показываем в центре карусели только после загрузки картинки, чтобы не было мелькания пустого места */
   const [displayedCenterAmount, setDisplayedCenterAmount] = useState<number | null>(null);
+  const centerImgRef = useRef<HTMLImageElement>(null);
   const selectedLeagueRef = useRef(5);
 
   const [gameHistory, setGameHistory] = useState<{
@@ -1308,6 +1309,23 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     if (list.length === 0) return;
     const centerAmount = list[leagueCarouselIndex] ?? list[0] ?? 5;
     if (!LEAGUE_IMAGES[centerAmount]) setDisplayedCenterAmount(centerAmount);
+  }, [allLeagues, leagueCarouselIndex]);
+
+  // Приоритетная загрузка и декод картинок текущей и соседних лиг (±2), чтобы по клику влево/вправо картинка уже была в памяти
+  useEffect(() => {
+    const list = allLeagues ?? [];
+    const n = list.length;
+    if (n === 0) return;
+    const idx = leagueCarouselIndex;
+    for (let d = -2; d <= 2; d++) {
+      const i = (idx + d + n) % n;
+      const amount = list[i];
+      const src = LEAGUE_IMAGES[amount];
+      if (!src) continue;
+      const img = new Image();
+      img.src = src;
+      if (typeof img.decode === 'function') img.decode().catch(() => {});
+    }
   }, [allLeagues, leagueCarouselIndex]);
 
   useEffect(() => {
@@ -3665,6 +3683,14 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                             setLeagueCarouselIndex(next);
                                             setSelectedLeague(list[next] ?? 5);
                                           }}
+                                          onMouseEnter={() => {
+                                            const list = allLeagues ?? [];
+                                            if (list.length === 0) return;
+                                            const prevIdx = leagueCarouselIndex <= 0 ? list.length - 1 : leagueCarouselIndex - 1;
+                                            const amount = list[prevIdx];
+                                            const src = LEAGUE_IMAGES[amount];
+                                            if (src) { const img = new Image(); img.src = src; if (typeof img.decode === 'function') img.decode().catch(() => {}); }
+                                          }}
                                           aria-label="Предыдущая лига"
                                         >
                                           ‹
@@ -3674,10 +3700,11 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                             const list = allLeagues ?? [];
                                             const n = list.length;
                                             if (n === 0) return null;
-                                            const renderCard = (amount: number, side: 'prev' | 'center' | 'next') => {
+                                            const renderCard = (amount: number, side: 'prev' | 'center' | 'next', centerImgRefArg?: React.RefObject<HTMLImageElement | null>) => {
                                               const gem = LEAGUE_GEMS[amount] ?? { name: `Лига ${formatNum(amount)} ${CURRENCY}`, color: '#888' };
                                               const isAllowed = (allowedLeagues ?? []).includes(amount);
                                               const online = (playersOnlineByLeague ?? {})[amount] ?? 0;
+                                              const imgRef = side === 'center' && centerImgRefArg ? centerImgRefArg : undefined;
                                               return (
                                                 <button
                                                   key={`${amount}-${side}`}
@@ -3689,6 +3716,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                                     {LEAGUE_IMAGES[amount] ? (
                                                       <>
                                                         <img
+                                                          ref={imgRef}
                                                           src={LEAGUE_IMAGES[amount]}
                                                           alt=""
                                                           className="confrontation-league-image"
@@ -3726,6 +3754,12 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                             const prevAmount = list[prevIdx] ?? centerAmount;
                                             const nextAmount = list[nextIdx] ?? centerAmount;
                                             const centerDisplayAmount = displayedCenterAmount ?? centerAmount;
+                                            const onCenterImageLoaded = () => {
+                                              if (centerImgRef.current && LEAGUE_IMAGES[centerAmount]) {
+                                                centerImgRef.current.src = LEAGUE_IMAGES[centerAmount];
+                                              }
+                                              setDisplayedCenterAmount(centerAmount);
+                                            };
                                             if (n === 1) {
                                               return (
                                                 <>
@@ -3736,10 +3770,10 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                                       alt=""
                                                       aria-hidden
                                                       style={{ position: 'absolute', width: 0, height: 0, opacity: 0, pointerEvents: 'none' }}
-                                                      onLoad={() => setDisplayedCenterAmount(centerAmount)}
+                                                      onLoad={onCenterImageLoaded}
                                                     />
                                                   )}
-                                                  {renderCard(centerDisplayAmount, 'center')}
+                                                  {renderCard(centerDisplayAmount, 'center', centerImgRef)}
                                                 </>
                                               );
                                             }
@@ -3752,11 +3786,11 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                                     alt=""
                                                     aria-hidden
                                                     style={{ position: 'absolute', width: 0, height: 0, opacity: 0, pointerEvents: 'none' }}
-                                                    onLoad={() => setDisplayedCenterAmount(centerAmount)}
+                                                    onLoad={onCenterImageLoaded}
                                                   />
                                                 )}
                                                 {renderCard(prevAmount, 'prev')}
-                                                {renderCard(centerDisplayAmount, 'center')}
+                                                {renderCard(centerDisplayAmount, 'center', centerImgRef)}
                                                 {renderCard(nextAmount, 'next')}
                                               </>
                                             );
@@ -3770,6 +3804,14 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                             const next = leagueCarouselIndex >= list.length - 1 ? 0 : leagueCarouselIndex + 1;
                                             setLeagueCarouselIndex(next);
                                             setSelectedLeague(list[next] ?? 5);
+                                          }}
+                                          onMouseEnter={() => {
+                                            const list = allLeagues ?? [];
+                                            if (list.length === 0) return;
+                                            const nextIdx = leagueCarouselIndex >= list.length - 1 ? 0 : leagueCarouselIndex + 1;
+                                            const amount = list[nextIdx];
+                                            const src = LEAGUE_IMAGES[amount];
+                                            if (src) { const img = new Image(); img.src = src; if (typeof img.decode === 'function') img.decode().catch(() => {}); }
                                           }}
                                           aria-label="Следующая лига"
                                         >
