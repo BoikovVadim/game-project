@@ -2104,9 +2104,15 @@ export class TournamentsService implements OnModuleInit {
     return { active, completed };
   }
 
-  /** Для админки: все участия в турнирах по всем игрокам (данные турнира + участник + фаза), сортировка по ID турнира. */
+  /** Для админки: все участия в турнирах по всем игрокам — все поля как у игрока + userId, userNickname, phase. */
   async getAllParticipationsForAdmin(): Promise<
-    { tournamentId: number; tournamentStatus: string; tournamentCreatedAt: string; userId: number; userNickname: string; phase: 'active' | 'history' }[]
+    {
+      tournamentId: number; status: string; createdAt: string; playersCount: number; leagueAmount: number | null;
+      deadline: string | null; userStatus: string; stage?: string; resultLabel?: string; roundForQuestions: string;
+      questionsAnswered: number; questionsTotal: number; correctAnswersInRound: number;
+      completedAt?: string | null; roundFinished?: boolean; roundStartedAt?: string | null;
+      userId: number; userNickname: string; phase: 'active' | 'history';
+    }[]
   > {
     const progressList = await this.tournamentProgressRepository.find({
       select: ['userId', 'tournamentId'],
@@ -2120,29 +2126,64 @@ export class TournamentsService implements OnModuleInit {
     });
     const nicknameByUserId = new Map(users.map((u) => [u.id, u.username ?? `Игрок ${u.id}`]));
 
-    const result: { tournamentId: number; tournamentStatus: string; tournamentCreatedAt: string; userId: number; userNickname: string; phase: 'active' | 'history' }[] = [];
+    const result: {
+      tournamentId: number; status: string; createdAt: string; playersCount: number; leagueAmount: number | null;
+      deadline: string | null; userStatus: string; stage?: string; resultLabel?: string; roundForQuestions: string;
+      questionsAnswered: number; questionsTotal: number; correctAnswersInRound: number;
+      completedAt?: string | null; roundFinished?: boolean; roundStartedAt?: string | null;
+      userId: number; userNickname: string; phase: 'active' | 'history';
+    }[] = [];
     for (const userId of userIds) {
-      const { active, completed } = await this.getMyTournaments(userId);
-      const nickname = nicknameByUserId.get(userId) ?? `Игрок ${userId}`;
-      for (const item of active) {
-        result.push({
-          tournamentId: item.id,
-          tournamentStatus: item.status ?? '',
-          tournamentCreatedAt: item.createdAt ?? '',
-          userId,
-          userNickname: nickname,
-          phase: 'active',
-        });
-      }
-      for (const item of completed) {
-        result.push({
-          tournamentId: item.id,
-          tournamentStatus: item.status ?? '',
-          tournamentCreatedAt: item.createdAt ?? '',
-          userId,
-          userNickname: nickname,
-          phase: 'history',
-        });
+      try {
+        const { active, completed } = await this.getMyTournaments(userId);
+        const nickname = nicknameByUserId.get(userId) ?? `Игрок ${userId}`;
+        for (const item of active) {
+          result.push({
+            tournamentId: item.id,
+            status: item.status ?? '',
+            createdAt: item.createdAt ?? '',
+            playersCount: item.playersCount ?? 0,
+            leagueAmount: item.leagueAmount ?? null,
+            deadline: item.deadline ?? null,
+            userStatus: item.userStatus ?? 'not_passed',
+            stage: item.stage,
+            resultLabel: item.resultLabel,
+            roundForQuestions: item.roundForQuestions ?? 'semi',
+            questionsAnswered: item.questionsAnswered ?? 0,
+            questionsTotal: item.questionsTotal ?? 0,
+            correctAnswersInRound: item.correctAnswersInRound ?? 0,
+            roundFinished: item.roundFinished,
+            roundStartedAt: item.roundStartedAt ?? null,
+            userId,
+            userNickname: nickname,
+            phase: 'active',
+          });
+        }
+        for (const item of completed) {
+          result.push({
+            tournamentId: item.id,
+            status: item.status ?? '',
+            createdAt: item.createdAt ?? '',
+            playersCount: item.playersCount ?? 0,
+            leagueAmount: item.leagueAmount ?? null,
+            deadline: null,
+            userStatus: item.userStatus ?? 'not_passed',
+            stage: item.stage,
+            resultLabel: item.resultLabel,
+            roundForQuestions: item.roundForQuestions ?? 'semi',
+            questionsAnswered: item.questionsAnswered ?? 0,
+            questionsTotal: item.questionsTotal ?? 0,
+            correctAnswersInRound: item.correctAnswersInRound ?? 0,
+            completedAt: item.completedAt ?? null,
+            roundStartedAt: item.roundStartedAt ?? null,
+            userId,
+            userNickname: nickname,
+            phase: 'history',
+          });
+        }
+      } catch (e) {
+        // Один пользователь не должен ломать весь список
+        console.warn('[getAllParticipationsForAdmin] skip user', userId, e);
       }
     }
     result.sort((a, b) => {

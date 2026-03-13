@@ -160,11 +160,18 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
   const [questionStatsLoading, setQuestionStatsLoading] = useState(false);
   const questionStatsLoadedRef = React.useRef(false);
 
-  type TournamentListRow = { tournamentId: number; tournamentStatus: string; tournamentCreatedAt: string; userId: number; userNickname: string; phase: 'active' | 'history' };
+  type TournamentListRow = {
+    tournamentId: number; status: string; createdAt: string; playersCount: number; leagueAmount: number | null;
+    deadline: string | null; userStatus: string; stage?: string; resultLabel?: string; roundForQuestions: string;
+    questionsAnswered: number; questionsTotal: number; correctAnswersInRound: number;
+    completedAt?: string | null; roundFinished?: boolean; roundStartedAt?: string | null;
+    userId: number; userNickname: string; phase: 'active' | 'history';
+  };
   const [tournamentsList, setTournamentsList] = useState<TournamentListRow[]>([]);
   const [tournamentsListLoading, setTournamentsListLoading] = useState(false);
   const [tournamentsListError, setTournamentsListError] = useState<string | null>(null);
   const tournamentsListLoadedRef = React.useRef(false);
+  const [tournamentIdFilter, setTournamentIdFilter] = useState<string>(() => searchParams.get('tournamentId') ?? '');
   const [qsSortBy, setQsSortBy] = useState<'topic' | 'count'>('count');
   const [qsSortDir, setQsSortDir] = useState<'asc' | 'desc'>('desc');
   type TxRow = { id: number; userId: number; username: string; email: string; amount: number; description: string; category: string; createdAt: string };
@@ -197,6 +204,8 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
     else if (sTab === 'questions') setStatsSubTab('questions');
     else if (sTab === 'tournaments') setStatsSubTab('tournaments');
     else if (sTab === 'overview' || !sTab) setStatsSubTab((prev) => sTab === 'overview' ? 'overview' : prev);
+    const tid = searchParams.get('tournamentId');
+    if (tid !== null) setTournamentIdFilter(tid ?? '');
   }, [searchParams]);
 
   const setSectionAndUrl = (next: 'withdrawals' | 'users' | 'credit' | 'support' | 'statistics' | 'news') => {
@@ -1423,52 +1432,91 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
           {statsSubTab === 'tournaments' && (
             <div className="admin-stats-section">
               <div className="admin-stats-controls" style={{ marginBottom: 8 }}>
-                <button
-                  type="button"
-                  className="admin-btn-approve"
-                  style={{ marginRight: 8 }}
-                  disabled={tournamentsListLoading}
-                  onClick={() => { tournamentsListLoadedRef.current = false; fetchTournamentsList(); }}
-                >
-                  Обновить
-                </button>
+                <label>
+                  Фильтр по ID турнира:{' '}
+                  <input
+                    type="text"
+                    placeholder="Например: 52"
+                    value={tournamentIdFilter}
+                    onChange={(e) => {
+                      const v = e.target.value.trim();
+                      setTournamentIdFilter(v);
+                      setSearchParams((p) => {
+                        const n = new URLSearchParams(p);
+                        if (v) n.set('tournamentId', v); else n.delete('tournamentId');
+                        return n;
+                      }, { replace: true });
+                    }}
+                    style={{ width: 120 }}
+                  />
+                </label>
               </div>
               {tournamentsListLoading && !tournamentsListLoadedRef.current ? (
                 <p>Загрузка...</p>
               ) : tournamentsListError ? (
                 <p className="admin-error">{tournamentsListError}</p>
-              ) : tournamentsList.length === 0 ? (
-                <p className="admin-stats-empty">Нет данных о турнирах</p>
-              ) : (
-                <div className="admin-table-wrap">
-                  <table className="admin-table admin-table--tournaments">
-                    <thead>
-                      <tr>
-                        <th>ID турнира</th>
-                        <th>Статус турнира</th>
-                        <th>Создан</th>
-                        <th>Ник игрока</th>
-                        <th>ID игрока</th>
-                        <th>Фаза</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {tournamentsList.map((row, idx) => (
-                        <tr key={`${row.tournamentId}-${row.userId}-${idx}`}>
-                          <td style={{ textAlign: 'center' }}>{row.tournamentId}</td>
-                          <td style={{ textAlign: 'center' }}>{getTournamentStatusLabel(row.tournamentStatus)}</td>
-                          <td style={{ textAlign: 'center' }}>{row.tournamentCreatedAt ? formatMoscowDateTimeFull(row.tournamentCreatedAt) : '—'}</td>
-                          <td className="admin-td-left">{row.userNickname}</td>
-                          <td style={{ textAlign: 'center' }}>{row.userId}</td>
-                          <td style={{ textAlign: 'center' }}>
-                            {row.phase === 'active' ? 'Активный' : 'История'}
-                          </td>
+              ) : (() => {
+                const filtered = tournamentIdFilter
+                  ? tournamentsList.filter((r) => String(r.tournamentId) === tournamentIdFilter)
+                  : tournamentsList;
+                if (filtered.length === 0) {
+                  return <p className="admin-stats-empty">{tournamentIdFilter ? 'Нет записей по этому ID турнира' : 'Нет данных о турнирах'}</p>;
+                }
+                return (
+                  <div className="admin-table-wrap">
+                    <table className="admin-table admin-table--tournaments">
+                      <thead>
+                        <tr>
+                          <th>ID турнира</th>
+                          <th>Статус</th>
+                          <th>Создан</th>
+                          <th>Игроков</th>
+                          <th>Ставка лиги</th>
+                          <th>Дедлайн</th>
+                          <th>Статус игрока</th>
+                          <th>Этап</th>
+                          <th>Результат</th>
+                          <th>Раунд</th>
+                          <th>Отвечено</th>
+                          <th>Всего вопросов</th>
+                          <th>Верных в раунде</th>
+                          <th>Завершён</th>
+                          <th>Раунд завершён</th>
+                          <th>Старт раунда</th>
+                          <th>Ник игрока</th>
+                          <th>ID игрока</th>
+                          <th>Фаза</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
+                      </thead>
+                      <tbody>
+                        {filtered.map((row, idx) => (
+                          <tr key={`${row.tournamentId}-${row.userId}-${idx}`}>
+                            <td style={{ textAlign: 'center' }}>{row.tournamentId}</td>
+                            <td style={{ textAlign: 'center' }}>{getTournamentStatusLabel(row.status)}</td>
+                            <td style={{ textAlign: 'center' }}>{row.createdAt ? formatMoscowDateTimeFull(row.createdAt) : '—'}</td>
+                            <td style={{ textAlign: 'center' }}>{row.playersCount}</td>
+                            <td style={{ textAlign: 'center' }}>{row.leagueAmount != null ? row.leagueAmount : '—'}</td>
+                            <td style={{ textAlign: 'center' }}>{row.deadline ? formatMoscowDateTimeFull(row.deadline) : '—'}</td>
+                            <td style={{ textAlign: 'center' }}>{row.userStatus === 'passed' ? 'Пройден' : 'Не пройден'}</td>
+                            <td style={{ textAlign: 'center' }}>{row.stage ?? '—'}</td>
+                            <td className="admin-td-left">{row.resultLabel ?? '—'}</td>
+                            <td style={{ textAlign: 'center' }}>{row.roundForQuestions === 'final' ? 'Финал' : 'Полуфинал'}</td>
+                            <td style={{ textAlign: 'center' }}>{row.questionsAnswered}</td>
+                            <td style={{ textAlign: 'center' }}>{row.questionsTotal}</td>
+                            <td style={{ textAlign: 'center' }}>{row.correctAnswersInRound}</td>
+                            <td style={{ textAlign: 'center' }}>{row.completedAt ? formatMoscowDateTimeFull(row.completedAt) : '—'}</td>
+                            <td style={{ textAlign: 'center' }}>{row.roundFinished === true ? 'Да' : '—'}</td>
+                            <td style={{ textAlign: 'center' }}>{row.roundStartedAt ? formatMoscowDateTimeFull(row.roundStartedAt) : '—'}</td>
+                            <td className="admin-td-left">{row.userNickname}</td>
+                            <td style={{ textAlign: 'center' }}>{row.userId}</td>
+                            <td style={{ textAlign: 'center' }}>{row.phase === 'active' ? 'Активный' : 'История'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
             </div>
           )}
           {statsSubTab === 'questions' && (
