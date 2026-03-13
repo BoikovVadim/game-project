@@ -182,9 +182,11 @@ export class TournamentsService implements OnModuleInit {
     const oppRounds = oppTB ?? [];
     for (let r = 1; r <= 50; r++) {
       const roundEnd = this.QUESTIONS_PER_ROUND + r * this.TIEBREAKER_QUESTIONS;
-      if (myQ < roundEnd || oppQ < roundEnd) {
-        return { result: 'tie', tiebreakerRound: r };
-      }
+      const myCompleted = myQ >= roundEnd;
+      const oppCompleted = oppQ >= roundEnd;
+      if (myCompleted && !oppCompleted) return { result: 'won' };
+      if (!myCompleted && oppCompleted) return { result: 'lost' };
+      if (!myCompleted && !oppCompleted) return { result: 'tie', tiebreakerRound: r };
 
       const myRoundScore = myRounds[r - 1] ?? 0;
       const oppRoundScore = oppRounds[r - 1] ?? 0;
@@ -1799,9 +1801,10 @@ export class TournamentsService implements OnModuleInit {
       }
     }
 
+    /** В истории этап только «Полуфинал» или «Финал», без «Доп. раунд». */
     const getStage = (t: Tournament): string => {
       const semiResult = getMoneySemiResult(t);
-      if (semiResult.result === 'tie') return 'Доп. раунд (ПФ)';
+      if (semiResult.result === 'tie') return 'Полуфинал';
       if (semiResult.result === 'won') {
         const prog = progressByTid.get(t.id);
         if (prog) {
@@ -1809,7 +1812,7 @@ export class TournamentsService implements OnModuleInit {
           const answered = prog.q ?? 0;
           if (answered >= mySemiTotal + QUESTIONS_PER_ROUND) {
             const fr = getFinalResult(t, prog);
-            if (fr === 'tie') return 'Доп. раунд (Ф)';
+            if (fr === 'tie') return 'Финал';
           }
         }
         return 'Финал';
