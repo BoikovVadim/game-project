@@ -609,8 +609,12 @@ export class TournamentsService implements OnModuleInit {
         };
 
         let tournamentResolved = false;
+        const semiOutcomes: Array<{ winnerId: number | null; bothLost: boolean }> = [
+          { winnerId: null, bothLost: false },
+          { winnerId: null, bothLost: false },
+        ];
 
-        for (const pair of [[0, 1], [2, 3]] as const) {
+        for (const [pairIndex, pair] of ([[0, 1], [2, 3]] as const).entries()) {
           const id1 = pair[0] < order.length ? order[pair[0]] : -1;
           const id2 = pair[1] < order.length ? order[pair[1]] : -1;
           if (id1 <= 0 || id2 <= 0) continue;
@@ -623,13 +627,16 @@ export class TournamentsService implements OnModuleInit {
           if (p1Finished && !p2Finished) {
             this.logger.log(`[closeTimedOutRounds] T${tournament.id}: player ${id2} timed out, ${id1} wins`);
             await saveResult(id2, false);
+            semiOutcomes[pairIndex] = { winnerId: id1, bothLost: false };
           } else if (p2Finished && !p1Finished) {
             this.logger.log(`[closeTimedOutRounds] T${tournament.id}: player ${id1} timed out, ${id2} wins`);
             await saveResult(id1, false);
+            semiOutcomes[pairIndex] = { winnerId: id2, bothLost: false };
           } else if (!p1Finished && !p2Finished) {
             this.logger.log(`[closeTimedOutRounds] T${tournament.id}: both ${id1} and ${id2} timed out`);
             await saveResult(id1, false);
             await saveResult(id2, false);
+            semiOutcomes[pairIndex] = { winnerId: null, bothLost: true };
           }
         }
 
@@ -640,7 +647,16 @@ export class TournamentsService implements OnModuleInit {
           }
         }
 
-        if (finalists.length === 2) {
+        if (finalists.length === 1) {
+          const autoWinnerId = finalists[0]!;
+          const otherSemiBothLost = semiOutcomes.some((outcome) => outcome.bothLost);
+          const winnerSemiResolved = semiOutcomes.some((outcome) => outcome.winnerId === autoWinnerId);
+          if (otherSemiBothLost && winnerSemiResolved) {
+            this.logger.log(`[closeTimedOutRounds] T${tournament.id}: opposite semi both lost, ${autoWinnerId} becomes champion automatically`);
+            await saveResult(autoWinnerId, true);
+            tournamentResolved = true;
+          }
+        } else if (finalists.length === 2) {
           const f1 = finalists[0], f2 = finalists[1];
           if (!sharedDeadlinePassed(f1, f2)) { /* wait */ }
           else {
@@ -764,7 +780,7 @@ export class TournamentsService implements OnModuleInit {
     const finalQuestionCount = await this.questionRepository.count({
       where: { tournament: { id: tournamentId }, roundIndex: 2 },
     });
-    const canPayFinalPrize = realPlayerCount === 4 && finalQuestionCount > 0;
+    const canPayFinalPrize = realPlayerCount === 4 && (finalQuestionCount > 0 || winners.length === 1);
 
     if (winners.length === 1) {
       if (!canPayFinalPrize) {
@@ -1977,7 +1993,10 @@ export class TournamentsService implements OnModuleInit {
     ): 'won' | 'lost' | 'tie' | 'incomplete' => {
       if (getPlayerCount(t) <= 2) return 'incomplete';
       const otherFin = getOtherFinalist(t);
-      if (!otherFin) return 'incomplete';
+      if (!otherFin) {
+        if (t.status === TournamentStatus.FINISHED && resultByTournamentId.get(t.id) === true) return 'won';
+        return 'incomplete';
+      }
       const mySemiTotal = semiPhaseQuestions(myProg);
       const oppSemiTotal = QUESTIONS_PER_ROUND + otherFin.tiebreakerRounds.length * TIEBREAKER_QUESTIONS;
       if (myProg.q < mySemiTotal + QUESTIONS_PER_ROUND) return 'incomplete';
@@ -2348,6 +2367,11 @@ export class TournamentsService implements OnModuleInit {
 
       const semiResult = getMoneySemiResult(t);
       if (semiResult.result !== 'won') return 'not_passed';
+
+      const otherFinalist = getOtherFinalist(t);
+      if (!otherFinalist && t.status === TournamentStatus.FINISHED && resultByTournamentId.get(t.id) === true) {
+        return 'passed';
+      }
 
       const mySemiTotal = semiPhaseQuestions(prog);
       if ((prog.q ?? 0) < mySemiTotal + QUESTIONS_PER_ROUND) return 'not_passed';
