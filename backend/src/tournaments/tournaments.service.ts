@@ -1904,11 +1904,7 @@ export class TournamentsService {
     };
 
     const belongsToHistory = (t: Tournament): boolean => {
-      if (t.status === TournamentStatus.FINISHED) {
-        const label = getResultLabel(t);
-        if (label === 'Ожидание соперника') return false;
-        return true;
-      }
+      if (t.status === TournamentStatus.FINISHED) return true;
       const label = getResultLabel(t);
       if (label === 'Время истекло' || label === 'Поражение' || label === 'Победа') return true;
       if (label === 'Ожидание соперника') return isTimeExpired(t);
