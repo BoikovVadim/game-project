@@ -1856,13 +1856,14 @@ export class TournamentsService implements OnModuleInit {
           : 0;
 
         if (forCompletedList) {
-          questionsTotal = QUESTIONS_PER_ROUND + completedTBRounds * TIEBREAKER_QUESTIONS;
-          questionsAnsweredInRound = Math.min(answered, questionsTotal);
+          questionsTotal = QUESTIONS_PER_ROUND;
+          questionsAnsweredInRound = Math.min(answered, QUESTIONS_PER_ROUND);
+          correctAnswersInRound = semiCorrect;
         } else {
           questionsTotal = QUESTIONS_PER_ROUND + activeTBRounds * TIEBREAKER_QUESTIONS;
           questionsAnsweredInRound = Math.min(answered, questionsTotal);
+          correctAnswersInRound = semiCorrect + tbCorrectSum;
         }
-        correctAnswersInRound = semiCorrect + tbCorrectSum;
       } else {
         const semiTBCount = tbRounds.length;
         const semiTotal = QUESTIONS_PER_ROUND + semiTBCount * TIEBREAKER_QUESTIONS;
