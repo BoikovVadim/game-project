@@ -1884,7 +1884,7 @@ export class TournamentsService implements OnModuleInit {
         questionsAnswered: questionsAnsweredInRound,
         questionsTotal,
         correctAnswersInRound,
-        completedAt: completedAtByTid.get(t.id) ?? null,
+        completedAt: completedAtByTid.get(t.id) ?? (t.createdAt ? (t.createdAt instanceof Date ? t.createdAt.toISOString() : String(t.createdAt)) : null),
         roundFinished: playerRoundFinished.get(t.id) ?? false,
         roundStartedAt: roundStartedAtByTid.get(t.id) ?? null,
       };
