@@ -2401,14 +2401,15 @@ export class TournamentsService implements OnModuleInit {
     const activeTournamentsRaw = tournaments.filter((t) => !belongsToHistory(t));
     const completedTournamentsRaw = tournaments.filter((t) => belongsToHistory(t));
 
-    // Если выиграл полуфинал — турнир и в активных (есть финал), и в истории (пройден этап ПФ = Победа).
+    // Если выиграл полуфинал — турнир и в активных (есть финал), и в истории как пройденный этап ПФ,
+    // но сам турнир ещё не считается пройденным до победы в финале.
     const moneySemiWonFinalPending = tournaments.filter(
       (t) =>
         getMoneySemiResult(t).result === 'won' &&
         !belongsToHistory(t),
     );
     const semiWonCompletedItems = moneySemiWonFinalPending.map((t) =>
-      toItem(t, deadlineByTournamentId[t.id] ?? null, 'passed', 'Победа', 'semi', 'Полуфинал', true),
+      toItem(t, deadlineByTournamentId[t.id] ?? null, 'not_passed', 'Победа', 'semi', 'Полуфинал', true),
     );
 
     const activeRaw = activeTournamentsRaw.map((t) =>
