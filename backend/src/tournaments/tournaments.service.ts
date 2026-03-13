@@ -182,11 +182,9 @@ export class TournamentsService implements OnModuleInit {
     const oppRounds = oppTB ?? [];
     for (let r = 1; r <= 50; r++) {
       const roundEnd = this.QUESTIONS_PER_ROUND + r * this.TIEBREAKER_QUESTIONS;
-      const myCompleted = myQ >= roundEnd;
-      const oppCompleted = oppQ >= roundEnd;
-      if (myCompleted && !oppCompleted) return { result: 'won' };
-      if (!myCompleted && oppCompleted) return { result: 'lost' };
-      if (!myCompleted && !oppCompleted) return { result: 'tie', tiebreakerRound: r };
+      if (myQ < roundEnd || oppQ < roundEnd) {
+        return { result: 'tie', tiebreakerRound: r };
+      }
 
       const myRoundScore = myRounds[r - 1] ?? 0;
       const oppRoundScore = oppRounds[r - 1] ?? 0;
@@ -320,8 +318,12 @@ export class TournamentsService implements OnModuleInit {
       if (finalOppProg && this.isPlayerInFinalPhase(finalOppProg, allProgress, tournament)) {
         const shared = this.getSharedSemiTiebreakerStart(myProg, finalOppProg);
         if (shared) return shared;
+        // Соперник в финале уже ответил на все вопросы финала — у него таймера нет; у входящего (текущий игрок) берём его roundStartedAt, чтобы таймер загорелся у входящего.
+        const oppSemiTotal = this.QUESTIONS_PER_ROUND + (finalOppProg.tiebreakerRoundsCorrect?.length ?? 0) * this.TIEBREAKER_QUESTIONS;
+        if (myProg.roundStartedAt instanceof Date && (finalOppProg.questionsAnsweredCount ?? 0) >= oppSemiTotal + this.QUESTIONS_PER_ROUND) {
+          return myProg.roundStartedAt;
+        }
       }
-      if (myProg.roundStartedAt instanceof Date) return myProg.roundStartedAt;
       return null;
     }
 
@@ -1540,6 +1542,11 @@ export class TournamentsService implements OnModuleInit {
       const myTB = myProgress?.tiebreakerRounds ?? [];
       const oppTB = oppProgress?.tiebreakerRounds ?? [];
       const semiState = this.getSemiHeadToHeadState(myQ, mySemi, myTB, oppQ, oppSemi, oppTB);
+      if (semiState.result === 'tie' && semiState.tiebreakerRound != null && isTimeExpired(t)) {
+        const roundEnd = QUESTIONS_PER_ROUND + semiState.tiebreakerRound * TIEBREAKER_QUESTIONS;
+        if (myQ >= roundEnd && oppQ < roundEnd) return { result: 'won', tiebreakerRound: semiState.tiebreakerRound };
+        if (myQ < roundEnd && oppQ >= roundEnd) return { result: 'lost' };
+      }
       return semiState;
     };
 
@@ -2097,6 +2104,40 @@ export class TournamentsService implements OnModuleInit {
     return { active, completed };
   }
 
+  /** Для админки: все участия в турнирах по всем игрокам (ID турнира, ID пользователя, ник, фаза: активный/история), сортировка по ID турнира. */
+  async getAllParticipationsForAdmin(): Promise<
+    { tournamentId: number; userId: number; userNickname: string; phase: 'active' | 'history' }[]
+  > {
+    const progressList = await this.tournamentProgressRepository.find({
+      select: ['userId', 'tournamentId'],
+    });
+    const userIds = [...new Set(progressList.map((p) => p.userId))].filter((id) => id > 0);
+    if (userIds.length === 0) return [];
+
+    const users = await this.userRepository.find({
+      where: { id: In(userIds) },
+      select: ['id', 'username'],
+    });
+    const nicknameByUserId = new Map(users.map((u) => [u.id, u.username ?? `Игрок ${u.id}`]));
+
+    const result: { tournamentId: number; userId: number; userNickname: string; phase: 'active' | 'history' }[] = [];
+    for (const userId of userIds) {
+      const { active, completed } = await this.getMyTournaments(userId);
+      const nickname = nicknameByUserId.get(userId) ?? `Игрок ${userId}`;
+      for (const item of active) {
+        result.push({ tournamentId: item.id, userId, userNickname: nickname, phase: 'active' });
+      }
+      for (const item of completed) {
+        result.push({ tournamentId: item.id, userId, userNickname: nickname, phase: 'history' });
+      }
+    }
+    result.sort((a, b) => {
+      if (a.tournamentId !== b.tournamentId) return a.tournamentId - b.tournamentId;
+      return a.userId - b.userId;
+    });
+    return result;
+  }
+
   /** Возвращает состояние турнира для участника (продолжить игру). */
   async getTournamentState(
     userId: number,
@@ -2424,15 +2465,45 @@ export class TournamentsService implements OnModuleInit {
     });
     let allProgress = await this.tournamentProgressRepository.find({ where: { tournamentId } });
     let sharedStart = this.getCurrentRoundSharedStart(tournament, userId, progress, allProgress);
-    const mySemiTotalForTimer = progress
-      ? 10 + (progress.tiebreakerRoundsCorrect?.length ?? 0) * 10
-      : 10;
-    const inFinalPhaseStart = progress && (progress.questionsAnsweredCount ?? 0) >= mySemiTotalForTimer && (progress.questionsAnsweredCount ?? 0) < mySemiTotalForTimer + 10;
-    if (questionsFinal.length > 0 && inFinalPhaseStart && !sharedStart && progress && !progress.roundStartedAt) {
-      progress.roundStartedAt = new Date();
-      await this.tournamentProgressRepository.save(progress);
-      allProgress = await this.tournamentProgressRepository.find({ where: { tournamentId } });
-      sharedStart = this.getCurrentRoundSharedStart(tournament, userId, progress, allProgress);
+    // Как только второй финалист зашёл в финал — запускаем таймеры у обоих (кроме того, кто уже ответил на все вопросы финала).
+    if (questionsFinal.length > 0 && progress && !sharedStart && this.isPlayerInFinalPhase(progress, allProgress, tournament)) {
+      const order = tournament.playerOrder ?? [];
+      const playerSlot = order.indexOf(userId);
+      const otherSlots: [number, number] = playerSlot < 2 ? [2, 3] : [0, 1];
+      const id1 = otherSlots[0] < order.length ? order[otherSlots[0]] : -1;
+      const id2 = otherSlots[1] < order.length ? order[otherSlots[1]] : -1;
+      const p1 = id1 > 0 ? allProgress.find((p) => p.userId === id1) : null;
+      const p2 = id2 > 0 ? allProgress.find((p) => p.userId === id2) : null;
+      let otherFinalist: TournamentProgress | null = null;
+      if (p1 && p2) {
+        const st = this.getSemiHeadToHeadState(
+          p1.questionsAnsweredCount ?? 0,
+          p1.semiFinalCorrectCount,
+          p1.tiebreakerRoundsCorrect,
+          p2.questionsAnsweredCount ?? 0,
+          p2.semiFinalCorrectCount,
+          p2.tiebreakerRoundsCorrect,
+        );
+        if (st.result === 'won') otherFinalist = p1;
+        else if (st.result === 'lost') otherFinalist = p2;
+      } else {
+        otherFinalist = p1 ?? p2 ?? null;
+      }
+      if (otherFinalist && this.isPlayerInFinalPhase(otherFinalist, allProgress, tournament)) {
+        const nowStart = new Date();
+        const mySemiTotalHere = this.QUESTIONS_PER_ROUND + (progress.tiebreakerRoundsCorrect?.length ?? 0) * this.TIEBREAKER_QUESTIONS;
+        const otherSemiTotal = this.QUESTIONS_PER_ROUND + (otherFinalist.tiebreakerRoundsCorrect?.length ?? 0) * this.TIEBREAKER_QUESTIONS;
+        if ((progress.questionsAnsweredCount ?? 0) < mySemiTotalHere + this.QUESTIONS_PER_ROUND) {
+          progress.roundStartedAt = nowStart;
+        }
+        if ((otherFinalist.questionsAnsweredCount ?? 0) < otherSemiTotal + this.QUESTIONS_PER_ROUND) {
+          otherFinalist.roundStartedAt = nowStart;
+          await this.tournamentProgressRepository.save(otherFinalist);
+        }
+        await this.tournamentProgressRepository.save(progress);
+        allProgress = await this.tournamentProgressRepository.find({ where: { tournamentId } });
+        sharedStart = this.getCurrentRoundSharedStart(tournament, userId, progress, allProgress);
+      }
     }
     const deadline: string | null = sharedStart ? this.getRoundDeadline(sharedStart) : null;
     const questionsAnsweredCount = progress?.questionsAnsweredCount ?? 0;
@@ -2864,13 +2935,15 @@ export class TournamentsService implements OnModuleInit {
     if (mySemi > oppSemi) return true;
     if (mySemi < oppSemi) return false;
 
-    // Ничья в полуфинале → проверяем тайбрейкеры; если один завершил доп.раунд, а второй нет — победитель тот, кто завершил.
+    // Ничья в полуфинале → проверяем тайбрейкеры. Победа/поражение только когда оба ответили на раунд или истекли 24 ч.
     const myTB = myProgress?.tiebreakerRoundsCorrect ?? [];
     const oppTB = oppProgress?.tiebreakerRoundsCorrect ?? [];
     for (let r = 1; r <= 50; r++) {
       const roundEnd = this.QUESTIONS_PER_ROUND + r * this.TIEBREAKER_QUESTIONS;
-      if (myQ >= roundEnd && oppQ < roundEnd) return true;
-      if (myQ < roundEnd && oppQ >= roundEnd) return false;
+      if (tournament.status === TournamentStatus.FINISHED) {
+        if (myQ >= roundEnd && oppQ < roundEnd) return true;
+        if (myQ < roundEnd && oppQ >= roundEnd) return false;
+      }
       if (myQ < roundEnd || oppQ < roundEnd) return false;
       const myR = myTB[r - 1] ?? 0;
       const oppR = oppTB[r - 1] ?? 0;

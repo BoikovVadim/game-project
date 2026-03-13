@@ -83,9 +83,9 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
   const [statsData, setStatsData] = useState<{ period: string; registrations: number; withdrawals: number; topups: number; gameIncome: number }[]>([]);
   const [statsMetrics, setStatsMetrics] = useState<Set<string>>(() => new Set(['registrations', 'topups', 'withdrawals', 'gameIncome']));
 
-  const [statsSubTab, setStatsSubTab] = useState<'overview' | 'transactions' | 'questions'>(() => {
+  const [statsSubTab, setStatsSubTab] = useState<'overview' | 'transactions' | 'questions' | 'tournaments'>(() => {
     const sub = searchParams.get('statsTab');
-    return sub === 'transactions' ? 'transactions' : sub === 'questions' ? 'questions' : 'overview';
+    return sub === 'transactions' ? 'transactions' : sub === 'questions' ? 'questions' : sub === 'tournaments' ? 'tournaments' : 'overview';
   });
   type QuestionStatRow = { topic: string; count: number };
   const topicNames: Record<string, string> = {
@@ -159,6 +159,11 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
   const [questionStats, setQuestionStats] = useState<QuestionStatRow[]>([]);
   const [questionStatsLoading, setQuestionStatsLoading] = useState(false);
   const questionStatsLoadedRef = React.useRef(false);
+
+  type TournamentListRow = { tournamentId: number; userId: number; userNickname: string; phase: 'active' | 'history' };
+  const [tournamentsList, setTournamentsList] = useState<TournamentListRow[]>([]);
+  const [tournamentsListLoading, setTournamentsListLoading] = useState(false);
+  const tournamentsListLoadedRef = React.useRef(false);
   const [qsSortBy, setQsSortBy] = useState<'topic' | 'count'>('count');
   const [qsSortDir, setQsSortDir] = useState<'asc' | 'desc'>('desc');
   type TxRow = { id: number; userId: number; username: string; email: string; amount: number; description: string; category: string; createdAt: string };
@@ -189,6 +194,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
     const sTab = searchParams.get('statsTab');
     if (sTab === 'transactions') setStatsSubTab('transactions');
     else if (sTab === 'questions') setStatsSubTab('questions');
+    else if (sTab === 'tournaments') setStatsSubTab('tournaments');
     else if (sTab === 'overview' || !sTab) setStatsSubTab((prev) => sTab === 'overview' ? 'overview' : prev);
   }, [searchParams]);
 
@@ -508,6 +514,20 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
     if (!isAdmin || !token || section !== 'statistics' || statsSubTab !== 'questions') return;
     fetchQuestionStats();
   }, [isAdmin, token, section, statsSubTab, fetchQuestionStats]);
+
+  const fetchTournamentsList = React.useCallback(() => {
+    if (!token) return;
+    if (!tournamentsListLoadedRef.current) setTournamentsListLoading(true);
+    axios.get<TournamentListRow[]>('/admin/tournaments-list', { headers })
+      .then((r) => setTournamentsList(Array.isArray(r.data) ? r.data : []))
+      .catch(() => setTournamentsList([]))
+      .finally(() => { setTournamentsListLoading(false); tournamentsListLoadedRef.current = true; });
+  }, [token, headers]);
+
+  useEffect(() => {
+    if (!isAdmin || !token || section !== 'statistics' || statsSubTab !== 'tournaments') return;
+    fetchTournamentsList();
+  }, [isAdmin, token, section, statsSubTab, fetchTournamentsList]);
 
   const sortedQuestionStats = React.useMemo(() => {
     const list = [...questionStats];
@@ -1164,6 +1184,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
             <button type="button" className={`admin-stats-subtab${statsSubTab === 'overview' ? ' active' : ''}`} onClick={() => { setStatsSubTab('overview'); setSearchParams((p) => { const n = new URLSearchParams(p); n.set('statsTab', 'overview'); return n; }, { replace: true }); }}>Обзор</button>
             <button type="button" className={`admin-stats-subtab${statsSubTab === 'transactions' ? ' active' : ''}`} onClick={() => { setStatsSubTab('transactions'); setSearchParams((p) => { const n = new URLSearchParams(p); n.set('statsTab', 'transactions'); return n; }, { replace: true }); }}>Транзакции</button>
             <button type="button" className={`admin-stats-subtab${statsSubTab === 'questions' ? ' active' : ''}`} onClick={() => { setStatsSubTab('questions'); setSearchParams((p) => { const n = new URLSearchParams(p); n.set('statsTab', 'questions'); return n; }, { replace: true }); }}>Вопросы</button>
+            <button type="button" className={`admin-stats-subtab${statsSubTab === 'tournaments' ? ' active' : ''}`} onClick={() => { setStatsSubTab('tournaments'); setSearchParams((p) => { const n = new URLSearchParams(p); n.set('statsTab', 'tournaments'); return n; }, { replace: true }); }}>Турниры</button>
           </div>
           {statsSubTab === 'overview' && (() => {
             const totals = statsData.reduce((acc, d) => ({
@@ -1380,6 +1401,40 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                           </td>
                           <td className="admin-td-left">{tx.description || '—'}</td>
                           <td>{tx.createdAt ? formatMoscowDateTimeFull(tx.createdAt) : '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+          {statsSubTab === 'tournaments' && (
+            <div className="admin-stats-section">
+              {tournamentsListLoading && !tournamentsListLoadedRef.current ? (
+                <p>Загрузка...</p>
+              ) : tournamentsList.length === 0 ? (
+                <p className="admin-stats-empty">Нет данных о турнирах</p>
+              ) : (
+                <div className="admin-table-wrap">
+                  <table className="admin-table admin-table--tournaments">
+                    <thead>
+                      <tr>
+                        <th>ID турнира</th>
+                        <th>Ник игрока</th>
+                        <th>ID игрока</th>
+                        <th>Фаза</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tournamentsList.map((row, idx) => (
+                        <tr key={`${row.tournamentId}-${row.userId}-${idx}`}>
+                          <td style={{ textAlign: 'center' }}>{row.tournamentId}</td>
+                          <td className="admin-td-left">{row.userNickname}</td>
+                          <td style={{ textAlign: 'center' }}>{row.userId}</td>
+                          <td style={{ textAlign: 'center' }}>
+                            {row.phase === 'active' ? 'Активный' : 'История'}
+                          </td>
                         </tr>
                       ))}
                     </tbody>

@@ -6,12 +6,14 @@ import { Transaction } from '../users/transaction.entity';
 import { AdminService } from './admin.service';
 import { AdminController } from './admin.controller';
 import { UsersModule } from '../users/users.module';
+import { TournamentsModule } from '../tournaments/tournaments.module';
 import { JwtModule } from '@nestjs/jwt';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User, WithdrawalRequest, Transaction]),
     UsersModule,
+    TournamentsModule,
     JwtModule.register({ secret: process.env.JWT_SECRET || 'fallback-dev-key-change-me', signOptions: { expiresIn: '6h' } }),
   ],
   controllers: [AdminController],

@@ -7,6 +7,7 @@ import { User } from '../users/user.entity';
 import { WithdrawalRequest } from '../users/withdrawal-request.entity';
 import { Transaction } from '../users/transaction.entity';
 import { UsersService } from '../users/users.service';
+import { TournamentsService } from '../tournaments/tournaments.service';
 import { JwtService } from '@nestjs/jwt';
 
 /** Нормализация дат в ISO-строку для фронтенда. */
@@ -26,6 +27,7 @@ export class AdminService {
     @InjectRepository(WithdrawalRequest)
     private readonly withdrawalRepository: Repository<WithdrawalRequest>,
     private readonly usersService: UsersService,
+    private readonly tournamentsService: TournamentsService,
     private readonly jwtService: JwtService,
     private readonly dataSource: DataSource,
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
@@ -389,5 +391,12 @@ export class AdminService {
       console.error('[AdminService.getQuestionStats]', e);
       return [];
     }
+  }
+
+  /** Все участия в турнирах по всем игрокам (для вкладки «Турниры» в статистике). */
+  async getTournamentsList(): Promise<
+    { tournamentId: number; userId: number; userNickname: string; phase: 'active' | 'history' }[]
+  > {
+    return this.tournamentsService.getAllParticipationsForAdmin();
   }
 }

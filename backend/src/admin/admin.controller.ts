@@ -70,6 +70,11 @@ export class AdminController {
     return this.adminService.getQuestionStats();
   }
 
+  @Get('tournaments-list')
+  getTournamentsList() {
+    return this.adminService.getTournamentsList();
+  }
+
   @Post('users/:id/set-admin')
   setUserAdmin(
     @Param('id', ParseIntPipe) id: number,
