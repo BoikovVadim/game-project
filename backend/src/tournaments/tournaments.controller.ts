@@ -23,7 +23,7 @@ export class TournamentsController {
     @Query('currentTournamentId') currentTournamentId?: string,
   ) {
     const currentId = currentTournamentId ? parseInt(currentTournamentId, 10) : undefined;
-    const normalizedMode = (mode === 'money' || mode === 'training') ? mode : undefined;
+    const normalizedMode = (mode === 'money' || mode === 'training') ? mode : 'training';
     try {
       return await this.tournamentsService.getMyTournaments(req.user.id, normalizedMode, !Number.isNaN(currentId) ? currentId : undefined);
     } catch (err) {

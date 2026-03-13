@@ -1295,45 +1295,13 @@ export class TournamentsService implements OnModuleInit {
       { gameType: 'money' },
     );
 
+    await this.backfillTournamentPlayersFromEntry().catch(() => {});
     if (mode === 'money') {
-      await this.backfillTournamentPlayersFromEntry().catch(() => {});
       await this.processAllExpiredEscrows().catch((e) => this.logger.warn('[getMyTournaments] processAllExpiredEscrows', (e as Error)?.message));
       await this.syncTournamentPlayersFromEntry(userId).catch((e) => this.logger.warn('[getMyTournaments] syncTournamentPlayersFromEntry', (e as Error)?.message));
     }
 
     const tids = new Set<number>();
-    const conn = this.tournamentRepository.manager.connection;
-
-    const addIdsFromRaw = (raw: unknown): void => {
-      const rows = Array.isArray(raw) ? raw : (raw as { rows?: { id?: number; tournamentId?: number }[] })?.rows ?? [];
-      for (const r of rows) {
-        const id = r?.id ?? r?.tournamentId;
-        if (id != null && id > 0) tids.add(Number(id));
-      }
-    };
-
-    try {
-      const rawCamel = await conn.query(
-        `(SELECT p."tournamentId" AS id FROM tournament_progress p WHERE p."userId" = $1)
-         UNION
-         (SELECT e."tournamentId" AS id FROM tournament_entry e WHERE e."userId" = $1)
-         UNION
-         (SELECT tpu."tournamentId" AS id FROM tournament_players_user tpu WHERE tpu."userId" = $1)`,
-        [userId],
-      );
-      addIdsFromRaw(rawCamel);
-    } catch (_) {}
-    try {
-      const rawSnake = await conn.query(
-        `(SELECT p.tournament_id AS id FROM tournament_progress p WHERE p.user_id = $1)
-         UNION
-         (SELECT e.tournament_id AS id FROM tournament_entry e WHERE e.user_id = $1)
-         UNION
-         (SELECT tpu.tournament_id AS id FROM tournament_players_user tpu WHERE tpu.user_id = $1)`,
-        [userId],
-      );
-      addIdsFromRaw(rawSnake);
-    } catch (_) {}
 
     try {
       const fromProgress = await this.tournamentProgressRepository.find({
@@ -1365,6 +1333,42 @@ export class TournamentsService implements OnModuleInit {
       for (const t of fromPlayers) if (t.id > 0) tids.add(t.id);
     } catch (e) {
       this.logger.warn('[getMyTournaments] fromPlayers', (e as Error)?.message);
+    }
+
+    if (tids.size === 0) {
+      const conn = this.tournamentRepository.manager.connection;
+      const addIdsFromRaw = (raw: unknown): void => {
+        const res = raw as { rows?: unknown[] };
+        const rows = Array.isArray(raw) ? raw : (res?.rows ?? []) as { id?: number; tournamentId?: number }[];
+        for (const r of rows) {
+          const id = r?.id ?? r?.tournamentId;
+          if (id != null && id > 0) tids.add(Number(id));
+        }
+      };
+      try {
+        const rawCamel = await conn.query(
+          `(SELECT p."tournamentId" AS id FROM tournament_progress p WHERE p."userId" = $1)
+           UNION
+           (SELECT e."tournamentId" AS id FROM tournament_entry e WHERE e."userId" = $1)
+           UNION
+           (SELECT tpu."tournamentId" AS id FROM tournament_players_user tpu WHERE tpu."userId" = $1)`,
+          [userId],
+        );
+        addIdsFromRaw(rawCamel);
+      } catch (_) {}
+      if (tids.size === 0) {
+        try {
+          const rawSnake = await conn.query(
+            `(SELECT p.tournament_id AS id FROM tournament_progress p WHERE p.user_id = $1)
+             UNION
+             (SELECT e.tournament_id AS id FROM tournament_entry e WHERE e.user_id = $1)
+             UNION
+             (SELECT tpu.tournament_id AS id FROM tournament_players_user tpu WHERE tpu.user_id = $1)`,
+            [userId],
+          );
+          addIdsFromRaw(rawSnake);
+        } catch (_) {}
+      }
     }
 
     const ids = [...tids];

@@ -3454,7 +3454,9 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                             <div className="game-history-section-header">
                               <strong>Активные игры</strong>
                             </div>
-                            {gameHistory === null ? null : gameHistory.active.length ? (
+                            {gameHistory === null ? (
+                              <p className="game-history-empty">Загрузка...</p>
+                            ) : gameHistory.active.length ? (
                               <div className="game-history-table-wrap">
                               <table className="game-history-table">
                                 <thead>
@@ -3500,7 +3502,9 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                           </div>
                           <div className="game-history-section">
                             <strong>История игр</strong>
-                            {gameHistory === null ? null : gameHistory.completed.length ? (
+                            {gameHistory === null ? (
+                              <p className="game-history-empty">Загрузка...</p>
+                            ) : gameHistory.completed.length ? (
                               <div className="game-history-table-wrap">
                               <table className="game-history-table">
                                 <thead>
@@ -3897,7 +3901,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                     {gameHistoryMoney.active.map((t) => (
                                       <tr key={t.id}>
                                         <td>
-                                          <button type="button" className="game-history-id-link" onClick={() => openBracket(t.id, 'active')} title="Открыть сетку турнира">
+                                          <button type="button" className="game-history-id-link" onClick={() => openBracket(t.id, 'active')} title={(t as { tournament?: { name?: string } }).tournament?.name ? `Открыть сетку: ${(t as { tournament: { name: string } }).tournament.name}` : 'Открыть сетку турнира'}>
                                             #{t.id}
                                           </button>
                                         </td>
@@ -3942,7 +3946,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                     {gameHistoryMoney.completed.map((t) => (
                                       <tr key={t.id}>
                                         <td>
-                                          <button type="button" className="game-history-id-link" onClick={() => openBracket(t.id, 'completed')} title="Открыть сетку турнира">
+                                          <button type="button" className="game-history-id-link" onClick={() => openBracket(t.id, 'completed')} title={(t as { tournament?: { name?: string } }).tournament?.name ? `Открыть сетку: ${(t as { tournament: { name: string } }).tournament.name}` : 'Открыть сетку турнира'}>
                                             #{t.id}
                                           </button>
                                         </td>
