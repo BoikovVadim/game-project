@@ -1078,25 +1078,23 @@
 
 .admin-cost-hero {
   display: flex;
-  align-items: stretch;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 22px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 24px 26px;
   margin-bottom: 16px;
   border-radius: 20px;
-  background: linear-gradient(135deg, #111827 0%, #1f2937 55%, #334155 100%);
-  color: #fff;
-}
-
-.admin-cost-hero-main {
-  min-width: 0;
+  background: linear-gradient(180deg, #fffdf8 0%, #fff8eb 100%);
+  border: 1px solid rgba(201, 162, 39, 0.28);
+  box-shadow: 0 10px 24px rgba(201, 162, 39, 0.12);
+  color: #222;
 }
 
 .admin-cost-hero-label {
-  font-size: 14px;
-  font-weight: 600;
-  opacity: 0.8;
-  margin-bottom: 8px;
+  font-size: 18px;
+  font-weight: 700;
+  color: #8a6a12;
+  margin-bottom: 0;
 }
 
 .admin-cost-hero-value {
@@ -1104,44 +1102,13 @@
   line-height: 1.1;
   font-weight: 800;
   letter-spacing: -0.03em;
+  color: #111827;
 }
 
-.admin-cost-hero-note {
-  margin-top: 10px;
-  max-width: 760px;
-  font-size: 14px;
-  line-height: 1.5;
-  color: rgba(255, 255, 255, 0.82);
-}
-
-.admin-cost-hero-side {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 12px;
-  min-width: 180px;
-}
-
-.admin-cost-refresh-btn {
-  padding: 8px 14px;
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
-  cursor: pointer;
+.admin-cost-updated-inline {
+  margin: 0 0 14px;
   font-size: 13px;
-  font-weight: 600;
-}
-
-.admin-cost-refresh-btn:hover {
-  background: rgba(255, 255, 255, 0.14);
-}
-
-.admin-cost-updated-at {
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.78);
-  text-align: right;
+  color: #6b7280;
 }
 
 .admin-cost-kpi {
@@ -1409,13 +1376,7 @@
     padding: 0 8px;
   }
   .admin-cost-hero {
-    flex-direction: column;
-  }
-  .admin-cost-hero-side {
-    align-items: flex-start;
-  }
-  .admin-cost-updated-at {
-    text-align: left;
+    padding: 18px 18px;
   }
   .admin-credit-form {
     padding: 16px;

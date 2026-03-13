@@ -836,6 +836,14 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
     fetchProjectCost();
   }, [isAdmin, token, section, statsSubTab, fetchProjectCost]);
 
+  useEffect(() => {
+    if (!isAdmin || !token || section !== 'statistics' || statsSubTab !== 'project-cost') return;
+    const iv = window.setInterval(() => {
+      fetchProjectCost();
+    }, 30000);
+    return () => window.clearInterval(iv);
+  }, [isAdmin, token, section, statsSubTab, fetchProjectCost]);
+
   const updateTournamentColumns = React.useCallback((nextColumns: TournamentColumnKey[]) => {
     setTournamentColumns(nextColumns);
     if (typeof window !== 'undefined') {
@@ -2108,28 +2116,8 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                 return (
                   <>
                     <div className="admin-cost-hero">
-                      <div className="admin-cost-hero-main">
-                        <div className="admin-cost-hero-label">Текущая стоимость проекта</div>
-                        <div className="admin-cost-hero-value">{formatRubles(dashboard.currentTotal)}</div>
-                        <div className="admin-cost-hero-note">
-                          Это текущее значение `Стало`, которое используется для расчёта стоимости проекта.
-                        </div>
-                      </div>
-                      <div className="admin-cost-hero-side">
-                        <button
-                          type="button"
-                          className="admin-cost-refresh-btn"
-                          onClick={() => {
-                            projectCostLoadedRef.current = false;
-                            fetchProjectCost();
-                          }}
-                        >
-                          Обновить
-                        </button>
-                        <div className="admin-cost-updated-at">
-                          Обновлено: {dashboard.updatedAt ? formatMoscowDateTimeFull(dashboard.updatedAt) : '—'}
-                        </div>
-                      </div>
+                      <div className="admin-cost-hero-label">Стоимость проекта</div>
+                      <div className="admin-cost-hero-value">{formatRubles(dashboard.currentTotal)}</div>
                     </div>
 
                     <div className="admin-stats-kpi admin-cost-kpi">
@@ -2145,6 +2133,10 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                         <div className="admin-stats-kpi-value">{dashboard.history.length.toLocaleString('ru-RU')}</div>
                         <div className="admin-stats-kpi-label">Записей в истории</div>
                       </div>
+                    </div>
+
+                    <div className="admin-cost-updated-inline">
+                      Обновлено автоматически: {dashboard.updatedAt ? formatMoscowDateTimeFull(dashboard.updatedAt) : '—'}
                     </div>
 
                     {dashboard.history.length === 0 ? (

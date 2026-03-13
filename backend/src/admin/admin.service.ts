@@ -34,6 +34,13 @@ function roundMoney(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
+function sanitizeProjectCostDescription(value: string): string {
+  return value
+    .replace(/\s*\([^()]*\)\s*$/g, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
 async function readProjectCostTrackingFile(): Promise<{ content: string; filePath: string; mtime: Date } | null> {
   const candidates = [
     path.resolve(process.cwd(), '.cursor', 'project-cost-tracking.md'),
@@ -485,7 +492,7 @@ export class AdminService {
           time,
           amountChange: roundMoney(parseRubles(amountPart)),
           duration: durationPart,
-          description: descriptionParts.join(' | '),
+          description: sanitizeProjectCostDescription(descriptionParts.join(' | ')),
         });
       }
 
