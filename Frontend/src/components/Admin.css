@@ -360,6 +360,12 @@
   width: 100%;
 }
 
+.admin-table-wrap--tournaments {
+  position: relative;
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
 .admin-section label {
   display: block;
   margin-bottom: 6px;
@@ -1125,6 +1131,13 @@
   top: 0;
   z-index: 20;
   background: #f5f5f5;
+  background-clip: padding-box;
+  box-shadow: 0 1px 0 #ddd;
+}
+
+.admin-table--tournaments {
+  border-collapse: separate;
+  border-spacing: 0;
 }
 
 .admin-table--tournaments .admin-tournament-col-id {

@@ -141,7 +141,7 @@ const TOURNAMENT_COLUMN_LABELS: Record<TournamentColumnKey, string> = {
   stage: 'Этап',
   roundStartedAt: 'Старт раунда',
   deadline: 'Осталось до конца',
-  status: 'Статус турнира',
+  status: 'Турнир',
   questions: 'Вопросы',
   userStatus: 'Статус',
   createdAt: 'Создан',
@@ -1946,7 +1946,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                   return <p className="admin-stats-empty">{tournamentIdFilter ? 'Нет записей по этому ID турнира' : 'Нет данных о турнирах'}</p>;
                 }
                 return (
-                  <div className="admin-table-wrap">
+                  <div className="admin-table-wrap admin-table-wrap--tournaments">
                     <table className="admin-table admin-table--tournaments">
                       <thead>
                         <tr>
