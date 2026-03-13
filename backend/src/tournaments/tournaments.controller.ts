@@ -17,11 +17,12 @@ export class TournamentsController {
   @UseGuards(JwtAuthGuard)
   getMyTournaments(
     @Request() req: { user: { id: number } },
-    @Query('mode') mode?: 'training' | 'money',
+    @Query('mode') mode?: string,
     @Query('currentTournamentId') currentTournamentId?: string,
   ) {
     const currentId = currentTournamentId ? parseInt(currentTournamentId, 10) : undefined;
-    return this.tournamentsService.getMyTournaments(req.user.id, mode, !Number.isNaN(currentId) ? currentId : undefined);
+    const normalizedMode = (mode === 'money' || mode === 'training') ? mode : undefined;
+    return this.tournamentsService.getMyTournaments(req.user.id, normalizedMode, !Number.isNaN(currentId) ? currentId : undefined);
   }
 
   @Get(':id/state')

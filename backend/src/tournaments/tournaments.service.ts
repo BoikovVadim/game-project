@@ -1254,16 +1254,55 @@ export class TournamentsService implements OnModuleInit {
 
     let tournaments: Tournament[];
     if (mode === 'money') {
-      const fromProgress = await this.tournamentProgressRepository.find({ where: { userId }, select: ['tournamentId'] });
-      const fromEntry = await this.tournamentEntryRepository.find({
-        where: { user: { id: userId } },
-        relations: ['tournament'],
-      });
       const tids = new Set<number>();
-      for (const p of fromProgress) if (p.tournamentId > 0) tids.add(p.tournamentId);
-      for (const e of fromEntry) {
-        const id = (e.tournament as { id?: number })?.id;
-        if (id) tids.add(id);
+      try {
+        const fromProgress = await this.tournamentProgressRepository.find({ where: { userId }, select: ['tournamentId'] });
+        for (const p of fromProgress) if (p.tournamentId > 0) tids.add(p.tournamentId);
+      } catch (e) {
+        this.logger.warn('[getMyTournaments] progress', (e as Error)?.message);
+      }
+      try {
+        const fromEntry = await this.tournamentEntryRepository.find({
+          where: { user: { id: userId } },
+          relations: ['tournament'],
+        });
+        for (const e of fromEntry) {
+          const id = (e.tournament as { id?: number })?.id ?? (e as { tournamentId?: number }).tournamentId;
+          if (id) tids.add(id);
+        }
+      } catch (e) {
+        this.logger.warn('[getMyTournaments] entry ORM', (e as Error)?.message);
+      }
+      const conn = this.tournamentRepository.manager.connection;
+      try {
+        const rawEntry = await conn.query(
+          'SELECT "tournamentId" FROM tournament_entry WHERE "userId" = $1',
+          [userId],
+        ) as { tournamentId: number }[];
+        for (const r of rawEntry ?? []) if (r?.tournamentId) tids.add(r.tournamentId);
+      } catch {
+        try {
+          const rawEntrySnake = await conn.query(
+            'SELECT tournament_id AS "tournamentId" FROM tournament_entry WHERE user_id = $1',
+            [userId],
+          ) as { tournamentId: number }[];
+          for (const r of rawEntrySnake ?? []) if (r?.tournamentId) tids.add(r.tournamentId);
+        } catch (_) {}
+      }
+      try {
+        const rawPlayers = await conn.query(
+          'SELECT "tournamentId" FROM tournament_players_user WHERE "userId" = $1',
+          [userId],
+        ) as { tournamentId: number }[];
+        for (const r of rawPlayers ?? []) if (r?.tournamentId) tids.add(r.tournamentId);
+      } catch {
+        try {
+          const rawPlayersSnake = await conn.query(
+            'SELECT tournament_id AS "tournamentId" FROM tournament_players_user WHERE user_id = $1',
+            [userId],
+          ) as { tournamentId: number }[];
+          for (const r of rawPlayersSnake ?? []) if (r?.tournamentId) tids.add(r.tournamentId);
+        } catch (_) {}
       }
       const ids = [...tids];
       if (ids.length === 0) {
