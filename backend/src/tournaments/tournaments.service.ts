@@ -318,8 +318,10 @@ export class TournamentsService implements OnModuleInit {
         finalOppProg = fPr1 ?? fPr2 ?? null;
       }
       if (finalOppProg && this.isPlayerInFinalPhase(finalOppProg, allProgress, tournament)) {
-        return this.getSharedSemiTiebreakerStart(myProg, finalOppProg);
+        const shared = this.getSharedSemiTiebreakerStart(myProg, finalOppProg);
+        if (shared) return shared;
       }
+      if (myProg.roundStartedAt instanceof Date) return myProg.roundStartedAt;
       return null;
     }
 
@@ -1961,6 +1963,13 @@ export class TournamentsService implements OnModuleInit {
       if (t.status === TournamentStatus.FINISHED) {
         if (answered < QUESTIONS_PER_ROUND) return 'Время истекло';
         if (resultByTournamentId.get(t.id) === true) return 'Победа';
+        // Выиграл полуфинал, но финал ещё не начал — показываем этап не пройден / ожидание, доступ к финалу остаётся.
+        const semiResFin = getMoneySemiResult(t);
+        if (semiResFin.result === 'won') {
+          const progFin = progressByTid.get(t.id);
+          if (progFin && (progFin.q ?? 0) < semiPhaseQuestions(progFin) + QUESTIONS_PER_ROUND)
+            return 'Этап не пройден';
+        }
         return 'Поражение';
       }
 
@@ -2109,10 +2118,23 @@ export class TournamentsService implements OnModuleInit {
     });
     if (!tournament) throw new NotFoundException('Tournament not found');
     this.sortPlayersByOrder(tournament);
-    if (tournament.status !== TournamentStatus.WAITING && tournament.status !== TournamentStatus.ACTIVE) {
-      throw new BadRequestException('Tournament is not active');
-    }
     const order = tournament.playerOrder ?? [];
+    if (tournament.status !== TournamentStatus.WAITING && tournament.status !== TournamentStatus.ACTIVE) {
+      if (tournament.status === TournamentStatus.FINISHED) {
+        const progressState = await this.tournamentProgressRepository.findOne({ where: { userId, tournamentId } });
+        const wonSemi = progressState && await this.didUserWinSemiFinal(tournament, userId);
+        const mySemiTotalState = progressState
+          ? 10 + (progressState.tiebreakerRoundsCorrect?.length ?? 0) * 10
+          : 10;
+        if (wonSemi && (progressState?.questionsAnsweredCount ?? 0) < mySemiTotalState + 10) {
+          // Доступ к финалу сохранён — не бросаем.
+        } else {
+          throw new BadRequestException('Tournament is not active');
+        }
+      } else {
+        throw new BadRequestException('Tournament is not active');
+      }
+    }
     const playerSlot = order.indexOf(userId);
     if (playerSlot < 0) throw new BadRequestException('You are not in this tournament');
 
@@ -2400,8 +2422,18 @@ export class TournamentsService implements OnModuleInit {
     const progress = await this.tournamentProgressRepository.findOne({
       where: { userId, tournamentId },
     });
-    const allProgress = await this.tournamentProgressRepository.find({ where: { tournamentId } });
-    const sharedStart = this.getCurrentRoundSharedStart(tournament, userId, progress, allProgress);
+    let allProgress = await this.tournamentProgressRepository.find({ where: { tournamentId } });
+    let sharedStart = this.getCurrentRoundSharedStart(tournament, userId, progress, allProgress);
+    const mySemiTotalForTimer = progress
+      ? 10 + (progress.tiebreakerRoundsCorrect?.length ?? 0) * 10
+      : 10;
+    const inFinalPhaseStart = progress && (progress.questionsAnsweredCount ?? 0) >= mySemiTotalForTimer && (progress.questionsAnsweredCount ?? 0) < mySemiTotalForTimer + 10;
+    if (questionsFinal.length > 0 && inFinalPhaseStart && !sharedStart && progress && !progress.roundStartedAt) {
+      progress.roundStartedAt = new Date();
+      await this.tournamentProgressRepository.save(progress);
+      allProgress = await this.tournamentProgressRepository.find({ where: { tournamentId } });
+      sharedStart = this.getCurrentRoundSharedStart(tournament, userId, progress, allProgress);
+    }
     const deadline: string | null = sharedStart ? this.getRoundDeadline(sharedStart) : null;
     const questionsAnsweredCount = progress?.questionsAnsweredCount ?? 0;
     const currentQuestionIndex = progress?.currentQuestionIndex ?? 0;
@@ -2832,14 +2864,18 @@ export class TournamentsService implements OnModuleInit {
     if (mySemi > oppSemi) return true;
     if (mySemi < oppSemi) return false;
 
-    // Ничья в полуфинале → проверяем тайбрейкеры
+    // Ничья в полуфинале → проверяем тайбрейкеры; если один завершил доп.раунд, а второй нет — победитель тот, кто завершил.
     const myTB = myProgress?.tiebreakerRoundsCorrect ?? [];
     const oppTB = oppProgress?.tiebreakerRoundsCorrect ?? [];
-    for (let r = 0; r < Math.min(myTB.length, oppTB.length); r++) {
-      const roundEnd = this.QUESTIONS_PER_ROUND + (r + 1) * this.TIEBREAKER_QUESTIONS;
+    for (let r = 1; r <= 50; r++) {
+      const roundEnd = this.QUESTIONS_PER_ROUND + r * this.TIEBREAKER_QUESTIONS;
+      if (myQ >= roundEnd && oppQ < roundEnd) return true;
+      if (myQ < roundEnd && oppQ >= roundEnd) return false;
       if (myQ < roundEnd || oppQ < roundEnd) return false;
-      if ((myTB[r] ?? 0) > (oppTB[r] ?? 0)) return true;
-      if ((myTB[r] ?? 0) < (oppTB[r] ?? 0)) return false;
+      const myR = myTB[r - 1] ?? 0;
+      const oppR = oppTB[r - 1] ?? 0;
+      if (myR > oppR) return true;
+      if (myR < oppR) return false;
     }
     return false;
   }
