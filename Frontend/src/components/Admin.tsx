@@ -304,6 +304,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
   const tournamentHeaderCellRefs = React.useRef<Partial<Record<TournamentColumnKey, HTMLTableCellElement | null>>>({});
   const [stickyTournamentHeaderVisible, setStickyTournamentHeaderVisible] = useState(false);
   const [stickyTournamentHeaderWidths, setStickyTournamentHeaderWidths] = useState<Partial<Record<TournamentColumnKey, number>>>({});
+  const [stickyTournamentHeaderScrollLeft, setStickyTournamentHeaderScrollLeft] = useState(0);
 
   type TournamentListRow = {
     tournamentId: number; status: string; createdAt: string; playersCount: number; leagueAmount: number | null;
@@ -1109,6 +1110,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
   useEffect(() => {
     if (section !== 'statistics' || statsSubTab !== 'tournaments') {
       setStickyTournamentHeaderVisible(false);
+      setStickyTournamentHeaderScrollLeft(0);
       return undefined;
     }
 
@@ -1138,6 +1140,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
 
       const wrapRect = wrapEl.getBoundingClientRect();
       const headerRect = adminHeaderEl.getBoundingClientRect();
+      setStickyTournamentHeaderScrollLeft((prev) => (prev === wrapEl.scrollLeft ? prev : wrapEl.scrollLeft));
       const stickyHeight = Math.ceil(
         tournamentStickyHeaderRef.current?.getBoundingClientRect().height
         || tournamentHeaderCellRefs.current[tournamentColumns[0]]?.parentElement?.getBoundingClientRect().height
@@ -1158,11 +1161,16 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
 
     scheduleMeasure();
     const observer = new ResizeObserver(() => scheduleMeasure());
-    if (adminHeaderRef.current) observer.observe(adminHeaderRef.current);
-    if (tournamentTableWrapRef.current) observer.observe(tournamentTableWrapRef.current);
+    const headerEl = adminHeaderRef.current;
+    const wrapEl = tournamentTableWrapRef.current;
+    if (headerEl) observer.observe(headerEl);
+    if (wrapEl) observer.observe(wrapEl);
     for (const column of tournamentColumns) {
       const cell = tournamentHeaderCellRefs.current[column];
       if (cell) observer.observe(cell);
+    }
+    if (wrapEl) {
+      wrapEl.addEventListener('scroll', scheduleMeasure, { passive: true });
     }
     window.addEventListener('scroll', scheduleMeasure, { passive: true });
     window.addEventListener('resize', scheduleMeasure);
@@ -1170,6 +1178,9 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
     return () => {
       if (rafId) cancelAnimationFrame(rafId);
       observer.disconnect();
+      if (wrapEl) {
+        wrapEl.removeEventListener('scroll', scheduleMeasure);
+      }
       window.removeEventListener('scroll', scheduleMeasure);
       window.removeEventListener('resize', scheduleMeasure);
     };
@@ -2043,13 +2054,16 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                 }
                 const stickyTableWidth = tournamentColumns.reduce((sum, column) => sum + (stickyTournamentHeaderWidths[column] ?? 0), 0);
                 return (
-                  <div ref={tournamentTableWrapRef} className="admin-table-wrap admin-table-wrap--tournaments">
+                  <div className="admin-table-shell admin-table-shell--tournaments">
                     <div
                       ref={tournamentStickyHeaderRef}
                       className={`admin-tournament-sticky-head${stickyTournamentHeaderVisible ? ' is-visible' : ''}`}
                       aria-hidden={!stickyTournamentHeaderVisible}
                     >
-                      <div className="admin-tournament-sticky-head-inner">
+                      <div
+                        className="admin-tournament-sticky-head-inner"
+                        style={{ transform: `translateX(-${stickyTournamentHeaderScrollLeft}px)` }}
+                      >
                         <table
                           className="admin-table admin-table--tournaments admin-table--tournaments-sticky"
                           style={stickyTableWidth > 0 ? { width: `${stickyTableWidth}px`, minWidth: '100%' } : { minWidth: '100%' }}
@@ -2059,7 +2073,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                               {tournamentColumns.map((column) => (
                                 <th
                                   key={`sticky-${column}`}
-                                  className={column === 'tournamentId' ? 'admin-tournament-col-id' : undefined}
+                                  className={column === 'tournamentId' ? 'admin-tournament-col-id admin-tournament-col-id--sticky-copy' : undefined}
                                   style={stickyTournamentHeaderWidths[column] ? {
                                     width: `${stickyTournamentHeaderWidths[column]}px`,
                                     minWidth: `${stickyTournamentHeaderWidths[column]}px`,
@@ -2077,77 +2091,79 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                         </table>
                       </div>
                     </div>
-                    <table className="admin-table admin-table--tournaments">
-                      <thead>
-                        <tr>
-                          {tournamentColumns.map((column) => (
-                            <th
-                              key={column}
-                              ref={(el) => {
-                                tournamentHeaderCellRefs.current[column] = el;
-                              }}
-                              className={[
-                                dragOverTournamentColumn === column ? 'admin-tournament-th-drop-target' : '',
-                                column === 'tournamentId' ? 'admin-tournament-col-id' : '',
-                              ].filter(Boolean).join(' ') || undefined}
-                              onDragOver={(e) => {
-                                if (!draggedTournamentColumn || draggedTournamentColumn === column) return;
-                                e.preventDefault();
-                                e.dataTransfer.dropEffect = 'move';
-                                if (dragOverTournamentColumn !== column) {
-                                  setDragOverTournamentColumn(column);
-                                }
-                              }}
-                              onDragLeave={() => {
-                                if (dragOverTournamentColumn === column) {
-                                  setDragOverTournamentColumn(null);
-                                }
-                              }}
-                              onDrop={(e) => {
-                                e.preventDefault();
-                                if (!draggedTournamentColumn || draggedTournamentColumn === column) return;
-                                reorderTournamentColumns(draggedTournamentColumn, column);
-                                setDraggedTournamentColumn(null);
-                                setDragOverTournamentColumn(null);
-                              }}
-                            >
-                              <div className="admin-tournament-th-inner">
-                                <button
-                                  type="button"
-                                  className="admin-tournament-th-drag"
-                                  draggable
-                                  onDragStart={(e) => {
-                                    setDraggedTournamentColumn(column);
-                                    setDragOverTournamentColumn(column);
-                                    e.dataTransfer.effectAllowed = 'move';
-                                    e.dataTransfer.setData('text/plain', column);
-                                  }}
-                                  onDragEnd={() => {
-                                    setDraggedTournamentColumn(null);
-                                    setDragOverTournamentColumn(null);
-                                  }}
-                                  aria-label={`Перетащить столбец «${TOURNAMENT_COLUMN_LABELS[column]}»`}
-                                  title="Зажмите название и перетащите столбец"
-                                >
-                                  {TOURNAMENT_COLUMN_LABELS[column]}
-                                </button>
-                              </div>
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filtered.map((row, idx) => (
-                          <tr key={`${row.tournamentId}-${row.userId}-${idx}`}>
+                    <div ref={tournamentTableWrapRef} className="admin-table-wrap admin-table-wrap--tournaments">
+                      <table className="admin-table admin-table--tournaments">
+                        <thead>
+                          <tr>
                             {tournamentColumns.map((column) => (
-                              <React.Fragment key={column}>
-                                {renderTournamentCell(row, column)}
-                              </React.Fragment>
+                              <th
+                                key={column}
+                                ref={(el) => {
+                                  tournamentHeaderCellRefs.current[column] = el;
+                                }}
+                                className={[
+                                  dragOverTournamentColumn === column ? 'admin-tournament-th-drop-target' : '',
+                                  column === 'tournamentId' ? 'admin-tournament-col-id' : '',
+                                ].filter(Boolean).join(' ') || undefined}
+                                onDragOver={(e) => {
+                                  if (!draggedTournamentColumn || draggedTournamentColumn === column) return;
+                                  e.preventDefault();
+                                  e.dataTransfer.dropEffect = 'move';
+                                  if (dragOverTournamentColumn !== column) {
+                                    setDragOverTournamentColumn(column);
+                                  }
+                                }}
+                                onDragLeave={() => {
+                                  if (dragOverTournamentColumn === column) {
+                                    setDragOverTournamentColumn(null);
+                                  }
+                                }}
+                                onDrop={(e) => {
+                                  e.preventDefault();
+                                  if (!draggedTournamentColumn || draggedTournamentColumn === column) return;
+                                  reorderTournamentColumns(draggedTournamentColumn, column);
+                                  setDraggedTournamentColumn(null);
+                                  setDragOverTournamentColumn(null);
+                                }}
+                              >
+                                <div className="admin-tournament-th-inner">
+                                  <button
+                                    type="button"
+                                    className="admin-tournament-th-drag"
+                                    draggable
+                                    onDragStart={(e) => {
+                                      setDraggedTournamentColumn(column);
+                                      setDragOverTournamentColumn(column);
+                                      e.dataTransfer.effectAllowed = 'move';
+                                      e.dataTransfer.setData('text/plain', column);
+                                    }}
+                                    onDragEnd={() => {
+                                      setDraggedTournamentColumn(null);
+                                      setDragOverTournamentColumn(null);
+                                    }}
+                                    aria-label={`Перетащить столбец «${TOURNAMENT_COLUMN_LABELS[column]}»`}
+                                    title="Зажмите название и перетащите столбец"
+                                  >
+                                    {TOURNAMENT_COLUMN_LABELS[column]}
+                                  </button>
+                                </div>
+                              </th>
                             ))}
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {filtered.map((row, idx) => (
+                            <tr key={`${row.tournamentId}-${row.userId}-${idx}`}>
+                              {tournamentColumns.map((column) => (
+                                <React.Fragment key={column}>
+                                  {renderTournamentCell(row, column)}
+                                </React.Fragment>
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 );
               })()}

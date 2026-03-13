@@ -361,30 +361,32 @@
 }
 
 .admin-table-wrap--tournaments {
-  position: relative;
   overflow-x: auto;
   overflow-y: visible;
+}
+
+.admin-table-shell--tournaments {
+  position: relative;
 }
 
 .admin-tournament-sticky-head {
   position: sticky;
   top: var(--admin-sticky-offset, 0px);
   z-index: 45;
-  height: 0;
-  overflow: visible;
+  display: none;
+  overflow: hidden;
   pointer-events: none;
+  background: #f5f5f5;
 }
 
 .admin-tournament-sticky-head-inner {
-  display: none;
+  display: block;
+  will-change: transform;
 }
 
 .admin-tournament-sticky-head.is-visible {
-  pointer-events: auto;
-}
-
-.admin-tournament-sticky-head.is-visible .admin-tournament-sticky-head-inner {
   display: block;
+  pointer-events: auto;
 }
 
 .admin-section label {
@@ -1175,6 +1177,12 @@
 .admin-table--tournaments-sticky thead .admin-tournament-col-id {
   z-index: 35;
   background: #f5f5f5;
+}
+
+.admin-table--tournaments-sticky .admin-tournament-col-id--sticky-copy {
+  position: sticky;
+  left: 0;
+  box-shadow: 1px 0 0 #ddd;
 }
 
 .admin-tournament-th-label {
