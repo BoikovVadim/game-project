@@ -82,18 +82,6 @@ const LEAGUE_IMAGES: Record<number, string> = {
   1000000: '/leagues/league-almaz.jpg',
 };
 
-const preloadedLeagueImages = new Set<string>();
-
-const preloadLeagueImage = (src?: string | null) => {
-  if (!src || typeof window === 'undefined' || preloadedLeagueImages.has(src)) return;
-  preloadedLeagueImages.add(src);
-  const img = new Image();
-  img.src = src;
-  if (typeof img.decode === 'function') {
-    img.decode().catch(() => {});
-  }
-};
-
 /** Выигрыш победителя: 4 игрока × ставка − 20% с каждого из 3 проигравших = 3.4 × ставка L */
 function getLeaguePrize(stake: number): number {
   return Math.round(3.4 * stake);
@@ -1307,12 +1295,10 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     }
   }, [gameMode, selectedLeague]);
 
-  // Предзагрузка всех картинок лиг при появлении списка — чтобы при пролистывании картинки уже были в кэше
+  // Дополнительный запуск предзагрузки при открытии профиля (основная — из App при hasToken)
   useEffect(() => {
-    const list = allLeagues ?? [];
-    if (list.length === 0) return;
-    list.forEach((amount) => preloadLeagueImage(LEAGUE_IMAGES[amount]));
-  }, [allLeagues]);
+    import('../preloadLeagueImages').then((m) => m.preloadAllLeagueImages());
+  }, []);
 
   useEffect(() => {
     const saveOnUnload = () => {

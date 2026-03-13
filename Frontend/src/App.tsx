@@ -70,6 +70,13 @@ function AppContent() {
     import('./components/DisputesPolicy.tsx');
   }, []);
 
+  // Ранняя предзагрузка картинок лиг для карусели — сразу при входе под токеном
+  useEffect(() => {
+    if (hasToken) {
+      import('./preloadLeagueImages').then((m) => m.preloadAllLeagueImages());
+    }
+  }, [hasToken]);
+
   useEffect(() => {
     const saveScroll = () => {
       try {
