@@ -4066,18 +4066,29 @@ export class TournamentsService implements OnModuleInit {
     const toPlayer = (p: User, isLoser?: boolean) => {
       const prog = progressByUser.get(p.id);
       const q = prog?.questionsAnsweredCount ?? 0;
-      let semiScore: number | undefined;
-      if (prog?.semiFinalCorrectCount != null && prog.semiFinalCorrectCount <= this.QUESTIONS_PER_ROUND) {
-        semiScore = prog.semiFinalCorrectCount;
-      } else if (q <= this.QUESTIONS_PER_ROUND) {
-        semiScore = prog?.correctAnswersCount ?? 0;
+      const tbRounds = prog?.tiebreakerRoundsCorrect ?? [];
+      const semiBaseCorrect = prog?.semiFinalCorrectCount != null && prog.semiFinalCorrectCount <= this.QUESTIONS_PER_ROUND
+        ? prog.semiFinalCorrectCount
+        : q <= this.QUESTIONS_PER_ROUND
+          ? (prog?.correctAnswersCount ?? 0)
+          : 0;
+      const semiTiebreakerCorrectTotal = tbRounds.reduce((a: number, b: number) => a + b, 0);
+      const inFinalPhase = prog ? this.isPlayerInFinalPhase(prog, progressList, tournament) : false;
+      const completedSemiQuestions = this.QUESTIONS_PER_ROUND + tbRounds.length * this.TIEBREAKER_QUESTIONS;
+      let semiAnswered = Math.min(q, completedSemiQuestions);
+      if (!inFinalPhase && q > completedSemiQuestions) {
+        semiAnswered = Math.min(q, completedSemiQuestions + this.TIEBREAKER_QUESTIONS);
       }
+      const semiScore = q > 0
+        ? inFinalPhase
+          ? semiBaseCorrect + semiTiebreakerCorrectTotal
+          : (prog?.correctAnswersCount ?? 0)
+        : undefined;
 
       let tiebreakerRound = 0;
       let tiebreakerAnswered = 0;
       let tiebreakerCorrect: number | undefined;
-      const tbRounds = prog?.tiebreakerRoundsCorrect ?? [];
-      if (q > this.QUESTIONS_PER_ROUND && prog?.semiFinalCorrectCount != null) {
+      if (!inFinalPhase && q > this.QUESTIONS_PER_ROUND && prog?.semiFinalCorrectCount != null) {
         const completedTBRounds = tbRounds.length;
         const answeredAfterSemi = q - this.QUESTIONS_PER_ROUND;
         const answeredInCompletedRounds = completedTBRounds * this.TIEBREAKER_QUESTIONS;
@@ -4098,8 +4109,8 @@ export class TournamentsService implements OnModuleInit {
         nickname: (p as any).nickname ?? null,
         avatarUrl: (p as any).avatarUrl ?? null,
         semiScore,
-        questionsAnswered: q,
-        correctAnswersCount: prog?.correctAnswersCount ?? 0,
+        questionsAnswered: semiAnswered,
+        correctAnswersCount: semiScore ?? 0,
         isLoser: isLoser ?? false,
         tiebreakerRound,
         tiebreakerAnswered,
@@ -4183,9 +4194,9 @@ export class TournamentsService implements OnModuleInit {
       const semiTBRounds: number[] = (prog as any)?.tiebreakerRoundsCorrect ?? [];
       const semiTBSum = semiTBRounds.reduce((a: number, b: number) => a + b, 0);
       const semiPhase = this.QUESTIONS_PER_ROUND + semiTBRounds.length * this.TIEBREAKER_QUESTIONS;
-      const finalAnswered = q > semiPhase ? Math.min(this.QUESTIONS_PER_ROUND, q - semiPhase) : 0;
+      const finalAnswered = q > semiPhase ? Math.max(0, q - semiPhase) : 0;
       const finalCorrect = q > semiPhase ? Math.max(0, totalCorrect - semiCorrect - semiTBSum) : 0;
-      const finalScore = q >= semiPhase + this.QUESTIONS_PER_ROUND ? finalCorrect : undefined;
+      const finalScore = finalAnswered > 0 ? finalCorrect : undefined;
       return {
         id: pl.id,
         username: pl.username ?? 'Игрок',

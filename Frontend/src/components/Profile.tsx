@@ -884,6 +884,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     semi1: { players: { id: number; username: string; nickname?: string | null; semiScore?: number; questionsAnswered?: number; correctAnswersCount?: number; isLoser?: boolean; tiebreakerRound?: number; tiebreakerAnswered?: number; tiebreakerCorrect?: number }[] };
     semi2: { players: { id: number; username: string; nickname?: string | null; semiScore?: number; questionsAnswered?: number; correctAnswersCount?: number; isLoser?: boolean; tiebreakerRound?: number; tiebreakerAnswered?: number; tiebreakerCorrect?: number }[] } | null;
     final: { players: { id: number; username: string; nickname?: string | null; finalScore?: number; finalAnswered?: number; finalCorrect?: number }[] };
+    finalWinnerId?: number | null;
     gameType: string | null;
     status: string;
     isCompleted?: boolean;
@@ -5066,8 +5067,8 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                         const isWinner = isReal && !p.isLoser && opp?.isLoser === true;
                         const displayName = truncateBracketName(isReal ? (p.nickname?.trim() || `Игрок ${p.id}`) : 'Ожидание соперника');
                         const answered = p?.questionsAnswered ?? 0;
-                        const total = answered >= 10 ? 10 : answered;
-                        const correct = p?.semiScore ?? (answered <= 10 ? (p?.correctAnswersCount ?? 0) : 0);
+                        const total = answered;
+                        const correct = p?.semiScore ?? p?.correctAnswersCount ?? 0;
                         void correct;
                         const pAvatar = isReal && p.id === user?.id ? avatar : (isReal ? (p.avatarUrl ?? null) : null);
                         return (
@@ -5115,8 +5116,8 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                         const isWinner = isReal && !p.isLoser && opp?.isLoser === true;
                         const displayName = truncateBracketName(isReal ? (p.nickname?.trim() || `Игрок ${p.id}`) : 'Ожидание соперника');
                         const answered = p?.questionsAnswered ?? 0;
-                        const total = answered >= 10 ? 10 : answered;
-                        const correct = p?.semiScore ?? (answered <= 10 ? (p?.correctAnswersCount ?? 0) : 0);
+                        const total = answered;
+                        const correct = p?.semiScore ?? p?.correctAnswersCount ?? 0;
                         void correct;
                         const pAvatar = isReal && p.id === user?.id ? avatar : (isReal ? (p.avatarUrl ?? null) : null);
                         return (
@@ -5166,12 +5167,8 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                   <div className="bracket-match">
                     {(() => {
                       const fp = bracketView.final.players;
-                      const p0 = fp[0];
-                      const p1 = fp[1];
-                      const bothFinished = p0 && p1 && p0.finalScore != null && p1.finalScore != null;
-                      const finalWinnerId = bothFinished
-                        ? (p0.finalScore! > p1.finalScore! ? p0.id : p1.finalScore! > p0.finalScore! ? p1.id : null)
-                        : null;
+                      const finalWinnerId = bracketView.finalWinnerId ?? null;
+                      const bothFinished = finalWinnerId != null;
                       return [0, 1].map((i) => {
                         const p = fp[i];
                         const isReal = p != null && p.id > 0;
@@ -5179,7 +5176,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                         const isLoser = bothFinished && isReal && finalWinnerId != null && finalWinnerId !== p.id;
                         const displayName = truncateBracketName(isReal ? (p.nickname?.trim() || `Игрок ${p.id}`) : 'Ожидание соперника');
                         const answered = p?.finalAnswered ?? 0;
-                        const total = answered >= 10 ? 10 : answered;
+                        const total = answered;
                         const correct = p?.finalScore ?? p?.finalCorrect ?? 0;
                         const pAvatar = isReal && p.id === user?.id ? avatar : (isReal ? (p.avatarUrl ?? null) : null);
                         return (
@@ -5208,8 +5205,8 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                               ) : (
                                 <span className="bracket-player-name">{displayName}</span>
                               )}
-                              {isReal && (
-                                <span className="bracket-player-score">{correct}/{total > 0 ? total : 10} ({total > 0 ? Math.round((correct / total) * 100) : 0}%)</span>
+                              {isReal && total > 0 && (
+                                <span className="bracket-player-score">{correct}/{total} ({Math.round((correct / total) * 100)}%)</span>
                               )}
                             </span>
                           </div>

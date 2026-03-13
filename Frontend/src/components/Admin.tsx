@@ -2430,8 +2430,8 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                         const isWinner = isReal && !p.isLoser && opp?.isLoser === true;
                         const displayName = truncateBracketName(isReal ? (p.nickname?.trim() || `Игрок ${p.id}`) : 'Ожидание соперника');
                         const answered = p?.questionsAnswered ?? 0;
-                        const total = answered >= 10 ? 10 : answered;
-                        const correct = p?.semiScore ?? (answered <= 10 ? (p?.correctAnswersCount ?? 0) : 0);
+                        const total = answered;
+                        const correct = p?.semiScore ?? p?.correctAnswersCount ?? 0;
                         const pAvatar = isReal ? (p.avatarUrl ?? null) : null;
                         return (
                           <div key={isReal ? p.id : `s1-${i}`} className={`bracket-player-slot ${!isReal ? 'bracket-slot-empty' : ''} ${isReal && p.isLoser ? 'bracket-slot-loser' : ''}`}>
@@ -2468,8 +2468,8 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                         const isWinner = isReal && !p.isLoser && opp?.isLoser === true;
                         const displayName = truncateBracketName(isReal ? (p.nickname?.trim() || `Игрок ${p.id}`) : 'Ожидание соперника');
                         const answered = p?.questionsAnswered ?? 0;
-                        const total = answered >= 10 ? 10 : answered;
-                        const correct = p?.semiScore ?? (answered <= 10 ? (p?.correctAnswersCount ?? 0) : 0);
+                        const total = answered;
+                        const correct = p?.semiScore ?? p?.correctAnswersCount ?? 0;
                         const pAvatar = isReal ? (p.avatarUrl ?? null) : null;
                         return (
                           <div key={isReal ? p.id : `s2-${i}`} className={`bracket-player-slot ${!isReal ? 'bracket-slot-empty' : ''} ${isReal && p.isLoser ? 'bracket-slot-loser' : ''}`}>
@@ -2517,7 +2517,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                         const isLoser = bothFinished && isReal && finalWinnerId != null && finalWinnerId !== p.id;
                         const displayName = truncateBracketName(isReal ? (p.nickname?.trim() || `Игрок ${p.id}`) : 'Ожидание соперника');
                         const answered = p?.finalAnswered ?? 0;
-                        const total = answered >= 10 ? 10 : answered;
+                        const total = answered;
                         const correct = p?.finalScore ?? p?.finalCorrect ?? 0;
                         const pAvatar = isReal ? (p.avatarUrl ?? null) : null;
                         return (
@@ -2538,7 +2538,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                               ) : (
                                 <span className="bracket-player-name">{displayName}</span>
                               )}
-                              {isReal && <span className="bracket-player-score">{correct}/{total > 0 ? total : 10} ({total > 0 ? Math.round((correct / total) * 100) : 0}%)</span>}
+                              {isReal && total > 0 && <span className="bracket-player-score">{correct}/{total} ({Math.round((correct / total) * 100)}%)</span>}
                             </span>
                           </div>
                         );
