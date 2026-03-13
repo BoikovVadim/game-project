@@ -297,6 +297,8 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
   const [questionStats, setQuestionStats] = useState<QuestionStatRow[]>([]);
   const [questionStatsLoading, setQuestionStatsLoading] = useState(false);
   const questionStatsLoadedRef = React.useRef(false);
+  const adminHeaderRef = React.useRef<HTMLElement | null>(null);
+  const [stickyHeaderOffset, setStickyHeaderOffset] = useState(0);
 
   type TournamentListRow = {
     tournamentId: number; status: string; createdAt: string; playersCount: number; leagueAmount: number | null;
@@ -1079,6 +1081,26 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
     </th>
   );
 
+  useEffect(() => {
+    const headerEl = adminHeaderRef.current;
+    if (!headerEl) return undefined;
+
+    const updateOffset = () => {
+      setStickyHeaderOffset(Math.ceil(headerEl.getBoundingClientRect().height));
+    };
+
+    updateOffset();
+
+    const observer = new ResizeObserver(() => updateOffset());
+    observer.observe(headerEl);
+    window.addEventListener('resize', updateOffset);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', updateOffset);
+    };
+  }, []);
+
   const fetchNews = React.useCallback(() => {
     if (!token) return;
     if (!newsLoadedRef.current) setNewsLoading(true);
@@ -1268,8 +1290,8 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
   }
 
   return (
-    <div className="admin-panel">
-      <header className="admin-panel-header cabinet-header">
+    <div className="admin-panel" style={{ ['--admin-sticky-offset' as string]: `${stickyHeaderOffset}px` }}>
+      <header ref={adminHeaderRef} className="admin-panel-header cabinet-header">
         <div className="cabinet-header-left">
           <span className="admin-header-title">Админ-панель</span>
         </div>
