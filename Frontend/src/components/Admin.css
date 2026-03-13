@@ -1071,26 +1071,6 @@
   flex-wrap: wrap;
 }
 
-.admin-tournament-columns-reset {
-  padding: 6px 10px;
-  border: 1px solid #d0d0d0;
-  border-radius: 8px;
-  background: #fff;
-  color: #333;
-  font-size: clamp(11px, 0.5vw + 7px, 13px);
-  font-weight: 500;
-  cursor: pointer;
-}
-
-.admin-tournament-columns-reset:hover:not(:disabled) {
-  background: #f5f5f5;
-}
-
-.admin-tournament-columns-reset:disabled {
-  opacity: 0.55;
-  cursor: not-allowed;
-}
-
 .admin-tournament-th-inner {
   display: inline-flex;
   align-items: center;

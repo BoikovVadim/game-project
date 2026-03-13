@@ -1011,7 +1011,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
       case 'leagueAmount':
         return <td style={{ textAlign: 'center' }}>{row.leagueAmount != null ? row.leagueAmount : '—'}</td>;
       case 'resultLabel':
-        return <td className="admin-td-left">{row.resultLabel ?? '—'}</td>;
+        return <td style={{ textAlign: 'center' }}>{row.resultLabel ?? '—'}</td>;
       case 'correctAnswersInRound':
         return <td style={{ textAlign: 'center' }}>{row.correctAnswersInRound}</td>;
       case 'completedAt':
@@ -1923,18 +1923,6 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                     style={{ width: 160 }}
                   />
                 </label>
-                <button
-                  type="button"
-                  className="admin-tournament-columns-reset"
-                  onClick={() => {
-                    setDraggedTournamentColumn(null);
-                    setDragOverTournamentColumn(null);
-                    updateTournamentColumns(DEFAULT_TOURNAMENT_COLUMNS);
-                  }}
-                  disabled={tournamentColumns.join(',') === DEFAULT_TOURNAMENT_COLUMNS.join(',')}
-                >
-                  Сбросить порядок столбцов
-                </button>
               </div>
               {tournamentsListLoading && !tournamentsListLoadedRef.current ? (
                 <p>Загрузка...</p>
