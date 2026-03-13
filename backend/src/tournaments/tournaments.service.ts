@@ -736,44 +736,91 @@ export class TournamentsService implements OnModuleInit {
     return out;
   }
 
-  private async pickFromDB(n: number): Promise<{ question: string; options: string[]; correctAnswer: number }[]> {
-    const rows = await this.questionPoolRepository
-      .createQueryBuilder('q')
-      .orderBy('RANDOM()')
-      .limit(n * 3)
-      .getMany();
-    const seen = new Set<string>();
-    const unique: typeof rows = [];
-    for (const r of rows) {
-      if (seen.has(r.question)) continue;
-      seen.add(r.question);
-      unique.push(r);
-      if (unique.length >= n) break;
-    }
-    return this.shuffle(unique).slice(0, n).map((r) => ({
-      question: this.sanitizeUtf8ForDisplay(r.question),
-      options: Array.isArray(r.options) ? r.options.map((o) => this.sanitizeUtf8ForDisplay(String(o))) : [],
-      correctAnswer: r.correctAnswer,
-    }));
+  private buildQuestionUniqueKey(question: string): string {
+    return this.sanitizeUtf8ForDisplay(String(question ?? '')).trim().toLowerCase();
   }
 
-  private async pickRandomQuestions(n: number): Promise<Omit<Question, 'id' | 'tournament' | 'roundIndex'>[]> {
-    return this.pickFromDB(n);
+  private async getTournamentQuestionKeySet(
+    tournamentId: number,
+    excludeRoundIndexes: number[] = [],
+  ): Promise<Set<string>> {
+    const questions = await this.questionRepository.find({
+      where: { tournament: { id: tournamentId } },
+      select: ['question', 'roundIndex'],
+      order: { roundIndex: 'ASC', id: 'ASC' },
+    });
+    const excluded = new Set(excludeRoundIndexes);
+    const keys = new Set<string>();
+    for (const q of questions) {
+      if (excluded.has(q.roundIndex)) continue;
+      keys.add(this.buildQuestionUniqueKey(q.question));
+    }
+    return keys;
+  }
+
+  private async pickFromDB(
+    n: number,
+    excludedQuestionKeys: Set<string> = new Set(),
+  ): Promise<{ question: string; options: string[]; correctAnswer: number }[]> {
+    const normalizedExcluded = new Set<string>(
+      [...excludedQuestionKeys].map((key) => this.buildQuestionUniqueKey(key)),
+    );
+    const collectUnique = (rows: QuestionPoolItem[]): { question: string; options: string[]; correctAnswer: number }[] => {
+      const seen = new Set<string>(normalizedExcluded);
+      const unique: { question: string; options: string[]; correctAnswer: number }[] = [];
+      for (const r of rows) {
+        const key = this.buildQuestionUniqueKey(r.question);
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        unique.push({
+          question: this.sanitizeUtf8ForDisplay(r.question),
+          options: Array.isArray(r.options) ? r.options.map((o) => this.sanitizeUtf8ForDisplay(String(o))) : [],
+          correctAnswer: r.correctAnswer,
+        });
+        if (unique.length >= n) break;
+      }
+      return unique;
+    };
+
+    const sampledRows = await this.questionPoolRepository
+      .createQueryBuilder('q')
+      .orderBy('RANDOM()')
+      .limit(Math.max(n * 10, 50))
+      .getMany();
+
+    let unique = collectUnique(sampledRows);
+    if (unique.length < n) {
+      const allRows = await this.questionPoolRepository.find();
+      unique = collectUnique(this.shuffle(allRows));
+    }
+
+    if (unique.length < n) {
+      throw new BadRequestException(`Недостаточно уникальных вопросов для генерации турнира: нужно ${n}, найдено ${unique.length}.`);
+    }
+    return unique.slice(0, n);
+  }
+
+  private async pickRandomQuestions(
+    n: number,
+    excludedQuestionKeys: Set<string> = new Set(),
+  ): Promise<Omit<Question, 'id' | 'tournament' | 'roundIndex'>[]> {
+    return this.pickFromDB(n, excludedQuestionKeys);
   }
 
   private async pickQuestionsForSemi(): Promise<{
     semi1: Omit<Question, 'id' | 'tournament' | 'roundIndex'>[];
     semi2: Omit<Question, 'id' | 'tournament' | 'roundIndex'>[];
   }> {
-    const semiQuestions = await this.pickFromDB(10);
+    const semiQuestions = await this.pickFromDB(20);
     return {
-      semi1: semiQuestions,
-      semi2: this.shuffle([...semiQuestions]),
+      semi1: semiQuestions.slice(0, 10),
+      semi2: semiQuestions.slice(10, 20),
     };
   }
 
-  private async pickQuestionsForFinal(): Promise<Omit<Question, 'id' | 'tournament' | 'roundIndex'>[]> {
-    return this.pickFromDB(10);
+  private async pickQuestionsForFinal(tournamentId: number): Promise<Omit<Question, 'id' | 'tournament' | 'roundIndex'>[]> {
+    const excludedKeys = await this.getTournamentQuestionKeySet(tournamentId);
+    return this.pickFromDB(10, excludedKeys);
   }
 
   /** Тренировка: присоединиться к существующему турниру или создать новый (до 4 игроков, как money-режим, но без ставки). */
@@ -2651,7 +2698,8 @@ export class TournamentsService implements OnModuleInit {
                 return { id: q.id, question: qText, options: fixed.options.map((o) => this.sanitizeUtf8ForDisplay(String(o))), correctAnswer: fixed.correctAnswer };
               });
             } else if (existing.length < this.TIEBREAKER_QUESTIONS && (myQ > this.QUESTIONS_PER_ROUND || oppQ > this.QUESTIONS_PER_ROUND)) {
-              const pool = await this.pickRandomQuestions(this.TIEBREAKER_QUESTIONS);
+              const excludedQuestionKeys = await this.getTournamentQuestionKeySet(tournamentId);
+              const pool = await this.pickRandomQuestions(this.TIEBREAKER_QUESTIONS, excludedQuestionKeys);
               for (const q of pool) {
                 const row = this.questionRepository.create({ ...q, tournament, roundIndex });
                 await this.questionRepository.save(row);
@@ -2869,7 +2917,7 @@ export class TournamentsService implements OnModuleInit {
     if (questionsFinal.length === 0) {
       const wonSemi = await this.didUserWinSemiFinal(tournament, userId);
       if (wonSemi) {
-        const finalPool = await this.pickQuestionsForFinal();
+        const finalPool = await this.pickQuestionsForFinal(tournamentId);
         const created: typeof questionsFinal = [];
         for (const q of finalPool) {
           const row = this.questionRepository.create({ ...q, tournament, roundIndex: 2 });
@@ -2978,7 +3026,8 @@ export class TournamentsService implements OnModuleInit {
             order: { id: 'ASC' },
           });
           if (existing.length < this.TIEBREAKER_QUESTIONS) {
-            const pool = await this.pickRandomQuestions(this.TIEBREAKER_QUESTIONS);
+            const excludedQuestionKeys = await this.getTournamentQuestionKeySet(tournamentId);
+            const pool = await this.pickRandomQuestions(this.TIEBREAKER_QUESTIONS, excludedQuestionKeys);
             for (const q of pool) {
               const row = this.questionRepository.create({ ...q, tournament, roundIndex });
               await this.questionRepository.save(row);
@@ -3051,7 +3100,8 @@ export class TournamentsService implements OnModuleInit {
                   order: { id: 'ASC' },
                 });
                 if (existing.length < this.TIEBREAKER_QUESTIONS) {
-                  const pool = await this.pickRandomQuestions(this.TIEBREAKER_QUESTIONS);
+                  const excludedQuestionKeys = await this.getTournamentQuestionKeySet(tournamentId);
+                  const pool = await this.pickRandomQuestions(this.TIEBREAKER_QUESTIONS, excludedQuestionKeys);
                   for (const q of pool) {
                     const row = this.questionRepository.create({ ...q, tournament, roundIndex });
                     await this.questionRepository.save(row);
