@@ -2665,20 +2665,26 @@ export class TournamentsService implements OnModuleInit {
 
   /**
    * Исправляет отображение текста при неправильной интерпретации кодировки (UTF-8 как Latin-1).
-   * Если после перекодирования из latin1 в utf8 получается больше кириллицы — используем исправленный вариант.
+   * Пробует одинарную и двойную перекодировку; возвращает вариант с большим количеством кириллицы.
    */
   private sanitizeUtf8ForDisplay(s: string): string {
     if (typeof s !== 'string' || !s) return s;
+    let best = s;
+    let bestCyrillic = (s.match(/[\u0400-\u04FF]/g) || []).length;
     try {
-      const decoded = Buffer.from(s, 'latin1').toString('utf8');
-      const cyrillicDecoded = (decoded.match(/[\u0400-\u04FF]/g) || []).length;
-      const cyrillicOriginal = (s.match(/[\u0400-\u04FF]/g) || []).length;
-      if (cyrillicDecoded > cyrillicOriginal || (decoded !== s && cyrillicDecoded > 0 && cyrillicOriginal === 0))
-        return decoded;
+      const decoded1 = Buffer.from(s, 'latin1').toString('utf8');
+      const c1 = (decoded1.match(/[\u0400-\u04FF]/g) || []).length;
+      if (c1 > bestCyrillic || (c1 > 0 && bestCyrillic === 0)) {
+        best = decoded1;
+        bestCyrillic = c1;
+      }
+      const decoded2 = Buffer.from(decoded1, 'latin1').toString('utf8');
+      const c2 = (decoded2.match(/[\u0400-\u04FF]/g) || []).length;
+      if (c2 > bestCyrillic || (c2 > 0 && bestCyrillic === 0)) best = decoded2;
     } catch {
       // ignore
     }
-    return s;
+    return best;
   }
 
   /**

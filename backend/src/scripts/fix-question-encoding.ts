@@ -9,18 +9,25 @@ import { Repository } from 'typeorm';
 import { QuestionPoolItem } from '../tournaments/question-pool.entity';
 import { Question } from '../tournaments/question.entity';
 
+/** Одинарная и двойная перекодировка latin1→utf8; возвращает вариант с большим количеством кириллицы. */
 function sanitizeUtf8(s: string): string {
   if (typeof s !== 'string' || !s) return s;
+  let best = s;
+  let bestCyrillic = (s.match(/[\u0400-\u04FF]/g) || []).length;
   try {
-    const decoded = Buffer.from(s, 'latin1').toString('utf8');
-    const cyrillicDecoded = (decoded.match(/[\u0400-\u04FF]/g) || []).length;
-    const cyrillicOriginal = (s.match(/[\u0400-\u04FF]/g) || []).length;
-    if (cyrillicDecoded > cyrillicOriginal || (decoded !== s && cyrillicDecoded > 0 && cyrillicOriginal === 0))
-      return decoded;
+    const decoded1 = Buffer.from(s, 'latin1').toString('utf8');
+    const c1 = (decoded1.match(/[\u0400-\u04FF]/g) || []).length;
+    if (c1 > bestCyrillic || (c1 > 0 && bestCyrillic === 0)) {
+      best = decoded1;
+      bestCyrillic = c1;
+    }
+    const decoded2 = Buffer.from(decoded1, 'latin1').toString('utf8');
+    const c2 = (decoded2.match(/[\u0400-\u04FF]/g) || []).length;
+    if (c2 > bestCyrillic || (c2 > 0 && bestCyrillic === 0)) best = decoded2;
   } catch {
     // ignore
   }
-  return s;
+  return best;
 }
 
 async function run() {
