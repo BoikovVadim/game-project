@@ -1253,19 +1253,39 @@ export class TournamentsService implements OnModuleInit {
     }
 
     let tournaments: Tournament[];
-    const qb = this.tournamentRepository
-      .createQueryBuilder('t')
-      .innerJoinAndSelect('t.players', 'p', 'p.id = :userId', { userId })
-      .orderBy('t.createdAt', 'DESC');
-    if (mode === 'training') {
+    if (mode === 'money') {
+      const fromProgress = await this.tournamentProgressRepository.find({ where: { userId }, select: ['tournamentId'] });
+      const fromEntry = await this.tournamentEntryRepository.find({
+        where: { user: { id: userId } },
+        relations: ['tournament'],
+      });
+      const tids = new Set<number>();
+      for (const p of fromProgress) if (p.tournamentId > 0) tids.add(p.tournamentId);
+      for (const e of fromEntry) {
+        const id = (e.tournament as { id?: number })?.id;
+        if (id) tids.add(id);
+      }
+      const ids = [...tids];
+      if (ids.length === 0) {
+        tournaments = [];
+      } else {
+        const list = await this.tournamentRepository.find({
+          where: { id: In(ids) },
+          relations: ['players'],
+          order: { createdAt: 'DESC' },
+        });
+        tournaments = list.filter(
+          (t) => t.gameType === 'money' || (t.gameType == null && t.leagueAmount != null),
+        );
+      }
+    } else {
+      const qb = this.tournamentRepository
+        .createQueryBuilder('t')
+        .innerJoinAndSelect('t.players', 'p', 'p.id = :userId', { userId })
+        .orderBy('t.createdAt', 'DESC');
       qb.andWhere('t.gameType = :gameType', { gameType: 'training' });
-    } else if (mode === 'money') {
-      qb.andWhere(
-        '(t.gameType = :money OR (t.gameType IS NULL AND t."leagueAmount" IS NOT NULL))',
-        { money: 'money' },
-      );
+      tournaments = await qb.getMany();
     }
-    tournaments = await qb.getMany();
 
     const allIds = tournaments.map((t) => t.id);
     if (allIds.length > 0) {
