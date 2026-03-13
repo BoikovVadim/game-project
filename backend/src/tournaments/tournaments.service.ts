@@ -1254,42 +1254,40 @@ export class TournamentsService implements OnModuleInit {
 
     let tournaments: Tournament[];
     if (mode === 'money') {
-      const conn = this.tournamentRepository.manager.connection;
-      let ids: number[] = [];
+      const tids = new Set<number>();
       try {
-        const result = await conn.query(
-          `SELECT DISTINCT t.id
-           FROM tournament t
-           WHERE (t."gameType" = 'money' OR (t."leagueAmount" IS NOT NULL AND t."gameType" IS NULL))
-           AND (
-             EXISTS (SELECT 1 FROM tournament_progress p WHERE p."tournamentId" = t.id AND p."userId" = $1)
-             OR EXISTS (SELECT 1 FROM tournament_entry e WHERE e."tournamentId" = t.id AND e."userId" = $1)
-             OR EXISTS (SELECT 1 FROM tournament_players_user u WHERE u."tournamentId" = t.id AND u."userId" = $1)
-           )
-           ORDER BY t.id`,
-          [userId],
-        );
-        const rows = Array.isArray(result) ? result : (result as { rows?: { id: number }[] })?.rows ?? [];
-        ids = rows.map((r: { id?: number }) => r?.id ?? 0).filter((id) => id > 0);
-      } catch (e1) {
-        try {
-          const result = await conn.query(
-            `SELECT DISTINCT t.id FROM tournament t
-             WHERE (t.game_type = 'money' OR (t.league_amount IS NOT NULL AND t.game_type IS NULL))
-             AND (
-               EXISTS (SELECT 1 FROM tournament_progress p WHERE p.tournament_id = t.id AND p.user_id = $1)
-               OR EXISTS (SELECT 1 FROM tournament_entry e WHERE e.tournament_id = t.id AND e.user_id = $1)
-               OR EXISTS (SELECT 1 FROM tournament_players_user u WHERE u.tournament_id = t.id AND u.user_id = $1)
-             )
-             ORDER BY t.id`,
-            [userId],
-          );
-          const rows = Array.isArray(result) ? result : (result as { rows?: { id: number }[] })?.rows ?? [];
-          ids = rows.map((r: { id?: number }) => r?.id ?? 0).filter((id) => id > 0);
-        } catch (e2) {
-          this.logger.warn('[getMyTournaments] money IDs query failed', (e1 as Error)?.message, (e2 as Error)?.message);
-        }
+        const fromProgress = await this.tournamentProgressRepository.find({
+          where: { userId },
+          select: ['tournamentId'],
+        });
+        for (const p of fromProgress) if (p.tournamentId > 0) tids.add(p.tournamentId);
+      } catch (e) {
+        this.logger.warn('[getMyTournaments] fromProgress', (e as Error)?.message);
       }
+      try {
+        const fromEntry = await this.tournamentEntryRepository.find({
+          where: { user: { id: userId } },
+          relations: ['tournament'],
+        });
+        for (const e of fromEntry) {
+          const tid = (e.tournament as Tournament)?.id ?? (e as { tournamentId?: number }).tournamentId;
+          if (tid && tid > 0) tids.add(tid);
+        }
+      } catch (e) {
+        this.logger.warn('[getMyTournaments] fromEntry', (e as Error)?.message);
+      }
+      try {
+        const fromPlayers = await this.tournamentRepository
+          .createQueryBuilder('t')
+          .innerJoin('t.players', 'p', 'p.id = :userId', { userId })
+          .where('(t.gameType = :money OR (t.leagueAmount IS NOT NULL AND t.gameType IS NULL))', { money: 'money' })
+          .select('t.id')
+          .getMany();
+        for (const t of fromPlayers) if (t.id > 0) tids.add(t.id);
+      } catch (e) {
+        this.logger.warn('[getMyTournaments] fromPlayers', (e as Error)?.message);
+      }
+      const ids = [...tids];
       if (ids.length === 0) {
         tournaments = [];
       } else {
