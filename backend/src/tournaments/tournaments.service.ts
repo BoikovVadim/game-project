@@ -1253,17 +1253,25 @@ export class TournamentsService implements OnModuleInit {
 
     let tournaments: Tournament[];
     if (mode === 'money') {
-      // Для противостояния: список турниров по tournament_progress (источник правды), не по join table players
-      const progressRows = await this.tournamentProgressRepository.find({
-        where: { userId },
-        select: ['tournamentId'],
-      });
-      const progressTids = [...new Set(progressRows.map((p) => p.tournamentId))].filter((id) => id > 0);
-      if (progressTids.length === 0) {
+      // Турниры, где пользователь участвует: по progress (уже играл) И по entry (только присоединился — progress создаётся при первом открытии игры)
+      const [progressRows, entries] = await Promise.all([
+        this.tournamentProgressRepository.find({ where: { userId }, select: ['tournamentId'] }),
+        this.tournamentEntryRepository.find({
+          where: { user: { id: userId } },
+          relations: ['tournament'],
+        }),
+      ]);
+      const progressTids = new Set(progressRows.map((p) => p.tournamentId).filter((id) => id > 0));
+      for (const e of entries) {
+        const tid = (e.tournament as any)?.id;
+        if (tid) progressTids.add(tid);
+      }
+      const allTids = [...progressTids];
+      if (allTids.length === 0) {
         tournaments = [];
       } else {
         const list = await this.tournamentRepository.find({
-          where: { id: In(progressTids) },
+          where: { id: In(allTids) },
           relations: ['players'],
           order: { createdAt: 'DESC' },
         });
