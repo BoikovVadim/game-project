@@ -50,6 +50,15 @@ export class TournamentsController {
     return this.tournamentsService.getTournamentBracket(req.user.id, id);
   }
 
+  @Get('admin/:id/bracket')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  getTournamentBracketForAdmin(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('userId', ParseIntPipe) userId: number,
+  ) {
+    return this.tournamentsService.getTournamentBracket(userId, id);
+  }
+
   @Get(':id/training-state')
   @UseGuards(JwtAuthGuard)
   getTrainingState(
@@ -57,6 +66,15 @@ export class TournamentsController {
     @Request() req: { user: { id: number } },
   ) {
     return this.tournamentsService.getTrainingState(req.user.id, id);
+  }
+
+  @Get('admin/:id/training-state')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  getTrainingStateForAdmin(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('userId', ParseIntPipe) userId: number,
+  ) {
+    return this.tournamentsService.getTrainingState(userId, id);
   }
 
   @Post(':id/complete')

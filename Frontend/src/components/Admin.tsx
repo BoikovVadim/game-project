@@ -348,7 +348,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
   const bracketLeftColRef = React.useRef<HTMLDivElement>(null);
   const bracketFinalBlockRef = React.useRef<HTMLDivElement>(null);
   const [bracketBlocksEqualized, setBracketBlocksEqualized] = useState(false);
-  const bracketLoadedTournamentIdRef = React.useRef<number | null>(null);
+  const bracketLoadedTournamentIdRef = React.useRef<string | null>(null);
   const [questionsReviewTournamentId, setQuestionsReviewTournamentId] = useState<number | null>(null);
   const [questionsReviewTabIdx, setQuestionsReviewTabIdx] = useState(0);
   const [questionsReviewData, setQuestionsReviewData] = useState<{
@@ -803,11 +803,12 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
     return () => cancelAnimationFrame(rafId);
   }, [bracketView]);
 
-  const openBracketModal = React.useCallback((tournamentId: number, phase: 'active' | 'history') => {
+  const openBracketModal = React.useCallback((tournamentId: number, phase: 'active' | 'history', userId: number) => {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       next.set('tournamentModal', String(tournamentId));
       next.set('tournamentSource', phase === 'history' ? 'completed' : 'active');
+      next.set('tournamentUserId', String(userId));
       return next;
     }, { replace: true });
   }, [setSearchParams]);
@@ -822,6 +823,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
       const next = new URLSearchParams(prev);
       next.delete('tournamentModal');
       next.delete('tournamentSource');
+      next.delete('tournamentUserId');
       return next;
     }, { replace: true });
   }, [setSearchParams]);
@@ -830,8 +832,10 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
     const rawId = searchParams.get('tournamentModal');
     const id = rawId && /^\d+$/.test(rawId) ? Number(rawId) : null;
     const source = searchParams.get('tournamentSource');
+    const rawUserId = searchParams.get('tournamentUserId');
+    const viewerUserId = rawUserId && /^\d+$/.test(rawUserId) ? Number(rawUserId) : null;
     const normalizedSource = source === 'completed' ? 'completed' : source === 'active' ? 'active' : null;
-    if (!id || !token) {
+    if (!id || !token || !viewerUserId) {
       setBracketView(null);
       setBracketError('');
       setBracketLoading(false);
@@ -839,16 +843,17 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
       bracketLoadedTournamentIdRef.current = null;
       return;
     }
-    if (bracketLoadedTournamentIdRef.current === id && (bracketView || bracketError)) {
+    const bracketKey = `${id}:${viewerUserId}`;
+    if (bracketLoadedTournamentIdRef.current === bracketKey && (bracketView || bracketError)) {
       setBracketOpenSource(normalizedSource);
       return;
     }
-    bracketLoadedTournamentIdRef.current = id;
+    bracketLoadedTournamentIdRef.current = bracketKey;
     setBracketLoading(true);
     setBracketError('');
     setBracketPlayerTooltip(null);
     setBracketOpenSource(normalizedSource);
-    axios.get<BracketViewData>(`/tournaments/${id}/bracket`, { headers })
+    axios.get<BracketViewData>(`/tournaments/admin/${id}/bracket?userId=${viewerUserId}`, { headers })
       .then((res) => {
         setBracketView(res.data);
         setBracketError('');
@@ -863,11 +868,12 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
       .finally(() => setBracketLoading(false));
   }, [searchParams, token, headers, bracketView, bracketError]);
 
-  const openQuestionsReview = React.useCallback((tournamentId: number, roundForQuestions: 'semi' | 'final') => {
+  const openQuestionsReview = React.useCallback((tournamentId: number, roundForQuestions: 'semi' | 'final', userId: number) => {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       next.set('questionsModal', String(tournamentId));
       next.set('questionsRound', roundForQuestions);
+      next.set('questionsUserId', String(userId));
       return next;
     }, { replace: true });
   }, [setSearchParams]);
@@ -883,6 +889,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
       const next = new URLSearchParams(prev);
       next.delete('questionsModal');
       next.delete('questionsRound');
+      next.delete('questionsUserId');
       return next;
     }, { replace: true });
   }, [setSearchParams]);
@@ -891,7 +898,9 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
     const rawId = searchParams.get('questionsModal');
     const id = rawId && /^\d+$/.test(rawId) ? Number(rawId) : null;
     const round = searchParams.get('questionsRound') === 'final' ? 'final' : 'semi';
-    if (!id || !token) {
+    const rawUserId = searchParams.get('questionsUserId');
+    const viewerUserId = rawUserId && /^\d+$/.test(rawUserId) ? Number(rawUserId) : null;
+    if (!id || !token || !viewerUserId) {
       setQuestionsReviewTournamentId(null);
       setQuestionsReviewData(null);
       setQuestionsReviewLoading(false);
@@ -899,7 +908,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
       questionsLoadedTournamentRef.current = null;
       return;
     }
-    const key = `${id}:${round}`;
+    const key = `${id}:${viewerUserId}:${round}`;
     if (questionsLoadedTournamentRef.current === key && (questionsReviewData || questionsReviewError)) {
       setQuestionsReviewTournamentId(id);
       return;
@@ -927,7 +936,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
       opponentAnswersByRound?: number[][];
       opponentInfoByRound?: { id: number; nickname: string; avatarUrl?: string | null }[];
       answers_chosen?: number[];
-    }>(`/tournaments/${id}/training-state`, { headers })
+    }>(`/tournaments/admin/${id}/training-state?userId=${viewerUserId}`, { headers })
       .then(({ data }) => {
         const answersChosenRaw = data.answersChosen ?? data.answers_chosen;
         setQuestionsReviewData({
@@ -971,7 +980,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
       case 'tournamentId':
         return (
           <td style={{ textAlign: 'center' }}>
-            <button type="button" className="admin-tournament-cell-link" onClick={() => openBracketModal(row.tournamentId, row.phase)}>
+            <button type="button" className="admin-tournament-cell-link" onClick={() => openBracketModal(row.tournamentId, row.phase, row.userId)}>
               {row.tournamentId}
             </button>
           </td>
@@ -996,7 +1005,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
             <button
               type="button"
               className="admin-tournament-cell-link"
-              onClick={() => openQuestionsReview(row.tournamentId, row.roundForQuestions)}
+              onClick={() => openQuestionsReview(row.tournamentId, row.roundForQuestions, row.userId)}
             >
               {`${row.questionsAnswered}/${row.questionsTotal}${row.correctAnswersInRound != null ? `/${row.correctAnswersInRound}` : ''}`}
             </button>
