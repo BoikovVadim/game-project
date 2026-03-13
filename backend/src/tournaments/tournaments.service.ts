@@ -2340,7 +2340,7 @@ export class TournamentsService implements OnModuleInit {
     const getUserStatus = (t: Tournament): 'passed' | 'not_passed' => {
       const rp = getRealPlayerCount(t);
       if (rp < 4) {
-        return getResultLabel(t) === 'Победа' ? 'passed' : 'not_passed';
+        return 'not_passed';
       }
 
       const prog = progressByTid.get(t.id);
