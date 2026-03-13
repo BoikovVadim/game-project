@@ -17,6 +17,9 @@ const Privacy = React.lazy(() => import('./components/Privacy.tsx'));
 const PaymentTerms = React.lazy(() => import('./components/PaymentTerms.tsx'));
 const TournamentRules = React.lazy(() => import('./components/TournamentRules.tsx'));
 const BalanceRules = React.lazy(() => import('./components/BalanceRules.tsx'));
+const RewardRules = React.lazy(() => import('./components/RewardRules.tsx'));
+const VerificationRules = React.lazy(() => import('./components/VerificationRules.tsx'));
+const DisputesPolicy = React.lazy(() => import('./components/DisputesPolicy.tsx'));
 const Contacts = React.lazy(() => import('./components/Contacts.tsx'));
 
 function getToken(): string {
@@ -62,6 +65,9 @@ function AppContent() {
     import('./components/Admin.tsx');
     import('./components/SupportChat.tsx');
     import('./components/Offer.tsx');
+    import('./components/RewardRules.tsx');
+    import('./components/VerificationRules.tsx');
+    import('./components/DisputesPolicy.tsx');
   }, []);
 
   useEffect(() => {
@@ -143,7 +149,7 @@ function AppContent() {
   const isSupport = location.pathname === '/support' && hasToken;
   const isRedirecting = hasToken && (location.pathname === '/' || location.pathname === '/login');
 
-  const publicInfoPages = ['/', '/about', '/offer', '/privacy', '/payment-terms', '/tournament-rules', '/balance-rules', '/contacts', '/register'];
+  const publicInfoPages = ['/', '/about', '/offer', '/privacy', '/payment-terms', '/tournament-rules', '/balance-rules', '/reward-rules', '/verification-rules', '/disputes-policy', '/contacts', '/register'];
   const isPublicPage = !hasToken && publicInfoPages.includes(location.pathname);
   const hideTopNav = isProfile || isAdmin || isSupport || isRedirecting || isPublicPage;
   const noPadding = hideTopNav || isPublicPage;
@@ -180,6 +186,9 @@ function AppContent() {
             <Route path="/payment-terms" element={<PaymentTerms />} />
             <Route path="/tournament-rules" element={<TournamentRules />} />
             <Route path="/balance-rules" element={<BalanceRules />} />
+            <Route path="/reward-rules" element={<RewardRules />} />
+            <Route path="/verification-rules" element={<VerificationRules />} />
+            <Route path="/disputes-policy" element={<DisputesPolicy />} />
             <Route path="/contacts" element={<Contacts />} />
             <Route path="/verify-email" element={<VerifyEmail />} />
             <Route path="/verify-code" element={<VerifyCode onLogin={handleLogin} />} />

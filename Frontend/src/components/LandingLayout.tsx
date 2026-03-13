@@ -32,6 +32,9 @@ const LandingLayout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
             <div className="landing-nav-dropdown-menu">
               <Link to="/tournament-rules" onClick={() => { setRulesOpen(false); setMobileOpen(false); }}>Правила турниров</Link>
               <Link to="/balance-rules" onClick={() => { setRulesOpen(false); setMobileOpen(false); }}>Правила баланса</Link>
+              <Link to="/reward-rules" onClick={() => { setRulesOpen(false); setMobileOpen(false); }}>Вознаграждения и выплаты</Link>
+              <Link to="/verification-rules" onClick={() => { setRulesOpen(false); setMobileOpen(false); }}>Антифрод и верификация</Link>
+              <Link to="/disputes-policy" onClick={() => { setRulesOpen(false); setMobileOpen(false); }}>Споры и претензии</Link>
               <Link to="/offer" onClick={() => { setRulesOpen(false); setMobileOpen(false); }}>Публичная оферта</Link>
             </div>
           </div>
@@ -57,6 +60,9 @@ const LandingLayout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
           <Link to="/payment-terms">Условия оплаты</Link>
           <Link to="/tournament-rules">Правила турниров</Link>
           <Link to="/balance-rules">Правила баланса</Link>
+          <Link to="/reward-rules">Вознаграждения и выплаты</Link>
+          <Link to="/verification-rules">Антифрод и верификация</Link>
+          <Link to="/disputes-policy">Споры и претензии</Link>
           <Link to="/contacts">Контакты</Link>
         </div>
         <div className="landing-footer-bottom">
