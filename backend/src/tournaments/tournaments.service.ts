@@ -1254,57 +1254,40 @@ export class TournamentsService implements OnModuleInit {
 
     let tournaments: Tournament[];
     if (mode === 'money') {
-      const tids = new Set<number>();
-      try {
-        const fromProgress = await this.tournamentProgressRepository.find({ where: { userId }, select: ['tournamentId'] });
-        for (const p of fromProgress) if (p.tournamentId > 0) tids.add(p.tournamentId);
-      } catch (e) {
-        this.logger.warn('[getMyTournaments] progress', (e as Error)?.message);
-      }
-      try {
-        const fromEntry = await this.tournamentEntryRepository.find({
-          where: { user: { id: userId } },
-          relations: ['tournament'],
-        });
-        for (const e of fromEntry) {
-          const id = (e.tournament as { id?: number })?.id ?? (e as { tournamentId?: number }).tournamentId;
-          if (id) tids.add(id);
-        }
-      } catch (e) {
-        this.logger.warn('[getMyTournaments] entry ORM', (e as Error)?.message);
-      }
       const conn = this.tournamentRepository.manager.connection;
+      let ids: number[] = [];
       try {
-        const rawEntry = await conn.query(
-          'SELECT "tournamentId" FROM tournament_entry WHERE "userId" = $1',
+        const rows = await conn.query(
+          `SELECT DISTINCT t.id
+           FROM tournament t
+           WHERE (t."gameType" = 'money' OR (t."leagueAmount" IS NOT NULL AND t."gameType" IS NULL))
+           AND (
+             EXISTS (SELECT 1 FROM tournament_progress p WHERE p."tournamentId" = t.id AND p."userId" = $1)
+             OR EXISTS (SELECT 1 FROM tournament_entry e WHERE e."tournamentId" = t.id AND e."userId" = $1)
+             OR EXISTS (SELECT 1 FROM tournament_players_user u WHERE u."tournamentId" = t.id AND u."userId" = $1)
+           )
+           ORDER BY t.id`,
           [userId],
-        ) as { tournamentId: number }[];
-        for (const r of rawEntry ?? []) if (r?.tournamentId) tids.add(r.tournamentId);
-      } catch {
+        ) as { id: number }[];
+        ids = (rows ?? []).map((r) => r.id).filter((id) => id > 0);
+      } catch (e1) {
         try {
-          const rawEntrySnake = await conn.query(
-            'SELECT tournament_id AS "tournamentId" FROM tournament_entry WHERE user_id = $1',
+          const rows = await conn.query(
+            `SELECT DISTINCT t.id FROM tournament t
+             WHERE (t.game_type = 'money' OR (t.league_amount IS NOT NULL AND t.game_type IS NULL))
+             AND (
+               EXISTS (SELECT 1 FROM tournament_progress p WHERE p.tournament_id = t.id AND p.user_id = $1)
+               OR EXISTS (SELECT 1 FROM tournament_entry e WHERE e.tournament_id = t.id AND e.user_id = $1)
+               OR EXISTS (SELECT 1 FROM tournament_players_user u WHERE u.tournament_id = t.id AND u.user_id = $1)
+             )
+             ORDER BY t.id`,
             [userId],
-          ) as { tournamentId: number }[];
-          for (const r of rawEntrySnake ?? []) if (r?.tournamentId) tids.add(r.tournamentId);
-        } catch (_) {}
+          ) as { id: number }[];
+          ids = (rows ?? []).map((r) => r.id).filter((id) => id > 0);
+        } catch (e2) {
+          this.logger.warn('[getMyTournaments] money IDs query failed', (e1 as Error)?.message, (e2 as Error)?.message);
+        }
       }
-      try {
-        const rawPlayers = await conn.query(
-          'SELECT "tournamentId" FROM tournament_players_user WHERE "userId" = $1',
-          [userId],
-        ) as { tournamentId: number }[];
-        for (const r of rawPlayers ?? []) if (r?.tournamentId) tids.add(r.tournamentId);
-      } catch {
-        try {
-          const rawPlayersSnake = await conn.query(
-            'SELECT tournament_id AS "tournamentId" FROM tournament_players_user WHERE user_id = $1',
-            [userId],
-          ) as { tournamentId: number }[];
-          for (const r of rawPlayersSnake ?? []) if (r?.tournamentId) tids.add(r.tournamentId);
-        } catch (_) {}
-      }
-      const ids = [...tids];
       if (ids.length === 0) {
         tournaments = [];
       } else {

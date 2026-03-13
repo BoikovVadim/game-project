@@ -873,6 +873,11 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     completed: { id: number; status: string; createdAt: string; playersCount: number; userStatus?: 'passed' | 'not_passed'; stage?: string; resultLabel?: string; roundForQuestions?: 'semi' | 'final'; roundStartedAt?: string | null }[];
   } | null>(null);
 
+  const [gameHistoryMoney, setGameHistoryMoney] = useState<{
+    active: { id: number; status: string; createdAt: string; playersCount: number; deadline?: string; userStatus?: 'passed' | 'not_passed'; stage?: string; resultLabel?: string; roundForQuestions?: 'semi' | 'final'; roundFinished?: boolean; roundStartedAt?: string | null }[];
+    completed: { id: number; status: string; createdAt: string; playersCount: number; userStatus?: 'passed' | 'not_passed'; stage?: string; resultLabel?: string; roundForQuestions?: 'semi' | 'final'; roundStartedAt?: string | null }[];
+  } | null>(null);
+
   const [bracketOpenSource, setBracketOpenSource] = useState<'active' | 'completed' | null>(null);
   const [bracketView, setBracketView] = useState<{
     tournamentId: number;
@@ -1254,14 +1259,16 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
 
   const fetchGameHistory = React.useCallback((mode: 'training' | 'money', currentTournamentId?: number) => {
     if (!token) return;
+    const setData = mode === 'money' ? setGameHistoryMoney : setGameHistory;
+    if (mode === 'money') setGameHistoryMoney(null);
     const params = new URLSearchParams({ mode });
     if (currentTournamentId) params.set('currentTournamentId', String(currentTournamentId));
     axios.get<{
-      active: { id: number; status: string; createdAt: string; playersCount: number; deadline?: string; userStatus?: 'passed' | 'not_passed'; stage?: string; resultLabel?: string; roundFinished?: boolean; roundStartedAt?: string | null }[];
-      completed: { id: number; status: string; createdAt: string; playersCount: number; userStatus?: 'passed' | 'not_passed'; stage?: string; resultLabel?: string; roundStartedAt?: string | null }[];
+      active: { id: number; status: string; createdAt: string; playersCount: number; deadline?: string; userStatus?: 'passed' | 'not_passed'; stage?: string; resultLabel?: string; roundForQuestions?: 'semi' | 'final'; roundFinished?: boolean; roundStartedAt?: string | null }[];
+      completed: { id: number; status: string; createdAt: string; playersCount: number; userStatus?: 'passed' | 'not_passed'; stage?: string; resultLabel?: string; roundForQuestions?: 'semi' | 'final'; roundStartedAt?: string | null }[];
     }>(`/tournaments/my?${params}`, { headers: { Authorization: `Bearer ${token}` } })
-      .then((res) => setGameHistory(res.data))
-      .catch(() => setGameHistory({ active: [], completed: [] }));
+      .then((res) => setData(res.data))
+      .catch(() => setData({ active: [], completed: [] }));
   }, [token]);
 
   useEffect(() => {
@@ -3800,10 +3807,11 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                   ) : null}
                                 </div>
                                 {(() => {
-                                  const continueTarget = [...(gameHistory?.active ?? [])]
+                                  const moneyActive = gameHistoryMoney?.active ?? [];
+                                  const continueTarget = [...moneyActive]
                                     .filter((t) => t.userStatus === 'not_passed' && t.resultLabel !== 'Ожидание соперника' && t.resultLabel !== 'Время истекло' && (!t.deadline || new Date(t.deadline) > new Date()))
                                     .sort((a, b) => a.id - b.id)[0] ?? null;
-                                  const hasActiveGames = (gameHistory?.active ?? []).some((t) => t.resultLabel !== 'Ожидание соперника');
+                                  const hasActiveGames = moneyActive.some((t) => t.resultLabel !== 'Ожидание соперника');
                                   if (continueTarget) {
                                     return (
                                       <button
@@ -3869,7 +3877,9 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                               <div className="game-history-section-header">
                                 <strong>Активные игры</strong>
                               </div>
-                              {gameHistory === null ? null : gameHistory.active.length ? (
+                              {gameHistoryMoney === null ? (
+                                <p className="game-history-empty">Загрузка...</p>
+                              ) : gameHistoryMoney.active.length ? (
                                 <div className="game-history-table-wrap">
                                 <table className="game-history-table">
                                   <thead>
@@ -3884,7 +3894,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                     </tr>
                                   </thead>
                                   <tbody>
-                                    {gameHistory.active.map((t) => (
+                                    {gameHistoryMoney.active.map((t) => (
                                       <tr key={t.id}>
                                         <td>
                                           <button type="button" className="game-history-id-link" onClick={() => openBracket(t.id, 'active')} title="Открыть сетку турнира">
@@ -3912,7 +3922,9 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                             </div>
                             <div className="game-history-section">
                               <strong>История игр</strong>
-                              {gameHistory === null ? null : gameHistory.completed.length ? (
+                              {gameHistoryMoney === null ? (
+                                <p className="game-history-empty">Загрузка...</p>
+                              ) : gameHistoryMoney.completed.length ? (
                                 <div className="game-history-table-wrap">
                                 <table className="game-history-table">
                                   <thead>
@@ -3927,7 +3939,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                     </tr>
                                   </thead>
                                   <tbody>
-                                    {gameHistory.completed.map((t) => (
+                                    {gameHistoryMoney.completed.map((t) => (
                                       <tr key={t.id}>
                                         <td>
                                           <button type="button" className="game-history-id-link" onClick={() => openBracket(t.id, 'completed')} title="Открыть сетку турнира">
