@@ -1257,7 +1257,7 @@ export class TournamentsService implements OnModuleInit {
       const conn = this.tournamentRepository.manager.connection;
       let ids: number[] = [];
       try {
-        const rows = await conn.query(
+        const result = await conn.query(
           `SELECT DISTINCT t.id
            FROM tournament t
            WHERE (t."gameType" = 'money' OR (t."leagueAmount" IS NOT NULL AND t."gameType" IS NULL))
@@ -1268,11 +1268,12 @@ export class TournamentsService implements OnModuleInit {
            )
            ORDER BY t.id`,
           [userId],
-        ) as { id: number }[];
-        ids = (rows ?? []).map((r) => r.id).filter((id) => id > 0);
+        );
+        const rows = Array.isArray(result) ? result : (result as { rows?: { id: number }[] })?.rows ?? [];
+        ids = rows.map((r: { id?: number }) => r?.id ?? 0).filter((id) => id > 0);
       } catch (e1) {
         try {
-          const rows = await conn.query(
+          const result = await conn.query(
             `SELECT DISTINCT t.id FROM tournament t
              WHERE (t.game_type = 'money' OR (t.league_amount IS NOT NULL AND t.game_type IS NULL))
              AND (
@@ -1282,8 +1283,9 @@ export class TournamentsService implements OnModuleInit {
              )
              ORDER BY t.id`,
             [userId],
-          ) as { id: number }[];
-          ids = (rows ?? []).map((r) => r.id).filter((id) => id > 0);
+          );
+          const rows = Array.isArray(result) ? result : (result as { rows?: { id: number }[] })?.rows ?? [];
+          ids = rows.map((r: { id?: number }) => r?.id ?? 0).filter((id) => id > 0);
         } catch (e2) {
           this.logger.warn('[getMyTournaments] money IDs query failed', (e1 as Error)?.message, (e2 as Error)?.message);
         }
