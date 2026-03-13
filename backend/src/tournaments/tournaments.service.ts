@@ -1860,9 +1860,10 @@ export class TournamentsService implements OnModuleInit {
           questionsAnsweredInRound = Math.min(answered, questionsTotal);
           correctAnswersInRound = semiCorrect + tbCorrectSum;
         } else {
+          // Активный список: показываем все верные в полуфинальной фазе (base + доп. раунды), включая текущий незавершённый доп. раунд — используем totalCorrect (игрок ещё не в финале).
           questionsTotal = QUESTIONS_PER_ROUND + activeTBRounds * TIEBREAKER_QUESTIONS;
           questionsAnsweredInRound = Math.min(answered, questionsTotal);
-          correctAnswersInRound = semiCorrect + tbCorrectSum;
+          correctAnswersInRound = Math.min(totalCorrect, questionsAnsweredInRound);
         }
       } else {
         const semiTBCount = tbRounds.length;
