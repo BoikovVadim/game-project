@@ -2236,9 +2236,14 @@ export class TournamentsService implements OnModuleInit {
           completedAtVal = (useCompletion > now ? now : useCompletion).toISOString();
         }
       }
+      const displayStatus = forCompletedList
+        ? TournamentStatus.FINISHED
+        : resultLabel === 'Ожидание соперника'
+          ? TournamentStatus.WAITING
+          : TournamentStatus.ACTIVE;
       return {
         id: t.id,
-        status: t.status,
+        status: displayStatus,
         createdAt: t.createdAt instanceof Date ? t.createdAt.toISOString() : String(t.createdAt),
         playersCount: getPlayerCount(t),
         leagueAmount: t.leagueAmount ?? null,
@@ -2257,7 +2262,7 @@ export class TournamentsService implements OnModuleInit {
           id: t.id,
           name: getTournamentDisplayName(t),
           type: t.gameType ?? null,
-          status: t.status ?? TournamentStatus.WAITING,
+          status: displayStatus,
           leagueAmount: t.leagueAmount ?? null,
         },
       };
@@ -2290,8 +2295,6 @@ export class TournamentsService implements OnModuleInit {
           return 'Ожидание соперника';
         }
         if (answered < QUESTIONS_PER_ROUND) return 'Время истекло';
-        if (resultByTournamentId.get(t.id) === true) return 'Победа';
-        if (oid4 <= 0) return 'Ожидание соперника';
         const semiRes4 = getMoneySemiResult(t);
         if (semiRes4.result === 'lost') return 'Поражение';
         return 'Ожидание соперника';
