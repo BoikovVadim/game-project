@@ -30,7 +30,7 @@ async function bootstrap() {
   app.useGlobalFilters(new StatsExceptionFilter());
 
   app.use(compression());
-  app.use((_req, res, next) => {
+  app.use((_req: express.Request, res: express.Response, next: express.NextFunction) => {
     const json = res.json.bind(res);
     res.json = (body: any) => {
       res.setHeader('Content-Type', 'application/json; charset=utf-8');

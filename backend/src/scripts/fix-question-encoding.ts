@@ -2,6 +2,13 @@
  * Исправляет кодировку в question_pool и question: перекодирует текст из Latin-1 в UTF-8, если он был сохранён с неправильной интерпретацией.
  * Запуск: cd backend && npx ts-node -r tsconfig-paths/register src/scripts/fix-question-encoding.ts
  */
+import { NestFactory } from '@nestjs/core';
+import { AppModule } from '../app.module';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { QuestionPoolItem } from '../tournaments/question-pool.entity';
+import { Question } from '../tournaments/question.entity';
+
 function sanitizeUtf8(s: string): string {
   if (typeof s !== 'string' || !s) return s;
   try {
@@ -17,13 +24,6 @@ function sanitizeUtf8(s: string): string {
 }
 
 async function run() {
-  const { NestFactory } = await import('@nestjs/core');
-  const { AppModule } = await import('../app.module');
-  const { getRepositoryToken } = await import('@nestjs/typeorm');
-  const { Repository } = await import('typeorm');
-  const { QuestionPoolItem } = await import('../tournaments/question-pool.entity');
-  const { Question } = await import('../tournaments/question.entity');
-
   console.log('Инициализация приложения...');
   const app = await NestFactory.createApplicationContext(AppModule);
 
@@ -34,7 +34,7 @@ async function run() {
   const poolRows = await poolRepo.find();
   for (const r of poolRows) {
     const qFixed = sanitizeUtf8(r.question);
-    const optsFixed = Array.isArray(r.options) ? r.options.map((o) => sanitizeUtf8(String(o))) : r.options;
+    const optsFixed = Array.isArray(r.options) ? r.options.map((o: unknown) => sanitizeUtf8(String(o))) : r.options;
     if (qFixed !== r.question || JSON.stringify(optsFixed) !== JSON.stringify(r.options)) {
       await poolRepo.update(r.id, { question: qFixed, options: optsFixed });
       poolUpdated++;
@@ -46,7 +46,7 @@ async function run() {
   const questionRows = await questionRepo.find();
   for (const r of questionRows) {
     const qFixed = sanitizeUtf8(r.question);
-    const optsFixed = Array.isArray(r.options) ? r.options.map((o) => sanitizeUtf8(String(o))) : r.options;
+    const optsFixed = Array.isArray(r.options) ? r.options.map((o: unknown) => sanitizeUtf8(String(o))) : r.options;
     if (qFixed !== r.question || JSON.stringify(optsFixed) !== JSON.stringify(r.options)) {
       await questionRepo.update(r.id, { question: qFixed, options: optsFixed });
       questionUpdated++;
