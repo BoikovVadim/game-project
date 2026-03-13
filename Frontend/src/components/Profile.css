@@ -792,7 +792,8 @@
 .cabinet-balance-dropdown-menu {
   position: absolute;
   top: 100%;
-  left: 0;
+  right: 0;
+  left: auto;
   margin-top: 2px;
   min-width: clamp(120px, 9.3vw + 48px, 160px);
   padding: 6px 0;
