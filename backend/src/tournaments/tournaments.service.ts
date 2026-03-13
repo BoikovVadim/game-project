@@ -2290,6 +2290,8 @@ export class TournamentsService implements OnModuleInit {
           return 'Ожидание соперника';
         }
         if (answered < QUESTIONS_PER_ROUND) return 'Время истекло';
+        if (resultByTournamentId.get(t.id) === true) return 'Победа';
+        if (oid4 <= 0) return 'Ожидание соперника';
         const semiRes4 = getMoneySemiResult(t);
         if (semiRes4.result === 'lost') return 'Поражение';
         return 'Ожидание соперника';
