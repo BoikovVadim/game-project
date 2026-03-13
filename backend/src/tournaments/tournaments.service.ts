@@ -1884,6 +1884,14 @@ export class TournamentsService implements OnModuleInit {
         }
         correctAnswersInRound = totalCorrect;
       }
+      const completedAtVal = completedAtByTid.get(t.id) ?? (t.createdAt ? (t.createdAt instanceof Date ? t.createdAt.toISOString() : String(t.createdAt)) : null);
+      let roundStartedAtDisplay: string | null = roundStartedAtByTid.get(t.id) ?? null;
+      // Для завершённых: старт раунда не должен быть позже даты завершения (roundStartedAt сбрасывается при входе в доп.раунд и может оказаться позже completedAt).
+      if (completedAtVal && roundStartedAtDisplay) {
+        const rs = new Date(roundStartedAtDisplay).getTime();
+        const ca = new Date(completedAtVal).getTime();
+        if (rs > ca) roundStartedAtDisplay = completedAtVal;
+      }
       return {
         id: t.id,
         status: t.status,
@@ -1898,9 +1906,9 @@ export class TournamentsService implements OnModuleInit {
         questionsAnswered: questionsAnsweredInRound,
         questionsTotal,
         correctAnswersInRound,
-        completedAt: completedAtByTid.get(t.id) ?? (t.createdAt ? (t.createdAt instanceof Date ? t.createdAt.toISOString() : String(t.createdAt)) : null),
+        completedAt: completedAtVal,
         roundFinished: playerRoundFinished.get(t.id) ?? false,
-        roundStartedAt: roundStartedAtByTid.get(t.id) ?? null,
+        roundStartedAt: roundStartedAtDisplay,
       };
     };
 
