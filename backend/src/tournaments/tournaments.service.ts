@@ -1296,7 +1296,35 @@ export class TournamentsService implements OnModuleInit {
       } catch (e) {
         this.logger.warn('[getMyTournaments] fromPlayers', (e as Error)?.message);
       }
-      const ids = [...tids];
+      let ids = [...tids];
+      if (ids.length === 0) {
+        const conn = this.tournamentRepository.manager.connection;
+        try {
+          const raw = await conn.query(
+            `(SELECT p."tournamentId" AS id FROM tournament_progress p WHERE p."userId" = $1)
+             UNION
+             (SELECT e."tournamentId" AS id FROM tournament_entry e WHERE e."userId" = $1)`,
+            [userId, userId],
+          );
+          const rows = Array.isArray(raw) ? raw : (raw as { rows?: { id: number }[] })?.rows ?? [];
+          for (const r of rows) if (r?.id > 0) tids.add(r.id);
+          ids = [...tids];
+        } catch (_) {
+          try {
+            const raw = await conn.query(
+              `(SELECT p.tournament_id AS id FROM tournament_progress p WHERE p.user_id = $1)
+               UNION
+               (SELECT e.tournament_id AS id FROM tournament_entry e WHERE e.user_id = $1)`,
+              [userId, userId],
+            );
+            const rows = Array.isArray(raw) ? raw : (raw as { rows?: { id: number }[] })?.rows ?? [];
+            for (const r of rows) if (r?.id > 0) tids.add(r.id);
+            ids = [...tids];
+          } catch (e2) {
+            this.logger.warn('[getMyTournaments] raw fallback', (e2 as Error)?.message);
+          }
+        }
+      }
       if (ids.length === 0) {
         tournaments = [];
       } else {
@@ -2187,6 +2215,18 @@ export class TournamentsService implements OnModuleInit {
       totalInserted += Number(nEntry) || 0;
     } catch (e) {
       this.logger.warn('[backfillTournamentPlayersFromEntry] entry', (e as Error)?.message);
+      try {
+        const qEntrySnake = `
+          INSERT INTO tournament_players_user (tournament_id, user_id)
+          SELECT te.tournament_id, te.user_id FROM tournament_entry te
+          WHERE NOT EXISTS (
+            SELECT 1 FROM tournament_players_user tpu
+            WHERE tpu.tournament_id = te.tournament_id AND tpu.user_id = te.user_id
+          )
+        `;
+        const r = await dataSource.query(qEntrySnake);
+        totalInserted += Number(typeof r?.rowCount === 'number' ? r.rowCount : (Array.isArray(r) ? r.length : 0)) || 0;
+      } catch (_) {}
     }
     try {
       const qProgress = `
@@ -2203,6 +2243,18 @@ export class TournamentsService implements OnModuleInit {
       totalInserted += Number(nProgress) || 0;
     } catch (e) {
       this.logger.warn('[backfillTournamentPlayersFromEntry] progress', (e as Error)?.message);
+      try {
+        const qProgressSnake = `
+          INSERT INTO tournament_players_user (tournament_id, user_id)
+          SELECT p.tournament_id, p.user_id FROM tournament_progress p
+          WHERE NOT EXISTS (
+            SELECT 1 FROM tournament_players_user tpu
+            WHERE tpu.tournament_id = p.tournament_id AND tpu.user_id = p.user_id
+          )
+        `;
+        const r = await dataSource.query(qProgressSnake);
+        totalInserted += Number(typeof r?.rowCount === 'number' ? r.rowCount : (Array.isArray(r) ? r.length : 0)) || 0;
+      } catch (_) {}
     }
     if (totalInserted > 0) this.logger.log(`[backfillTournamentPlayersFromEntry] inserted ${totalInserted} rows`);
     return { inserted: totalInserted };
