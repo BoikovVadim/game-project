@@ -1,10 +1,12 @@
-import { Controller, Post, Get, Body, Param, Query, UseGuards, Request, ParseIntPipe } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, Query, UseGuards, Request, ParseIntPipe, Logger } from '@nestjs/common';
 import { TournamentsService } from './tournaments.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminGuard } from '../auth/admin.guard';
 
 @Controller('tournaments')
 export class TournamentsController {
+  private readonly logger = new Logger(TournamentsController.name);
+
   constructor(private readonly tournamentsService: TournamentsService) {}
 
   @Get('allowed-leagues')
@@ -15,14 +17,19 @@ export class TournamentsController {
 
   @Get('my')
   @UseGuards(JwtAuthGuard)
-  getMyTournaments(
+  async getMyTournaments(
     @Request() req: { user: { id: number } },
     @Query('mode') mode?: string,
     @Query('currentTournamentId') currentTournamentId?: string,
   ) {
     const currentId = currentTournamentId ? parseInt(currentTournamentId, 10) : undefined;
     const normalizedMode = (mode === 'money' || mode === 'training') ? mode : undefined;
-    return this.tournamentsService.getMyTournaments(req.user.id, normalizedMode, !Number.isNaN(currentId) ? currentId : undefined);
+    try {
+      return await this.tournamentsService.getMyTournaments(req.user.id, normalizedMode, !Number.isNaN(currentId) ? currentId : undefined);
+    } catch (err) {
+      this.logger.error(`getMyTournaments failed (userId=${req.user.id}, mode=${normalizedMode}): ${(err as Error)?.message}`, (err as Error)?.stack);
+      return { active: [], completed: [] };
+    }
   }
 
   @Get(':id/state')

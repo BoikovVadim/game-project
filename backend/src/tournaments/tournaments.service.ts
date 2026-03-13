@@ -1248,8 +1248,8 @@ export class TournamentsService implements OnModuleInit {
     );
 
     if (mode === 'money') {
-      await this.processAllExpiredEscrows();
-      await this.syncTournamentPlayersFromEntry(userId);
+      await this.processAllExpiredEscrows().catch((e) => this.logger.warn('[getMyTournaments] processAllExpiredEscrows', (e as Error)?.message));
+      await this.syncTournamentPlayersFromEntry(userId).catch((e) => this.logger.warn('[getMyTournaments] syncTournamentPlayersFromEntry', (e as Error)?.message));
     }
 
     let tournaments: Tournament[];
