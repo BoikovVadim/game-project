@@ -1,7 +1,14 @@
-643825.04
-За сегодня (2026-03-13): 18 060,84 ₽
+646406.48
+За сегодня (2026-03-13): 20 642,28 ₽
 
 # Последние изменения (для резюме по задаче). Формат: YYYY-MM-DD | Z ₽ | N ч M мин | описание. «За сегодня» — сумма всех Z за текущий день.
+2026-03-13 | 929,69 ₽ | 0 ч 26 мин | getMyTournaments: единая загрузка турниров (progress+entry+players) для training и money; TournamentInfoDto с leagueAmount; полные данные для истории (база 17 мин × 1,5)
+2026-03-13 | 270,00 ₽ | 0 ч 10 мин | Противостояние: fallback raw SQL для ID (progress+entry), camelCase+snake_case; backfill snake_case при ошибке (база 10 мин × 1,5)
+2026-03-13 | 393,75 ₽ | 0 ч 15 мин | Противостояние: backfill из progress+entry; добавление игрока через INSERT в join + update(playerOrder), без save(tournament); откат через DELETE+update (база 15 мин × 1,5)
+2026-03-13 | 270,00 ₽ | 0 ч 8 мин | Противостояние: сбор ID только через TypeORM (progress, entry, players join), без raw SQL (база 8 мин × 1,5)
+2026-03-13 | 145,00 ₽ | 0 ч 5 мин | getMyTournaments: try/catch в контроллере — при ошибке 200 + empty; escrows/sync не ломают поток (база 5 мин × 1,5)
+2026-03-13 | 245,00 ₽ | 0 ч 7 мин | исправление 500: результат connection.query() — объект с .rows, брать result.rows (база 7 мин × 1,5)
+2026-03-13 | 328,13 ₽ | 0 ч 12 мин | противостояние: один SQL для ID (progress/entry/players), fallback snake_case; отдельный state gameHistoryMoney и «Загрузка…» на фронте (база 12 мин × 1,5)
 2026-03-13 | 787,50 ₽ | 0 ч 18 мин | противостояние: 4 источника ID (progress, entry ORM, entry raw, players raw), оба варианта колонок, нормализация mode в контроллере (база 18 мин × 1,5)
 2026-03-13 | 1 092,71 ₽ | 0 ч 25 мин | противостояние: список турниров по tournament_progress, не по join players (надёжный источник участия) (база 25 мин × 1,5)
 2026-03-13 | 820,31 ₽ | 0 ч 23 мин | getMyTournaments: не затирать денежные турниры (gameType NULL+leagueAmount → money; восстановление training+leagueAmount → money) (база 15 мин × 1,5)

@@ -48,6 +48,45 @@ function getLeagueName(amount: number): string {
   return LEAGUE_NAMES[amount] ?? `Лига ${amount} L`;
 }
 
+/** Название турнира для отображения: лига (для money) или «Тренировка». */
+function getTournamentDisplayName(t: { gameType?: string | null; leagueAmount?: number | null }): string {
+  if (t.gameType === 'money' && t.leagueAmount != null) return getLeagueName(t.leagueAmount);
+  if (t.gameType === 'training') return 'Тренировка';
+  if (t.leagueAmount != null) return getLeagueName(t.leagueAmount);
+  return 'Турнир';
+}
+
+/** Объект турнира в ответе — ID, название, тип, статус, ставка. */
+export interface TournamentInfoDto {
+  id: number;
+  name: string;
+  type: string | null;
+  status: string;
+  leagueAmount?: number | null;
+}
+
+/** DTO элемента списка активных/завершённых турниров. */
+export interface TournamentListItemDto {
+  id: number;
+  status: string;
+  createdAt: string;
+  playersCount: number;
+  leagueAmount: number | null;
+  deadline: string | null;
+  userStatus: 'passed' | 'not_passed';
+  stage?: string;
+  resultLabel?: string;
+  roundForQuestions: 'semi' | 'final';
+  questionsAnswered: number;
+  questionsTotal: number;
+  correctAnswersInRound: number;
+  completedAt?: string | null;
+  roundFinished?: boolean;
+  roundStartedAt?: string | null;
+  /** Объект турнира: ID, название, тип, статус — для фронтенда. */
+  tournament: TournamentInfoDto;
+}
+
 /** Выигрыш победителя: 4 игрока × ставка − 20% с каждого из 3 проигравших = 3.4 × ставка L */
 function getLeaguePrize(stake: number): number {
   return Math.round(3.4 * stake);
@@ -1232,13 +1271,14 @@ export class TournamentsService implements OnModuleInit {
     };
   }
 
+  /** DTO элемента списка активных/завершённых турниров. */
   async getMyTournaments(
     userId: number,
     mode?: 'training' | 'money',
     currentTournamentId?: number,
   ): Promise<{
-    active: { id: number; status: string; createdAt: string; playersCount: number; leagueAmount: number | null; deadline: string | null; userStatus: 'passed' | 'not_passed'; stage?: string; resultLabel?: string; roundForQuestions: 'semi' | 'final'; questionsAnswered: number; questionsTotal: number; correctAnswersInRound: number; roundFinished?: boolean; roundStartedAt?: string | null }[];
-    completed: { id: number; status: string; createdAt: string; playersCount: number; leagueAmount: number | null; userStatus: 'passed' | 'not_passed'; stage?: string; resultLabel?: string; roundForQuestions: 'semi' | 'final'; questionsAnswered: number; questionsTotal: number; correctAnswersInRound: number; completedAt?: string | null; roundStartedAt?: string | null }[];
+    active: TournamentListItemDto[];
+    completed: TournamentListItemDto[];
   }> {
     // Старые записи: gameType IS NULL — если есть leagueAmount, то money, иначе training (не затирать денежные турниры)
     await this.tournamentRepository.update(
@@ -1261,89 +1301,84 @@ export class TournamentsService implements OnModuleInit {
       await this.syncTournamentPlayersFromEntry(userId).catch((e) => this.logger.warn('[getMyTournaments] syncTournamentPlayersFromEntry', (e as Error)?.message));
     }
 
-    let tournaments: Tournament[];
-    if (mode === 'money') {
-      const tids = new Set<number>();
-      try {
-        const fromProgress = await this.tournamentProgressRepository.find({
-          where: { userId },
-          select: ['tournamentId'],
-        });
-        for (const p of fromProgress) if (p.tournamentId > 0) tids.add(p.tournamentId);
-      } catch (e) {
-        this.logger.warn('[getMyTournaments] fromProgress', (e as Error)?.message);
+    const tids = new Set<number>();
+    try {
+      const fromProgress = await this.tournamentProgressRepository.find({
+        where: { userId },
+        select: ['tournamentId'],
+      });
+      for (const p of fromProgress) if (p.tournamentId > 0) tids.add(p.tournamentId);
+    } catch (e) {
+      this.logger.warn('[getMyTournaments] fromProgress', (e as Error)?.message);
+    }
+    try {
+      const fromEntry = await this.tournamentEntryRepository.find({
+        where: { user: { id: userId } },
+        relations: ['tournament'],
+      });
+      for (const e of fromEntry) {
+        const tid = (e.tournament as Tournament)?.id ?? (e as { tournamentId?: number }).tournamentId;
+        if (tid && tid > 0) tids.add(tid);
       }
+    } catch (e) {
+      this.logger.warn('[getMyTournaments] fromEntry', (e as Error)?.message);
+    }
+    try {
+      const fromPlayers = await this.tournamentRepository
+        .createQueryBuilder('t')
+        .innerJoin('t.players', 'p', 'p.id = :userId', { userId })
+        .select('t.id')
+        .getMany();
+      for (const t of fromPlayers) if (t.id > 0) tids.add(t.id);
+    } catch (e) {
+      this.logger.warn('[getMyTournaments] fromPlayers', (e as Error)?.message);
+    }
+    let ids = [...tids];
+    if (ids.length === 0) {
+      const conn = this.tournamentRepository.manager.connection;
       try {
-        const fromEntry = await this.tournamentEntryRepository.find({
-          where: { user: { id: userId } },
-          relations: ['tournament'],
-        });
-        for (const e of fromEntry) {
-          const tid = (e.tournament as Tournament)?.id ?? (e as { tournamentId?: number }).tournamentId;
-          if (tid && tid > 0) tids.add(tid);
-        }
-      } catch (e) {
-        this.logger.warn('[getMyTournaments] fromEntry', (e as Error)?.message);
-      }
-      try {
-        const fromPlayers = await this.tournamentRepository
-          .createQueryBuilder('t')
-          .innerJoin('t.players', 'p', 'p.id = :userId', { userId })
-          .where('(t.gameType = :money OR (t.leagueAmount IS NOT NULL AND t.gameType IS NULL))', { money: 'money' })
-          .select('t.id')
-          .getMany();
-        for (const t of fromPlayers) if (t.id > 0) tids.add(t.id);
-      } catch (e) {
-        this.logger.warn('[getMyTournaments] fromPlayers', (e as Error)?.message);
-      }
-      let ids = [...tids];
-      if (ids.length === 0) {
-        const conn = this.tournamentRepository.manager.connection;
+        const raw = await conn.query(
+          `(SELECT p."tournamentId" AS id FROM tournament_progress p WHERE p."userId" = $1)
+           UNION
+           (SELECT e."tournamentId" AS id FROM tournament_entry e WHERE e."userId" = $1)`,
+          [userId, userId],
+        );
+        const rows = Array.isArray(raw) ? raw : (raw as { rows?: { id: number }[] })?.rows ?? [];
+        for (const r of rows) if (r?.id > 0) tids.add(r.id);
+        ids = [...tids];
+      } catch (_) {
         try {
           const raw = await conn.query(
-            `(SELECT p."tournamentId" AS id FROM tournament_progress p WHERE p."userId" = $1)
+            `(SELECT p.tournament_id AS id FROM tournament_progress p WHERE p.user_id = $1)
              UNION
-             (SELECT e."tournamentId" AS id FROM tournament_entry e WHERE e."userId" = $1)`,
+             (SELECT e.tournament_id AS id FROM tournament_entry e WHERE e.user_id = $1)`,
             [userId, userId],
           );
           const rows = Array.isArray(raw) ? raw : (raw as { rows?: { id: number }[] })?.rows ?? [];
           for (const r of rows) if (r?.id > 0) tids.add(r.id);
           ids = [...tids];
-        } catch (_) {
-          try {
-            const raw = await conn.query(
-              `(SELECT p.tournament_id AS id FROM tournament_progress p WHERE p.user_id = $1)
-               UNION
-               (SELECT e.tournament_id AS id FROM tournament_entry e WHERE e.user_id = $1)`,
-              [userId, userId],
-            );
-            const rows = Array.isArray(raw) ? raw : (raw as { rows?: { id: number }[] })?.rows ?? [];
-            for (const r of rows) if (r?.id > 0) tids.add(r.id);
-            ids = [...tids];
-          } catch (e2) {
-            this.logger.warn('[getMyTournaments] raw fallback', (e2 as Error)?.message);
-          }
+        } catch (e2) {
+          this.logger.warn('[getMyTournaments] raw fallback', (e2 as Error)?.message);
         }
       }
-      if (ids.length === 0) {
-        tournaments = [];
-      } else {
-        const list = await this.tournamentRepository.find({
-          where: { id: In(ids) },
-          relations: ['players'],
-          order: { createdAt: 'DESC' },
-        });
+    }
+
+    let tournaments: Tournament[];
+    if (ids.length === 0) {
+      tournaments = [];
+    } else {
+      const list = await this.tournamentRepository.find({
+        where: { id: In(ids) },
+        relations: ['players'],
+        order: { createdAt: 'DESC' },
+      });
+      if (mode === 'money') {
         tournaments = list.filter(
           (t) => t.gameType === 'money' || (t.gameType == null && t.leagueAmount != null),
         );
+      } else {
+        tournaments = list.filter((t) => t.gameType === 'training');
       }
-    } else {
-      const qb = this.tournamentRepository
-        .createQueryBuilder('t')
-        .innerJoinAndSelect('t.players', 'p', 'p.id = :userId', { userId })
-        .orderBy('t.createdAt', 'DESC');
-      qb.andWhere('t.gameType = :gameType', { gameType: 'training' });
-      tournaments = await qb.getMany();
     }
 
     const allIds = tournaments.map((t) => t.id);
@@ -2024,6 +2059,13 @@ export class TournamentsService implements OnModuleInit {
         completedAt: completedAtVal,
         roundFinished: playerRoundFinished.get(t.id) ?? false,
         roundStartedAt: roundStartedAtDisplay,
+        tournament: {
+          id: t.id,
+          name: getTournamentDisplayName(t),
+          type: t.gameType ?? null,
+          status: t.status ?? TournamentStatus.WAITING,
+          leagueAmount: t.leagueAmount ?? null,
+        },
       };
     };
 
@@ -2276,7 +2318,7 @@ export class TournamentsService implements OnModuleInit {
     }
   }
 
-  /** Для админки: все участия в турнирах по всем игрокам — все поля как у игрока + userId, userNickname, phase. */
+  /** Для админки: все участия в турнирах по всем игрокам — все поля как у игрока + userId, userNickname, phase, tournament. */
   async getAllParticipationsForAdmin(): Promise<
     {
       tournamentId: number; status: string; createdAt: string; playersCount: number; leagueAmount: number | null;
@@ -2284,6 +2326,7 @@ export class TournamentsService implements OnModuleInit {
       questionsAnswered: number; questionsTotal: number; correctAnswersInRound: number;
       completedAt?: string | null; roundFinished?: boolean; roundStartedAt?: string | null;
       userId: number; userNickname: string; phase: 'active' | 'history';
+      tournament: { id: number; name: string; type: string | null; status: string };
     }[]
   > {
     await this.backfillTournamentPlayersFromEntry();
@@ -2305,6 +2348,7 @@ export class TournamentsService implements OnModuleInit {
       questionsAnswered: number; questionsTotal: number; correctAnswersInRound: number;
       completedAt?: string | null; roundFinished?: boolean; roundStartedAt?: string | null;
       userId: number; userNickname: string; phase: 'active' | 'history';
+      tournament: { id: number; name: string; type: string | null; status: string };
     }[] = [];
     for (const userId of userIds) {
       try {
@@ -2336,6 +2380,7 @@ export class TournamentsService implements OnModuleInit {
             userId,
             userNickname: nickname,
             phase: 'active',
+            tournament: item.tournament,
           });
         }
         for (const item of completed) {
@@ -2355,6 +2400,7 @@ export class TournamentsService implements OnModuleInit {
             questionsAnswered: item.questionsAnswered ?? 0,
             questionsTotal: item.questionsTotal ?? 0,
             correctAnswersInRound: item.correctAnswersInRound ?? 0,
+            tournament: item.tournament,
             completedAt: item.completedAt ?? null,
             roundStartedAt: item.roundStartedAt ?? null,
             userId,
