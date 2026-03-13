@@ -1884,13 +1884,24 @@ export class TournamentsService implements OnModuleInit {
         }
         correctAnswersInRound = totalCorrect;
       }
-      const completedAtVal = completedAtByTid.get(t.id) ?? (t.createdAt ? (t.createdAt instanceof Date ? t.createdAt.toISOString() : String(t.createdAt)) : null);
-      let roundStartedAtDisplay: string | null = roundStartedAtByTid.get(t.id) ?? null;
-      // Для завершённых: старт раунда не должен быть позже даты завершения (roundStartedAt сбрасывается при входе в доп.раунд и может оказаться позже completedAt).
+      let completedAtVal: string | null = completedAtByTid.get(t.id) ?? (t.createdAt ? (t.createdAt instanceof Date ? t.createdAt.toISOString() : String(t.createdAt)) : null);
+      const roundStartedAtDisplay: string | null = roundStartedAtByTid.get(t.id) ?? null;
+      // Если старт раунда позже даты завершения — берём реальную дату завершения по паре (leftAt/roundStartedAt); при отсутствии данных завершаем по старту раунда.
       if (completedAtVal && roundStartedAtDisplay) {
         const rs = new Date(roundStartedAtDisplay).getTime();
         const ca = new Date(completedAtVal).getTime();
-        if (rs > ca) roundStartedAtDisplay = completedAtVal;
+        if (rs > ca) {
+          const order = t.playerOrder ?? [];
+          const playerSlot = order.indexOf(userId);
+          const opponentSlot = playerSlot % 2 === 0 ? playerSlot + 1 : playerSlot - 1;
+          const opponentId = opponentSlot >= 0 && opponentSlot < order.length ? (order[opponentSlot] ?? -1) : -1;
+          const ids = opponentId > 0 ? [userId, opponentId] : [userId];
+          const realCompletion = getCompletionDateFromUsers(t, ids);
+          const useCompletion = realCompletion
+            ? new Date(Math.max(realCompletion.getTime(), rs))
+            : new Date(rs);
+          completedAtVal = (useCompletion > now ? now : useCompletion).toISOString();
+        }
       }
       return {
         id: t.id,
