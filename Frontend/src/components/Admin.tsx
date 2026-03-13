@@ -299,12 +299,6 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
   const questionStatsLoadedRef = React.useRef(false);
   const adminHeaderRef = React.useRef<HTMLElement | null>(null);
   const [stickyHeaderOffset, setStickyHeaderOffset] = useState(0);
-  const tournamentTableWrapRef = React.useRef<HTMLDivElement | null>(null);
-  const tournamentStickyHeaderRef = React.useRef<HTMLDivElement | null>(null);
-  const tournamentHeaderCellRefs = React.useRef<Partial<Record<TournamentColumnKey, HTMLTableCellElement | null>>>({});
-  const [stickyTournamentHeaderVisible, setStickyTournamentHeaderVisible] = useState(false);
-  const [stickyTournamentHeaderWidths, setStickyTournamentHeaderWidths] = useState<Partial<Record<TournamentColumnKey, number>>>({});
-  const [stickyTournamentHeaderScrollLeft, setStickyTournamentHeaderScrollLeft] = useState(0);
 
   type TournamentListRow = {
     tournamentId: number; status: string; createdAt: string; playersCount: number; leagueAmount: number | null;
@@ -1106,85 +1100,6 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
       window.removeEventListener('resize', updateOffset);
     };
   }, []);
-
-  useEffect(() => {
-    if (section !== 'statistics' || statsSubTab !== 'tournaments') {
-      setStickyTournamentHeaderVisible(false);
-      setStickyTournamentHeaderScrollLeft(0);
-      return undefined;
-    }
-
-    let rafId = 0;
-    const measureAndUpdate = () => {
-      const wrapEl = tournamentTableWrapRef.current;
-      const adminHeaderEl = adminHeaderRef.current;
-      if (!wrapEl || !adminHeaderEl) {
-        setStickyTournamentHeaderVisible(false);
-        return;
-      }
-
-      const nextWidths: Partial<Record<TournamentColumnKey, number>> = {};
-      for (const column of tournamentColumns) {
-        const cell = tournamentHeaderCellRefs.current[column];
-        if (!cell) continue;
-        const width = Math.ceil(cell.getBoundingClientRect().width);
-        if (width > 0) nextWidths[column] = width;
-      }
-      setStickyTournamentHeaderWidths((prev) => {
-        const prevKeys = Object.keys(prev);
-        const nextKeys = Object.keys(nextWidths);
-        const sameLength = prevKeys.length === nextKeys.length;
-        const sameValues = sameLength && nextKeys.every((key) => prev[key as TournamentColumnKey] === nextWidths[key as TournamentColumnKey]);
-        return sameValues ? prev : nextWidths;
-      });
-
-      const wrapRect = wrapEl.getBoundingClientRect();
-      const headerRect = adminHeaderEl.getBoundingClientRect();
-      setStickyTournamentHeaderScrollLeft((prev) => (prev === wrapEl.scrollLeft ? prev : wrapEl.scrollLeft));
-      const stickyHeight = Math.ceil(
-        tournamentStickyHeaderRef.current?.getBoundingClientRect().height
-        || tournamentHeaderCellRefs.current[tournamentColumns[0]]?.parentElement?.getBoundingClientRect().height
-        || 0,
-      );
-      const stickyTop = headerRect.bottom;
-      const shouldShow = wrapRect.top <= stickyTop && wrapRect.bottom - stickyHeight > stickyTop;
-      setStickyTournamentHeaderVisible((prev) => (prev === shouldShow ? prev : shouldShow));
-    };
-
-    const scheduleMeasure = () => {
-      if (rafId) cancelAnimationFrame(rafId);
-      rafId = requestAnimationFrame(() => {
-        rafId = 0;
-        measureAndUpdate();
-      });
-    };
-
-    scheduleMeasure();
-    const observer = new ResizeObserver(() => scheduleMeasure());
-    const headerEl = adminHeaderRef.current;
-    const wrapEl = tournamentTableWrapRef.current;
-    if (headerEl) observer.observe(headerEl);
-    if (wrapEl) observer.observe(wrapEl);
-    for (const column of tournamentColumns) {
-      const cell = tournamentHeaderCellRefs.current[column];
-      if (cell) observer.observe(cell);
-    }
-    if (wrapEl) {
-      wrapEl.addEventListener('scroll', scheduleMeasure, { passive: true });
-    }
-    window.addEventListener('scroll', scheduleMeasure, { passive: true });
-    window.addEventListener('resize', scheduleMeasure);
-
-    return () => {
-      if (rafId) cancelAnimationFrame(rafId);
-      observer.disconnect();
-      if (wrapEl) {
-        wrapEl.removeEventListener('scroll', scheduleMeasure);
-      }
-      window.removeEventListener('scroll', scheduleMeasure);
-      window.removeEventListener('resize', scheduleMeasure);
-    };
-  }, [section, statsSubTab, tournamentColumns]);
 
   const fetchNews = React.useCallback(() => {
     if (!token) return;
@@ -2052,55 +1967,14 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                 if (filtered.length === 0) {
                   return <p className="admin-stats-empty">{tournamentIdFilter ? 'Нет записей по этому ID турнира' : 'Нет данных о турнирах'}</p>;
                 }
-                const stickyTableWidth = tournamentColumns.reduce((sum, column) => sum + (stickyTournamentHeaderWidths[column] ?? 0), 0);
                 return (
-                  <div className="admin-table-shell admin-table-shell--tournaments">
-                    <div
-                      ref={tournamentStickyHeaderRef}
-                      className={`admin-tournament-sticky-head${stickyTournamentHeaderVisible ? ' is-visible' : ''}`}
-                      aria-hidden={!stickyTournamentHeaderVisible}
-                    >
-                      <div
-                        className="admin-tournament-sticky-head-inner"
-                        style={{ transform: `translateX(-${stickyTournamentHeaderScrollLeft}px)` }}
-                      >
-                        <table
-                          className="admin-table admin-table--tournaments admin-table--tournaments-sticky"
-                          style={stickyTableWidth > 0 ? { width: `${stickyTableWidth}px`, minWidth: '100%' } : { minWidth: '100%' }}
-                        >
-                          <thead>
-                            <tr>
-                              {tournamentColumns.map((column) => (
-                                <th
-                                  key={`sticky-${column}`}
-                                  className={column === 'tournamentId' ? 'admin-tournament-col-id admin-tournament-col-id--sticky-copy' : undefined}
-                                  style={stickyTournamentHeaderWidths[column] ? {
-                                    width: `${stickyTournamentHeaderWidths[column]}px`,
-                                    minWidth: `${stickyTournamentHeaderWidths[column]}px`,
-                                  } : undefined}
-                                >
-                                  <div className="admin-tournament-th-inner">
-                                    <span className="admin-tournament-th-label">
-                                      {TOURNAMENT_COLUMN_LABELS[column]}
-                                    </span>
-                                  </div>
-                                </th>
-                              ))}
-                            </tr>
-                          </thead>
-                        </table>
-                      </div>
-                    </div>
-                    <div ref={tournamentTableWrapRef} className="admin-table-wrap admin-table-wrap--tournaments">
+                  <div className="admin-table-wrap admin-table-wrap--tournaments">
                       <table className="admin-table admin-table--tournaments">
                         <thead>
                           <tr>
                             {tournamentColumns.map((column) => (
                               <th
                                 key={column}
-                                ref={(el) => {
-                                  tournamentHeaderCellRefs.current[column] = el;
-                                }}
                                 className={[
                                   dragOverTournamentColumn === column ? 'admin-tournament-th-drop-target' : '',
                                   column === 'tournamentId' ? 'admin-tournament-col-id' : '',
@@ -2163,7 +2037,6 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                           ))}
                         </tbody>
                       </table>
-                    </div>
                   </div>
                 );
               })()}
