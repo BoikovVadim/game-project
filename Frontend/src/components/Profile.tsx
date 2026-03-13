@@ -1297,7 +1297,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
 
   // Дополнительный запуск предзагрузки при открытии профиля (основная — из App при hasToken)
   useEffect(() => {
-    import('../preloadLeagueImages').then((m) => m.preloadAllLeagueImages());
+    import('../preloadLeagueImages.ts').then((m) => m.preloadAllLeagueImages());
   }, []);
 
   useEffect(() => {

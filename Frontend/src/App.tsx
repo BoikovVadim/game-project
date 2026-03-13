@@ -73,7 +73,7 @@ function AppContent() {
   // Ранняя предзагрузка картинок лиг для карусели — сразу при входе под токеном
   useEffect(() => {
     if (hasToken) {
-      import('./preloadLeagueImages').then((m) => m.preloadAllLeagueImages());
+      import('./preloadLeagueImages.ts').then((m) => m.preloadAllLeagueImages());
     }
   }, [hasToken]);
 
