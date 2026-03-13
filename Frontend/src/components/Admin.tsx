@@ -242,6 +242,8 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
   const [tournamentColumns, setTournamentColumns] = useState<TournamentColumnKey[]>(
     () => parseTournamentColumns(searchParams.get('tournamentCols')),
   );
+  const [draggedTournamentColumn, setDraggedTournamentColumn] = useState<TournamentColumnKey | null>(null);
+  const [dragOverTournamentColumn, setDragOverTournamentColumn] = useState<TournamentColumnKey | null>(null);
   const [qsSortBy, setQsSortBy] = useState<'topic' | 'count'>('count');
   const [qsSortDir, setQsSortDir] = useState<'asc' | 'desc'>('desc');
   type TxRow = { id: number; userId: number; username: string; email: string; amount: number; description: string; category: string; createdAt: string };
@@ -641,13 +643,14 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
     }, { replace: true });
   }, [setSearchParams]);
 
-  const moveTournamentColumn = React.useCallback((column: TournamentColumnKey, direction: 'left' | 'right') => {
-    const index = tournamentColumns.indexOf(column);
-    if (index < 0) return;
-    const targetIndex = direction === 'left' ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= tournamentColumns.length) return;
+  const reorderTournamentColumns = React.useCallback((sourceColumn: TournamentColumnKey, targetColumn: TournamentColumnKey) => {
+    if (sourceColumn === targetColumn) return;
+    const sourceIndex = tournamentColumns.indexOf(sourceColumn);
+    const targetIndex = tournamentColumns.indexOf(targetColumn);
+    if (sourceIndex < 0 || targetIndex < 0) return;
     const next = [...tournamentColumns];
-    [next[index], next[targetIndex]] = [next[targetIndex], next[index]];
+    next.splice(sourceIndex, 1);
+    next.splice(targetIndex, 0, sourceColumn);
     updateTournamentColumns(next);
   }, [tournamentColumns, updateTournamentColumns]);
 
@@ -1595,7 +1598,11 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                 <button
                   type="button"
                   className="admin-tournament-columns-reset"
-                  onClick={() => updateTournamentColumns(DEFAULT_TOURNAMENT_COLUMNS)}
+                  onClick={() => {
+                    setDraggedTournamentColumn(null);
+                    setDragOverTournamentColumn(null);
+                    updateTournamentColumns(DEFAULT_TOURNAMENT_COLUMNS);
+                  }}
                   disabled={tournamentColumns.join(',') === DEFAULT_TOURNAMENT_COLUMNS.join(',')}
                 >
                   Сбросить порядок столбцов
@@ -1617,32 +1624,52 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                     <table className="admin-table admin-table--tournaments">
                       <thead>
                         <tr>
-                          {tournamentColumns.map((column, index) => (
-                            <th key={column}>
+                          {tournamentColumns.map((column) => (
+                            <th
+                              key={column}
+                              className={dragOverTournamentColumn === column ? 'admin-tournament-th-drop-target' : undefined}
+                              onDragOver={(e) => {
+                                if (!draggedTournamentColumn || draggedTournamentColumn === column) return;
+                                e.preventDefault();
+                                e.dataTransfer.dropEffect = 'move';
+                                if (dragOverTournamentColumn !== column) {
+                                  setDragOverTournamentColumn(column);
+                                }
+                              }}
+                              onDragLeave={() => {
+                                if (dragOverTournamentColumn === column) {
+                                  setDragOverTournamentColumn(null);
+                                }
+                              }}
+                              onDrop={(e) => {
+                                e.preventDefault();
+                                if (!draggedTournamentColumn || draggedTournamentColumn === column) return;
+                                reorderTournamentColumns(draggedTournamentColumn, column);
+                                setDraggedTournamentColumn(null);
+                                setDragOverTournamentColumn(null);
+                              }}
+                            >
                               <div className="admin-tournament-th-inner">
+                                <button
+                                  type="button"
+                                  className="admin-tournament-th-grip"
+                                  draggable
+                                  onDragStart={(e) => {
+                                    setDraggedTournamentColumn(column);
+                                    setDragOverTournamentColumn(column);
+                                    e.dataTransfer.effectAllowed = 'move';
+                                    e.dataTransfer.setData('text/plain', column);
+                                  }}
+                                  onDragEnd={() => {
+                                    setDraggedTournamentColumn(null);
+                                    setDragOverTournamentColumn(null);
+                                  }}
+                                  aria-label={`Перетащить столбец «${TOURNAMENT_COLUMN_LABELS[column]}»`}
+                                  title="Зажмите и перетащите столбец"
+                                >
+                                  <span className="admin-tournament-th-grip-dots" aria-hidden="true" />
+                                </button>
                                 <span>{TOURNAMENT_COLUMN_LABELS[column]}</span>
-                                <span className="admin-tournament-th-actions">
-                                  <button
-                                    type="button"
-                                    className="admin-tournament-th-move"
-                                    onClick={() => moveTournamentColumn(column, 'left')}
-                                    disabled={index === 0}
-                                    aria-label={`Сдвинуть столбец «${TOURNAMENT_COLUMN_LABELS[column]}» влево`}
-                                    title="Сдвинуть влево"
-                                  >
-                                    ←
-                                  </button>
-                                  <button
-                                    type="button"
-                                    className="admin-tournament-th-move"
-                                    onClick={() => moveTournamentColumn(column, 'right')}
-                                    disabled={index === tournamentColumns.length - 1}
-                                    aria-label={`Сдвинуть столбец «${TOURNAMENT_COLUMN_LABELS[column]}» вправо`}
-                                    title="Сдвинуть вправо"
-                                  >
-                                    →
-                                  </button>
-                                </span>
                               </div>
                             </th>
                           ))}

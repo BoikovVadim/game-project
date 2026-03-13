@@ -1098,33 +1098,44 @@
   gap: 6px;
 }
 
-.admin-tournament-th-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+.admin-table th.admin-tournament-th-drop-target {
+  background: #ece7d6;
 }
 
-.admin-table .admin-tournament-th-move {
-  min-width: 22px;
-  padding: 2px 4px;
+.admin-table .admin-tournament-th-grip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
   border: 1px solid #d0d0d0;
   border-radius: 6px;
   background: #fff;
   color: #555;
-  font-size: 11px;
-  line-height: 1;
-  text-align: center;
+  cursor: grab;
+  flex-shrink: 0;
 }
 
-.admin-table .admin-tournament-th-move:hover:not(:disabled) {
+.admin-table .admin-tournament-th-grip:active {
+  cursor: grabbing;
+}
+
+.admin-table .admin-tournament-th-grip:hover {
   background: #f4f4f4;
   border-color: #bdbdbd;
-  color: #222;
 }
 
-.admin-table .admin-tournament-th-move:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
+.admin-tournament-th-grip-dots {
+  display: block;
+  width: 10px;
+  height: 14px;
+  background-image:
+    radial-gradient(circle, #777 1.2px, transparent 1.3px),
+    radial-gradient(circle, #777 1.2px, transparent 1.3px);
+  background-position: 0 0, 5px 0;
+  background-size: 5px 5px;
+  background-repeat: repeat-y;
 }
 
 .admin-stats-kpi {
