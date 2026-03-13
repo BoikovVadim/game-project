@@ -5167,7 +5167,13 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                   <div className="bracket-match">
                     {(() => {
                       const fp = bracketView.final.players;
-                      const finalWinnerId = bracketView.finalWinnerId ?? null;
+                      const p0 = fp[0];
+                      const p1 = fp[1];
+                      const modalScore0 = p0?.finalScore ?? p0?.finalCorrect ?? null;
+                      const modalScore1 = p1?.finalScore ?? p1?.finalCorrect ?? null;
+                      const finalWinnerId = modalScore0 != null && modalScore1 != null
+                        ? (modalScore0 > modalScore1 ? p0?.id ?? null : modalScore1 > modalScore0 ? p1?.id ?? null : (bracketView.finalWinnerId ?? null))
+                        : (bracketView.finalWinnerId ?? null);
                       const bothFinished = finalWinnerId != null;
                       return [0, 1].map((i) => {
                         const p = fp[i];
