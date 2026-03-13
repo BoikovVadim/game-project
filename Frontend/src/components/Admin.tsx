@@ -163,6 +163,18 @@ const parseTournamentColumns = (raw: string | null): TournamentColumnKey[] => {
   return unique;
 };
 
+const TOURNAMENT_COLS_STORAGE_KEY = 'adminTournamentCols';
+
+const getStoredTournamentColumns = (): TournamentColumnKey[] => {
+  if (typeof window === 'undefined') return DEFAULT_TOURNAMENT_COLUMNS;
+  return parseTournamentColumns(window.localStorage.getItem(TOURNAMENT_COLS_STORAGE_KEY));
+};
+
+const resolveTournamentColumns = (raw: string | null): TournamentColumnKey[] => {
+  if (raw) return parseTournamentColumns(raw);
+  return getStoredTournamentColumns();
+};
+
 const Admin: React.FC<AdminProps> = ({ token }) => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -332,7 +344,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
   const tournamentsListLoadedRef = React.useRef(false);
   const [tournamentIdFilter, setTournamentIdFilter] = useState<string>(() => searchParams.get('tournamentId') ?? '');
   const [tournamentColumns, setTournamentColumns] = useState<TournamentColumnKey[]>(
-    () => parseTournamentColumns(searchParams.get('tournamentCols')),
+    () => resolveTournamentColumns(searchParams.get('tournamentCols')),
   );
   const [draggedTournamentColumn, setDraggedTournamentColumn] = useState<TournamentColumnKey | null>(null);
   const [dragOverTournamentColumn, setDragOverTournamentColumn] = useState<TournamentColumnKey | null>(null);
@@ -408,8 +420,20 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
     else if (sTab === 'overview' || !sTab) setStatsSubTab((prev) => sTab === 'overview' ? 'overview' : prev);
     const tid = searchParams.get('tournamentId');
     if (tid !== null) setTournamentIdFilter(tid ?? '');
-    setTournamentColumns(parseTournamentColumns(searchParams.get('tournamentCols')));
-  }, [searchParams]);
+    const tournamentColsParam = searchParams.get('tournamentCols');
+    const resolvedTournamentColumns = resolveTournamentColumns(tournamentColsParam);
+    setTournamentColumns(resolvedTournamentColumns);
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(TOURNAMENT_COLS_STORAGE_KEY, resolvedTournamentColumns.join(','));
+    }
+    if (!tournamentColsParam) {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('tournamentCols', resolvedTournamentColumns.join(','));
+        return next;
+      }, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const setSectionAndUrl = (next: 'withdrawals' | 'users' | 'credit' | 'support' | 'statistics' | 'news') => {
     setSection(next);
@@ -766,6 +790,9 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
 
   const updateTournamentColumns = React.useCallback((nextColumns: TournamentColumnKey[]) => {
     setTournamentColumns(nextColumns);
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(TOURNAMENT_COLS_STORAGE_KEY, nextColumns.join(','));
+    }
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       next.set('tournamentCols', nextColumns.join(','));
