@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { formatMoscowDateTimeFull } from './dateUtils.ts';
+import { formatMoscowDateTimeFull, formatMoscowDateTime } from './dateUtils.ts';
 import './Admin.css';
 
 interface AdminProps {
@@ -241,6 +241,18 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
   const [actionSuccessMsg, setActionSuccessMsg] = useState('');
   const [approvedTransfer, setApprovedTransfer] = useState<{ id: number; amount: number; details: string | null; username: string; email: string } | null>(null);
   const headers = React.useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
+
+  const formatTimeLeft = (deadline: string | null): string => {
+    if (!deadline) return '—';
+    const end = new Date(deadline).getTime();
+    const now = Date.now();
+    if (end <= now) return '—';
+    const ms = end - now;
+    const h = Math.floor(ms / 3600000);
+    const m = Math.floor((ms % 3600000) / 60000);
+    if (h > 0) return `${h} ч ${m} мин`;
+    return `${m} мин`;
+  };
 
   const getTournamentStatusLabel = (status: string) => {
     switch (status) {
@@ -1433,10 +1445,11 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
             <div className="admin-stats-section">
               <div className="admin-stats-controls" style={{ marginBottom: 8 }}>
                 <label>
-                  Фильтр по ID турнира:{' '}
+                  Поиск по ID турнира:{' '}
                   <input
                     type="text"
-                    placeholder="Например: 52"
+                    inputMode="numeric"
+                    placeholder="Введите ID турнира"
                     value={tournamentIdFilter}
                     onChange={(e) => {
                       const v = e.target.value.trim();
@@ -1447,7 +1460,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                         return n;
                       }, { replace: true });
                     }}
-                    style={{ width: 120 }}
+                    style={{ width: 160 }}
                   />
                 </label>
               </div>
@@ -1468,48 +1481,42 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                       <thead>
                         <tr>
                           <th>ID турнира</th>
+                          <th>Ник игрока</th>
+                          <th>ID игрока</th>
+                          <th>Фаза</th>
+                          <th>Этап</th>
+                          <th>Старт раунда</th>
+                          <th>Осталось до конца</th>
+                          <th>Статус турнира</th>
+                          <th>Вопросы</th>
                           <th>Статус</th>
                           <th>Создан</th>
                           <th>Игроков</th>
                           <th>Ставка лиги</th>
-                          <th>Дедлайн</th>
-                          <th>Статус игрока</th>
-                          <th>Этап</th>
                           <th>Результат</th>
-                          <th>Раунд</th>
-                          <th>Отвечено</th>
-                          <th>Всего вопросов</th>
                           <th>Верных в раунде</th>
                           <th>Завершён</th>
-                          <th>Раунд завершён</th>
-                          <th>Старт раунда</th>
-                          <th>Ник игрока</th>
-                          <th>ID игрока</th>
-                          <th>Фаза</th>
                         </tr>
                       </thead>
                       <tbody>
                         {filtered.map((row, idx) => (
                           <tr key={`${row.tournamentId}-${row.userId}-${idx}`}>
                             <td style={{ textAlign: 'center' }}>{row.tournamentId}</td>
-                            <td style={{ textAlign: 'center' }}>{getTournamentStatusLabel(row.status)}</td>
-                            <td style={{ textAlign: 'center' }}>{row.createdAt ? formatMoscowDateTimeFull(row.createdAt) : '—'}</td>
-                            <td style={{ textAlign: 'center' }}>{row.playersCount}</td>
-                            <td style={{ textAlign: 'center' }}>{row.leagueAmount != null ? row.leagueAmount : '—'}</td>
-                            <td style={{ textAlign: 'center' }}>{row.deadline ? formatMoscowDateTimeFull(row.deadline) : '—'}</td>
-                            <td style={{ textAlign: 'center' }}>{row.userStatus === 'passed' ? 'Пройден' : 'Не пройден'}</td>
-                            <td style={{ textAlign: 'center' }}>{row.stage ?? '—'}</td>
-                            <td className="admin-td-left">{row.resultLabel ?? '—'}</td>
-                            <td style={{ textAlign: 'center' }}>{row.roundForQuestions === 'final' ? 'Финал' : 'Полуфинал'}</td>
-                            <td style={{ textAlign: 'center' }}>{row.questionsAnswered}</td>
-                            <td style={{ textAlign: 'center' }}>{row.questionsTotal}</td>
-                            <td style={{ textAlign: 'center' }}>{row.correctAnswersInRound}</td>
-                            <td style={{ textAlign: 'center' }}>{row.completedAt ? formatMoscowDateTimeFull(row.completedAt) : '—'}</td>
-                            <td style={{ textAlign: 'center' }}>{row.roundFinished === true ? 'Да' : '—'}</td>
-                            <td style={{ textAlign: 'center' }}>{row.roundStartedAt ? formatMoscowDateTimeFull(row.roundStartedAt) : '—'}</td>
                             <td className="admin-td-left">{row.userNickname}</td>
                             <td style={{ textAlign: 'center' }}>{row.userId}</td>
                             <td style={{ textAlign: 'center' }}>{row.phase === 'active' ? 'Активный' : 'История'}</td>
+                            <td style={{ textAlign: 'center' }}>{row.stage ?? '—'}</td>
+                            <td style={{ textAlign: 'center' }}>{row.roundStartedAt ? formatMoscowDateTime(row.roundStartedAt) : '—'}</td>
+                            <td style={{ textAlign: 'center' }}>{formatTimeLeft(row.deadline)}</td>
+                            <td style={{ textAlign: 'center' }}>{getTournamentStatusLabel(row.status)}</td>
+                            <td style={{ textAlign: 'center' }}>{`${row.questionsAnswered}/${row.questionsTotal}${row.correctAnswersInRound != null ? `/${row.correctAnswersInRound}` : ''}`}</td>
+                            <td style={{ textAlign: 'center' }}>{row.userStatus === 'passed' ? 'Пройден' : 'Не пройден'}</td>
+                            <td style={{ textAlign: 'center' }}>{row.createdAt ? formatMoscowDateTime(row.createdAt) : '—'}</td>
+                            <td style={{ textAlign: 'center' }}>{row.playersCount}</td>
+                            <td style={{ textAlign: 'center' }}>{row.leagueAmount != null ? row.leagueAmount : '—'}</td>
+                            <td className="admin-td-left">{row.resultLabel ?? '—'}</td>
+                            <td style={{ textAlign: 'center' }}>{row.correctAnswersInRound}</td>
+                            <td style={{ textAlign: 'center' }}>{row.completedAt ? formatMoscowDateTime(row.completedAt) : '—'}</td>
                           </tr>
                         ))}
                       </tbody>

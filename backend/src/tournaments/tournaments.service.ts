@@ -2135,9 +2135,15 @@ export class TournamentsService implements OnModuleInit {
     }[] = [];
     for (const userId of userIds) {
       try {
-        const { active, completed } = await this.getMyTournaments(userId);
+        const { active: activeT, completed: completedT } = await this.getMyTournaments(userId, 'training');
+        const { active: activeM, completed: completedM } = await this.getMyTournaments(userId, 'money');
+        const active = [...activeT, ...activeM];
+        const completed = [...completedT, ...completedM];
+        const seenIds = new Set<number>();
         const nickname = nicknameByUserId.get(userId) ?? `Игрок ${userId}`;
         for (const item of active) {
+          if (seenIds.has(item.id)) continue;
+          seenIds.add(item.id);
           result.push({
             tournamentId: item.id,
             status: item.status ?? '',
@@ -2160,6 +2166,8 @@ export class TournamentsService implements OnModuleInit {
           });
         }
         for (const item of completed) {
+          if (seenIds.has(item.id)) continue;
+          seenIds.add(item.id);
           result.push({
             tournamentId: item.id,
             status: item.status ?? '',
