@@ -979,7 +979,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
     switch (column) {
       case 'tournamentId':
         return (
-          <td style={{ textAlign: 'center' }}>
+          <td className="admin-tournament-col-id" style={{ textAlign: 'center' }}>
             <button type="button" className="admin-tournament-cell-link" onClick={() => openBracketModal(row.tournamentId, row.phase, row.userId)}>
               {row.tournamentId}
             </button>
@@ -1006,8 +1006,9 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
               type="button"
               className="admin-tournament-cell-link"
               onClick={() => openQuestionsReview(row.tournamentId, row.roundForQuestions, row.userId)}
+              title="Всего / отвечено / правильно"
             >
-              {`${row.questionsAnswered}/${row.questionsTotal}${row.correctAnswersInRound != null ? `/${row.correctAnswersInRound}` : ''}`}
+              {`${row.questionsTotal}/${row.questionsAnswered}${row.correctAnswersInRound != null ? `/${row.correctAnswersInRound}` : ''}`}
             </button>
           </td>
         );
@@ -1952,7 +1953,10 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                           {tournamentColumns.map((column) => (
                             <th
                               key={column}
-                              className={dragOverTournamentColumn === column ? 'admin-tournament-th-drop-target' : undefined}
+                              className={[
+                                dragOverTournamentColumn === column ? 'admin-tournament-th-drop-target' : '',
+                                column === 'tournamentId' ? 'admin-tournament-col-id' : '',
+                              ].filter(Boolean).join(' ') || undefined}
                               onDragOver={(e) => {
                                 if (!draggedTournamentColumn || draggedTournamentColumn === column) return;
                                 e.preventDefault();

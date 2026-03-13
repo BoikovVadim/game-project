@@ -1120,6 +1120,30 @@
   text-decoration: underline;
 }
 
+.admin-table--tournaments thead th {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: #f5f5f5;
+}
+
+.admin-table--tournaments .admin-tournament-col-id {
+  position: sticky;
+  left: 0;
+  background: #fff;
+  z-index: 10;
+  box-shadow: 1px 0 0 #ddd;
+}
+
+.admin-table--tournaments thead .admin-tournament-col-id {
+  z-index: 30;
+  background: #f5f5f5;
+}
+
+.admin-table--tournaments tbody tr:hover .admin-tournament-col-id {
+  background: #fff;
+}
+
 .admin-stats-kpi {
   display: flex;
   flex-wrap: nowrap;
