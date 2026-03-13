@@ -1824,6 +1824,7 @@ export class TournamentsService implements OnModuleInit {
       resultLabel: string,
       roundForQuestions?: 'semi' | 'final',
       stageOverride?: string,
+      forCompletedList?: boolean,
     ) => {
       const prog = progressByTid.get(t.id);
       const answered = prog?.q ?? 0;
@@ -1854,8 +1855,13 @@ export class TournamentsService implements OnModuleInit {
           ? Math.max(1, completedTBRounds + (inCurrentTBRound > 0 ? 1 : 0))
           : 0;
 
-        questionsTotal = QUESTIONS_PER_ROUND + activeTBRounds * TIEBREAKER_QUESTIONS;
-        questionsAnsweredInRound = Math.min(answered, questionsTotal);
+        if (forCompletedList) {
+          questionsTotal = QUESTIONS_PER_ROUND + completedTBRounds * TIEBREAKER_QUESTIONS;
+          questionsAnsweredInRound = Math.min(answered, questionsTotal);
+        } else {
+          questionsTotal = QUESTIONS_PER_ROUND + activeTBRounds * TIEBREAKER_QUESTIONS;
+          questionsAnsweredInRound = Math.min(answered, questionsTotal);
+        }
         correctAnswersInRound = semiCorrect + tbCorrectSum;
       } else {
         const semiTBCount = tbRounds.length;
@@ -1866,8 +1872,14 @@ export class TournamentsService implements OnModuleInit {
         const activeFinalTBRounds = hasFinalTB
           ? Math.max(1, finalTBRounds.length + (finalAnswered > QUESTIONS_PER_ROUND + finalTBRounds.length * TIEBREAKER_QUESTIONS ? 1 : 0))
           : 0;
-        questionsTotal = semiTotal + QUESTIONS_PER_ROUND + activeFinalTBRounds * TIEBREAKER_QUESTIONS;
-        questionsAnsweredInRound = answered;
+
+        if (forCompletedList) {
+          questionsTotal = semiTotal + QUESTIONS_PER_ROUND + finalTBRounds.length * TIEBREAKER_QUESTIONS;
+          questionsAnsweredInRound = Math.min(answered, questionsTotal);
+        } else {
+          questionsTotal = semiTotal + QUESTIONS_PER_ROUND + activeFinalTBRounds * TIEBREAKER_QUESTIONS;
+          questionsAnsweredInRound = answered;
+        }
         correctAnswersInRound = totalCorrect;
       }
       return {
@@ -2014,7 +2026,7 @@ export class TournamentsService implements OnModuleInit {
         !belongsToHistory(t),
     );
     const semiWonCompletedItems = moneySemiWonFinalPending.map((t) =>
-      toItem(t, deadlineByTournamentId[t.id] ?? null, 'passed', 'Победа', 'semi', 'Полуфинал'),
+      toItem(t, deadlineByTournamentId[t.id] ?? null, 'passed', 'Победа', 'semi', 'Полуфинал', true),
     );
 
     const activeRaw = activeTournamentsRaw.map((t) =>
@@ -2029,7 +2041,7 @@ export class TournamentsService implements OnModuleInit {
 
     const completedRaw = [
       ...completedTournamentsRaw.map((t) =>
-        toItem(t, deadlineByTournamentId[t.id] ?? null, getUserStatus(t), getDisplayResultLabel(t, true)),
+        toItem(t, deadlineByTournamentId[t.id] ?? null, getUserStatus(t), getDisplayResultLabel(t, true), undefined, undefined, true),
       ),
       ...semiWonCompletedItems,
     ];
