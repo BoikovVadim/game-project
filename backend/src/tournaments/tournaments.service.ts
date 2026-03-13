@@ -1,6 +1,6 @@
-import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In } from 'typeorm';
+import { Repository, In, IsNull } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Tournament, TournamentStatus, ROUND_DEADLINE_HOURS } from './tournament.entity';
 import { Question } from './question.entity';
@@ -58,7 +58,7 @@ function getMinBalanceForLeague(leagueIndex: number, amount: number): number {
 }
 
 @Injectable()
-export class TournamentsService {
+export class TournamentsService implements OnModuleInit {
   constructor(
     @InjectRepository(Tournament)
     private readonly tournamentRepository: Repository<Tournament>,
@@ -83,6 +83,72 @@ export class TournamentsService {
   ) {}
 
   private readonly logger = new Logger(TournamentsService.name);
+
+  async onModuleInit(): Promise<void> {
+    await this.backfillTournamentResultCompletedAt().catch((err) => {
+      this.logger.warn('backfillTournamentResultCompletedAt failed', err?.message ?? err);
+    });
+  }
+
+  /**
+   * Дозаполняет completedAt у записей tournament_result, где дата отсутствует.
+   * Берёт момент по паре: max(leftAt | roundStartedAt) по обоим участникам пары (полуфинал по playerOrder).
+   */
+  async backfillTournamentResultCompletedAt(): Promise<{ updated: number }> {
+    const rows = await this.tournamentResultRepository.find({
+      where: { completedAt: IsNull() },
+    });
+    if (rows.length === 0) return { updated: 0 };
+    const now = new Date();
+    let updated = 0;
+    const tournamentIds = [...new Set(rows.map((r) => r.tournamentId))];
+    const tournaments = await this.tournamentRepository.find({
+      where: { id: In(tournamentIds) },
+    });
+    const tourById = new Map(tournaments.map((t) => [t.id, t]));
+    const progressRows = await this.tournamentProgressRepository.find({
+      where: { tournamentId: In(tournamentIds) },
+    });
+    const progressByTidAndUser = new Map<number, Map<number, { leftAt: Date | null; roundStartedAt: Date | null }>>();
+    for (const p of progressRows) {
+      if (!progressByTidAndUser.has(p.tournamentId)) progressByTidAndUser.set(p.tournamentId, new Map());
+      progressByTidAndUser.get(p.tournamentId)!.set(p.userId, {
+        leftAt: p.leftAt ?? null,
+        roundStartedAt: p.roundStartedAt ?? null,
+      });
+    }
+    const toDate = (d: Date | string | null | undefined): Date | null => {
+      if (!d) return null;
+      const dt = d instanceof Date ? d : new Date(d);
+      return Number.isNaN(dt.getTime()) ? null : dt;
+    };
+    for (const row of rows) {
+      const t = tourById.get(row.tournamentId);
+      if (!t?.playerOrder?.length) continue;
+      const order = t.playerOrder;
+      const playerSlot = order.indexOf(row.userId);
+      if (playerSlot < 0) continue;
+      const opponentSlot = playerSlot % 2 === 0 ? playerSlot + 1 : playerSlot - 1;
+      const opponentId = opponentSlot >= 0 && opponentSlot < order.length ? (order[opponentSlot] ?? -1) : -1;
+      const userIds = [row.userId, opponentId].filter((id) => id > 0);
+      const map = progressByTidAndUser.get(row.tournamentId);
+      const dates: Date[] = [];
+      for (const uid of userIds) {
+        const prog = map?.get(uid);
+        if (!prog) continue;
+        const d = toDate(prog.leftAt) ?? toDate(prog.roundStartedAt);
+        if (d) dates.push(d);
+      }
+      if (dates.length === 0) continue;
+      const completedAt = new Date(Math.max(...dates.map((d) => d.getTime())));
+      const capped = completedAt > now ? now : completedAt;
+      row.completedAt = capped;
+      await this.tournamentResultRepository.save(row);
+      updated++;
+    }
+    if (updated > 0) this.logger.log(`backfillTournamentResultCompletedAt: updated ${updated} rows`);
+    return { updated };
+  }
 
   private getRoundDeadline(from: Date): string {
     return new Date(from.getTime() + ROUND_DEADLINE_HOURS * 3600000).toISOString();
@@ -3065,10 +3131,6 @@ export class TournamentsService {
     };
 
     if (players.length <= 2) {
-      if (tournament.gameType === 'money') {
-        await saveResult(semiLoserId, false);
-        return;
-      }
       await saveResult(semiLoserId, false);
       await saveResult(semiWinnerId, true);
       await this.tournamentRepository.update({ id: tournamentId }, { status: TournamentStatus.FINISHED });
