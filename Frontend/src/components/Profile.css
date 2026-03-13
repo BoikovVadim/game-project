@@ -939,16 +939,17 @@
   color: var(--gold-dark, #c9a227);
 }
 
-/* Широкие экраны: расширяем сайдбар и увеличиваем элементы */
+/* Широкие экраны: сайдбар по ширине самого длинного слова (Партнёрка) + иконка и отступы */
 @media (min-width: 1200px) {
   .cabinet-sidebar {
-    width: 140px;
-    padding: 10px 0 20px 0;
+    width: 118px;
+    max-width: 118px;
+    padding: 10px 6px 20px 6px;
     gap: 6px;
   }
   .cabinet-menu-item {
     min-height: 64px;
-    padding: 10px 8px;
+    padding: 10px 6px;
     font-size: 12px;
     gap: 5px;
   }
@@ -966,38 +967,39 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    max-width: 120px;
+    max-width: 100%;
   }
   .cabinet-main-wrap {
-    margin-left: 150px;
-    width: calc(100% - 158px);
+    margin-left: 126px;
+    width: calc(100% - 126px);
   }
 }
 
 @media (min-width: 1600px) {
   .cabinet-sidebar {
-    width: 170px;
+    width: 118px;
+    max-width: 118px;
   }
   .cabinet-menu-item {
-    font-size: 13px;
-    min-height: 68px;
-    padding: 12px 10px;
+    font-size: 12px;
+    min-height: 64px;
+    padding: 10px 6px;
   }
   .cabinet-menu-icon svg {
-    width: 26px;
-    height: 26px;
+    width: 24px;
+    height: 24px;
   }
   .cabinet-menu-item--games .cabinet-menu-icon svg {
-    width: 46px;
-    height: 46px;
+    width: 42px;
+    height: 42px;
   }
   .cabinet-menu-label {
-    font-size: 13px;
-    max-width: 150px;
+    font-size: 12px;
+    max-width: 100%;
   }
   .cabinet-main-wrap {
-    margin-left: 180px;
-    width: calc(100% - 188px);
+    margin-left: 126px;
+    width: calc(100% - 126px);
   }
 }
 
