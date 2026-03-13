@@ -3,6 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { DataSource, Repository } from 'typeorm';
+import { existsSync, promises as fs } from 'fs';
+import * as path from 'path';
 import { User } from '../users/user.entity';
 import { WithdrawalRequest } from '../users/withdrawal-request.entity';
 import { Transaction } from '../users/transaction.entity';
@@ -17,6 +19,37 @@ function toISOUtc(v: string | Date | null | undefined): string | null {
   const s = String(v).trim();
   if (s.includes('Z') || s.includes('+')) return s;
   return s.replace(' ', 'T') + 'Z';
+}
+
+function parseRubles(value: string | null | undefined): number {
+  const normalized = String(value ?? '')
+    .replace(/[₽\s]/g, '')
+    .replace(',', '.')
+    .trim();
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function roundMoney(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+async function readProjectCostTrackingFile(): Promise<{ content: string; filePath: string; mtime: Date } | null> {
+  const candidates = [
+    path.resolve(process.cwd(), '.cursor', 'project-cost-tracking.md'),
+    path.resolve(process.cwd(), '..', '.cursor', 'project-cost-tracking.md'),
+    path.resolve(__dirname, '../../.cursor/project-cost-tracking.md'),
+    path.resolve(__dirname, '../../../.cursor/project-cost-tracking.md'),
+  ];
+
+  for (const candidate of candidates) {
+    if (!existsSync(candidate)) continue;
+    const content = await fs.readFile(candidate, 'utf8');
+    const stat = await fs.stat(candidate);
+    return { content, filePath: candidate, mtime: stat.mtime };
+  }
+
+  return null;
 }
 
 @Injectable()
@@ -396,5 +429,85 @@ export class AdminService {
   /** Все участия в турнирах по всем игрокам (для вкладки «Турниры» в статистике). */
   async getTournamentsList() {
     return this.tournamentsService.getAllParticipationsForAdmin();
+  }
+
+  async getProjectCostDashboard(): Promise<{
+    currentTotal: number;
+    todayTotal: number;
+    updatedAt: string | null;
+    history: {
+      timestamp: string | null;
+      date: string;
+      time: string | null;
+      amountChange: number;
+      afterAmount: number;
+      duration: string;
+      description: string;
+    }[];
+  }> {
+    try {
+      type RawProjectCostEntry = {
+        timestamp: string | null;
+        date: string;
+        time: string | null;
+        amountChange: number;
+        duration: string;
+        description: string;
+      };
+
+      const file = await readProjectCostTrackingFile();
+      if (!file) {
+        return { currentTotal: 0, todayTotal: 0, updatedAt: null, history: [] };
+      }
+
+      const lines = file.content
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean);
+
+      const currentTotal = roundMoney(Number(lines[0] ?? 0));
+      const todayTotal = parseRubles(lines[1]?.match(/:\s*(.+)$/)?.[1] ?? '0');
+      const rawHistory: RawProjectCostEntry[] = [];
+      for (const line of lines) {
+        if (!/^\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2})?)?\s+\|/.test(line)) continue;
+        const parts = line.split('|').map((part) => part.trim());
+        if (parts.length < 4) continue;
+
+        const [dateTimePart, amountPart, durationPart, ...descriptionParts] = parts;
+        const dateTimeMatch = dateTimePart.match(/^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}:\d{2})(?::\d{2})?)?$/);
+        if (!dateTimeMatch) continue;
+
+        const date = dateTimeMatch[1];
+        const time = dateTimeMatch[2] ?? null;
+        rawHistory.push({
+          timestamp: time ? new Date(`${date}T${time}:00+03:00`).toISOString() : null,
+          date,
+          time,
+          amountChange: roundMoney(parseRubles(amountPart)),
+          duration: durationPart,
+          description: descriptionParts.join(' | '),
+        });
+      }
+
+      const totalChanges = rawHistory.reduce((sum, entry) => sum + entry.amountChange, 0);
+      let runningTotal = roundMoney(currentTotal - totalChanges);
+      const historyAscending = [...rawHistory].reverse().map((entry) => {
+        runningTotal = roundMoney(runningTotal + entry.amountChange);
+        return {
+          ...entry,
+          afterAmount: runningTotal,
+        };
+      });
+
+      return {
+        currentTotal,
+        todayTotal: roundMoney(todayTotal),
+        updatedAt: file.mtime ? file.mtime.toISOString() : null,
+        history: historyAscending.reverse(),
+      };
+    } catch (e) {
+      console.error('[AdminService.getProjectCostDashboard]', e);
+      return { currentTotal: 0, todayTotal: 0, updatedAt: null, history: [] };
+    }
   }
 }

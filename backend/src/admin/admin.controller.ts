@@ -75,6 +75,11 @@ export class AdminController {
     return this.adminService.getTournamentsList();
   }
 
+  @Get('project-cost')
+  getProjectCostDashboard() {
+    return this.adminService.getProjectCostDashboard();
+  }
+
   @Post('users/:id/set-admin')
   setUserAdmin(
     @Param('id', ParseIntPipe) id: number,

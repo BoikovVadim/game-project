@@ -27,6 +27,23 @@ type WithdrawalRequestRow = {
 
 type UserRow = { id: number; username: string; email: string; balance: number; balanceRubles: number; isAdmin: boolean };
 
+type ProjectCostHistoryRow = {
+  timestamp: string | null;
+  date: string;
+  time: string | null;
+  amountChange: number;
+  afterAmount: number;
+  duration: string;
+  description: string;
+};
+
+type ProjectCostDashboardData = {
+  currentTotal: number;
+  todayTotal: number;
+  updatedAt: string | null;
+  history: ProjectCostHistoryRow[];
+};
+
 const DollarIcon = ({ className }: { className?: string }) => (
   <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
@@ -233,9 +250,17 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
   const [statsData, setStatsData] = useState<{ period: string; registrations: number; withdrawals: number; topups: number; gameIncome: number }[]>([]);
   const [statsMetrics, setStatsMetrics] = useState<Set<string>>(() => new Set(['registrations', 'topups', 'withdrawals', 'gameIncome']));
 
-  const [statsSubTab, setStatsSubTab] = useState<'overview' | 'transactions' | 'questions' | 'tournaments'>(() => {
+  const [statsSubTab, setStatsSubTab] = useState<'overview' | 'transactions' | 'questions' | 'tournaments' | 'project-cost'>(() => {
     const sub = searchParams.get('statsTab');
-    return sub === 'transactions' ? 'transactions' : sub === 'questions' ? 'questions' : sub === 'tournaments' ? 'tournaments' : 'overview';
+    return sub === 'transactions'
+      ? 'transactions'
+      : sub === 'questions'
+        ? 'questions'
+        : sub === 'tournaments'
+          ? 'tournaments'
+          : sub === 'project-cost'
+            ? 'project-cost'
+            : 'overview';
   });
   type QuestionStatRow = { topic: string; count: number };
   const topicNames: Record<string, string> = {
@@ -395,6 +420,9 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
   const [txCategoryFilter, setTxCategoryFilter] = useState<'' | 'topup' | 'withdraw' | 'win' | 'other'>('');
   const [txSortBy, setTxSortBy] = useState<'id' | 'userId' | 'username' | 'email' | 'category' | 'amount' | 'createdAt'>('id');
   const [txSortDir, setTxSortDir] = useState<'asc' | 'desc'>('desc');
+  const [projectCostData, setProjectCostData] = useState<ProjectCostDashboardData | null>(null);
+  const [projectCostLoading, setProjectCostLoading] = useState(false);
+  const projectCostLoadedRef = React.useRef(false);
 
   // Восстановить вкладку и фильтр статуса из URL при загрузке/обновлении
   useEffect(() => {
@@ -417,6 +445,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
     if (sTab === 'transactions') setStatsSubTab('transactions');
     else if (sTab === 'questions') setStatsSubTab('questions');
     else if (sTab === 'tournaments') setStatsSubTab('tournaments');
+    else if (sTab === 'project-cost') setStatsSubTab('project-cost');
     else if (sTab === 'overview' || !sTab) setStatsSubTab((prev) => sTab === 'overview' ? 'overview' : prev);
     const tid = searchParams.get('tournamentId');
     if (tid !== null) setTournamentIdFilter(tid ?? '');
@@ -480,6 +509,8 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
     if (h > 0) return `${h} ч ${m} мин`;
     return `${m} мин`;
   };
+
+  const formatRubles = (amount: number): string => `${Number(amount || 0).toLocaleString('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ₽`;
 
   const getTournamentStatusLabel = (status: string) => {
     switch (status) {
@@ -787,6 +818,23 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
     if (!isAdmin || !token || section !== 'statistics' || statsSubTab !== 'tournaments') return;
     fetchTournamentsList();
   }, [isAdmin, token, section, statsSubTab, fetchTournamentsList]);
+
+  const fetchProjectCost = React.useCallback(() => {
+    if (!token) return;
+    if (!projectCostLoadedRef.current) setProjectCostLoading(true);
+    axios.get<ProjectCostDashboardData>('/admin/project-cost', { headers })
+      .then((r) => setProjectCostData(r.data ?? { currentTotal: 0, todayTotal: 0, updatedAt: null, history: [] }))
+      .catch(() => setProjectCostData({ currentTotal: 0, todayTotal: 0, updatedAt: null, history: [] }))
+      .finally(() => {
+        setProjectCostLoading(false);
+        projectCostLoadedRef.current = true;
+      });
+  }, [token, headers]);
+
+  useEffect(() => {
+    if (!isAdmin || !token || section !== 'statistics' || statsSubTab !== 'project-cost') return;
+    fetchProjectCost();
+  }, [isAdmin, token, section, statsSubTab, fetchProjectCost]);
 
   const updateTournamentColumns = React.useCallback((nextColumns: TournamentColumnKey[]) => {
     setTournamentColumns(nextColumns);
@@ -1716,6 +1764,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
             <button type="button" className={`admin-stats-subtab${statsSubTab === 'transactions' ? ' active' : ''}`} onClick={() => { setStatsSubTab('transactions'); setSearchParams((p) => { const n = new URLSearchParams(p); n.set('statsTab', 'transactions'); return n; }, { replace: true }); }}>Транзакции</button>
             <button type="button" className={`admin-stats-subtab${statsSubTab === 'questions' ? ' active' : ''}`} onClick={() => { setStatsSubTab('questions'); setSearchParams((p) => { const n = new URLSearchParams(p); n.set('statsTab', 'questions'); return n; }, { replace: true }); }}>Вопросы</button>
             <button type="button" className={`admin-stats-subtab${statsSubTab === 'tournaments' ? ' active' : ''}`} onClick={() => { setStatsSubTab('tournaments'); setSearchParams((p) => { const n = new URLSearchParams(p); n.set('statsTab', 'tournaments'); return n; }, { replace: true }); }}>Турниры</button>
+            <button type="button" className={`admin-stats-subtab${statsSubTab === 'project-cost' ? ' active' : ''}`} onClick={() => { setStatsSubTab('project-cost'); setSearchParams((p) => { const n = new URLSearchParams(p); n.set('statsTab', 'project-cost'); return n; }, { replace: true }); }}>Стоимость проекта</button>
           </div>
           {statsSubTab === 'overview' && (() => {
             const totals = statsData.reduce((acc, d) => ({
@@ -2045,6 +2094,90 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                         </tbody>
                       </table>
                   </div>
+                );
+              })()}
+            </div>
+          )}
+          {statsSubTab === 'project-cost' && (
+            <div className="admin-stats-section">
+              {projectCostLoading && !projectCostLoadedRef.current ? (
+                <p>Загрузка...</p>
+              ) : (() => {
+                const dashboard = projectCostData ?? { currentTotal: 0, todayTotal: 0, updatedAt: null, history: [] };
+                const latestChange = dashboard.history[0]?.amountChange ?? 0;
+                return (
+                  <>
+                    <div className="admin-cost-hero">
+                      <div className="admin-cost-hero-main">
+                        <div className="admin-cost-hero-label">Текущая стоимость проекта</div>
+                        <div className="admin-cost-hero-value">{formatRubles(dashboard.currentTotal)}</div>
+                        <div className="admin-cost-hero-note">
+                          Это текущее значение `Стало`, которое используется для расчёта стоимости проекта.
+                        </div>
+                      </div>
+                      <div className="admin-cost-hero-side">
+                        <button
+                          type="button"
+                          className="admin-cost-refresh-btn"
+                          onClick={() => {
+                            projectCostLoadedRef.current = false;
+                            fetchProjectCost();
+                          }}
+                        >
+                          Обновить
+                        </button>
+                        <div className="admin-cost-updated-at">
+                          Обновлено: {dashboard.updatedAt ? formatMoscowDateTimeFull(dashboard.updatedAt) : '—'}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="admin-stats-kpi admin-cost-kpi">
+                      <div className="admin-stats-kpi-card admin-cost-kpi-card" style={{ borderColor: '#0f766e' }}>
+                        <div className="admin-stats-kpi-value">{formatRubles(dashboard.todayTotal)}</div>
+                        <div className="admin-stats-kpi-label">За сегодня</div>
+                      </div>
+                      <div className="admin-stats-kpi-card admin-cost-kpi-card" style={{ borderColor: '#1d4ed8' }}>
+                        <div className="admin-stats-kpi-value">+{formatRubles(latestChange).replace(' ₽', '')} ₽</div>
+                        <div className="admin-stats-kpi-label">Последнее изменение</div>
+                      </div>
+                      <div className="admin-stats-kpi-card admin-cost-kpi-card" style={{ borderColor: '#7c3aed' }}>
+                        <div className="admin-stats-kpi-value">{dashboard.history.length.toLocaleString('ru-RU')}</div>
+                        <div className="admin-stats-kpi-label">Записей в истории</div>
+                      </div>
+                    </div>
+
+                    {dashboard.history.length === 0 ? (
+                      <p className="admin-stats-empty">История стоимости пока пуста</p>
+                    ) : (
+                      <div className="admin-table-wrap">
+                        <table className="admin-table admin-table--project-cost">
+                          <thead>
+                            <tr>
+                              <th>Дата</th>
+                              <th>Время</th>
+                              <th>Изменение</th>
+                              <th>Стало после изменения</th>
+                              <th>Время выполнения</th>
+                              <th>Описание задачи</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {dashboard.history.map((row, idx) => (
+                              <tr key={`${row.date}-${row.time ?? 'na'}-${idx}`}>
+                                <td>{row.date}</td>
+                                <td>{row.time ?? '—'}</td>
+                                <td className="admin-cost-change">+{formatRubles(row.amountChange)}</td>
+                                <td className="admin-cost-after">{formatRubles(row.afterAmount)}</td>
+                                <td>{row.duration}</td>
+                                <td className="admin-td-left admin-cost-description">{row.description}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </>
                 );
               })()}
             </div>
