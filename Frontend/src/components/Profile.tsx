@@ -867,8 +867,6 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   const [allowedLeaguesLoading, setAllowedLeaguesLoading] = useState(false);
   const [leagueCarouselIndex, setLeagueCarouselIndex] = useState(0);
   /** Показываем в центре карусели только после загрузки картинки, чтобы не было мелькания пустого места */
-  const [displayedCenterAmount, setDisplayedCenterAmount] = useState<number | null>(null);
-  const centerImgRef = useRef<HTMLImageElement>(null);
   const selectedLeagueRef = useRef(5);
 
   const [gameHistory, setGameHistory] = useState<{
@@ -1303,15 +1301,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     preloadAllLeagueImages();
   }, []);
 
-  // Если у текущей центральной лиги нет картинки — сразу показываем (без ожидания загрузки)
-  useEffect(() => {
-    const list = allLeagues ?? [];
-    if (list.length === 0) return;
-    const centerAmount = list[leagueCarouselIndex] ?? list[0] ?? 5;
-    if (!LEAGUE_IMAGES[centerAmount]) setDisplayedCenterAmount(centerAmount);
-  }, [allLeagues, leagueCarouselIndex]);
-
-  // Приоритетная загрузка и декод картинок текущей и соседних лиг (±2), чтобы по клику влево/вправо картинка уже была в памяти
+  // Приоритетная загрузка и декод картинок текущей и соседних лиг (±2)
   useEffect(() => {
     const list = allLeagues ?? [];
     const n = list.length;
@@ -1374,7 +1364,6 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
           setSelectedLeague(fallback);
           setLeagueCarouselIndex(fallbackIdx >= 0 ? fallbackIdx : 0);
         }
-        setDisplayedCenterAmount(null);
       })
       .catch(() => {
         setAllowedLeagues([]);
@@ -3700,14 +3689,13 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                             const list = allLeagues ?? [];
                                             const n = list.length;
                                             if (n === 0) return null;
-                                            const renderCard = (amount: number, side: 'prev' | 'center' | 'next', centerImgRefArg?: React.RefObject<HTMLImageElement | null>) => {
+                                            const renderCard = (amount: number, side: 'prev' | 'center' | 'next', slotKey: string) => {
                                               const gem = LEAGUE_GEMS[amount] ?? { name: `Лига ${formatNum(amount)} ${CURRENCY}`, color: '#888' };
                                               const isAllowed = (allowedLeagues ?? []).includes(amount);
                                               const online = (playersOnlineByLeague ?? {})[amount] ?? 0;
-                                              const imgRef = side === 'center' && centerImgRefArg ? centerImgRefArg : undefined;
                                               return (
                                                 <button
-                                                  key={`${amount}-${side}`}
+                                                  key={slotKey}
                                                   type="button"
                                                   className={`confrontation-carousel-card confrontation-carousel-card-${side} ${!isAllowed ? 'confrontation-league-locked' : ''}`}
                                                   onClick={() => { setLeagueCarouselIndex(list.indexOf(amount)); setSelectedLeague(amount); }}
@@ -3716,12 +3704,11 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                                     {LEAGUE_IMAGES[amount] ? (
                                                       <>
                                                         <img
-                                                          ref={imgRef}
                                                           src={LEAGUE_IMAGES[amount]}
                                                           alt=""
                                                           className="confrontation-league-image"
                                                           loading="eager"
-                                                          decoding={side === 'center' ? 'sync' : 'async'}
+                                                          decoding="async"
                                                           fetchPriority={side === 'center' ? 'high' : 'low'}
                                                           onError={(e) => {
                                                             const t = e.target as HTMLImageElement;
@@ -3753,45 +3740,14 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                             const centerAmount = list[leagueCarouselIndex] ?? list[0] ?? 5;
                                             const prevAmount = list[prevIdx] ?? centerAmount;
                                             const nextAmount = list[nextIdx] ?? centerAmount;
-                                            const centerDisplayAmount = displayedCenterAmount ?? centerAmount;
-                                            const onCenterImageLoaded = () => {
-                                              if (centerImgRef.current && LEAGUE_IMAGES[centerAmount]) {
-                                                centerImgRef.current.src = LEAGUE_IMAGES[centerAmount];
-                                              }
-                                              setDisplayedCenterAmount(centerAmount);
-                                            };
                                             if (n === 1) {
-                                              return (
-                                                <>
-                                                  {LEAGUE_IMAGES[centerAmount] && (
-                                                    <img
-                                                      key={`preload-${centerAmount}`}
-                                                      src={LEAGUE_IMAGES[centerAmount]}
-                                                      alt=""
-                                                      aria-hidden
-                                                      style={{ position: 'absolute', width: 0, height: 0, opacity: 0, pointerEvents: 'none' }}
-                                                      onLoad={onCenterImageLoaded}
-                                                    />
-                                                  )}
-                                                  {renderCard(centerDisplayAmount, 'center', centerImgRef)}
-                                                </>
-                                              );
+                                              return renderCard(centerAmount, 'center', 'carousel-center');
                                             }
                                             return (
                                               <>
-                                                {LEAGUE_IMAGES[centerAmount] && (
-                                                  <img
-                                                    key={`preload-${centerAmount}`}
-                                                    src={LEAGUE_IMAGES[centerAmount]}
-                                                    alt=""
-                                                    aria-hidden
-                                                    style={{ position: 'absolute', width: 0, height: 0, opacity: 0, pointerEvents: 'none' }}
-                                                    onLoad={onCenterImageLoaded}
-                                                  />
-                                                )}
-                                                {renderCard(prevAmount, 'prev')}
-                                                {renderCard(centerDisplayAmount, 'center', centerImgRef)}
-                                                {renderCard(nextAmount, 'next')}
+                                                {renderCard(prevAmount, 'prev', 'carousel-prev')}
+                                                {renderCard(centerAmount, 'center', 'carousel-center')}
+                                                {renderCard(nextAmount, 'next', 'carousel-next')}
                                               </>
                                             );
                                           })()}
