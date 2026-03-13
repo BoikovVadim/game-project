@@ -2002,6 +2002,15 @@ export class TournamentsService implements OnModuleInit {
       if (t.status === TournamentStatus.FINISHED) {
         const label = getResultLabel(t);
         if (label === 'Ожидание соперника') return false;
+        // Выиграл полуфинал, но не дошёл до финала (или не закончил его) — турнир остаётся в активных, доступ к финалу.
+        const semiRes = getMoneySemiResult(t);
+        if (semiRes.result === 'won') {
+          const prog = progressByTid.get(t.id);
+          if (prog) {
+            const mySemiTotal = semiPhaseQuestions(prog);
+            if ((prog.q ?? 0) < mySemiTotal + QUESTIONS_PER_ROUND) return false;
+          }
+        }
         return true;
       }
       const label = getResultLabel(t);
