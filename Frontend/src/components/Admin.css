@@ -361,8 +361,8 @@
 }
 
 .admin-table-wrap--tournaments {
-  overflow-x: auto;
-  overflow-y: visible;
+  overflow: auto;
+  max-height: 75vh;
 }
 
 .admin-section label {
@@ -1132,7 +1132,7 @@
 
 .admin-table--tournaments thead th {
   position: sticky;
-  top: var(--admin-sticky-offset, 0px);
+  top: 0;
   z-index: 20;
   background: #f5f5f5;
   background-clip: padding-box;
