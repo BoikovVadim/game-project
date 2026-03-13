@@ -794,15 +794,16 @@ export class TournamentsService implements OnModuleInit {
 
     if (waitingTournament) {
       tournament = waitingTournament;
-      tournament.players.push(user);
-      tournament.playerOrder = [...(tournament.playerOrder ?? []), user.id];
-      playerSlot = tournament.playerOrder.length - 1;
+      await this.ensureTournamentPlayer(tournament.id, user.id);
+      const newOrder = [...(tournament.playerOrder ?? []), user.id];
+      await this.tournamentRepository.update({ id: tournament.id }, { playerOrder: newOrder });
+      tournament.playerOrder = newOrder;
+      playerSlot = newOrder.length - 1;
       isCreator = false;
-      await this.tournamentRepository.save(tournament);
       await this.tournamentEntryRepository.save(
         this.tournamentEntryRepository.create({ tournament, user, joinedAt }),
       );
-      await this.syncSemiPairStartOnJoin(tournament.id, tournament.playerOrder, playerSlot, joinedAt);
+      await this.syncSemiPairStartOnJoin(tournament.id, newOrder, playerSlot, joinedAt);
     } else {
       tournament = this.tournamentRepository.create({
         status: TournamentStatus.WAITING,
@@ -866,7 +867,7 @@ export class TournamentsService implements OnModuleInit {
       questionsSemi2,
       questionsFinal: [],
       playerSlot,
-      totalPlayers: tournament.players.length,
+      totalPlayers: (tournament.playerOrder ?? []).length || tournament.players?.length || 0,
       semiIndex,
       isCreator,
     };
@@ -885,9 +886,10 @@ export class TournamentsService implements OnModuleInit {
       tournament = waitingTournament;
       const user = await this.userRepository.findOneBy({ id: userId });
       if (!user) throw new NotFoundException('User not found');
-      tournament.players.push(user);
-      playerSlot = tournament.players.length - 1;
-      await this.tournamentRepository.save(tournament);
+      await this.ensureTournamentPlayer(tournament.id, user.id);
+      const newOrder = [...(tournament.playerOrder ?? []), user.id];
+      await this.tournamentRepository.update({ id: tournament.id }, { playerOrder: newOrder });
+      playerSlot = newOrder.length - 1;
     } else {
       const user = await this.userRepository.findOneBy({ id: userId });
       if (!user) throw new NotFoundException('User not found');
@@ -1144,15 +1146,16 @@ export class TournamentsService implements OnModuleInit {
 
     if (waitingTournament) {
       tournament = waitingTournament;
-      tournament.players.push(user);
-      tournament.playerOrder = [...(tournament.playerOrder ?? []), user.id];
-      playerSlot = tournament.playerOrder.length - 1;
+      await this.ensureTournamentPlayer(tournament.id, user.id);
+      const newOrder = [...(tournament.playerOrder ?? []), user.id];
+      await this.tournamentRepository.update({ id: tournament.id }, { playerOrder: newOrder });
+      tournament.playerOrder = newOrder;
+      playerSlot = newOrder.length - 1;
       isCreator = false;
-      await this.tournamentRepository.save(tournament);
       await this.tournamentEntryRepository.save(
         this.tournamentEntryRepository.create({ tournament, user, joinedAt }),
       );
-      await this.syncSemiPairStartOnJoin(tournament.id, tournament.playerOrder, playerSlot, joinedAt);
+      await this.syncSemiPairStartOnJoin(tournament.id, newOrder, playerSlot, joinedAt);
     } else {
       tournament = this.tournamentRepository.create({
         status: TournamentStatus.WAITING,
@@ -1188,8 +1191,13 @@ export class TournamentsService implements OnModuleInit {
       );
     } catch (e) {
       if (waitingTournament) {
-        tournament.players = tournament.players.filter((p) => p.id !== userId);
-        await this.tournamentRepository.save(tournament);
+        const conn = this.tournamentRepository.manager.connection;
+        await conn.query(
+          'DELETE FROM tournament_players_user WHERE "tournamentId" = $1 AND "userId" = $2',
+          [tournament.id, userId],
+        ).catch(() => {});
+        const newOrder = (tournament.playerOrder ?? []).filter((id) => id !== userId);
+        await this.tournamentRepository.update({ id: tournament.id }, { playerOrder: newOrder });
         const entry = await this.tournamentEntryRepository.findOne({
           where: { tournament: { id: tournament.id }, user: { id: userId } },
         });
@@ -1215,7 +1223,7 @@ export class TournamentsService implements OnModuleInit {
     return {
       tournamentId: tournament.id,
       playerSlot,
-      totalPlayers: tournament.players.length,
+      totalPlayers: (tournament.playerOrder ?? []).length || tournament.players?.length || 0,
       semiIndex,
       positionInSemi,
       isCreator,
@@ -1248,6 +1256,7 @@ export class TournamentsService implements OnModuleInit {
     );
 
     if (mode === 'money') {
+      await this.backfillTournamentPlayersFromEntry().catch(() => {});
       await this.processAllExpiredEscrows().catch((e) => this.logger.warn('[getMyTournaments] processAllExpiredEscrows', (e as Error)?.message));
       await this.syncTournamentPlayersFromEntry(userId).catch((e) => this.logger.warn('[getMyTournaments] syncTournamentPlayersFromEntry', (e as Error)?.message));
     }
@@ -2159,26 +2168,59 @@ export class TournamentsService implements OnModuleInit {
     return { active, completed };
   }
 
-  /** Восстановить tournament_players_user из tournament_entry (все недостающие пары). Вызывать при открытии админской сводки — после бага с save() могли пропасть игроки. */
+  /** Восстановить tournament_players_user из tournament_entry и tournament_progress (все недостающие пары). После бага save(tournament) перезаписывал связь — игроки пропадали. */
   async backfillTournamentPlayersFromEntry(): Promise<{ inserted: number }> {
     const dataSource = this.tournamentRepository.manager.connection;
-    const q = `
-      INSERT INTO tournament_players_user ("tournamentId", "userId")
-      SELECT te."tournamentId", te."userId"
-      FROM tournament_entry te
-      WHERE NOT EXISTS (
-        SELECT 1 FROM tournament_players_user tpu
-        WHERE tpu."tournamentId" = te."tournamentId" AND tpu."userId" = te."userId"
-      )
-    `;
+    let totalInserted = 0;
     try {
-      const r = await dataSource.query(q);
-      const inserted = typeof r?.length === 'number' ? r.length : (r?.rowCount ?? 0);
-      if (inserted > 0) this.logger.log(`[backfillTournamentPlayersFromEntry] inserted ${inserted} rows`);
-      return { inserted: Number(inserted) };
+      const qEntry = `
+        INSERT INTO tournament_players_user ("tournamentId", "userId")
+        SELECT te."tournamentId", te."userId"
+        FROM tournament_entry te
+        WHERE NOT EXISTS (
+          SELECT 1 FROM tournament_players_user tpu
+          WHERE tpu."tournamentId" = te."tournamentId" AND tpu."userId" = te."userId"
+        )
+      `;
+      const rEntry = await dataSource.query(qEntry);
+      const nEntry = typeof rEntry?.rowCount === 'number' ? rEntry.rowCount : (Array.isArray(rEntry) ? rEntry.length : 0);
+      totalInserted += Number(nEntry) || 0;
     } catch (e) {
-      this.logger.warn('[backfillTournamentPlayersFromEntry]', (e as Error)?.message);
-      return { inserted: 0 };
+      this.logger.warn('[backfillTournamentPlayersFromEntry] entry', (e as Error)?.message);
+    }
+    try {
+      const qProgress = `
+        INSERT INTO tournament_players_user ("tournamentId", "userId")
+        SELECT p."tournamentId", p."userId"
+        FROM tournament_progress p
+        WHERE NOT EXISTS (
+          SELECT 1 FROM tournament_players_user tpu
+          WHERE tpu."tournamentId" = p."tournamentId" AND tpu."userId" = p."userId"
+        )
+      `;
+      const rProgress = await dataSource.query(qProgress);
+      const nProgress = typeof rProgress?.rowCount === 'number' ? rProgress.rowCount : (Array.isArray(rProgress) ? rProgress.length : 0);
+      totalInserted += Number(nProgress) || 0;
+    } catch (e) {
+      this.logger.warn('[backfillTournamentPlayersFromEntry] progress', (e as Error)?.message);
+    }
+    if (totalInserted > 0) this.logger.log(`[backfillTournamentPlayersFromEntry] inserted ${totalInserted} rows`);
+    return { inserted: totalInserted };
+  }
+
+  /** Добавить пару (tournamentId, userId) в join-таблицу без перезаписи связи. Использовать вместо players.push + save(tournament). */
+  private async ensureTournamentPlayer(tournamentId: number, userId: number): Promise<void> {
+    const dataSource = this.tournamentRepository.manager.connection;
+    try {
+      await dataSource.query(
+        `INSERT INTO tournament_players_user ("tournamentId", "userId")
+         SELECT $1, $2 WHERE NOT EXISTS (
+           SELECT 1 FROM tournament_players_user WHERE "tournamentId" = $1 AND "userId" = $2
+         )`,
+        [tournamentId, userId],
+      );
+    } catch (e) {
+      this.logger.warn('[ensureTournamentPlayer]', (e as Error)?.message);
     }
   }
 
