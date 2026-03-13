@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-do
 import axios from 'axios';
 import { formatNum, CURRENCY } from './formatNum.ts';
 import { toMoscowDateStr, parseMoscowDate, formatMoscowDateTime, formatMoscowDateTimeFull } from './dateUtils.ts';
+import { preloadAllLeagueImages } from '../preloadLeagueImages.ts';
 import './Profile.css';
 
 interface ProfileProps {
@@ -865,6 +866,8 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   const [playersOnlineByLeague, setPlayersOnlineByLeague] = useState<Record<number, number>>({});
   const [allowedLeaguesLoading, setAllowedLeaguesLoading] = useState(false);
   const [leagueCarouselIndex, setLeagueCarouselIndex] = useState(0);
+  /** Показываем в центре карусели только после загрузки картинки, чтобы не было мелькания пустого места */
+  const [displayedCenterAmount, setDisplayedCenterAmount] = useState<number | null>(null);
   const selectedLeagueRef = useRef(5);
 
   const [gameHistory, setGameHistory] = useState<{
@@ -1295,10 +1298,17 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     }
   }, [gameMode, selectedLeague]);
 
-  // Дополнительный запуск предзагрузки при открытии профиля (основная — из App при hasToken)
   useEffect(() => {
-    import('../preloadLeagueImages.ts').then((m) => m.preloadAllLeagueImages());
+    preloadAllLeagueImages();
   }, []);
+
+  // Если у текущей центральной лиги нет картинки — сразу показываем (без ожидания загрузки)
+  useEffect(() => {
+    const list = allLeagues ?? [];
+    if (list.length === 0) return;
+    const centerAmount = list[leagueCarouselIndex] ?? list[0] ?? 5;
+    if (!LEAGUE_IMAGES[centerAmount]) setDisplayedCenterAmount(centerAmount);
+  }, [allLeagues, leagueCarouselIndex]);
 
   useEffect(() => {
     const saveOnUnload = () => {
@@ -1346,6 +1356,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
           setSelectedLeague(fallback);
           setLeagueCarouselIndex(fallbackIdx >= 0 ? fallbackIdx : 0);
         }
+        setDisplayedCenterAmount(null);
       })
       .catch(() => {
         setAllowedLeagues([]);
@@ -3714,13 +3725,38 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                             const centerAmount = list[leagueCarouselIndex] ?? list[0] ?? 5;
                                             const prevAmount = list[prevIdx] ?? centerAmount;
                                             const nextAmount = list[nextIdx] ?? centerAmount;
+                                            const centerDisplayAmount = displayedCenterAmount ?? centerAmount;
                                             if (n === 1) {
-                                              return renderCard(centerAmount, 'center');
+                                              return (
+                                                <>
+                                                  {LEAGUE_IMAGES[centerAmount] && (
+                                                    <img
+                                                      key={`preload-${centerAmount}`}
+                                                      src={LEAGUE_IMAGES[centerAmount]}
+                                                      alt=""
+                                                      aria-hidden
+                                                      style={{ position: 'absolute', width: 0, height: 0, opacity: 0, pointerEvents: 'none' }}
+                                                      onLoad={() => setDisplayedCenterAmount(centerAmount)}
+                                                    />
+                                                  )}
+                                                  {renderCard(centerDisplayAmount, 'center')}
+                                                </>
+                                              );
                                             }
                                             return (
                                               <>
+                                                {LEAGUE_IMAGES[centerAmount] && (
+                                                  <img
+                                                    key={`preload-${centerAmount}`}
+                                                    src={LEAGUE_IMAGES[centerAmount]}
+                                                    alt=""
+                                                    aria-hidden
+                                                    style={{ position: 'absolute', width: 0, height: 0, opacity: 0, pointerEvents: 'none' }}
+                                                    onLoad={() => setDisplayedCenterAmount(centerAmount)}
+                                                  />
+                                                )}
                                                 {renderCard(prevAmount, 'prev')}
-                                                {renderCard(centerAmount, 'center')}
+                                                {renderCard(centerDisplayAmount, 'center')}
                                                 {renderCard(nextAmount, 'next')}
                                               </>
                                             );

@@ -5,6 +5,7 @@ import VerifyCode from './components/VerifyCode.tsx';
 import ForgotPassword from './components/ForgotPassword.tsx';
 import ResetPassword from './components/ResetPassword.tsx';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
+import { preloadAllLeagueImages } from './preloadLeagueImages.ts';
 import './App.css';
 
 const Profile = React.lazy(() => import('./components/Profile.tsx'));
@@ -70,11 +71,9 @@ function AppContent() {
     import('./components/DisputesPolicy.tsx');
   }, []);
 
-  // Ранняя предзагрузка картинок лиг для карусели — сразу при входе под токеном
+  // Предзагрузка картинок лиг сразу при входе под токеном (без ожидания чанков)
   useEffect(() => {
-    if (hasToken) {
-      import('./preloadLeagueImages.ts').then((m) => m.preloadAllLeagueImages());
-    }
+    if (hasToken) preloadAllLeagueImages();
   }, [hasToken]);
 
   useEffect(() => {
