@@ -3825,7 +3825,6 @@ body.partner-modal-open {
   position: relative;
   flex: 1;
   min-width: 0;
-  transition: transform 0.25s ease-out;
 }
 
 .confrontation-carousel-slide .confrontation-carousel-card {
@@ -3851,6 +3850,8 @@ body.partner-modal-open {
 
 .confrontation-carousel-slide .confrontation-carousel-card-center {
   transform: scale(1);
+  filter: none;
+  opacity: 1;
   z-index: 2;
   position: relative;
 }
