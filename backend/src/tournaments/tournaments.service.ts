@@ -92,12 +92,15 @@ export class TournamentsService implements OnModuleInit {
 
   /**
    * Дозаполняет completedAt у записей tournament_result, где дата отсутствует.
-   * Берёт момент по паре: max(leftAt | roundStartedAt) по обоим участникам пары (полуфинал по playerOrder).
+   * Берёт момент по паре: max(leftAt | roundStartedAt) по обоим участникам пары; если нет — tournament.createdAt или now.
+   * @param onlyTournamentIds если задан — обрабатывать только эти турниры (для вызова из getMyTournaments).
    */
-  async backfillTournamentResultCompletedAt(): Promise<{ updated: number }> {
-    const rows = await this.tournamentResultRepository.find({
-      where: { completedAt: IsNull() },
-    });
+  async backfillTournamentResultCompletedAt(onlyTournamentIds?: number[]): Promise<{ updated: number }> {
+    const where: any = { completedAt: IsNull() };
+    if (onlyTournamentIds?.length) {
+      where.tournamentId = In(onlyTournamentIds);
+    }
+    const rows = await this.tournamentResultRepository.find({ where });
     if (rows.length === 0) return { updated: 0 };
     const now = new Date();
     let updated = 0;
@@ -139,8 +142,10 @@ export class TournamentsService implements OnModuleInit {
         const d = toDate(prog.leftAt) ?? toDate(prog.roundStartedAt);
         if (d) dates.push(d);
       }
-      if (dates.length === 0) continue;
-      const completedAt = new Date(Math.max(...dates.map((d) => d.getTime())));
+      const fallbackDate = t.createdAt instanceof Date ? t.createdAt : toDate((t as any).createdAt) ?? now;
+      const completedAt = dates.length > 0
+        ? new Date(Math.max(...dates.map((d) => d.getTime())))
+        : fallbackDate;
       const capped = completedAt > now ? now : completedAt;
       row.completedAt = capped;
       await this.tournamentResultRepository.save(row);
@@ -1241,6 +1246,9 @@ export class TournamentsService implements OnModuleInit {
     const tournaments = await qb.getMany();
 
     const allIds = tournaments.map((t) => t.id);
+    if (allIds.length > 0) {
+      await this.backfillTournamentResultCompletedAt(allIds).catch(() => {});
+    }
     const resultByTournamentId = new Map<number, boolean>();
     const completedAtByTid = new Map<number, string | null>();
     if (allIds.length > 0) {
