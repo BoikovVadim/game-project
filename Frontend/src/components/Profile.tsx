@@ -4992,7 +4992,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
             }}
           >
             <div className="bracket-modal-header">
-              <h3>{bracketView?.gameType === 'money' ? 'Противостояние' : 'Турнир'} #{bracketView?.tournamentId ?? '...'}{(bracketOpenSource === 'completed' || bracketView?.isCompleted || (bracketView?.tournamentId != null && gameHistory?.completed?.some((c) => c.id === bracketView.tournamentId))) ? <span className="bracket-completed-badge">Завершен</span> : (bracketView || bracketOpenSource === 'active') ? <span className="bracket-active-badge">Активен</span> : null}</h3>
+              <h3>{bracketView?.gameType === 'money' ? 'Противостояние' : 'Турнир'} #{bracketView?.tournamentId ?? '...'}{bracketOpenSource === 'completed' ? <span className="bracket-completed-badge">Завершен</span> : bracketOpenSource === 'active' ? <span className="bracket-active-badge">Активен</span> : null}</h3>
               <button type="button" className="bracket-close" onClick={closeBracket} aria-label="Закрыть">
                 ×
               </button>
