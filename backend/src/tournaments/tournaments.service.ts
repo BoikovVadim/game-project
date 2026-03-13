@@ -1428,17 +1428,6 @@ export class TournamentsService {
 
     const lostSemiByTid = new Map<number, boolean>();
 
-    const tidsWithFinalQuestions = new Set<number>();
-    if (allIds.length > 0) {
-      const fqRows = await this.questionRepository
-        .createQueryBuilder('q')
-        .select('DISTINCT q.tournamentId', 'tid')
-        .where('q.tournamentId IN (:...ids)', { ids: allIds })
-        .andWhere('q.roundIndex = 2')
-        .getRawMany();
-      for (const row of fqRows) tidsWithFinalQuestions.add(Number(row.tid));
-    }
-
     const getPlayerCount = (t: Tournament): number =>
       t.playerOrder?.length ?? t.players?.length ?? 0;
 
@@ -1474,13 +1463,6 @@ export class TournamentsService {
       const myTB = myProgress?.tiebreakerRounds ?? [];
       const oppTB = oppProgress?.tiebreakerRounds ?? [];
       const semiState = this.getSemiHeadToHeadState(myQ, mySemi, myTB, oppQ, oppSemi, oppTB);
-
-      const myTBLenLocal = myTB.length;
-      const mySemiTotalLocal = QUESTIONS_PER_ROUND + myTBLenLocal * TIEBREAKER_QUESTIONS;
-      if (semiState.result === 'tie' && myQ > mySemiTotalLocal && tidsWithFinalQuestions.has(t.id)) {
-        return { result: 'won' };
-      }
-
       return semiState;
     };
 
@@ -1904,7 +1886,11 @@ export class TournamentsService {
     };
 
     const belongsToHistory = (t: Tournament): boolean => {
-      if (t.status === TournamentStatus.FINISHED) return true;
+      if (t.status === TournamentStatus.FINISHED) {
+        const label = getResultLabel(t);
+        if (label === 'Ожидание соперника') return false;
+        return true;
+      }
       const label = getResultLabel(t);
       if (label === 'Время истекло' || label === 'Поражение' || label === 'Победа') return true;
       if (label === 'Ожидание соперника') return isTimeExpired(t);
