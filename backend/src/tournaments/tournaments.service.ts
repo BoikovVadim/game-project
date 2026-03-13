@@ -2104,9 +2104,9 @@ export class TournamentsService implements OnModuleInit {
     return { active, completed };
   }
 
-  /** Для админки: все участия в турнирах по всем игрокам (ID турнира, ID пользователя, ник, фаза: активный/история), сортировка по ID турнира. */
+  /** Для админки: все участия в турнирах по всем игрокам (данные турнира + участник + фаза), сортировка по ID турнира. */
   async getAllParticipationsForAdmin(): Promise<
-    { tournamentId: number; userId: number; userNickname: string; phase: 'active' | 'history' }[]
+    { tournamentId: number; tournamentStatus: string; tournamentCreatedAt: string; userId: number; userNickname: string; phase: 'active' | 'history' }[]
   > {
     const progressList = await this.tournamentProgressRepository.find({
       select: ['userId', 'tournamentId'],
@@ -2120,15 +2120,29 @@ export class TournamentsService implements OnModuleInit {
     });
     const nicknameByUserId = new Map(users.map((u) => [u.id, u.username ?? `Игрок ${u.id}`]));
 
-    const result: { tournamentId: number; userId: number; userNickname: string; phase: 'active' | 'history' }[] = [];
+    const result: { tournamentId: number; tournamentStatus: string; tournamentCreatedAt: string; userId: number; userNickname: string; phase: 'active' | 'history' }[] = [];
     for (const userId of userIds) {
       const { active, completed } = await this.getMyTournaments(userId);
       const nickname = nicknameByUserId.get(userId) ?? `Игрок ${userId}`;
       for (const item of active) {
-        result.push({ tournamentId: item.id, userId, userNickname: nickname, phase: 'active' });
+        result.push({
+          tournamentId: item.id,
+          tournamentStatus: item.status ?? '',
+          tournamentCreatedAt: item.createdAt ?? '',
+          userId,
+          userNickname: nickname,
+          phase: 'active',
+        });
       }
       for (const item of completed) {
-        result.push({ tournamentId: item.id, userId, userNickname: nickname, phase: 'history' });
+        result.push({
+          tournamentId: item.id,
+          tournamentStatus: item.status ?? '',
+          tournamentCreatedAt: item.createdAt ?? '',
+          userId,
+          userNickname: nickname,
+          phase: 'history',
+        });
       }
     }
     result.sort((a, b) => {

@@ -160,9 +160,10 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
   const [questionStatsLoading, setQuestionStatsLoading] = useState(false);
   const questionStatsLoadedRef = React.useRef(false);
 
-  type TournamentListRow = { tournamentId: number; userId: number; userNickname: string; phase: 'active' | 'history' };
+  type TournamentListRow = { tournamentId: number; tournamentStatus: string; tournamentCreatedAt: string; userId: number; userNickname: string; phase: 'active' | 'history' };
   const [tournamentsList, setTournamentsList] = useState<TournamentListRow[]>([]);
   const [tournamentsListLoading, setTournamentsListLoading] = useState(false);
+  const [tournamentsListError, setTournamentsListError] = useState<string | null>(null);
   const tournamentsListLoadedRef = React.useRef(false);
   const [qsSortBy, setQsSortBy] = useState<'topic' | 'count'>('count');
   const [qsSortDir, setQsSortDir] = useState<'asc' | 'desc'>('desc');
@@ -231,6 +232,15 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
   const [actionSuccessMsg, setActionSuccessMsg] = useState('');
   const [approvedTransfer, setApprovedTransfer] = useState<{ id: number; amount: number; details: string | null; username: string; email: string } | null>(null);
   const headers = React.useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
+
+  const getTournamentStatusLabel = (status: string) => {
+    switch (status) {
+      case 'waiting': return 'Ожидание';
+      case 'active': return 'Активен';
+      case 'finished': return 'Завершён';
+      default: return status || '—';
+    }
+  };
 
   const getWithdrawalStatusLabel = (status: string) => {
     switch (status) {
@@ -518,9 +528,10 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
   const fetchTournamentsList = React.useCallback(() => {
     if (!token) return;
     if (!tournamentsListLoadedRef.current) setTournamentsListLoading(true);
+    setTournamentsListError(null);
     axios.get<TournamentListRow[]>('/admin/tournaments-list', { headers })
-      .then((r) => setTournamentsList(Array.isArray(r.data) ? r.data : []))
-      .catch(() => setTournamentsList([]))
+      .then((r) => { setTournamentsList(Array.isArray(r.data) ? r.data : []); setTournamentsListError(null); })
+      .catch((e) => { setTournamentsList([]); setTournamentsListError(e?.response?.data?.message || e?.message || 'Ошибка загрузки списка турниров'); })
       .finally(() => { setTournamentsListLoading(false); tournamentsListLoadedRef.current = true; });
   }, [token, headers]);
 
@@ -1411,8 +1422,21 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
           )}
           {statsSubTab === 'tournaments' && (
             <div className="admin-stats-section">
+              <div className="admin-stats-controls" style={{ marginBottom: 8 }}>
+                <button
+                  type="button"
+                  className="admin-btn-approve"
+                  style={{ marginRight: 8 }}
+                  disabled={tournamentsListLoading}
+                  onClick={() => { tournamentsListLoadedRef.current = false; fetchTournamentsList(); }}
+                >
+                  Обновить
+                </button>
+              </div>
               {tournamentsListLoading && !tournamentsListLoadedRef.current ? (
                 <p>Загрузка...</p>
+              ) : tournamentsListError ? (
+                <p className="admin-error">{tournamentsListError}</p>
               ) : tournamentsList.length === 0 ? (
                 <p className="admin-stats-empty">Нет данных о турнирах</p>
               ) : (
@@ -1421,6 +1445,8 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                     <thead>
                       <tr>
                         <th>ID турнира</th>
+                        <th>Статус турнира</th>
+                        <th>Создан</th>
                         <th>Ник игрока</th>
                         <th>ID игрока</th>
                         <th>Фаза</th>
@@ -1430,6 +1456,8 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                       {tournamentsList.map((row, idx) => (
                         <tr key={`${row.tournamentId}-${row.userId}-${idx}`}>
                           <td style={{ textAlign: 'center' }}>{row.tournamentId}</td>
+                          <td style={{ textAlign: 'center' }}>{getTournamentStatusLabel(row.tournamentStatus)}</td>
+                          <td style={{ textAlign: 'center' }}>{row.tournamentCreatedAt ? formatMoscowDateTimeFull(row.tournamentCreatedAt) : '—'}</td>
                           <td className="admin-td-left">{row.userNickname}</td>
                           <td style={{ textAlign: 'center' }}>{row.userId}</td>
                           <td style={{ textAlign: 'center' }}>

@@ -395,7 +395,7 @@ export class AdminService {
 
   /** Все участия в турнирах по всем игрокам (для вкладки «Турниры» в статистике). */
   async getTournamentsList(): Promise<
-    { tournamentId: number; userId: number; userNickname: string; phase: 'active' | 'history' }[]
+    { tournamentId: number; tournamentStatus: string; tournamentCreatedAt: string; userId: number; userNickname: string; phase: 'active' | 'history' }[]
   > {
     return this.tournamentsService.getAllParticipationsForAdmin();
   }
