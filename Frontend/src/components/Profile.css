@@ -3850,10 +3850,15 @@ body.partner-modal-open {
 
 .confrontation-carousel-slide .confrontation-carousel-card-center {
   transform: scale(1);
-  filter: none;
-  opacity: 1;
+  filter: none !important;
+  opacity: 1 !important;
   z-index: 2;
   position: relative;
+}
+
+.confrontation-carousel-slide .confrontation-carousel-card-center .confrontation-carousel-card-image,
+.confrontation-carousel-slide .confrontation-carousel-card-center .confrontation-carousel-card-image img {
+  opacity: 1;
 }
 
 .confrontation-carousel-slide .confrontation-carousel-card-prev:hover,
@@ -3954,6 +3959,11 @@ body.partner-modal-open {
 
 .confrontation-carousel-card.confrontation-league-locked {
   opacity: 0.9;
+}
+
+.confrontation-carousel-slide .confrontation-carousel-card-center,
+.confrontation-carousel-slide .confrontation-carousel-card-center.confrontation-league-locked {
+  opacity: 1;
 }
 
 .confrontation-carousel-card-image {

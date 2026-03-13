@@ -866,6 +866,8 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   const [playersOnlineByLeague, setPlayersOnlineByLeague] = useState<Record<number, number>>({});
   const [allowedLeaguesLoading, setAllowedLeaguesLoading] = useState(false);
   const [leagueCarouselIndex, setLeagueCarouselIndex] = useState(0);
+  /** Центральная карточка: показываем название и фото только вместе, после загрузки картинки */
+  const [displayedCenterAmount, setDisplayedCenterAmount] = useState<number | null>(null);
   const selectedLeagueRef = useRef(5);
 
   const [gameHistory, setGameHistory] = useState<{
@@ -1318,6 +1320,13 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   }, [allLeagues, leagueCarouselIndex]);
 
   useEffect(() => {
+    const list = allLeagues ?? [];
+    if (list.length === 0) return;
+    const centerAmount = list[leagueCarouselIndex] ?? list[0] ?? 5;
+    if (!LEAGUE_IMAGES[centerAmount]) setDisplayedCenterAmount(centerAmount);
+  }, [allLeagues, leagueCarouselIndex]);
+
+  useEffect(() => {
     const saveOnUnload = () => {
       if (gameMode === 'money' && selectedLeagueRef.current) {
         localStorage.setItem(SELECTED_LEAGUE_STORAGE_KEY, String(selectedLeagueRef.current));
@@ -1363,6 +1372,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
           setSelectedLeague(fallback);
           setLeagueCarouselIndex(fallbackIdx >= 0 ? fallbackIdx : 0);
         }
+        setDisplayedCenterAmount(null);
       })
       .catch(() => {
         setAllowedLeagues([]);
@@ -3740,13 +3750,38 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                             const centerAmount = list[leagueCarouselIndex] ?? list[0] ?? 5;
                                             const prevAmount = list[prevIdx] ?? centerAmount;
                                             const nextAmount = list[nextIdx] ?? centerAmount;
+                                            const centerDisplayAmount = displayedCenterAmount ?? centerAmount;
                                             if (n === 1) {
-                                              return renderCard(centerAmount, 'center', 'carousel-center');
+                                              return (
+                                                <>
+                                                  {LEAGUE_IMAGES[centerAmount] && (
+                                                    <img
+                                                      key={`preload-${centerAmount}`}
+                                                      src={LEAGUE_IMAGES[centerAmount]}
+                                                      alt=""
+                                                      aria-hidden
+                                                      style={{ position: 'absolute', width: 0, height: 0, opacity: 0, pointerEvents: 'none' }}
+                                                      onLoad={() => setDisplayedCenterAmount(centerAmount)}
+                                                    />
+                                                  )}
+                                                  {renderCard(centerDisplayAmount, 'center', 'carousel-center')}
+                                                </>
+                                              );
                                             }
                                             return (
                                               <>
+                                                {LEAGUE_IMAGES[centerAmount] && (
+                                                  <img
+                                                    key={`preload-${centerAmount}`}
+                                                    src={LEAGUE_IMAGES[centerAmount]}
+                                                    alt=""
+                                                    aria-hidden
+                                                    style={{ position: 'absolute', width: 0, height: 0, opacity: 0, pointerEvents: 'none' }}
+                                                    onLoad={() => setDisplayedCenterAmount(centerAmount)}
+                                                  />
+                                                )}
                                                 {renderCard(prevAmount, 'prev', 'carousel-prev')}
-                                                {renderCard(centerAmount, 'center', 'carousel-center')}
+                                                {renderCard(centerDisplayAmount, 'center', 'carousel-center')}
                                                 {renderCard(nextAmount, 'next', 'carousel-next')}
                                               </>
                                             );
