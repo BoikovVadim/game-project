@@ -1,8 +1,8 @@
-646406.48
-За сегодня (2026-03-13): 20 642,28 ₽
+647226.79
+За сегодня (2026-03-13): 21 462,59 ₽
 
 # Последние изменения (для резюме по задаче). Формат: YYYY-MM-DD | Z ₽ | N ч M мин | описание. «За сегодня» — сумма всех Z за текущий день.
-2026-03-13 | 929,69 ₽ | 0 ч 26 мин | getMyTournaments: единая загрузка турниров (progress+entry+players) для training и money; TournamentInfoDto с leagueAmount; полные данные для истории (база 17 мин × 1,5)
+2026-03-13 | 820,31 ₽ | 0 ч 23 мин | getMyTournaments: raw SQL как основной источник ID (progress+entry+players), camelCase+snake_case; training: gameType=null+leagueAmount=null; турниры у всех игроков (база 15 мин × 1,5)
 2026-03-13 | 270,00 ₽ | 0 ч 10 мин | Противостояние: fallback raw SQL для ID (progress+entry), camelCase+snake_case; backfill snake_case при ошибке (база 10 мин × 1,5)
 2026-03-13 | 393,75 ₽ | 0 ч 15 мин | Противостояние: backfill из progress+entry; добавление игрока через INSERT в join + update(playerOrder), без save(tournament); откат через DELETE+update (база 15 мин × 1,5)
 2026-03-13 | 270,00 ₽ | 0 ч 8 мин | Противостояние: сбор ID только через TypeORM (progress, entry, players join), без raw SQL (база 8 мин × 1,5)

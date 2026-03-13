@@ -1302,6 +1302,39 @@ export class TournamentsService implements OnModuleInit {
     }
 
     const tids = new Set<number>();
+    const conn = this.tournamentRepository.manager.connection;
+
+    const addIdsFromRaw = (raw: unknown): void => {
+      const rows = Array.isArray(raw) ? raw : (raw as { rows?: { id?: number; tournamentId?: number }[] })?.rows ?? [];
+      for (const r of rows) {
+        const id = r?.id ?? r?.tournamentId;
+        if (id != null && id > 0) tids.add(Number(id));
+      }
+    };
+
+    try {
+      const rawCamel = await conn.query(
+        `(SELECT p."tournamentId" AS id FROM tournament_progress p WHERE p."userId" = $1)
+         UNION
+         (SELECT e."tournamentId" AS id FROM tournament_entry e WHERE e."userId" = $1)
+         UNION
+         (SELECT tpu."tournamentId" AS id FROM tournament_players_user tpu WHERE tpu."userId" = $1)`,
+        [userId],
+      );
+      addIdsFromRaw(rawCamel);
+    } catch (_) {}
+    try {
+      const rawSnake = await conn.query(
+        `(SELECT p.tournament_id AS id FROM tournament_progress p WHERE p.user_id = $1)
+         UNION
+         (SELECT e.tournament_id AS id FROM tournament_entry e WHERE e.user_id = $1)
+         UNION
+         (SELECT tpu.tournament_id AS id FROM tournament_players_user tpu WHERE tpu.user_id = $1)`,
+        [userId],
+      );
+      addIdsFromRaw(rawSnake);
+    } catch (_) {}
+
     try {
       const fromProgress = await this.tournamentProgressRepository.find({
         where: { userId },
@@ -1333,35 +1366,8 @@ export class TournamentsService implements OnModuleInit {
     } catch (e) {
       this.logger.warn('[getMyTournaments] fromPlayers', (e as Error)?.message);
     }
-    let ids = [...tids];
-    if (ids.length === 0) {
-      const conn = this.tournamentRepository.manager.connection;
-      try {
-        const raw = await conn.query(
-          `(SELECT p."tournamentId" AS id FROM tournament_progress p WHERE p."userId" = $1)
-           UNION
-           (SELECT e."tournamentId" AS id FROM tournament_entry e WHERE e."userId" = $1)`,
-          [userId, userId],
-        );
-        const rows = Array.isArray(raw) ? raw : (raw as { rows?: { id: number }[] })?.rows ?? [];
-        for (const r of rows) if (r?.id > 0) tids.add(r.id);
-        ids = [...tids];
-      } catch (_) {
-        try {
-          const raw = await conn.query(
-            `(SELECT p.tournament_id AS id FROM tournament_progress p WHERE p.user_id = $1)
-             UNION
-             (SELECT e.tournament_id AS id FROM tournament_entry e WHERE e.user_id = $1)`,
-            [userId, userId],
-          );
-          const rows = Array.isArray(raw) ? raw : (raw as { rows?: { id: number }[] })?.rows ?? [];
-          for (const r of rows) if (r?.id > 0) tids.add(r.id);
-          ids = [...tids];
-        } catch (e2) {
-          this.logger.warn('[getMyTournaments] raw fallback', (e2 as Error)?.message);
-        }
-      }
-    }
+
+    const ids = [...tids];
 
     let tournaments: Tournament[];
     if (ids.length === 0) {
@@ -1377,7 +1383,9 @@ export class TournamentsService implements OnModuleInit {
           (t) => t.gameType === 'money' || (t.gameType == null && t.leagueAmount != null),
         );
       } else {
-        tournaments = list.filter((t) => t.gameType === 'training');
+        tournaments = list.filter(
+          (t) => t.gameType === 'training' || (t.gameType == null && t.leagueAmount == null),
+        );
       }
     }
 
