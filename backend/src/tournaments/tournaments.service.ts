@@ -300,6 +300,7 @@ export class TournamentsService implements OnModuleInit {
     oppAnswered: number,
     oppBaseCorrect: number,
     oppExtraRounds: number[] | null | undefined,
+    allowUnevenResolved = false,
   ): { result: 'won' | 'lost' | 'tie' | 'incomplete'; tiebreakerRound?: number } {
     if (myAnswered < this.QUESTIONS_PER_ROUND || oppAnswered < this.QUESTIONS_PER_ROUND) {
       return { result: 'incomplete' };
@@ -307,29 +308,35 @@ export class TournamentsService implements OnModuleInit {
 
     const myRounds = myExtraRounds ?? [];
     const oppRounds = oppExtraRounds ?? [];
-    const maxRounds = Math.max(myRounds.length, oppRounds.length);
-
-    if (maxRounds === 0) {
-      if (myBaseCorrect > oppBaseCorrect) return { result: 'won' };
-      if (myBaseCorrect < oppBaseCorrect) return { result: 'lost' };
-      return { result: 'tie', tiebreakerRound: 1 };
-    }
+    const sharedRounds = Math.min(myRounds.length, oppRounds.length);
+    const nextRound = Math.min(Math.max(myRounds.length, oppRounds.length) + 1, 50);
 
     let myTotal = myBaseCorrect;
     let oppTotal = oppBaseCorrect;
-    for (let r = 1; r <= maxRounds; r++) {
-      const roundEnd = this.QUESTIONS_PER_ROUND + r * this.TIEBREAKER_QUESTIONS;
-      if (myAnswered < roundEnd || oppAnswered < roundEnd) {
-        return { result: 'tie', tiebreakerRound: r };
-      }
-
-      myTotal += myRounds[r - 1] ?? 0;
-      oppTotal += oppRounds[r - 1] ?? 0;
-      if (myTotal > oppTotal) return { result: 'won' };
-      if (myTotal < oppTotal) return { result: 'lost' };
+    for (let r = 0; r < sharedRounds; r++) {
+      myTotal += myRounds[r] ?? 0;
+      oppTotal += oppRounds[r] ?? 0;
     }
 
-    return { result: 'tie', tiebreakerRound: Math.min(maxRounds + 1, 50) };
+    const sharedRoundEnd = this.QUESTIONS_PER_ROUND + sharedRounds * this.TIEBREAKER_QUESTIONS;
+    const myBeyondShared = myAnswered > sharedRoundEnd;
+    const oppBeyondShared = oppAnswered > sharedRoundEnd;
+    const unevenRounds = myRounds.length !== oppRounds.length;
+
+    if (!allowUnevenResolved && (unevenRounds || myBeyondShared || oppBeyondShared)) {
+      return { result: 'tie', tiebreakerRound: Math.min(sharedRounds + 1, 50) };
+    }
+
+    for (let r = sharedRounds; r < myRounds.length; r++) {
+      myTotal += myRounds[r] ?? 0;
+    }
+    for (let r = sharedRounds; r < oppRounds.length; r++) {
+      oppTotal += oppRounds[r] ?? 0;
+    }
+
+    if (myTotal > oppTotal) return { result: 'won' };
+    if (myTotal < oppTotal) return { result: 'lost' };
+    return { result: 'tie', tiebreakerRound: nextRound };
   }
 
   private getSemiHeadToHeadState(
@@ -339,6 +346,7 @@ export class TournamentsService implements OnModuleInit {
     oppQ: number,
     oppSemi: number | null | undefined,
     oppTB: number[] | null | undefined,
+    allowUnevenResolved = false,
   ): { result: 'won' | 'lost' | 'tie' | 'incomplete'; tiebreakerRound?: number } {
     return this.compareStageTotals(
       myQ,
@@ -347,6 +355,7 @@ export class TournamentsService implements OnModuleInit {
       oppQ,
       oppSemi ?? 0,
       oppTB,
+      allowUnevenResolved,
     );
   }
 
@@ -360,6 +369,7 @@ export class TournamentsService implements OnModuleInit {
   private getFinalHeadToHeadState(
     myProg: TournamentProgress | null | undefined,
     oppProg: TournamentProgress | null | undefined,
+    allowUnevenResolved = false,
   ): { result: 'won' | 'lost' | 'tie' | 'incomplete'; tiebreakerRound?: number } {
     if (!myProg || !oppProg) return { result: 'incomplete' };
 
@@ -375,6 +385,7 @@ export class TournamentsService implements OnModuleInit {
       oppAnswered,
       this.getFinalStageBaseCorrect(oppProg),
       oppProg.finalTiebreakerRoundsCorrect ?? [],
+      allowUnevenResolved,
     );
   }
 
@@ -1929,7 +1940,15 @@ export class TournamentsService implements OnModuleInit {
       const oppSemi = oppProgress?.semiCorrect ?? 0;
       const myTB = myProgress?.tiebreakerRounds ?? [];
       const oppTB = oppProgress?.tiebreakerRounds ?? [];
-      const semiState = this.getSemiHeadToHeadState(myQ, mySemi, myTB, oppQ, oppSemi, oppTB);
+      const semiState = this.getSemiHeadToHeadState(
+        myQ,
+        mySemi,
+        myTB,
+        oppQ,
+        oppSemi,
+        oppTB,
+        t.status === TournamentStatus.FINISHED,
+      );
       if (semiState.result === 'tie' && semiState.tiebreakerRound != null && isTimeExpired(t)) {
         const roundEnd = QUESTIONS_PER_ROUND + semiState.tiebreakerRound * TIEBREAKER_QUESTIONS;
         if (myQ >= roundEnd && oppQ < roundEnd) return { result: 'won', tiebreakerRound: semiState.tiebreakerRound };
@@ -1963,6 +1982,7 @@ export class TournamentsService implements OnModuleInit {
           prog2?.q ?? 0,
           prog2?.semiCorrect,
           prog2?.tiebreakerRounds,
+          t.status === TournamentStatus.FINISHED,
         );
         if (semiState.result === 'won') return prog1!;
         if (semiState.result === 'lost') return prog2!;
@@ -2056,6 +2076,7 @@ export class TournamentsService implements OnModuleInit {
         oppFinalAnswered,
         oppFinalBase,
         otherFin.finalTiebreakerRounds,
+        t.status === TournamentStatus.FINISHED,
       ).result;
     };
 
@@ -4049,6 +4070,7 @@ export class TournamentsService implements OnModuleInit {
         prog1?.questionsAnsweredCount ?? 0,
         prog1?.semiFinalCorrectCount,
         prog1?.tiebreakerRoundsCorrect,
+        isCompleted,
       );
       if (semiState.result === 'won') return 1;
       if (semiState.result === 'lost') return 0;
@@ -4089,9 +4111,12 @@ export class TournamentsService implements OnModuleInit {
       const prog0 = progressByUser.get(p0.id);
       const prog1 = progressByUser.get(p1.id);
       const loserIndex = getSemiLoserIndex(prog0, prog1);
+      const player0 = toPlayer(p0, loserIndex === 0);
+      const player1 = toPlayer(p1, loserIndex === 1);
+      const sharedAnswered = Math.max(player0.questionsAnswered ?? 0, player1.questionsAnswered ?? 0);
       return [
-        toPlayer(p0, loserIndex === 0),
-        toPlayer(p1, loserIndex === 1),
+        { ...player0, questionsAnswered: sharedAnswered },
+        { ...player1, questionsAnswered: sharedAnswered },
       ];
     };
 
@@ -4159,11 +4184,18 @@ export class TournamentsService implements OnModuleInit {
       const prog0 = progressByUser.get(fp0.id);
       const prog1 = progressByUser.get(fp1.id);
       if (!prog0 || !prog1) return null;
-      const finalState = this.getFinalHeadToHeadState(prog0, prog1);
+      const finalState = this.getFinalHeadToHeadState(prog0, prog1, isCompleted);
       if (finalState.result === 'won') return fp0.id;
       if (finalState.result === 'lost') return fp1.id;
       return null;
     };
+
+    if (finalPlayers.length >= 2) {
+      const sharedFinalAnswered = Math.max(finalPlayers[0]?.finalAnswered ?? 0, finalPlayers[1]?.finalAnswered ?? 0);
+      for (const player of finalPlayers) {
+        player.finalAnswered = sharedFinalAnswered;
+      }
+    }
 
     return {
       tournamentId,
