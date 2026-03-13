@@ -2117,6 +2117,29 @@ export class TournamentsService implements OnModuleInit {
     return { active, completed };
   }
 
+  /** Восстановить tournament_players_user из tournament_entry (все недостающие пары). Вызывать при открытии админской сводки — после бага с save() могли пропасть игроки. */
+  async backfillTournamentPlayersFromEntry(): Promise<{ inserted: number }> {
+    const dataSource = this.tournamentRepository.manager.connection;
+    const q = `
+      INSERT INTO tournament_players_user ("tournamentId", "userId")
+      SELECT te."tournamentId", te."userId"
+      FROM tournament_entry te
+      WHERE NOT EXISTS (
+        SELECT 1 FROM tournament_players_user tpu
+        WHERE tpu."tournamentId" = te."tournamentId" AND tpu."userId" = te."userId"
+      )
+    `;
+    try {
+      const r = await dataSource.query(q);
+      const inserted = typeof r?.length === 'number' ? r.length : (r?.rowCount ?? 0);
+      if (inserted > 0) this.logger.log(`[backfillTournamentPlayersFromEntry] inserted ${inserted} rows`);
+      return { inserted: Number(inserted) };
+    } catch (e) {
+      this.logger.warn('[backfillTournamentPlayersFromEntry]', (e as Error)?.message);
+      return { inserted: 0 };
+    }
+  }
+
   /** Для админки: все участия в турнирах по всем игрокам — все поля как у игрока + userId, userNickname, phase. */
   async getAllParticipationsForAdmin(): Promise<
     {
@@ -2127,6 +2150,7 @@ export class TournamentsService implements OnModuleInit {
       userId: number; userNickname: string; phase: 'active' | 'history';
     }[]
   > {
+    await this.backfillTournamentPlayersFromEntry();
     const progressList = await this.tournamentProgressRepository.find({
       select: ['userId', 'tournamentId'],
     });
@@ -3704,7 +3728,7 @@ export class TournamentsService implements OnModuleInit {
     };
   }
 
-  /** Синхронизирует tournament.players из tournament_entry: если у пользователя есть entry в турнир, но его нет в players — добавляет (чтобы список «Противостояние» показывал турниры). */
+  /** Синхронизирует tournament_players_user из tournament_entry: только INSERT недостающих пар (tournamentId, userId). Не трогаем существующие строки — save(tournament) перезаписывал бы всю связь и удалял других игроков (баг после ввода админской сводки). */
   private async syncTournamentPlayersFromEntry(userId: number): Promise<void> {
     const entries = await this.tournamentEntryRepository.find({
       where: { user: { id: userId } },
@@ -3712,17 +3736,18 @@ export class TournamentsService implements OnModuleInit {
     });
     const tids = [...new Set(entries.map((e) => (e.tournament as any)?.id ?? (e as any).tournamentId).filter((id): id is number => typeof id === 'number' && id > 0))];
     if (tids.length === 0) return;
-    const user = await this.userRepository.findOneBy({ id: userId });
-    if (!user) return;
-    const tournaments = await this.tournamentRepository.find({
-      where: { id: In(tids) },
-      relations: ['players'],
-    });
-    for (const t of tournaments) {
-      if (!t.players?.some((p) => p.id === userId)) {
-        t.players = t.players ?? [];
-        t.players.push(user);
-        await this.tournamentRepository.save(t);
+    const dataSource = this.tournamentRepository.manager.connection;
+    for (const tid of tids) {
+      try {
+        await dataSource.query(
+          `INSERT INTO tournament_players_user ("tournamentId", "userId")
+           SELECT $1, $2 WHERE NOT EXISTS (
+             SELECT 1 FROM tournament_players_user WHERE "tournamentId" = $1 AND "userId" = $2
+           )`,
+          [tid, userId],
+        );
+      } catch (e) {
+        this.logger.warn('[syncTournamentPlayersFromEntry]', (e as Error)?.message);
       }
     }
   }
