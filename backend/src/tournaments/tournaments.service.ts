@@ -1831,6 +1831,7 @@ export class TournamentsService {
         if (!done) {
           if (oid4 <= 0) return 'Ожидание соперника';
           const semiRes4 = getMoneySemiResult(t);
+          if (semiRes4.result === 'lost') return 'Поражение';
           if (answered < QUESTIONS_PER_ROUND) return 'Этап не пройден';
           if (semiRes4.result === 'tie') {
             const tbR4 = semiRes4.tiebreakerRound ?? 1;
