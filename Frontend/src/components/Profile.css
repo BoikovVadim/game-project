@@ -3780,12 +3780,15 @@ body.partner-modal-open {
   margin-bottom: 12px;
   position: relative;
   padding: 0 clamp(36px, 3vw + 12px, 56px);
+  height: clamp(100px, 11vw + 20px, 210px);
   min-height: clamp(100px, 11vw + 20px, 210px);
 }
 
 .confrontation-carousel-arrow {
   position: absolute;
   top: 50%;
+  left: 0;
+  margin: 0;
   transform: translateY(-50%);
   width: clamp(28px, 2.5vw + 8px, 44px);
   height: clamp(28px, 2.5vw + 8px, 44px);
@@ -3808,6 +3811,7 @@ body.partner-modal-open {
 }
 
 .confrontation-carousel-arrow.confrontation-carousel-next {
+  left: auto;
   right: 0;
 }
 
@@ -3854,9 +3858,14 @@ body.partner-modal-open {
   opacity: 1 !important;
   z-index: 2;
   position: relative;
+  background: #e8e8e8;
 }
 
-.confrontation-carousel-slide .confrontation-carousel-card-center .confrontation-carousel-card-image,
+.confrontation-carousel-slide .confrontation-carousel-card-center .confrontation-carousel-card-image {
+  opacity: 1;
+  background: #e8e8e8;
+}
+
 .confrontation-carousel-slide .confrontation-carousel-card-center .confrontation-carousel-card-image img {
   opacity: 1;
 }
