@@ -293,6 +293,45 @@ export class TournamentsService implements OnModuleInit {
     return new Date(from.getTime() + ROUND_DEADLINE_HOURS * 3600000).toISOString();
   }
 
+  private compareStageTotals(
+    myAnswered: number,
+    myBaseCorrect: number,
+    myExtraRounds: number[] | null | undefined,
+    oppAnswered: number,
+    oppBaseCorrect: number,
+    oppExtraRounds: number[] | null | undefined,
+  ): { result: 'won' | 'lost' | 'tie' | 'incomplete'; tiebreakerRound?: number } {
+    if (myAnswered < this.QUESTIONS_PER_ROUND || oppAnswered < this.QUESTIONS_PER_ROUND) {
+      return { result: 'incomplete' };
+    }
+
+    const myRounds = myExtraRounds ?? [];
+    const oppRounds = oppExtraRounds ?? [];
+    const maxRounds = Math.max(myRounds.length, oppRounds.length);
+
+    if (maxRounds === 0) {
+      if (myBaseCorrect > oppBaseCorrect) return { result: 'won' };
+      if (myBaseCorrect < oppBaseCorrect) return { result: 'lost' };
+      return { result: 'tie', tiebreakerRound: 1 };
+    }
+
+    let myTotal = myBaseCorrect;
+    let oppTotal = oppBaseCorrect;
+    for (let r = 1; r <= maxRounds; r++) {
+      const roundEnd = this.QUESTIONS_PER_ROUND + r * this.TIEBREAKER_QUESTIONS;
+      if (myAnswered < roundEnd || oppAnswered < roundEnd) {
+        return { result: 'tie', tiebreakerRound: r };
+      }
+
+      myTotal += myRounds[r - 1] ?? 0;
+      oppTotal += oppRounds[r - 1] ?? 0;
+      if (myTotal > oppTotal) return { result: 'won' };
+      if (myTotal < oppTotal) return { result: 'lost' };
+    }
+
+    return { result: 'tie', tiebreakerRound: Math.min(maxRounds + 1, 50) };
+  }
+
   private getSemiHeadToHeadState(
     myQ: number,
     mySemi: number | null | undefined,
@@ -301,30 +340,42 @@ export class TournamentsService implements OnModuleInit {
     oppSemi: number | null | undefined,
     oppTB: number[] | null | undefined,
   ): { result: 'won' | 'lost' | 'tie' | 'incomplete'; tiebreakerRound?: number } {
-    if (myQ < this.QUESTIONS_PER_ROUND || oppQ < this.QUESTIONS_PER_ROUND) {
-      return { result: 'incomplete' };
-    }
+    return this.compareStageTotals(
+      myQ,
+      mySemi ?? 0,
+      myTB,
+      oppQ,
+      oppSemi ?? 0,
+      oppTB,
+    );
+  }
 
-    const mySemiScore = mySemi ?? 0;
-    const oppSemiScore = oppSemi ?? 0;
-    if (mySemiScore > oppSemiScore) return { result: 'won' };
-    if (mySemiScore < oppSemiScore) return { result: 'lost' };
+  private getFinalStageBaseCorrect(prog: TournamentProgress | null | undefined): number {
+    if (!prog) return 0;
+    const semiTBSum = (prog.tiebreakerRoundsCorrect ?? []).reduce((a: number, b: number) => a + b, 0);
+    const finalTBSum = (prog.finalTiebreakerRoundsCorrect ?? []).reduce((a: number, b: number) => a + b, 0);
+    return Math.max(0, (prog.correctAnswersCount ?? 0) - (prog.semiFinalCorrectCount ?? 0) - semiTBSum - finalTBSum);
+  }
 
-    const myRounds = myTB ?? [];
-    const oppRounds = oppTB ?? [];
-    for (let r = 1; r <= 50; r++) {
-      const roundEnd = this.QUESTIONS_PER_ROUND + r * this.TIEBREAKER_QUESTIONS;
-      if (myQ < roundEnd || oppQ < roundEnd) {
-        return { result: 'tie', tiebreakerRound: r };
-      }
+  private getFinalHeadToHeadState(
+    myProg: TournamentProgress | null | undefined,
+    oppProg: TournamentProgress | null | undefined,
+  ): { result: 'won' | 'lost' | 'tie' | 'incomplete'; tiebreakerRound?: number } {
+    if (!myProg || !oppProg) return { result: 'incomplete' };
 
-      const myRoundScore = myRounds[r - 1] ?? 0;
-      const oppRoundScore = oppRounds[r - 1] ?? 0;
-      if (myRoundScore > oppRoundScore) return { result: 'won' };
-      if (myRoundScore < oppRoundScore) return { result: 'lost' };
-    }
+    const mySemiTotal = this.QUESTIONS_PER_ROUND + (myProg.tiebreakerRoundsCorrect?.length ?? 0) * this.TIEBREAKER_QUESTIONS;
+    const oppSemiTotal = this.QUESTIONS_PER_ROUND + (oppProg.tiebreakerRoundsCorrect?.length ?? 0) * this.TIEBREAKER_QUESTIONS;
+    const myAnswered = Math.max(0, (myProg.questionsAnsweredCount ?? 0) - mySemiTotal);
+    const oppAnswered = Math.max(0, (oppProg.questionsAnsweredCount ?? 0) - oppSemiTotal);
 
-    return { result: 'tie', tiebreakerRound: 50 };
+    return this.compareStageTotals(
+      myAnswered,
+      this.getFinalStageBaseCorrect(myProg),
+      myProg.finalTiebreakerRoundsCorrect ?? [],
+      oppAnswered,
+      this.getFinalStageBaseCorrect(oppProg),
+      oppProg.finalTiebreakerRoundsCorrect ?? [],
+    );
   }
 
   private getSharedSemiTiebreakerStart(
@@ -1905,23 +1956,16 @@ export class TournamentsService implements OnModuleInit {
       if (p1Valid && p2Valid) {
         const prog1 = progressByTidAndUser.get(t.id)?.get(p1Id);
         const prog2 = progressByTidAndUser.get(t.id)?.get(p2Id);
-        const q1 = prog1?.q ?? 0;
-        const q2 = prog2?.q ?? 0;
-        if (q1 < QUESTIONS_PER_ROUND || q2 < QUESTIONS_PER_ROUND) return null;
-        const semi1 = prog1?.semiCorrect ?? 0;
-        const semi2 = prog2?.semiCorrect ?? 0;
-        if (semi1 > semi2) return prog1!;
-        if (semi2 > semi1) return prog2!;
-        const tb1 = prog1?.tiebreakerRounds ?? [];
-        const tb2 = prog2?.tiebreakerRounds ?? [];
-        for (let r = 1; r <= 50; r++) {
-          const roundEnd = QUESTIONS_PER_ROUND + r * TIEBREAKER_QUESTIONS;
-          if (q1 < roundEnd || q2 < roundEnd) return null;
-          const r1 = tb1[r - 1] ?? 0;
-          const r2 = tb2[r - 1] ?? 0;
-          if (r1 > r2) return prog1!;
-          if (r2 > r1) return prog2!;
-        }
+        const semiState = this.getSemiHeadToHeadState(
+          prog1?.q ?? 0,
+          prog1?.semiCorrect,
+          prog1?.tiebreakerRounds,
+          prog2?.q ?? 0,
+          prog2?.semiCorrect,
+          prog2?.tiebreakerRounds,
+        );
+        if (semiState.result === 'won') return prog1!;
+        if (semiState.result === 'lost') return prog2!;
         return null;
       }
 
@@ -1999,26 +2043,20 @@ export class TournamentsService implements OnModuleInit {
       }
       const mySemiTotal = semiPhaseQuestions(myProg);
       const oppSemiTotal = QUESTIONS_PER_ROUND + otherFin.tiebreakerRounds.length * TIEBREAKER_QUESTIONS;
-      if (myProg.q < mySemiTotal + QUESTIONS_PER_ROUND) return 'incomplete';
-      if (otherFin.q < oppSemiTotal + QUESTIONS_PER_ROUND) return 'incomplete';
-      const myFC = computeFinalCorrect(myProg);
-      const oppFC = computeFinalCorrect(otherFin);
-      const myFTBSum = myProg.finalTiebreakerRounds.reduce((a, b) => a + b, 0);
-      const oppFTBSum = otherFin.finalTiebreakerRounds.reduce((a, b) => a + b, 0);
-      const myFinalBase = myFC - myFTBSum;
-      const oppFinalBase = oppFC - oppFTBSum;
-      if (myFinalBase > oppFinalBase) return 'won';
-      if (myFinalBase < oppFinalBase) return 'lost';
-      for (let r = 0; r < Math.max(myProg.finalTiebreakerRounds.length, otherFin.finalTiebreakerRounds.length); r++) {
-        const myFTBEnd = mySemiTotal + QUESTIONS_PER_ROUND + (r + 1) * TIEBREAKER_QUESTIONS;
-        const oppFTBEnd = oppSemiTotal + QUESTIONS_PER_ROUND + (r + 1) * TIEBREAKER_QUESTIONS;
-        if (myProg.q < myFTBEnd || otherFin.q < oppFTBEnd) return 'tie';
-        const myR = myProg.finalTiebreakerRounds[r] ?? 0;
-        const oppR = otherFin.finalTiebreakerRounds[r] ?? 0;
-        if (myR > oppR) return 'won';
-        if (myR < oppR) return 'lost';
-      }
-      return 'tie';
+      const myFinalAnswered = Math.max(0, myProg.q - mySemiTotal);
+      const oppFinalAnswered = Math.max(0, otherFin.q - oppSemiTotal);
+      const myFinalTotal = computeFinalCorrect(myProg);
+      const oppFinalTotal = computeFinalCorrect(otherFin);
+      const myFinalBase = myFinalTotal - myProg.finalTiebreakerRounds.reduce((a, b) => a + b, 0);
+      const oppFinalBase = oppFinalTotal - otherFin.finalTiebreakerRounds.reduce((a, b) => a + b, 0);
+      return this.compareStageTotals(
+        myFinalAnswered,
+        myFinalBase,
+        myProg.finalTiebreakerRounds,
+        oppFinalAnswered,
+        oppFinalBase,
+        otherFin.finalTiebreakerRounds,
+      ).result;
     };
 
     for (const t of tournaments) {
@@ -2804,58 +2842,53 @@ export class TournamentsService implements OnModuleInit {
       deadline = sharedStart ? this.getRoundDeadline(sharedStart) : null;
       const myQ = progress.questionsAnsweredCount ?? 0;
       const oppQ = oppProgress?.questionsAnsweredCount ?? 0;
-      const mySemi = progress.semiFinalCorrectCount ?? 0;
-      const oppSemi = oppProgress?.semiFinalCorrectCount ?? 0;
-      const myTB = progress.tiebreakerRoundsCorrect ?? [];
-      const oppTB = oppProgress?.tiebreakerRoundsCorrect ?? [];
+      const semiState = this.getSemiHeadToHeadState(
+        myQ,
+        progress.semiFinalCorrectCount,
+        progress.tiebreakerRoundsCorrect,
+        oppQ,
+        oppProgress?.semiFinalCorrectCount,
+        oppProgress?.tiebreakerRoundsCorrect,
+      );
 
-      if (myQ >= this.QUESTIONS_PER_ROUND && oppQ >= this.QUESTIONS_PER_ROUND && mySemi === oppSemi) {
-        for (let r = 1; r <= 50; r++) {
-          const roundEnd = this.QUESTIONS_PER_ROUND + r * this.TIEBREAKER_QUESTIONS;
-          if (myQ < roundEnd || oppQ < roundEnd) {
-            tiebreakerRound = r;
-            const roundIndex = 2 + r;
-            const existing = await this.questionRepository.find({
-              where: { tournament: { id: tournamentId }, roundIndex },
-            });
-            if (myQ === this.QUESTIONS_PER_ROUND && oppQ === this.QUESTIONS_PER_ROUND) {
-              if (existing.length > 0) {
-                for (const q of existing) {
-                  await this.questionRepository.remove(q);
-                }
-              }
-            } else if (existing.length >= this.TIEBREAKER_QUESTIONS) {
-              const questions = await this.questionRepository.find({
-                where: { tournament: { id: tournamentId }, roundIndex },
-                order: { id: 'ASC' },
-              });
-              tiebreakerQuestions = questions.map((q) => {
-                const fixed = this.ensureQuestionOptions(q.question, q.options, q.correctAnswer);
-                const qText = this.sanitizeUtf8ForDisplay(q.question);
-                return { id: q.id, question: qText, options: fixed.options.map((o) => this.sanitizeUtf8ForDisplay(String(o))), correctAnswer: fixed.correctAnswer };
-              });
-            } else if (existing.length < this.TIEBREAKER_QUESTIONS && (myQ > this.QUESTIONS_PER_ROUND || oppQ > this.QUESTIONS_PER_ROUND)) {
-              const excludedQuestionKeys = await this.getTournamentQuestionKeySet(tournamentId);
-              const pool = await this.pickRandomQuestions(this.TIEBREAKER_QUESTIONS, excludedQuestionKeys);
-              for (const q of pool) {
-                const row = this.questionRepository.create({ ...q, tournament, roundIndex });
-                await this.questionRepository.save(row);
-              }
-              const questions = await this.questionRepository.find({
-                where: { tournament: { id: tournamentId }, roundIndex },
-                order: { id: 'ASC' },
-              });
-              tiebreakerQuestions = questions.map((q) => {
-                const fixed = this.ensureQuestionOptions(q.question, q.options, q.correctAnswer);
-                const qText = this.sanitizeUtf8ForDisplay(q.question);
-                return { id: q.id, question: qText, options: fixed.options.map((o) => this.sanitizeUtf8ForDisplay(String(o))), correctAnswer: fixed.correctAnswer };
-              });
+      if (semiState.result === 'tie') {
+        tiebreakerRound = semiState.tiebreakerRound ?? 1;
+        const roundIndex = 2 + tiebreakerRound;
+        const existing = await this.questionRepository.find({
+          where: { tournament: { id: tournamentId }, roundIndex },
+        });
+        if (myQ === this.QUESTIONS_PER_ROUND && oppQ === this.QUESTIONS_PER_ROUND) {
+          if (existing.length > 0) {
+            for (const q of existing) {
+              await this.questionRepository.remove(q);
             }
-            break;
           }
-          const myR = myTB[r - 1] ?? 0;
-          const oppR = oppTB[r - 1] ?? 0;
-          if (myR !== oppR) break;
+        } else if (existing.length >= this.TIEBREAKER_QUESTIONS) {
+          const questions = await this.questionRepository.find({
+            where: { tournament: { id: tournamentId }, roundIndex },
+            order: { id: 'ASC' },
+          });
+          tiebreakerQuestions = questions.map((q) => {
+            const fixed = this.ensureQuestionOptions(q.question, q.options, q.correctAnswer);
+            const qText = this.sanitizeUtf8ForDisplay(q.question);
+            return { id: q.id, question: qText, options: fixed.options.map((o) => this.sanitizeUtf8ForDisplay(String(o))), correctAnswer: fixed.correctAnswer };
+          });
+        } else if (existing.length < this.TIEBREAKER_QUESTIONS && (myQ > this.QUESTIONS_PER_ROUND || oppQ > this.QUESTIONS_PER_ROUND)) {
+          const excludedQuestionKeys = await this.getTournamentQuestionKeySet(tournamentId);
+          const pool = await this.pickRandomQuestions(this.TIEBREAKER_QUESTIONS, excludedQuestionKeys);
+          for (const q of pool) {
+            const row = this.questionRepository.create({ ...q, tournament, roundIndex });
+            await this.questionRepository.save(row);
+          }
+          const questions = await this.questionRepository.find({
+            where: { tournament: { id: tournamentId }, roundIndex },
+            order: { id: 'ASC' },
+          });
+          tiebreakerQuestions = questions.map((q) => {
+            const fixed = this.ensureQuestionOptions(q.question, q.options, q.correctAnswer);
+            const qText = this.sanitizeUtf8ForDisplay(q.question);
+            return { id: q.id, question: qText, options: fixed.options.map((o) => this.sanitizeUtf8ForDisplay(String(o))), correctAnswer: fixed.correctAnswer };
+          });
         }
       }
     }
@@ -2914,41 +2947,8 @@ export class TournamentsService implements OnModuleInit {
             effectivePassed = false;
           } else {
             const myProgress = await this.tournamentProgressRepository.findOne({ where: { userId, tournamentId } });
-            const myTBCount = (myProgress?.tiebreakerRoundsCorrect ?? []).length;
-            const mySemiTotal = this.QUESTIONS_PER_ROUND + myTBCount * this.TIEBREAKER_QUESTIONS;
-            const myQ = myProgress?.questionsAnsweredCount ?? 0;
-            const oppTBCount = (finalistProgress.tiebreakerRoundsCorrect ?? []).length;
-            const oppSemiTotal = this.QUESTIONS_PER_ROUND + oppTBCount * this.TIEBREAKER_QUESTIONS;
-            const oppQ = finalistProgress.questionsAnsweredCount ?? 0;
-
-            if (myQ < mySemiTotal + this.QUESTIONS_PER_ROUND || oppQ < oppSemiTotal + this.QUESTIONS_PER_ROUND) {
-              effectivePassed = false;
-            } else {
-              const mySemiTBSum = (myProgress?.tiebreakerRoundsCorrect ?? []).reduce((a, b) => a + b, 0);
-              const myFinalCorrect = (myProgress?.correctAnswersCount ?? 0) - (myProgress?.semiFinalCorrectCount ?? 0) - mySemiTBSum;
-              const oppSemiTBSum = (finalistProgress.tiebreakerRoundsCorrect ?? []).reduce((a, b) => a + b, 0);
-              const oppFinalCorrect = (finalistProgress.correctAnswersCount ?? 0) - (finalistProgress.semiFinalCorrectCount ?? 0) - oppSemiTBSum;
-
-              const myFTB = myProgress?.finalTiebreakerRoundsCorrect ?? [];
-              const oppFTB = finalistProgress.finalTiebreakerRoundsCorrect ?? [];
-              const myFTBSum = myFTB.reduce((a, b) => a + b, 0);
-              const oppFTBSum = oppFTB.reduce((a, b) => a + b, 0);
-              const myFinalBase = myFinalCorrect - myFTBSum;
-              const oppFinalBase = oppFinalCorrect - oppFTBSum;
-
-              if (myFinalBase > oppFinalBase) {
-                effectivePassed = true;
-              } else if (myFinalBase < oppFinalBase) {
-                effectivePassed = false;
-              } else {
-                let decided = false;
-                for (let r = 0; r < Math.max(myFTB.length, oppFTB.length); r++) {
-                  if ((myFTB[r] ?? 0) > (oppFTB[r] ?? 0)) { effectivePassed = true; decided = true; break; }
-                  if ((myFTB[r] ?? 0) < (oppFTB[r] ?? 0)) { effectivePassed = false; decided = true; break; }
-                }
-                if (!decided) effectivePassed = false;
-              }
-            }
+            const finalState = this.getFinalHeadToHeadState(myProgress, finalistProgress);
+            effectivePassed = finalState.result === 'won';
           }
         }
       }
@@ -3142,45 +3142,42 @@ export class TournamentsService implements OnModuleInit {
 
     if (semiResult === 'tie' && progress) {
       tiebreakerPhase = 'semi';
-      const myTB = progress.tiebreakerRoundsCorrect ?? [];
       const oppSlotTB = playerSlotForSemi % 2 === 0 ? playerSlotForSemi + 1 : playerSlotForSemi - 1;
       const oppIdTB = oppSlotTB >= 0 && oppSlotTB < (tournament.playerOrder?.length ?? 0) ? (tournament.playerOrder![oppSlotTB] ?? -1) : -1;
       const oppProgress = oppIdTB > 0
         ? await this.tournamentProgressRepository.findOne({ where: { userId: oppIdTB, tournamentId } })
         : null;
-      const oppTB = oppProgress?.tiebreakerRoundsCorrect ?? [];
       const myQ = questionsAnsweredCount;
       const oppQ = oppProgress?.questionsAnsweredCount ?? 0;
+      const semiState = this.getSemiHeadToHeadState(
+        myQ,
+        progress.semiFinalCorrectCount,
+        progress.tiebreakerRoundsCorrect,
+        oppQ,
+        oppProgress?.semiFinalCorrectCount,
+        oppProgress?.tiebreakerRoundsCorrect,
+      );
 
-      for (let r = 1; r <= 50; r++) {
-        const roundEnd = this.QUESTIONS_PER_ROUND + r * this.TIEBREAKER_QUESTIONS;
-        if (myQ < roundEnd || oppQ < roundEnd) {
-          tiebreakerRound = r;
-          tiebreakerBase = this.QUESTIONS_PER_ROUND + (r - 1) * this.TIEBREAKER_QUESTIONS;
-          const roundIndex = 2 + r;
-          let existing = await this.questionRepository.find({
-            where: { tournament: { id: tournamentId }, roundIndex },
-            order: { id: 'ASC' },
-          });
-          if (existing.length < this.TIEBREAKER_QUESTIONS) {
-            const excludedQuestionKeys = await this.getTournamentQuestionKeySet(tournamentId);
-            const pool = await this.pickRandomQuestions(this.TIEBREAKER_QUESTIONS, excludedQuestionKeys);
-            for (const q of pool) {
-              const row = this.questionRepository.create({ ...q, tournament, roundIndex });
-              await this.questionRepository.save(row);
-            }
-            existing = await this.questionRepository.find({
-              where: { tournament: { id: tournamentId }, roundIndex },
-              order: { id: 'ASC' },
-            });
-          }
-          questionsTiebreaker = existing.map(toDto);
-          break;
+      tiebreakerRound = semiState.tiebreakerRound ?? 1;
+      tiebreakerBase = this.QUESTIONS_PER_ROUND + (tiebreakerRound - 1) * this.TIEBREAKER_QUESTIONS;
+      const roundIndex = 2 + tiebreakerRound;
+      let existing = await this.questionRepository.find({
+        where: { tournament: { id: tournamentId }, roundIndex },
+        order: { id: 'ASC' },
+      });
+      if (existing.length < this.TIEBREAKER_QUESTIONS) {
+        const excludedQuestionKeys = await this.getTournamentQuestionKeySet(tournamentId);
+        const pool = await this.pickRandomQuestions(this.TIEBREAKER_QUESTIONS, excludedQuestionKeys);
+        for (const q of pool) {
+          const row = this.questionRepository.create({ ...q, tournament, roundIndex });
+          await this.questionRepository.save(row);
         }
-        const myR = myTB[r - 1] ?? 0;
-        const oppR = oppTB[r - 1] ?? 0;
-        if (myR !== oppR) break;
+        existing = await this.questionRepository.find({
+          where: { tournament: { id: tournamentId }, roundIndex },
+          order: { id: 'ASC' },
+        });
       }
+      questionsTiebreaker = existing.map(toDto);
     }
 
     if (semiResult === 'won' && progress) {
@@ -3207,49 +3204,30 @@ export class TournamentsService implements OnModuleInit {
           const oppSemiTotal = this.QUESTIONS_PER_ROUND + oppTBCount * this.TIEBREAKER_QUESTIONS;
           const oppQ = finalistProgress.questionsAnsweredCount ?? 0;
           if (oppQ >= oppSemiTotal + this.QUESTIONS_PER_ROUND) {
-            const mySemiTBSum = (progress.tiebreakerRoundsCorrect ?? []).reduce((a, b) => a + b, 0);
-            const myFinalCorrect = correctAnswersCount - (semiFinalCorrectCount ?? 0) - mySemiTBSum;
-            const oppSemiTBSum = (finalistProgress.tiebreakerRoundsCorrect ?? []).reduce((a, b) => a + b, 0);
-            const oppFinalCorrect = (finalistProgress.correctAnswersCount ?? 0) - (finalistProgress.semiFinalCorrectCount ?? 0) - oppSemiTBSum;
-
-            const myFTB = progress.finalTiebreakerRoundsCorrect ?? [];
-            const oppFTB = finalistProgress.finalTiebreakerRoundsCorrect ?? [];
-            const myFTBSum = myFTB.reduce((a, b) => a + b, 0);
-            const oppFTBSum = oppFTB.reduce((a, b) => a + b, 0);
-            const myFinalBase = myFinalCorrect - myFTBSum;
-            const oppFinalBase = oppFinalCorrect - oppFTBSum;
-
-            if (myFinalBase === oppFinalBase) {
-              let finalTied = true;
-              for (let r = 0; r < Math.max(myFTB.length, oppFTB.length); r++) {
-                const myR = myFTB[r] ?? 0;
-                const oppR = oppFTB[r] ?? 0;
-                if (myR !== oppR) { finalTied = false; break; }
-              }
-              if (finalTied) {
-                tiebreakerPhase = 'final';
-                const ftbRound = Math.max(myFTB.length, oppFTB.length) + 1;
-                tiebreakerRound = ftbRound;
-                tiebreakerBase = mySemiTotal + this.QUESTIONS_PER_ROUND + (ftbRound - 1) * this.TIEBREAKER_QUESTIONS;
-                const roundIndex = 100 + ftbRound;
-                let existing = await this.questionRepository.find({
+            const finalState = this.getFinalHeadToHeadState(progress, finalistProgress);
+            if (finalState.result === 'tie') {
+              tiebreakerPhase = 'final';
+              const ftbRound = finalState.tiebreakerRound ?? 1;
+              tiebreakerRound = ftbRound;
+              tiebreakerBase = mySemiTotal + this.QUESTIONS_PER_ROUND + (ftbRound - 1) * this.TIEBREAKER_QUESTIONS;
+              const roundIndex = 100 + ftbRound;
+              let existing = await this.questionRepository.find({
+                where: { tournament: { id: tournamentId }, roundIndex },
+                order: { id: 'ASC' },
+              });
+              if (existing.length < this.TIEBREAKER_QUESTIONS) {
+                const excludedQuestionKeys = await this.getTournamentQuestionKeySet(tournamentId);
+                const pool = await this.pickRandomQuestions(this.TIEBREAKER_QUESTIONS, excludedQuestionKeys);
+                for (const q of pool) {
+                  const row = this.questionRepository.create({ ...q, tournament, roundIndex });
+                  await this.questionRepository.save(row);
+                }
+                existing = await this.questionRepository.find({
                   where: { tournament: { id: tournamentId }, roundIndex },
                   order: { id: 'ASC' },
                 });
-                if (existing.length < this.TIEBREAKER_QUESTIONS) {
-                  const excludedQuestionKeys = await this.getTournamentQuestionKeySet(tournamentId);
-                  const pool = await this.pickRandomQuestions(this.TIEBREAKER_QUESTIONS, excludedQuestionKeys);
-                  for (const q of pool) {
-                    const row = this.questionRepository.create({ ...q, tournament, roundIndex });
-                    await this.questionRepository.save(row);
-                  }
-                  existing = await this.questionRepository.find({
-                    where: { tournament: { id: tournamentId }, roundIndex },
-                    order: { id: 'ASC' },
-                  });
-                }
-                questionsTiebreaker = existing.map(toDto);
               }
+              questionsTiebreaker = existing.map(toDto);
             }
           }
         }
@@ -3452,19 +3430,16 @@ export class TournamentsService implements OnModuleInit {
 
   private findSemiWinner(p1: TournamentProgress | null, p2: TournamentProgress | null): TournamentProgress | null {
     if (!p1 || !p2) return p1 || p2;
-    const q1 = p1.questionsAnsweredCount ?? 0;
-    const q2 = p2.questionsAnsweredCount ?? 0;
-    if (q1 < this.QUESTIONS_PER_ROUND || q2 < this.QUESTIONS_PER_ROUND) return null;
-    const s1 = p1.semiFinalCorrectCount ?? 0;
-    const s2 = p2.semiFinalCorrectCount ?? 0;
-    if (s1 > s2) return p1;
-    if (s2 > s1) return p2;
-    const tb1 = p1.tiebreakerRoundsCorrect ?? [];
-    const tb2 = p2.tiebreakerRoundsCorrect ?? [];
-    for (let r = 0; r < Math.max(tb1.length, tb2.length); r++) {
-      if ((tb1[r] ?? 0) > (tb2[r] ?? 0)) return p1;
-      if ((tb2[r] ?? 0) > (tb1[r] ?? 0)) return p2;
-    }
+    const semiState = this.getSemiHeadToHeadState(
+      p1.questionsAnsweredCount ?? 0,
+      p1.semiFinalCorrectCount,
+      p1.tiebreakerRoundsCorrect,
+      p2.questionsAnsweredCount ?? 0,
+      p2.semiFinalCorrectCount,
+      p2.tiebreakerRoundsCorrect,
+    );
+    if (semiState.result === 'won') return p1;
+    if (semiState.result === 'lost') return p2;
     return null;
   }
 
@@ -3535,29 +3510,15 @@ export class TournamentsService implements OnModuleInit {
     const oppQ = oppProgress?.questionsAnsweredCount ?? 0;
 
     if (myQ < this.QUESTIONS_PER_ROUND || oppQ < this.QUESTIONS_PER_ROUND) return false;
-
-    const mySemi = myProgress?.semiFinalCorrectCount ?? 0;
-    const oppSemi = oppProgress?.semiFinalCorrectCount ?? 0;
-
-    if (mySemi > oppSemi) return true;
-    if (mySemi < oppSemi) return false;
-
-    // Ничья в полуфинале → проверяем тайбрейкеры. Победа/поражение только когда оба ответили на раунд или истекли 24 ч.
-    const myTB = myProgress?.tiebreakerRoundsCorrect ?? [];
-    const oppTB = oppProgress?.tiebreakerRoundsCorrect ?? [];
-    for (let r = 1; r <= 50; r++) {
-      const roundEnd = this.QUESTIONS_PER_ROUND + r * this.TIEBREAKER_QUESTIONS;
-      if (tournament.status === TournamentStatus.FINISHED) {
-        if (myQ >= roundEnd && oppQ < roundEnd) return true;
-        if (myQ < roundEnd && oppQ >= roundEnd) return false;
-      }
-      if (myQ < roundEnd || oppQ < roundEnd) return false;
-      const myR = myTB[r - 1] ?? 0;
-      const oppR = oppTB[r - 1] ?? 0;
-      if (myR > oppR) return true;
-      if (myR < oppR) return false;
-    }
-    return false;
+    const semiState = this.getSemiHeadToHeadState(
+      myQ,
+      myProgress?.semiFinalCorrectCount,
+      myProgress?.tiebreakerRoundsCorrect,
+      oppQ,
+      oppProgress?.semiFinalCorrectCount,
+      oppProgress?.tiebreakerRoundsCorrect,
+    );
+    return semiState.result === 'won';
   }
 
   /**
@@ -3601,22 +3562,16 @@ export class TournamentsService implements OnModuleInit {
     const oppQ = oppProgress?.questionsAnsweredCount ?? 0;
 
     if (oppQ < this.QUESTIONS_PER_ROUND) return 'waiting';
-
-    const mySemi = myProgress?.semiFinalCorrectCount ?? 0;
-    const oppSemi = oppProgress?.semiFinalCorrectCount ?? 0;
-
-    if (mySemi > oppSemi) return 'won';
-    if (mySemi < oppSemi) return 'lost';
-
-    // Ничья — проверяем тайбрейкеры
-    const myTB = myProgress?.tiebreakerRoundsCorrect ?? [];
-    const oppTB = oppProgress?.tiebreakerRoundsCorrect ?? [];
-    for (let r = 0; r < Math.max(myTB.length, oppTB.length); r++) {
-      const roundEnd = this.QUESTIONS_PER_ROUND + (r + 1) * this.TIEBREAKER_QUESTIONS;
-      if (myQ < roundEnd || oppQ < roundEnd) return 'tie';
-      if ((myTB[r] ?? 0) > (oppTB[r] ?? 0)) return 'won';
-      if ((myTB[r] ?? 0) < (oppTB[r] ?? 0)) return 'lost';
-    }
+    const semiState = this.getSemiHeadToHeadState(
+      myQ,
+      myProgress?.semiFinalCorrectCount,
+      myProgress?.tiebreakerRoundsCorrect,
+      oppQ,
+      oppProgress?.semiFinalCorrectCount,
+      oppProgress?.tiebreakerRoundsCorrect,
+    );
+    if (semiState.result === 'won') return 'won';
+    if (semiState.result === 'lost') return 'lost';
     return 'tie';
   }
 
@@ -3899,17 +3854,15 @@ export class TournamentsService implements OnModuleInit {
     const freshMy = await this.tournamentProgressRepository.findOne({ where: { userId, tournamentId } });
     const freshOpp = await this.tournamentProgressRepository.findOne({ where: { userId: opponentId, tournamentId } });
     if (freshMy && freshOpp) {
-      const fMyS = freshMy.semiFinalCorrectCount ?? 0;
-      const fOpS = freshOpp.semiFinalCorrectCount ?? 0;
-      if (fMyS === fOpS) {
-        const myTBFresh = freshMy.tiebreakerRoundsCorrect ?? [];
-        const oppTBFresh = freshOpp.tiebreakerRoundsCorrect ?? [];
-        let tbResolved = false;
-        for (let r = 0; r < Math.min(myTBFresh.length, oppTBFresh.length); r++) {
-          if ((myTBFresh[r] ?? 0) !== (oppTBFresh[r] ?? 0)) { tbResolved = true; break; }
-        }
-        if (!tbResolved) return;
-      }
+      const freshSemiState = this.getSemiHeadToHeadState(
+        freshMy.questionsAnsweredCount ?? 0,
+        freshMy.semiFinalCorrectCount,
+        freshMy.tiebreakerRoundsCorrect,
+        freshOpp.questionsAnsweredCount ?? 0,
+        freshOpp.semiFinalCorrectCount,
+        freshOpp.tiebreakerRoundsCorrect,
+      );
+      if (freshSemiState.result === 'tie' || freshSemiState.result === 'incomplete') return;
     }
 
     const semiWinnerId = semiResult === 'won' ? userId : opponentId;
@@ -3958,42 +3911,9 @@ export class TournamentsService implements OnModuleInit {
     if (!finalistProgress) return;
 
     const finalistId = finalistProgress.userId;
-    const myTBCount = (myProgress.tiebreakerRoundsCorrect ?? []).length;
-    const mySemiTotal = this.QUESTIONS_PER_ROUND + myTBCount * this.TIEBREAKER_QUESTIONS;
-    const oppTBCount = (finalistProgress.tiebreakerRoundsCorrect ?? []).length;
-    const oppSemiTotal = this.QUESTIONS_PER_ROUND + oppTBCount * this.TIEBREAKER_QUESTIONS;
-
-    if (myQ < mySemiTotal + this.QUESTIONS_PER_ROUND) return;
-    if ((finalistProgress.questionsAnsweredCount ?? 0) < oppSemiTotal + this.QUESTIONS_PER_ROUND) return;
-
-    const mySemiTBSum = (myProgress.tiebreakerRoundsCorrect ?? []).reduce((a, b) => a + b, 0);
-    const myFinalCorrect = (myProgress.correctAnswersCount ?? 0) - (myProgress.semiFinalCorrectCount ?? 0) - mySemiTBSum;
-    const oppSemiTBSum = (finalistProgress.tiebreakerRoundsCorrect ?? []).reduce((a, b) => a + b, 0);
-    const oppFinalCorrect = (finalistProgress.correctAnswersCount ?? 0) - (finalistProgress.semiFinalCorrectCount ?? 0) - oppSemiTBSum;
-
-    const myFTB = myProgress.finalTiebreakerRoundsCorrect ?? [];
-    const oppFTB = finalistProgress.finalTiebreakerRoundsCorrect ?? [];
-    const myFTBSum = myFTB.reduce((a, b) => a + b, 0);
-    const oppFTBSum = oppFTB.reduce((a, b) => a + b, 0);
-    const myFinalBase = myFinalCorrect - myFTBSum;
-    const oppFinalBase = oppFinalCorrect - oppFTBSum;
-
-    let myWon: boolean | null = null;
-    if (myFinalBase > oppFinalBase) {
-      myWon = true;
-    } else if (myFinalBase < oppFinalBase) {
-      myWon = false;
-    } else {
-      for (let r = 0; r < Math.max(myFTB.length, oppFTB.length); r++) {
-        const myFTBEnd = mySemiTotal + this.QUESTIONS_PER_ROUND + (r + 1) * this.TIEBREAKER_QUESTIONS;
-        const oppFTBEnd = oppSemiTotal + this.QUESTIONS_PER_ROUND + (r + 1) * this.TIEBREAKER_QUESTIONS;
-        if (myQ < myFTBEnd || (finalistProgress.questionsAnsweredCount ?? 0) < oppFTBEnd) break;
-        if ((myFTB[r] ?? 0) > (oppFTB[r] ?? 0)) { myWon = true; break; }
-        if ((myFTB[r] ?? 0) < (oppFTB[r] ?? 0)) { myWon = false; break; }
-      }
-    }
-
-    if (myWon === null) return;
+    const finalState = this.getFinalHeadToHeadState(myProgress, finalistProgress);
+    if (finalState.result === 'incomplete' || finalState.result === 'tie') return;
+    const myWon = finalState.result === 'won';
 
     const tournamentWinnerId = myWon ? userId : finalistId;
     const tournamentLoserId = myWon ? finalistId : userId;
@@ -4122,25 +4042,16 @@ export class TournamentsService implements OnModuleInit {
       prog0: TournamentProgress | undefined,
       prog1: TournamentProgress | undefined,
     ): 0 | 1 | null => {
-      const q0 = prog0?.questionsAnsweredCount ?? 0;
-      const q1 = prog1?.questionsAnsweredCount ?? 0;
-      if (q0 < 10 || q1 < 10) return null;
-      const s0 = prog0?.semiFinalCorrectCount ?? 0;
-      const s1 = prog1?.semiFinalCorrectCount ?? 0;
-      if (s0 > s1) return 1;
-      if (s1 > s0) return 0;
-      const tb0 = prog0?.tiebreakerRoundsCorrect ?? [];
-      const tb1 = prog1?.tiebreakerRoundsCorrect ?? [];
-      const R = this.QUESTIONS_PER_ROUND;
-      const T = this.TIEBREAKER_QUESTIONS;
-      for (let r = 1; r <= 50; r++) {
-        const roundEnd = R + r * T;
-        if (q0 < roundEnd || q1 < roundEnd) return null;
-        const myR = tb0[r - 1] ?? 0;
-        const oppR = tb1[r - 1] ?? 0;
-        if (myR > oppR) return 1;
-        if (oppR > myR) return 0;
-      }
+      const semiState = this.getSemiHeadToHeadState(
+        prog0?.questionsAnsweredCount ?? 0,
+        prog0?.semiFinalCorrectCount,
+        prog0?.tiebreakerRoundsCorrect,
+        prog1?.questionsAnsweredCount ?? 0,
+        prog1?.semiFinalCorrectCount,
+        prog1?.tiebreakerRoundsCorrect,
+      );
+      if (semiState.result === 'won') return 1;
+      if (semiState.result === 'lost') return 0;
       return null;
     };
 
@@ -4248,35 +4159,9 @@ export class TournamentsService implements OnModuleInit {
       const prog0 = progressByUser.get(fp0.id);
       const prog1 = progressByUser.get(fp1.id);
       if (!prog0 || !prog1) return null;
-
-      const semiTB0 = prog0.tiebreakerRoundsCorrect ?? [];
-      const semiTB1 = prog1.tiebreakerRoundsCorrect ?? [];
-      const semiPhase0 = this.QUESTIONS_PER_ROUND + semiTB0.length * this.TIEBREAKER_QUESTIONS;
-      const semiPhase1 = this.QUESTIONS_PER_ROUND + semiTB1.length * this.TIEBREAKER_QUESTIONS;
-      const q0 = prog0.questionsAnsweredCount ?? 0;
-      const q1 = prog1.questionsAnsweredCount ?? 0;
-      if (q0 < semiPhase0 + this.QUESTIONS_PER_ROUND || q1 < semiPhase1 + this.QUESTIONS_PER_ROUND) return null;
-
-      const finalCorrect0 = Math.max(0, (prog0.correctAnswersCount ?? 0) - (prog0.semiFinalCorrectCount ?? 0) - semiTB0.reduce((a, b) => a + b, 0));
-      const finalCorrect1 = Math.max(0, (prog1.correctAnswersCount ?? 0) - (prog1.semiFinalCorrectCount ?? 0) - semiTB1.reduce((a, b) => a + b, 0));
-      const finalTB0 = prog0.finalTiebreakerRoundsCorrect ?? [];
-      const finalTB1 = prog1.finalTiebreakerRoundsCorrect ?? [];
-      const finalBase0 = finalCorrect0 - finalTB0.reduce((a, b) => a + b, 0);
-      const finalBase1 = finalCorrect1 - finalTB1.reduce((a, b) => a + b, 0);
-
-      if (finalBase0 > finalBase1) return fp0.id;
-      if (finalBase1 > finalBase0) return fp1.id;
-
-      for (let r = 0; r < Math.max(finalTB0.length, finalTB1.length); r++) {
-        const end0 = semiPhase0 + this.QUESTIONS_PER_ROUND + (r + 1) * this.TIEBREAKER_QUESTIONS;
-        const end1 = semiPhase1 + this.QUESTIONS_PER_ROUND + (r + 1) * this.TIEBREAKER_QUESTIONS;
-        if (q0 < end0 || q1 < end1) return null;
-        const round0 = finalTB0[r] ?? 0;
-        const round1 = finalTB1[r] ?? 0;
-        if (round0 > round1) return fp0.id;
-        if (round1 > round0) return fp1.id;
-      }
-
+      const finalState = this.getFinalHeadToHeadState(prog0, prog1);
+      if (finalState.result === 'won') return fp0.id;
+      if (finalState.result === 'lost') return fp1.id;
       return null;
     };
 
