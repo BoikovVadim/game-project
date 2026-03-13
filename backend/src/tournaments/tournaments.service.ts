@@ -1251,16 +1251,36 @@ export class TournamentsService implements OnModuleInit {
       await this.processAllExpiredEscrows();
     }
 
-    const qb = this.tournamentRepository
-      .createQueryBuilder('t')
-      .innerJoinAndSelect('t.players', 'p', 'p.id = :userId', { userId })
-      .orderBy('t.createdAt', 'DESC');
-    if (mode === 'training') {
-      qb.andWhere('t.gameType = :gameType', { gameType: 'training' });
-    } else if (mode === 'money') {
-      qb.andWhere('t.gameType = :gameType', { gameType: 'money' });
+    let tournaments: Tournament[];
+    if (mode === 'money') {
+      // Для противостояния: список турниров по tournament_progress (источник правды), не по join table players
+      const progressRows = await this.tournamentProgressRepository.find({
+        where: { userId },
+        select: ['tournamentId'],
+      });
+      const progressTids = [...new Set(progressRows.map((p) => p.tournamentId))].filter((id) => id > 0);
+      if (progressTids.length === 0) {
+        tournaments = [];
+      } else {
+        const list = await this.tournamentRepository.find({
+          where: { id: In(progressTids) },
+          relations: ['players'],
+          order: { createdAt: 'DESC' },
+        });
+        tournaments = list.filter(
+          (t) => t.gameType === 'money' || (t.gameType == null && t.leagueAmount != null),
+        );
+      }
+    } else {
+      const qb = this.tournamentRepository
+        .createQueryBuilder('t')
+        .innerJoinAndSelect('t.players', 'p', 'p.id = :userId', { userId })
+        .orderBy('t.createdAt', 'DESC');
+      if (mode === 'training') {
+        qb.andWhere('t.gameType = :gameType', { gameType: 'training' });
+      }
+      tournaments = await qb.getMany();
     }
-    const tournaments = await qb.getMany();
 
     const allIds = tournaments.map((t) => t.id);
     if (allIds.length > 0) {
