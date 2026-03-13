@@ -56,9 +56,9 @@ expect eof
 
 ### Если только фронт (без изменений бэкенда)
 
-Пропустить `cd backend && npm run build`:
+Пропустить `cd backend && npm run build`. Сборку фронта запускать с `CI=` чтобы предупреждения ESLint не ломали build:
 ```bash
-send "cd /var/www/game && git pull origin main && cd Frontend && npm run build 2>&1 && echo BUILD_DONE\r"
+send "cd /var/www/game && git pull origin main && cd Frontend && CI= npm run build 2>&1 && echo BUILD_DONE\r"
 ```
 
 ## Не забывать
