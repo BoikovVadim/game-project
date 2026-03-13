@@ -3760,10 +3760,11 @@ body.partner-modal-open {
 
 .confrontation-league-carousel-block {
   margin-bottom: clamp(14px, 1.5vw, 24px);
-  overflow: visible;
   width: 100%;
   max-width: clamp(420px, 55vw + 50px, 900px);
   align-self: center;
+  position: relative;
+  overflow: hidden;
 }
 
 .confrontation-league-loading {
@@ -3775,16 +3776,20 @@ body.partner-modal-open {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: clamp(4px, 0.5vw, 8px);
+  gap: 0;
   margin-bottom: 12px;
   position: relative;
+  padding: 0 clamp(36px, 3vw + 12px, 56px);
+  min-height: clamp(100px, 11vw + 20px, 210px);
 }
 
 .confrontation-carousel-arrow {
-  flex-shrink: 0;
-  width: clamp(28px, 2.5vw + 8px, 48px);
-  height: clamp(28px, 2.5vw + 8px, 48px);
-  font-size: clamp(16px, 1.5vw + 4px, 28px);
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: clamp(28px, 2.5vw + 8px, 44px);
+  height: clamp(28px, 2.5vw + 8px, 44px);
+  font-size: clamp(16px, 1.5vw + 4px, 26px);
   line-height: 1;
   display: flex;
   align-items: center;
@@ -3794,7 +3799,16 @@ body.partner-modal-open {
   border-radius: 50%;
   cursor: pointer;
   color: #333;
-  z-index: 5;
+  z-index: 10;
+  flex-shrink: 0;
+}
+
+.confrontation-carousel-arrow.confrontation-carousel-prev {
+  left: 0;
+}
+
+.confrontation-carousel-arrow.confrontation-carousel-next {
+  right: 0;
 }
 
 .confrontation-carousel-arrow:hover {
@@ -3809,6 +3823,9 @@ body.partner-modal-open {
   align-items: center;
   overflow: visible;
   position: relative;
+  flex: 1;
+  min-width: 0;
+  transition: transform 0.25s ease-out;
 }
 
 .confrontation-carousel-slide .confrontation-carousel-card {

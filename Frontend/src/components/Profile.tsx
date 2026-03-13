@@ -866,7 +866,9 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   const [playersOnlineByLeague, setPlayersOnlineByLeague] = useState<Record<number, number>>({});
   const [allowedLeaguesLoading, setAllowedLeaguesLoading] = useState(false);
   const [leagueCarouselIndex, setLeagueCarouselIndex] = useState(0);
-  /** Показываем в центре карусели только после загрузки картинки, чтобы не было мелькания пустого места */
+  const [carouselAnimating, setCarouselAnimating] = useState(false);
+  const [carouselDirection, setCarouselDirection] = useState<1 | -1>(1);
+  const carouselAnimRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const selectedLeagueRef = useRef(5);
 
   const [gameHistory, setGameHistory] = useState<{
@@ -1317,6 +1319,12 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
       if (typeof img.decode === 'function') img.decode().catch(() => {});
     }
   }, [allLeagues, leagueCarouselIndex]);
+
+  useEffect(() => {
+    return () => {
+      if (carouselAnimRef.current) clearTimeout(carouselAnimRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     const saveOnUnload = () => {
@@ -3668,9 +3676,17 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                           className="confrontation-carousel-arrow confrontation-carousel-prev"
                                           onClick={() => {
                                             const list = allLeagues ?? [];
+                                            if (list.length <= 1 || carouselAnimating) return;
                                             const next = leagueCarouselIndex <= 0 ? list.length - 1 : leagueCarouselIndex - 1;
-                                            setLeagueCarouselIndex(next);
-                                            setSelectedLeague(list[next] ?? 5);
+                                            if (carouselAnimRef.current) clearTimeout(carouselAnimRef.current);
+                                            setCarouselDirection(-1);
+                                            setCarouselAnimating(true);
+                                            carouselAnimRef.current = setTimeout(() => {
+                                              carouselAnimRef.current = null;
+                                              setLeagueCarouselIndex(next);
+                                              setSelectedLeague(list[next] ?? 5);
+                                              setCarouselAnimating(false);
+                                            }, 220);
                                           }}
                                           onMouseEnter={() => {
                                             const list = allLeagues ?? [];
@@ -3684,7 +3700,12 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                         >
                                           ‹
                                         </button>
-                                        <div className="confrontation-carousel-slide">
+                                        <div
+                                          className="confrontation-carousel-slide"
+                                          style={{
+                                            transform: carouselAnimating ? `translateX(${carouselDirection * 18}%)` : undefined,
+                                          }}
+                                        >
                                           {(() => {
                                             const list = allLeagues ?? [];
                                             const n = list.length;
@@ -3757,9 +3778,17 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                           className="confrontation-carousel-arrow confrontation-carousel-next"
                                           onClick={() => {
                                             const list = allLeagues ?? [];
+                                            if (list.length <= 1 || carouselAnimating) return;
                                             const next = leagueCarouselIndex >= list.length - 1 ? 0 : leagueCarouselIndex + 1;
-                                            setLeagueCarouselIndex(next);
-                                            setSelectedLeague(list[next] ?? 5);
+                                            if (carouselAnimRef.current) clearTimeout(carouselAnimRef.current);
+                                            setCarouselDirection(1);
+                                            setCarouselAnimating(true);
+                                            carouselAnimRef.current = setTimeout(() => {
+                                              carouselAnimRef.current = null;
+                                              setLeagueCarouselIndex(next);
+                                              setSelectedLeague(list[next] ?? 5);
+                                              setCarouselAnimating(false);
+                                            }, 220);
                                           }}
                                           onMouseEnter={() => {
                                             const list = allLeagues ?? [];
