@@ -324,6 +324,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
     semi1: { players: BracketPlayer[] };
     semi2: { players: BracketPlayer[] } | null;
     final: { players: BracketPlayer[] };
+    finalWinnerId?: number | null;
   };
   const [tournamentsList, setTournamentsList] = useState<TournamentListRow[]>([]);
   const [tournamentsListLoading, setTournamentsListLoading] = useState(false);
@@ -2349,12 +2350,8 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                   <div className="bracket-match">
                     {(() => {
                       const fp = bracketView.final.players;
-                      const p0 = fp[0];
-                      const p1 = fp[1];
-                      const bothFinished = p0 && p1 && p0.finalScore != null && p1.finalScore != null;
-                      const finalWinnerId = bothFinished
-                        ? (p0.finalScore! > p1.finalScore! ? p0.id : p1.finalScore! > p0.finalScore! ? p1.id : null)
-                        : null;
+                      const finalWinnerId = bracketView.finalWinnerId ?? null;
+                      const bothFinished = finalWinnerId != null;
                       return [0, 1].map((i) => {
                         const p = fp[i];
                         const isReal = p != null && p.id > 0;
