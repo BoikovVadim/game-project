@@ -127,25 +127,27 @@ export class TournamentsService implements OnModuleInit {
     };
     for (const row of rows) {
       const t = tourById.get(row.tournamentId);
-      if (!t?.playerOrder?.length) continue;
-      const order = t.playerOrder;
-      const playerSlot = order.indexOf(row.userId);
-      if (playerSlot < 0) continue;
-      const opponentSlot = playerSlot % 2 === 0 ? playerSlot + 1 : playerSlot - 1;
-      const opponentId = opponentSlot >= 0 && opponentSlot < order.length ? (order[opponentSlot] ?? -1) : -1;
-      const userIds = [row.userId, opponentId].filter((id) => id > 0);
-      const map = progressByTidAndUser.get(row.tournamentId);
-      const dates: Date[] = [];
-      for (const uid of userIds) {
-        const prog = map?.get(uid);
-        if (!prog) continue;
-        const d = toDate(prog.leftAt) ?? toDate(prog.roundStartedAt);
-        if (d) dates.push(d);
-      }
+      if (!t) continue;
       const fallbackDate = t.createdAt instanceof Date ? t.createdAt : toDate((t as any).createdAt) ?? now;
-      const completedAt = dates.length > 0
-        ? new Date(Math.max(...dates.map((d) => d.getTime())))
-        : fallbackDate;
+      let completedAt: Date = fallbackDate;
+      const order = t.playerOrder;
+      if (order?.length && order.indexOf(row.userId) >= 0) {
+        const playerSlot = order.indexOf(row.userId);
+        const opponentSlot = playerSlot % 2 === 0 ? playerSlot + 1 : playerSlot - 1;
+        const opponentId = opponentSlot >= 0 && opponentSlot < order.length ? (order[opponentSlot] ?? -1) : -1;
+        const userIds = [row.userId, opponentId].filter((id) => id > 0);
+        const map = progressByTidAndUser.get(row.tournamentId);
+        const dates: Date[] = [];
+        for (const uid of userIds) {
+          const prog = map?.get(uid);
+          if (!prog) continue;
+          const d = toDate(prog.leftAt) ?? toDate(prog.roundStartedAt);
+          if (d) dates.push(d);
+        }
+        if (dates.length > 0) {
+          completedAt = new Date(Math.max(...dates.map((d) => d.getTime())));
+        }
+      }
       const capped = completedAt > now ? now : completedAt;
       row.completedAt = capped;
       await this.tournamentResultRepository.save(row);
