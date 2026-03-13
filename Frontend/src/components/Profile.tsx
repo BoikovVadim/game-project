@@ -5048,7 +5048,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                         const opp = bracketView.semi1.players[1 - i];
                         const isReal = p != null && p.id > 0;
                         const isWinner = isReal && !p.isLoser && opp?.isLoser === true;
-                        const displayName = truncateBracketName(isReal ? (p.nickname?.trim() || `Игрок ${p.id}`) : 'Ожидание игрока');
+                        const displayName = truncateBracketName(isReal ? (p.nickname?.trim() || `Игрок ${p.id}`) : 'Ожидание соперника');
                         const answered = p?.questionsAnswered ?? 0;
                         const total = answered >= 10 ? 10 : answered;
                         const correct = p?.semiScore ?? (answered <= 10 ? (p?.correctAnswersCount ?? 0) : 0);
@@ -5097,7 +5097,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                         const opp = bracketView.semi2?.players[1 - i];
                         const isReal = p != null && p.id > 0;
                         const isWinner = isReal && !p.isLoser && opp?.isLoser === true;
-                        const displayName = truncateBracketName(isReal ? (p.nickname?.trim() || `Игрок ${p.id}`) : 'Ожидание игрока');
+                        const displayName = truncateBracketName(isReal ? (p.nickname?.trim() || `Игрок ${p.id}`) : 'Ожидание соперника');
                         const answered = p?.questionsAnswered ?? 0;
                         const total = answered >= 10 ? 10 : answered;
                         const correct = p?.semiScore ?? (answered <= 10 ? (p?.correctAnswersCount ?? 0) : 0);
@@ -5161,7 +5161,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                         const isReal = p != null && p.id > 0;
                         const isWinner = isReal && finalWinnerId === p.id;
                         const isLoser = bothFinished && isReal && finalWinnerId != null && finalWinnerId !== p.id;
-                        const displayName = truncateBracketName(isReal ? (p.nickname?.trim() || `Игрок ${p.id}`) : 'Ожидание игрока');
+                        const displayName = truncateBracketName(isReal ? (p.nickname?.trim() || `Игрок ${p.id}`) : 'Ожидание соперника');
                         const answered = p?.finalAnswered ?? 0;
                         const total = answered >= 10 ? 10 : answered;
                         const correct = p?.finalScore ?? p?.finalCorrect ?? 0;
