@@ -352,9 +352,7 @@ export class TournamentsService implements OnModuleInit {
     const myTBLen = (myProg.tiebreakerRoundsCorrect ?? []).length;
     const mySemiTotal = this.QUESTIONS_PER_ROUND + myTBLen * this.TIEBREAKER_QUESTIONS;
 
-    if (oppId == null || oppId <= 0) {
-      return myQ >= this.QUESTIONS_PER_ROUND;
-    }
+    if (oppId == null || oppId <= 0) return false;
 
     const oppProg = allProgress.find((p) => p.tournamentId === myProg.tournamentId && p.userId === oppId);
     if (!oppProg || oppProg.semiFinalCorrectCount == null) {
@@ -2839,7 +2837,7 @@ export class TournamentsService implements OnModuleInit {
     if (playerSlot < 0) return 'playing';
     const opponentSlot = playerSlot % 2 === 0 ? playerSlot + 1 : playerSlot - 1;
     const oppId = opponentSlot >= 0 && opponentSlot < order.length ? order[opponentSlot] : -1;
-    if (oppId == null || oppId <= 0) return 'won';
+    if (oppId == null || oppId <= 0) return 'waiting';
 
     const oppProgress = await this.tournamentProgressRepository.findOne({ where: { userId: oppId, tournamentId: tournament.id } });
     const oppQ = oppProgress?.questionsAnsweredCount ?? 0;
