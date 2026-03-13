@@ -1249,58 +1249,23 @@ export class TournamentsService implements OnModuleInit {
 
     if (mode === 'money') {
       await this.processAllExpiredEscrows();
+      await this.syncTournamentPlayersFromEntry(userId);
     }
 
     let tournaments: Tournament[];
-    if (mode === 'money') {
-      // Турниры пользователя: progress + entry (сырой SQL для надёжности) + join players (как в training)
-      const progressRows = await this.tournamentProgressRepository.find({ where: { userId }, select: ['tournamentId'] });
-      const progressTids = new Set(progressRows.map((p) => p.tournamentId).filter((id) => id > 0));
-      try {
-        const entryRows = await this.tournamentEntryRepository.manager.query(
-          'SELECT "tournamentId" FROM tournament_entry WHERE "userId" = $1',
-          [userId],
-        ) as { tournamentId: number }[];
-        for (const r of entryRows) {
-          if (r?.tournamentId) progressTids.add(r.tournamentId);
-        }
-      } catch (e) {
-        this.logger.warn('[getMyTournaments] tournament_entry fallback failed', (e as Error)?.message);
-      }
-      // Дублируем по join table players (как в training) — на случай рассинхрона
-      const qbPlayers = this.tournamentRepository
-        .createQueryBuilder('t')
-        .select('t.id', 'tid')
-        .innerJoin('t.players', 'p', 'p.id = :userId', { userId })
-        .where('t.gameType = :money', { money: 'money' })
-        .orWhere('(t.gameType IS NULL AND t."leagueAmount" IS NOT NULL)');
-      const byPlayers = await qbPlayers.getRawMany<{ tid: number }>();
-      for (const r of byPlayers) {
-        if (r?.tid) progressTids.add(r.tid);
-      }
-      const allTids = [...progressTids];
-      if (allTids.length === 0) {
-        tournaments = [];
-      } else {
-        const list = await this.tournamentRepository.find({
-          where: { id: In(allTids) },
-          relations: ['players'],
-          order: { createdAt: 'DESC' },
-        });
-        tournaments = list.filter(
-          (t) => t.gameType === 'money' || (t.gameType == null && t.leagueAmount != null),
-        );
-      }
-    } else {
-      const qb = this.tournamentRepository
-        .createQueryBuilder('t')
-        .innerJoinAndSelect('t.players', 'p', 'p.id = :userId', { userId })
-        .orderBy('t.createdAt', 'DESC');
-      if (mode === 'training') {
-        qb.andWhere('t.gameType = :gameType', { gameType: 'training' });
-      }
-      tournaments = await qb.getMany();
+    const qb = this.tournamentRepository
+      .createQueryBuilder('t')
+      .innerJoinAndSelect('t.players', 'p', 'p.id = :userId', { userId })
+      .orderBy('t.createdAt', 'DESC');
+    if (mode === 'training') {
+      qb.andWhere('t.gameType = :gameType', { gameType: 'training' });
+    } else if (mode === 'money') {
+      qb.andWhere(
+        '(t.gameType = :money OR (t.gameType IS NULL AND t."leagueAmount" IS NOT NULL))',
+        { money: 'money' },
+      );
     }
+    tournaments = await qb.getMany();
 
     const allIds = tournaments.map((t) => t.id);
     if (allIds.length > 0) {
@@ -3737,6 +3702,29 @@ export class TournamentsService implements OnModuleInit {
       semi2: semi2Players.length ? { players: semi2Players } : null,
       final: { players: finalPlayers },
     };
+  }
+
+  /** Синхронизирует tournament.players из tournament_entry: если у пользователя есть entry в турнир, но его нет в players — добавляет (чтобы список «Противостояние» показывал турниры). */
+  private async syncTournamentPlayersFromEntry(userId: number): Promise<void> {
+    const entries = await this.tournamentEntryRepository.find({
+      where: { user: { id: userId } },
+      relations: ['tournament'],
+    });
+    const tids = [...new Set(entries.map((e) => (e.tournament as any)?.id ?? (e as any).tournamentId).filter((id): id is number => typeof id === 'number' && id > 0))];
+    if (tids.length === 0) return;
+    const user = await this.userRepository.findOneBy({ id: userId });
+    if (!user) return;
+    const tournaments = await this.tournamentRepository.find({
+      where: { id: In(tids) },
+      relations: ['players'],
+    });
+    for (const t of tournaments) {
+      if (!t.players?.some((p) => p.id === userId)) {
+        t.players = t.players ?? [];
+        t.players.push(user);
+        await this.tournamentRepository.save(t);
+      }
+    }
   }
 
   /** Дозаполняет TournamentEntry для всех игроков в активных турнирах (если записи не было — создаёт с joinedAt = createdAt турнира) */
