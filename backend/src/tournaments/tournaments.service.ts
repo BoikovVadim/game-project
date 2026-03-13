@@ -1856,9 +1856,9 @@ export class TournamentsService implements OnModuleInit {
           : 0;
 
         if (forCompletedList) {
-          questionsTotal = QUESTIONS_PER_ROUND;
-          questionsAnsweredInRound = Math.min(answered, QUESTIONS_PER_ROUND);
-          correctAnswersInRound = semiCorrect;
+          questionsTotal = QUESTIONS_PER_ROUND + completedTBRounds * TIEBREAKER_QUESTIONS;
+          questionsAnsweredInRound = Math.min(answered, questionsTotal);
+          correctAnswersInRound = semiCorrect + tbCorrectSum;
         } else {
           questionsTotal = QUESTIONS_PER_ROUND + activeTBRounds * TIEBREAKER_QUESTIONS;
           questionsAnsweredInRound = Math.min(answered, questionsTotal);
