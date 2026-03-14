@@ -2443,6 +2443,8 @@ export class TournamentsService implements OnModuleInit {
     ): boolean => {
       if (!myProg) return false;
       if (getMoneySemiResult(t).result !== 'won') return false;
+      const mySemiTotal = semiPhaseQuestions(myProg);
+      if ((myProg.q ?? 0) < mySemiTotal + QUESTIONS_PER_ROUND) return false;
       if (getFinalResult(t, myProg) !== 'incomplete') return false;
       return !getOtherFinalist(t) && !didOppositeSemiBothLoseByTimeout(t);
     };
