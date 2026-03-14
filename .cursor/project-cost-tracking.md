@@ -1,7 +1,8 @@
-759810.93
-За сегодня (2026-03-14): 77 218,84 ₽
+763310.93
+За сегодня (2026-03-14): 80 718,84 ₽
 
 # Последние изменения (для резюме по задаче). Формат: YYYY-MM-DD HH:MM | Z ₽ | N ч M мин | описание. «За сегодня» — сумма всех Z за текущий день.
+2026-03-14 22:37 | 3 500,00 ₽ | 1 ч 36 мин | Cleanup проекта: rules сведены к компактному каноническому набору с hygiene/evidence guards, безопасно удалены временные и неиспользуемые frontend-файлы, общий `PlayerStats` и список cabinet sections вынесены в единые точки, legacy scripts/docs помечены для следующего прохода, затем выполнены build/test/smoke, commit, push и production deploy-check
 2026-03-14 22:10 | 8 312,50 ₽ | 3 ч 48 мин | Большой проход по стабилизации: платежный webhook переведён на явный ack/retry contract, рублёвый ledger и админские начисления сведены к одному topup-flow с подготовкой ретрофикса legacy `admin_credit`, турнирный progress/read flow частично нормализован через общий helper и `playerOrder` в write-path, support GET очищен от side effects с DTO-валидацией, кабинет и админка дочищены от лишнего route-state drift, а CI усилен runtime smoke-подъёмом backend с health-check
 2026-03-14 21:39 | 656,25 ₽ | 0 ч 18 мин | Cursor rules: добавлен always-apply playbook с обязательной последовательностью работы по каждому запросу — классификация задачи, поиск единого источника истины, порядок правок через domain→API→frontend, URL-state, ретрофикс данных, сценарная проверка, а затем tests/build, commit/push/deploy и production-check
 2026-03-14 21:29 | 11 375,00 ₽ | 5 ч 12 мин | Глубокая стабилизация архитектуры: удалены секреты и небезопасные диагностические скрипты из корня, турнирный backend вынесен на общие constants/view-model с read-only `GET training-state` через explicit prepare-route, добавлены DTO и frontend API/contracts/hooks для турниров и auth-session, объединён question generator catalog, включены unit-тесты backend и CI smoke/test-проверки, упрощён основной startup flow
