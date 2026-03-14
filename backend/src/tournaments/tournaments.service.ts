@@ -494,6 +494,19 @@ export class TournamentsService implements OnModuleInit {
     const oppSemiTotal = this.QUESTIONS_PER_ROUND + (oppProg.tiebreakerRoundsCorrect?.length ?? 0) * this.TIEBREAKER_QUESTIONS;
     const myAnswered = Math.max(0, (myProg.questionsAnsweredCount ?? 0) - mySemiTotal);
     const oppAnswered = Math.max(0, (oppProg.questionsAnsweredCount ?? 0) - oppSemiTotal);
+    const myFinalTotal = this.getFinalStageBaseCorrect(myProg) + (myProg.finalTiebreakerRoundsCorrect ?? []).reduce((a: number, b: number) => a + b, 0);
+    const oppFinalTotal = this.getFinalStageBaseCorrect(oppProg) + (oppProg.finalTiebreakerRoundsCorrect ?? []).reduce((a: number, b: number) => a + b, 0);
+
+    if (allowUnevenResolved) {
+      const myFinishedBaseFinal = myAnswered >= this.QUESTIONS_PER_ROUND;
+      const oppFinishedBaseFinal = oppAnswered >= this.QUESTIONS_PER_ROUND;
+      if (myFinishedBaseFinal && !oppFinishedBaseFinal) {
+        return myFinalTotal > 0 ? { result: 'won' } : { result: 'tie' };
+      }
+      if (!myFinishedBaseFinal && oppFinishedBaseFinal) {
+        return oppFinalTotal > 0 ? { result: 'lost' } : { result: 'tie' };
+      }
+    }
 
     return this.compareStageTotals(
       myAnswered,
