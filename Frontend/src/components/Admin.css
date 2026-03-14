@@ -1187,6 +1187,10 @@
   text-decoration: underline;
 }
 
+.admin-table .admin-tournament-cell-link--left {
+  text-align: left;
+}
+
 .admin-table--tournaments {
   border-collapse: separate;
   border-spacing: 0;

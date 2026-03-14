@@ -46,6 +46,12 @@ type ProjectCostDashboardData = {
   history: ProjectCostHistoryRow[];
 };
 
+type ImpersonateConfirmState = {
+  userId: number;
+  username: string;
+  source: 'tournaments' | 'users';
+};
+
 type PlayerStats = {
   gamesPlayed: number;
   completedMatches: number;
@@ -180,6 +186,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
   const [newsDeleteConfirmId, setNewsDeleteConfirmId] = useState<number | null>(null);
   const [newsPublishConfirm, setNewsPublishConfirm] = useState(false);
   const [newsGenerating, setNewsGenerating] = useState(false);
+  const [impersonateConfirm, setImpersonateConfirm] = useState<ImpersonateConfirmState | null>(null);
   const [usersLoading, setUsersLoading] = useState(false);
   const [creditUserId, setCreditUserId] = useState('');
   const [creditAmount, setCreditAmount] = useState('');
@@ -1020,7 +1027,18 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
           </td>
         );
       case 'userNickname':
-        return <td className="admin-td-left">{row.userNickname}</td>;
+        return (
+          <td className="admin-td-left">
+            <button
+              type="button"
+              className="admin-tournament-cell-link admin-tournament-cell-link--left"
+              onClick={() => setImpersonateConfirm({ userId: row.userId, username: row.userNickname || `Игрок ${row.userId}`, source: 'tournaments' })}
+              title="Перейти как пользователь"
+            >
+              {row.userNickname}
+            </button>
+          </td>
+        );
       case 'userId':
         return <td style={{ textAlign: 'center' }}>{row.userId}</td>;
       case 'phase':
@@ -1293,6 +1311,10 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
     }
   };
 
+  const confirmImpersonateLabel = impersonateConfirm?.source === 'tournaments'
+    ? 'Открыть кабинет этого игрока как пользователь?'
+    : 'Точно перейти в кабинет этого пользователя?';
+
   if (isAdmin === null) return <div className="admin-loading" />;
   if (isAdmin === false) {
     return (
@@ -1499,13 +1521,22 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                   {sortedUsers.map((u) => (
                     <tr key={u.id}>
                       <td>{u.id}</td>
-                      <td className="admin-td-left">{u.username}{u.isAdmin ? ' (админ)' : ''}</td>
+                      <td className="admin-td-left">
+                        <button
+                          type="button"
+                          className="admin-tournament-cell-link admin-tournament-cell-link--left"
+                          onClick={() => setImpersonateConfirm({ userId: u.id, username: u.username, source: 'users' })}
+                          title="Перейти как пользователь"
+                        >
+                          {u.username}{u.isAdmin ? ' (админ)' : ''}
+                        </button>
+                      </td>
                       <td className="admin-td-left">{u.email}</td>
                       <td>{u.balance}</td>
                       <td>{u.balanceRubles} ₽</td>
                       <td className="admin-table-actions">
                         <div className="admin-table-actions-inner">
-                          <button type="button" onClick={() => handleImpersonate(u.id)}>Войти как пользователь</button>
+                          <button type="button" onClick={() => setImpersonateConfirm({ userId: u.id, username: u.username, source: 'users' })}>Войти как пользователь</button>
                           {u.id !== 1 && !u.isAdmin && (
                             <button type="button" className="admin-btn-make-admin" onClick={() => handleSetAdmin(u.id, true)}>Сделать админом</button>
                           )}
@@ -2288,6 +2319,28 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
             ))}
           </div>
         </section>
+      )}
+      {impersonateConfirm && (
+        <div className="admin-modal-overlay" onClick={() => setImpersonateConfirm(null)}>
+          <div className="admin-modal" onClick={(e) => e.stopPropagation()}>
+            <p className="admin-modal-text">{confirmImpersonateLabel}</p>
+            <p className="admin-modal-text">Пользователь: <strong>{impersonateConfirm.username}</strong> (ID {impersonateConfirm.userId})</p>
+            <div className="admin-modal-actions">
+              <button type="button" className="admin-modal-cancel" onClick={() => setImpersonateConfirm(null)}>Отмена</button>
+              <button
+                type="button"
+                className="admin-modal-confirm admin-modal-confirm--publish"
+                onClick={() => {
+                  const target = impersonateConfirm;
+                  setImpersonateConfirm(null);
+                  if (target) void handleImpersonate(target.userId);
+                }}
+              >
+                Да, перейти
+              </button>
+            </div>
+          </div>
+        </div>
       )}
       {newsPublishConfirm && (
         <div className="admin-modal-overlay" onClick={() => setNewsPublishConfirm(false)}>
