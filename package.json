@@ -6,6 +6,8 @@
   ],
   "scripts": {
     "dev:kill-ports": "npx kill-port 3000 3001 2>/dev/null; sleep 1; true",
+    "deploy:prod": "bash ./scripts/deploy-prod.sh full",
+    "deploy:prod:frontend": "bash ./scripts/deploy-prod.sh frontend-only",
     "dev:open": "node scripts/open-browser.js",
     "dev": "npm run dev:kill-ports && cd Frontend && cross-env NODE_OPTIONS=--max-old-space-size=4096 npm run build && cd ../backend && npm run build && node -e \"require('fs').writeFileSync(require('path').join(process.cwd(),'..','.last-rebuild'), String(Date.now()))\" && cross-env NODE_OPTIONS=--max-old-space-size=2048 node dist/main.js",
     "start": "npm run dev:auto",

@@ -31,34 +31,28 @@ alwaysApply: true
 - **Путь проекта**: `/var/www/game/`
 - **Процесс-менеджер**: `pm2`
 
-### Команда деплоя (через expect)
+### Команда деплоя
 
-**ВАЖНО**: `set timeout 180` — сборка фронтенда занимает до 60 сек. Без достаточного таймаута expect отключится до завершения build, `index.html` не будет создан → 403.
+Использовать единый локальный скрипт проекта:
 
 ```bash
-expect -c '
-set timeout 180
-spawn ssh -o StrictHostKeyChecking=no root@95.163.226.154
-expect "password:" { send "ffsP7Tb7KBjxeHXw\r" }
-expect "# "
-send "cd /var/www/game && git pull origin main && cd backend && npm run build && cd ../Frontend && npm run build 2>&1 && echo BUILD_DONE\r"
-expect {
-  "BUILD_DONE" {}
-  timeout { puts "BUILD_TIMEOUT"; exit 1 }
-}
-expect "# "
-send "pm2 restart all\r"
-expect "# "
-send "exit\r"
-expect eof
-'
+npm run deploy:prod
 ```
+
+Скрипт `scripts/deploy-prod.sh` запускает одну SSH-команду без интерактивного ожидания shell prompt, поэтому деплой не должен обрываться после завершения сборки. Внутри него уже есть:
+
+- `git pull origin main`
+- сборка backend
+- сборка frontend с `CI=`
+- `pm2 restart all`
+- пауза после рестарта
+- проверка `http://localhost:3000/` на `200`
 
 ### Если только фронт (без изменений бэкенда)
 
 Пропустить `cd backend && npm run build`. Сборку фронта запускать с `CI=` чтобы предупреждения ESLint не ломали build:
 ```bash
-send "cd /var/www/game && git pull origin main && cd Frontend && CI= npm run build 2>&1 && echo BUILD_DONE\r"
+npm run deploy:prod:frontend
 ```
 
 ## Не забывать
