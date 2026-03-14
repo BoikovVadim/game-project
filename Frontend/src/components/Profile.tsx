@@ -5,7 +5,8 @@ import { buildReturnToPath, getAdminToken } from '../authSession.ts';
 import { refreshAccessToken, restoreAdminSession } from '../api/authClient.ts';
 import { fetchTournamentBracket, fetchTournamentQuestions, fetchTrainingState, prepareTrainingState } from '../features/tournaments/api.ts';
 import type { BracketViewData, TournamentHistoryResponse, TournamentListItem, TrainingQuestion } from '../features/tournaments/contracts.ts';
-import { useCabinetRouteState } from '../hooks/useCabinetRouteState.ts';
+import type { PlayerStats } from '../features/users/contracts.ts';
+import { CABINET_SECTIONS, type CabinetSection as RouteCabinetSection, useCabinetRouteState } from '../hooks/useCabinetRouteState.ts';
 import { formatNum, CURRENCY } from './formatNum.ts';
 import { toMoscowDateStr, parseMoscowDate, formatMoscowDateTime, formatMoscowDateTimeFull } from './dateUtils.ts';
 import { preloadAllLeagueImages } from '../preloadLeagueImages.ts';
@@ -19,7 +20,7 @@ interface ProfileProps {
   forceSection?: string;
 }
 
-type CabinetSection = null | 'profile' | 'statistics' | 'games' | 'finance' | 'finance-topup' | 'finance-withdraw' | 'partner' | 'partner-statistics' | 'news';
+type CabinetSection = RouteCabinetSection | null;
 
 type NotificationItem = {
   id: string;
@@ -151,19 +152,6 @@ const DollarIcon = ({ className }: { className?: string }) => (
     <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
   </svg>
 );
-
-type PlayerStats = {
-  gamesPlayed: number;
-  completedMatches: number;
-  wins: number;
-  winRatePercent: number | null;
-  correctAnswers: number;
-  totalQuestions: number;
-  totalWinnings: number;
-  totalWithdrawn: number;
-  maxLeague: number | null;
-  maxLeagueName: string | null;
-};
 
 type PartnerDetailNode = { id: number; displayName: string; referrerId: number | null; avatarUrl?: string | null };
 
@@ -352,7 +340,6 @@ const PartnerDetailTreeSection = React.memo(({
 ));
 
 const SELECTED_LEAGUE_STORAGE_KEY = 'cabinetSelectedLeague';
-const VALID_SECTIONS = ['profile', 'statistics', 'games', 'finance', 'finance-topup', 'finance-withdraw', 'partner', 'partner-statistics', 'news'] as const;
 
 /** Не показываем «Возврат по отклонённой заявке» — деньги формально не уходили. */
 function filterRejectedWithdrawalRefunds(list: { category?: string; description?: string | null }[]): typeof list {
@@ -375,7 +362,7 @@ function getSectionFromSearchParams(params: URLSearchParams): CabinetSection | n
   const section = params.get('section');
   if (!section) return null;
   const baseFirst = section.split('-')[0];
-  if ((VALID_SECTIONS as readonly string[]).includes(section)) return section as CabinetSection;
+  if (CABINET_SECTIONS.includes(section as RouteCabinetSection)) return section as CabinetSection;
   if (baseFirst === 'games' && (section === 'games' || section === 'games-training' || section === 'games-money')) return section as CabinetSection;
   if (baseFirst === 'finance' && ['finance', 'finance-topup', 'finance-withdraw'].includes(section)) return section as CabinetSection;
   if (baseFirst === 'partner' && ['partner', 'partner-statistics'].includes(section)) return section as CabinetSection;
@@ -393,7 +380,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     gameMode: routeGameMode,
     statsMode: routeStatsMode,
   } = useCabinetRouteState('news');
-  const forceSection = (forceSectionProp && (VALID_SECTIONS as readonly string[]).includes(forceSectionProp)) ? forceSectionProp as CabinetSection : undefined;
+  const forceSection = (forceSectionProp && CABINET_SECTIONS.includes(forceSectionProp as RouteCabinetSection)) ? forceSectionProp as CabinetSection : undefined;
 
   const [section, setSection] = useState<CabinetSection>(() => {
     if (forceSection) return forceSection;

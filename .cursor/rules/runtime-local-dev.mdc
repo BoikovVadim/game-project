@@ -1,0 +1,27 @@
+---
+description: Канонический сценарий локального запуска и правила перезапуска dev-среды
+alwaysApply: true
+---
+
+# Локальный runtime проекта
+
+Канонический dev-режим: из корня запускать `npm run dev:live`.
+
+- Frontend: `http://localhost:3000`, hot reload.
+- Backend API: `http://localhost:3001`.
+- Прокси frontend должен смотреть на `3001`.
+
+## Правила перезапуска
+
+- Если правка только во `Frontend/` и `dev:live` уже работает, не перезапускать сервер без необходимости.
+- Если затронут `backend/` или сервер сейчас не запущен, выполнить:
+  1. `npx kill-port 3000 3001 2>/dev/null`
+  2. подождать 2-3 секунды
+  3. `npm run dev:live`
+  4. дождаться `http://localhost:3000` -> `200`
+
+## Что не ломать без отдельной задачи
+
+- Оставлять `HashRouter`, пока backend явно не подготовлен под SPA fallback для всех маршрутов.
+- Не ломать `Frontend/public/index.html`, `Frontend/src/index.tsx` и текущую схему портов `3000/3001`.
+- Не добавлять router future flags без отдельной проверки маршрутов.

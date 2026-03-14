@@ -2,18 +2,7 @@ import React from 'react';
 import axios from 'axios';
 import { formatNum, CURRENCY } from './formatNum.ts';
 import type { BracketViewData, QuestionsReviewData } from '../features/tournaments/contracts.ts';
-
-export type PlayerStats = {
-  gamesPlayed: number;
-  completedMatches: number;
-  wins: number;
-  correctAnswers: number;
-  totalQuestions: number;
-  totalWinnings: number;
-  totalWithdrawn: number;
-  maxLeague: number | null;
-  maxLeagueName: string | null;
-};
+import type { PlayerStats } from '../features/users/contracts.ts';
 
 export type BracketPlayerTooltipData = {
   playerId: number;

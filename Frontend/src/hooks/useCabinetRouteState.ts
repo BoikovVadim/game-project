@@ -17,7 +17,7 @@ export type CabinetSection =
 export type CabinetStatsMode = 'personal' | 'general';
 export type CabinetGameMode = 'training' | 'money' | null;
 
-const VALID_SECTIONS = new Set<CabinetSection>([
+export const CABINET_SECTIONS: readonly CabinetSection[] = [
   'profile',
   'statistics',
   'games',
@@ -29,7 +29,9 @@ const VALID_SECTIONS = new Set<CabinetSection>([
   'partner',
   'partner-statistics',
   'news',
-]);
+];
+
+const VALID_SECTIONS = new Set<CabinetSection>(CABINET_SECTIONS);
 
 function parseSection(raw: string | null, fallback: CabinetSection = 'news'): CabinetSection {
   if (raw && VALID_SECTIONS.has(raw as CabinetSection)) return raw as CabinetSection;

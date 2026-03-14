@@ -5,6 +5,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsi
 import { setAdminImpersonationSession } from '../api/authClient.ts';
 import { fetchTournamentBracket, fetchTournamentQuestions } from '../features/tournaments/api.ts';
 import type { BracketViewData, QuestionsReviewData } from '../features/tournaments/contracts.ts';
+import type { PlayerStats } from '../features/users/contracts.ts';
 import { useAdminQueryState } from '../hooks/useAdminQueryState.ts';
 import { formatMoscowDateTimeFull, formatMoscowDateTime } from './dateUtils.ts';
 import { TournamentBracketModal, TournamentQuestionsModal } from './TournamentModals.tsx';
@@ -54,19 +55,6 @@ type ImpersonateConfirmState = {
   userId: number;
   username: string;
   source: 'tournaments' | 'users';
-};
-
-type PlayerStats = {
-  gamesPlayed: number;
-  completedMatches: number;
-  wins: number;
-  winRatePercent: number | null;
-  correctAnswers: number;
-  totalQuestions: number;
-  totalWinnings: number;
-  totalWithdrawn: number;
-  maxLeague: number | null;
-  maxLeagueName: string | null;
 };
 
 type TournamentColumnKey =
