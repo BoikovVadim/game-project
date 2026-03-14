@@ -2250,6 +2250,54 @@ export class TournamentsService implements OnModuleInit {
       return prog.totalCorrect - (prog.semiCorrect ?? 0) - semiTBSum;
     };
 
+    const isVictoryLabel = (label: string): boolean => label.startsWith('Победа');
+    const isDefeatLabel = (label: string): boolean => label.startsWith('Поражение') || label === 'Время истекло';
+    const formatTimeoutDefeatLabel = (): string => 'Поражение, время истекло';
+    const formatScoreLabel = (base: 'Победа' | 'Поражение', score: { my: number; opp: number } | null): string =>
+      score ? `${base} ${score.my}-${score.opp}` : base;
+
+    const getSemiScore = (t: Tournament): { my: number; opp: number } | null => {
+      const order = t.playerOrder ?? [];
+      const playerSlot = order.indexOf(userId);
+      if (playerSlot < 0) return null;
+      const opponentSlot = playerSlot % 2 === 0 ? playerSlot + 1 : playerSlot - 1;
+      const opponentId = opponentSlot >= 0 && opponentSlot < order.length ? (order[opponentSlot] ?? -1) : -1;
+      if (!(opponentId > 0)) return null;
+      const myProg = progressByTid.get(t.id);
+      const oppProg = progressByTidAndUser.get(t.id)?.get(opponentId);
+      if (!myProg || !oppProg) return null;
+      const resolved = this.resolveStageTotals(
+        myProg.q ?? 0,
+        myProg.semiCorrect ?? 0,
+        myProg.tiebreakerRounds,
+        oppProg.q ?? 0,
+        oppProg.semiCorrect ?? 0,
+        oppProg.tiebreakerRounds,
+        t.status === TournamentStatus.FINISHED,
+      );
+      return { my: resolved.myTotal, opp: resolved.oppTotal };
+    };
+
+    const getFinalScore = (t: Tournament, myProg?: ProgressData | null): { my: number; opp: number } | null => {
+      const me = myProg ?? progressByTid.get(t.id);
+      const otherFin = getOtherFinalist(t);
+      if (!me || !otherFin) return null;
+      const myFinalTotal = computeFinalCorrect(me);
+      const oppFinalTotal = computeFinalCorrect(otherFin);
+      const myFinalBase = myFinalTotal - me.finalTiebreakerRounds.reduce((a, b) => a + b, 0);
+      const oppFinalBase = oppFinalTotal - otherFin.finalTiebreakerRounds.reduce((a, b) => a + b, 0);
+      const resolved = this.resolveStageTotals(
+        Math.max(0, me.q - semiPhaseQuestions(me)),
+        myFinalBase,
+        me.finalTiebreakerRounds,
+        Math.max(0, otherFin.q - semiPhaseQuestions(otherFin)),
+        oppFinalBase,
+        otherFin.finalTiebreakerRounds,
+        t.status === TournamentStatus.FINISHED,
+      );
+      return { my: resolved.myTotal, opp: resolved.oppTotal };
+    };
+
     /** Результат финала: won/lost/tie/incomplete */
     const getFinalResult = (
       t: Tournament,
@@ -2587,7 +2635,7 @@ export class TournamentsService implements OnModuleInit {
         if (!done) {
           if (oid4 <= 0) return 'Ожидание соперника';
           const semiRes4 = getMoneySemiResult(t);
-          if (semiRes4.result === 'lost') return 'Поражение';
+          if (semiRes4.result === 'lost') return formatScoreLabel('Поражение', getSemiScore(t));
           if (answered < QUESTIONS_PER_ROUND) return 'Этап не пройден';
           if (semiRes4.result === 'tie') {
             const tbR4 = semiRes4.tiebreakerRound ?? 1;
@@ -2596,27 +2644,31 @@ export class TournamentsService implements OnModuleInit {
           }
           return 'Ожидание соперника';
         }
-        if (answered < QUESTIONS_PER_ROUND) return 'Время истекло';
+        if (answered < QUESTIONS_PER_ROUND) return formatTimeoutDefeatLabel();
         const semiRes4 = getMoneySemiResult(t);
-        if (semiRes4.result === 'lost') return 'Поражение';
+        if (semiRes4.result === 'lost') return formatScoreLabel('Поражение', getSemiScore(t));
+        if (semiRes4.result === 'won') return formatScoreLabel('Победа', getSemiScore(t));
         return 'Ожидание соперника';
       }
 
       if (t.status === TournamentStatus.FINISHED) {
-        if (answered < QUESTIONS_PER_ROUND) return 'Время истекло';
-        if (resultByTournamentId.get(t.id) === true) return 'Победа';
+        if (answered < QUESTIONS_PER_ROUND) return formatTimeoutDefeatLabel();
+        if (resultByTournamentId.get(t.id) === true) {
+          const progWin = progressByTid.get(t.id);
+          return formatScoreLabel('Победа', progWin ? getFinalScore(t, progWin) : null);
+        }
         const semiResFin = getMoneySemiResult(t);
         if (semiResFin.result === 'won') {
           const progFin = progressByTid.get(t.id);
           if (progFin) {
             const finalResult = getFinalResult(t, progFin);
-            if (finalResult === 'won') return 'Победа';
-            if (finalResult === 'lost') return 'Поражение';
-            if (finalResult === 'tie') return 'Время истекло';
+            if (finalResult === 'won') return formatScoreLabel('Победа', getFinalScore(t, progFin));
+            if (finalResult === 'lost') return formatScoreLabel('Поражение', getFinalScore(t, progFin));
+            if (finalResult === 'tie') return formatTimeoutDefeatLabel();
             if ((progFin.q ?? 0) < semiPhaseQuestions(progFin) + QUESTIONS_PER_ROUND) return 'Этап не пройден';
           }
         }
-        return 'Поражение';
+        return formatScoreLabel('Поражение', getSemiScore(t));
       }
 
       if (answered < QUESTIONS_PER_ROUND) return 'Этап не пройден';
@@ -2629,14 +2681,14 @@ export class TournamentsService implements OnModuleInit {
         if (answered >= roundEnd) return 'Ожидание соперника';
         return 'Этап не пройден';
       }
-      if (semiResult.result === 'lost') return 'Поражение';
+      if (semiResult.result === 'lost') return formatScoreLabel('Поражение', getSemiScore(t));
       if (semiResult.result === 'won') {
         if (!prog) return 'Этап не пройден';
         const mySemiTotal = semiPhaseQuestions(prog);
         if (answered < mySemiTotal + QUESTIONS_PER_ROUND) return 'Этап не пройден';
         const fr = getFinalResult(t, prog);
-        if (fr === 'won') return 'Победа';
-        if (fr === 'lost') return 'Поражение';
+        if (fr === 'won') return formatScoreLabel('Победа', getFinalScore(t, prog));
+        if (fr === 'lost') return formatScoreLabel('Поражение', getFinalScore(t, prog));
         if (fr === 'tie') return 'Этап не пройден';
         return 'Ожидание соперника';
       }
@@ -2689,7 +2741,7 @@ export class TournamentsService implements OnModuleInit {
         return true;
       }
       const label = getResultLabel(t);
-      if (label === 'Время истекло' || label === 'Поражение' || label === 'Победа') return true;
+      if (label === 'Время истекло' || isDefeatLabel(label) || isVictoryLabel(label)) return true;
       if (label === 'Ожидание соперника') return isTimeExpired(t);
       if (playerRoundFinished.get(t.id) && !isTimeExpired(t)) return false;
       if (currentTournamentId === t.id && !isTimeExpired(t)) return false;
@@ -2701,28 +2753,28 @@ export class TournamentsService implements OnModuleInit {
       if (t.status === TournamentStatus.FINISHED) {
         return label;
       }
-      if (inCompleted && isTimeExpired(t) && label !== 'Поражение' && label !== 'Победа') {
+      if (inCompleted && isTimeExpired(t) && !isDefeatLabel(label) && !isVictoryLabel(label)) {
         const prog2 = progressByTid.get(t.id);
         const answered2 = prog2?.q ?? 0;
         if (answered2 >= QUESTIONS_PER_ROUND) {
           const semiRes2 = getMoneySemiResult(t);
-          if (semiRes2.result === 'won') return 'Победа';
-          if (semiRes2.result === 'incomplete') return semiRes2.noOpponent ? 'Ожидание соперника' : 'Победа';
+          if (semiRes2.result === 'won') return formatScoreLabel('Победа', getSemiScore(t));
+          if (semiRes2.result === 'incomplete') return semiRes2.noOpponent ? 'Ожидание соперника' : formatScoreLabel('Победа', getSemiScore(t));
           if (semiRes2.result === 'tie') {
             const tbRound2 = semiRes2.tiebreakerRound ?? 1;
             const roundEnd2 = QUESTIONS_PER_ROUND + tbRound2 * TIEBREAKER_QUESTIONS;
-            if (answered2 >= roundEnd2) return 'Победа';
+            if (answered2 >= roundEnd2) return formatScoreLabel('Победа', getSemiScore(t));
             const ord2 = t.playerOrder ?? [];
             const sl2 = ord2.indexOf(userId);
             const os2 = sl2 >= 0 ? (sl2 % 2 === 0 ? sl2 + 1 : sl2 - 1) : -1;
             const oid2 = os2 >= 0 && os2 < ord2.length ? ord2[os2] : -1;
             if (oid2 > 0) {
               const opPr2 = progressByTidAndUser.get(t.id)?.get(oid2);
-              if ((opPr2?.q ?? 0) >= roundEnd2) return 'Поражение';
+              if ((opPr2?.q ?? 0) >= roundEnd2) return formatScoreLabel('Поражение', getSemiScore(t));
             }
           }
         }
-        return 'Время истекло';
+        return formatTimeoutDefeatLabel();
       }
       return label;
     };
@@ -2738,7 +2790,7 @@ export class TournamentsService implements OnModuleInit {
         !belongsToHistory(t),
     );
     const semiWonCompletedItems = moneySemiWonFinalPending.map((t) =>
-      toItem(t, deadlineByTournamentId[t.id] ?? null, 'not_passed', 'Победа', 'semi', 'Полуфинал', true),
+      toItem(t, deadlineByTournamentId[t.id] ?? null, 'not_passed', formatScoreLabel('Победа', getSemiScore(t)), 'semi', 'Полуфинал', true),
     );
 
     const activeRaw = activeTournamentsRaw.map((t) =>

@@ -88,6 +88,32 @@ function getLeaguePrize(stake: number): number {
   return Math.round(3.4 * stake);
 }
 
+function isVictoryResultLabel(label?: string | null): boolean {
+  return typeof label === 'string' && label.startsWith('Победа');
+}
+
+function isDefeatResultLabel(label?: string | null): boolean {
+  return typeof label === 'string' && label.startsWith('Поражение');
+}
+
+function isTimeoutResultLabel(label?: string | null): boolean {
+  return typeof label === 'string' && label.toLowerCase().includes('время истекло');
+}
+
+function isWaitingResultLabel(label?: string | null): boolean {
+  return label === 'Ожидание соперника';
+}
+
+function getResultLabelTone(label?: string | null): string {
+  if (isVictoryResultLabel(label)) return 'victory';
+  if (isTimeoutResultLabel(label)) return 'time-expired';
+  if (isDefeatResultLabel(label)) return 'defeat';
+  if (label === 'Финал') return 'final-ready';
+  if (label === 'Доп. раунд') return 'tiebreaker';
+  if (isWaitingResultLabel(label)) return 'stage-passed';
+  return 'stage-not-passed';
+}
+
 const GemIcon = ({ amount, className }: { amount: number; className?: string }) => {
   const gem = LEAGUE_GEMS[amount] ?? { name: `Лига ${formatNum(amount)} ${CURRENCY}`, color: '#888' };
   const c = gem.color;
@@ -3405,9 +3431,9 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                         <div className="training-start-buttons">
                           {(() => {
                             const continueTarget = [...(gameHistory?.active ?? [])]
-                              .filter((t) => t.userStatus === 'not_passed' && t.resultLabel !== 'Ожидание соперника' && t.resultLabel !== 'Время истекло' && (!t.deadline || new Date(t.deadline) > new Date()))
+                              .filter((t) => t.userStatus === 'not_passed' && !isWaitingResultLabel(t.resultLabel) && !isDefeatResultLabel(t.resultLabel) && !isTimeoutResultLabel(t.resultLabel) && (!t.deadline || new Date(t.deadline) > new Date()))
                               .sort((a, b) => a.id - b.id)[0] ?? null;
-                            const hasActiveGames = (gameHistory?.active ?? []).some((t) => t.resultLabel !== 'Ожидание соперника');
+                            const hasActiveGames = (gameHistory?.active ?? []).some((t) => !isWaitingResultLabel(t.resultLabel) && !isDefeatResultLabel(t.resultLabel) && !isTimeoutResultLabel(t.resultLabel));
                             if (continueTarget) {
                               return (
                                 <button
@@ -3484,7 +3510,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                       <td>{t.roundStartedAt ? formatMoscowDateTime(t.roundStartedAt) : '—'}</td>
                                       <td>{t.roundFinished ? '—' : t.deadline ? (new Date(t.deadline) > new Date() ? formatTimeLeft(t.deadline) : 'Время вышло') : '—'}</td>
                                       <td>
-                                        <span className={`game-history-status game-history-status--${t.resultLabel === 'Победа' ? 'victory' : t.resultLabel === 'Поражение' ? 'defeat' : t.resultLabel === 'Время истекло' ? 'time-expired' : t.resultLabel === 'Финал' ? 'final-ready' : t.resultLabel === 'Доп. раунд' ? 'tiebreaker' : t.resultLabel === 'Ожидание соперника' ? 'stage-passed' : 'stage-not-passed'}`}>
+                                        <span className={`game-history-status game-history-status--${getResultLabelTone(t.resultLabel)}`}>
                                           {t.resultLabel ?? 'Этап не пройден'}
                                         </span>
                                       </td>
@@ -3531,7 +3557,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                       </td>
                                       <td>{t.roundStartedAt ? formatMoscowDateTime(t.roundStartedAt) : '—'}</td>
                                       <td>{(t as any).completedAt ? formatMoscowDateTime((t as any).completedAt) : '—'}</td>
-                                      <td><span className={`game-history-status game-history-status--${t.resultLabel === 'Победа' ? 'victory' : t.resultLabel === 'Поражение' ? 'defeat' : t.resultLabel === 'Время истекло' ? 'time-expired' : t.resultLabel === 'Доп. раунд' ? 'tiebreaker' : t.resultLabel === 'Ожидание соперника' ? 'stage-passed' : 'stage-not-passed'}`}>{t.resultLabel ?? 'Этап не пройден'}</span></td>
+                                      <td><span className={`game-history-status game-history-status--${getResultLabelTone(t.resultLabel)}`}>{t.resultLabel ?? 'Этап не пройден'}</span></td>
                                     </tr>
                                   ))}
                                 </tbody>
@@ -3811,9 +3837,9 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                 {(() => {
                                   const moneyActive = gameHistoryMoney?.active ?? [];
                                   const continueTarget = [...moneyActive]
-                                    .filter((t) => t.userStatus === 'not_passed' && t.resultLabel !== 'Ожидание соперника' && t.resultLabel !== 'Время истекло' && (!t.deadline || new Date(t.deadline) > new Date()))
+                                    .filter((t) => t.userStatus === 'not_passed' && !isWaitingResultLabel(t.resultLabel) && !isDefeatResultLabel(t.resultLabel) && !isTimeoutResultLabel(t.resultLabel) && (!t.deadline || new Date(t.deadline) > new Date()))
                                     .sort((a, b) => a.id - b.id)[0] ?? null;
-                                  const hasActiveGames = moneyActive.some((t) => t.resultLabel !== 'Ожидание соперника');
+                                  const hasActiveGames = moneyActive.some((t) => !isWaitingResultLabel(t.resultLabel) && !isDefeatResultLabel(t.resultLabel) && !isTimeoutResultLabel(t.resultLabel));
                                   if (continueTarget) {
                                     return (
                                       <button
@@ -3912,7 +3938,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                         </td>
                                         <td>{t.roundStartedAt ? formatMoscowDateTime(t.roundStartedAt) : '—'}</td>
                                         <td>{t.roundFinished ? '—' : t.deadline ? (new Date(t.deadline) > new Date() ? formatTimeLeft(t.deadline) : 'Время вышло') : '—'}</td>
-                                        <td><span className={`game-history-status game-history-status--${t.resultLabel === 'Победа' ? 'victory' : t.resultLabel === 'Поражение' ? 'defeat' : t.resultLabel === 'Время истекло' ? 'time-expired' : t.resultLabel === 'Доп. раунд' ? 'tiebreaker' : t.resultLabel === 'Ожидание соперника' ? 'stage-passed' : 'stage-not-passed'}`}>{t.resultLabel ?? 'Этап не пройден'}</span></td>
+                                        <td><span className={`game-history-status game-history-status--${getResultLabelTone(t.resultLabel)}`}>{t.resultLabel ?? 'Этап не пройден'}</span></td>
                                       </tr>
                                     ))}
                                   </tbody>
@@ -3957,7 +3983,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                         </td>
                                         <td>{t.roundStartedAt ? formatMoscowDateTime(t.roundStartedAt) : '—'}</td>
                                         <td>{(t as any).completedAt ? formatMoscowDateTime((t as any).completedAt) : '—'}</td>
-                                        <td><span className={`game-history-status game-history-status--${t.resultLabel === 'Победа' ? 'victory' : t.resultLabel === 'Поражение' ? 'defeat' : t.resultLabel === 'Время истекло' ? 'time-expired' : t.resultLabel === 'Доп. раунд' ? 'tiebreaker' : t.resultLabel === 'Ожидание соперника' ? 'stage-passed' : 'stage-not-passed'}`}>{t.resultLabel ?? 'Этап не пройден'}</span></td>
+                                        <td><span className={`game-history-status game-history-status--${getResultLabelTone(t.resultLabel)}`}>{t.resultLabel ?? 'Этап не пройден'}</span></td>
                                       </tr>
                                     ))}
                                   </tbody>
