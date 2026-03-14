@@ -4375,7 +4375,7 @@ export class TournamentsService implements OnModuleInit {
     isActive: boolean;
     semi1: { players: { id: number; username: string; nickname?: string | null; semiScore?: number; questionsAnswered?: number; correctAnswersCount?: number; isLoser?: boolean; tiebreakerRound?: number; tiebreakerAnswered?: number; tiebreakerCorrect?: number }[] };
     semi2: { players: { id: number; username: string; nickname?: string | null; semiScore?: number; questionsAnswered?: number; correctAnswersCount?: number; isLoser?: boolean; tiebreakerRound?: number; tiebreakerAnswered?: number; tiebreakerCorrect?: number }[] } | null;
-    final: { players: { id: number; username: string; nickname?: string | null; finalScore?: number; finalAnswered?: number; finalCorrect?: number }[] };
+    final: { players: { id: number; username: string; nickname?: string | null; semiScore?: number; questionsAnswered?: number; correctAnswersCount?: number; finalScore?: number; finalAnswered?: number; finalCorrect?: number }[] };
     finalWinnerId?: number | null;
   }> {
     const tournament = await this.tournamentRepository.findOne({
@@ -4575,6 +4575,7 @@ export class TournamentsService implements OnModuleInit {
       const finalCorrect = q > semiPhase ? Math.max(0, totalCorrect - semiCorrect - semiTBSum) : 0;
       const finalScore = finalAnswered > 0 ? finalCorrect : undefined;
       return {
+        ...toPlayer(pl, false),
         id: pl.id,
         username: pl.username ?? 'Игрок',
         nickname: (pl as any).nickname ?? null,
@@ -4602,7 +4603,7 @@ export class TournamentsService implements OnModuleInit {
       return null;
     };
 
-    const finalPlayers: { id: number; username: string; nickname?: string | null; finalScore?: number; finalAnswered?: number; finalCorrect?: number }[] = [];
+    const finalPlayers: { id: number; username: string; nickname?: string | null; semiScore?: number; questionsAnswered?: number; correctAnswersCount?: number; finalScore?: number; finalAnswered?: number; finalCorrect?: number }[] = [];
     if (order.length >= 2) {
       const winner1 = semiWinner(0, 1);
       if (winner1) finalPlayers.push(enrichFinalPlayer(winner1, progressByUser.get(winner1.id)));
