@@ -5718,6 +5718,14 @@ button.bracket-player-name-btn:active {
   color: #d4af37;
   box-shadow: 0 0 0 1px rgba(212, 175, 55, 0.35);
 }
+.questions-review-modal--admin .questions-review-tab:hover,
+.questions-review-modal--admin .questions-review-tab.active:hover,
+.questions-review-modal--admin .questions-review-tab.active {
+  background: #101010;
+  border-color: #d4af37;
+  color: #d4af37;
+  box-shadow: 0 0 0 1px rgba(212, 175, 55, 0.35);
+}
 .questions-review-loading,
 .questions-review-error {
   margin: 0;
