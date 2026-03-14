@@ -9,6 +9,13 @@ import { TournamentEntry } from './tournament-entry.entity';
 import { TournamentResult } from './tournament-result.entity';
 import { TournamentProgress } from './tournament-progress.entity';
 import { TournamentEscrow } from './tournament-escrow.entity';
+import {
+  TournamentRoundResolution,
+  TournamentResolutionOutcome,
+  TournamentResolutionReason,
+  TournamentResolutionSource,
+  TournamentResolutionStage,
+} from './tournament-round-resolution.entity';
 import { User } from '../users/user.entity';
 import { Transaction } from '../users/transaction.entity';
 import { UsersService } from '../users/users.service';
@@ -113,6 +120,8 @@ export class TournamentsService implements OnModuleInit {
     private readonly tournamentProgressRepository: Repository<TournamentProgress>,
     @InjectRepository(TournamentEscrow)
     private readonly tournamentEscrowRepository: Repository<TournamentEscrow>,
+    @InjectRepository(TournamentRoundResolution)
+    private readonly tournamentRoundResolutionRepository: Repository<TournamentRoundResolution>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     @InjectRepository(Transaction)
@@ -123,6 +132,200 @@ export class TournamentsService implements OnModuleInit {
 
   private readonly logger = new Logger(TournamentsService.name);
 
+  private getResolutionMapKey(
+    tournamentId: number,
+    stage: TournamentResolutionStage,
+    pairIndex: number,
+  ): string {
+    return `${tournamentId}:${stage}:${pairIndex}`;
+  }
+
+  private buildLatestResolutionMap(
+    rows: TournamentRoundResolution[],
+  ): Map<string, TournamentRoundResolution> {
+    const map = new Map<string, TournamentRoundResolution>();
+    for (const row of rows) {
+      const key = this.getResolutionMapKey(row.tournamentId, row.stage, row.pairIndex);
+      const prev = map.get(key);
+      if (
+        !prev
+        || row.roundNumber > prev.roundNumber
+        || (
+          row.roundNumber === prev.roundNumber
+          && (row.resolvedAt?.getTime?.() ?? 0) > (prev.resolvedAt?.getTime?.() ?? 0)
+        )
+      ) {
+        map.set(key, row);
+      }
+    }
+    return map;
+  }
+
+  private getLatestResolutionFromMap(
+    map: Map<string, TournamentRoundResolution>,
+    tournamentId: number,
+    stage: TournamentResolutionStage,
+    pairIndex: number,
+  ): TournamentRoundResolution | null {
+    return map.get(this.getResolutionMapKey(tournamentId, stage, pairIndex)) ?? null;
+  }
+
+  private getRoundDeadlineDate(sharedStart: Date | null | undefined): Date | null {
+    if (!(sharedStart instanceof Date)) return null;
+    return new Date(sharedStart.getTime() + ROUND_DEADLINE_HOURS * 3600000);
+  }
+
+  private getSemiPairIndexBySlot(playerSlot: number): 0 | 1 | null {
+    if (playerSlot < 0) return null;
+    return playerSlot < 2 ? 0 : 1;
+  }
+
+  private getSemiPairUserIds(
+    order: number[] | null | undefined,
+    pairIndex: 0 | 1,
+  ): [number, number] {
+    const slotA = pairIndex === 0 ? 0 : 2;
+    const slotB = slotA + 1;
+    return [
+      slotA < (order?.length ?? 0) ? (order?.[slotA] ?? -1) : -1,
+      slotB < (order?.length ?? 0) ? (order?.[slotB] ?? -1) : -1,
+    ];
+  }
+
+  private getSemiCurrentRoundNumber(
+    p1: Pick<TournamentProgress, 'questionsAnsweredCount' | 'semiFinalCorrectCount' | 'tiebreakerRoundsCorrect'> | null | undefined,
+    p2: Pick<TournamentProgress, 'questionsAnsweredCount' | 'semiFinalCorrectCount' | 'tiebreakerRoundsCorrect'> | null | undefined,
+  ): number {
+    const semiState = this.getSemiHeadToHeadState(
+      p1?.questionsAnsweredCount ?? 0,
+      p1?.semiFinalCorrectCount,
+      p1?.tiebreakerRoundsCorrect,
+      p2?.questionsAnsweredCount ?? 0,
+      p2?.semiFinalCorrectCount,
+      p2?.tiebreakerRoundsCorrect,
+    );
+    return semiState.result === 'tie' ? (semiState.tiebreakerRound ?? 1) : 0;
+  }
+
+  private getFinalCurrentRoundNumber(
+    p1: TournamentProgress | null | undefined,
+    p2: TournamentProgress | null | undefined,
+  ): number {
+    const finalState = this.getFinalHeadToHeadState(p1, p2);
+    return finalState.result === 'tie' ? (finalState.tiebreakerRound ?? 1) : 0;
+  }
+
+  private getTimeoutOutcomeForUser(
+    resolution: TournamentRoundResolution | null | undefined,
+    userId: number,
+  ): 'won' | 'lost' | 'both_lost' | null {
+    if (!resolution || resolution.reason !== TournamentResolutionReason.TIMEOUT) return null;
+    if (resolution.outcome === TournamentResolutionOutcome.BOTH_LOST) return 'both_lost';
+    if (resolution.winnerUserId === userId) return 'won';
+    if (resolution.loserUserId === userId) return 'lost';
+    return null;
+  }
+
+  private async upsertTimeoutResolution(params: {
+    tournamentId: number;
+    stage: TournamentResolutionStage;
+    pairIndex: number;
+    roundNumber: number;
+    slotAUserId: number;
+    slotBUserId: number;
+    outcome: TournamentResolutionOutcome;
+    winnerUserId: number | null;
+    loserUserId: number | null;
+    sharedRoundStartedAt: Date | null;
+    deadlineAt: Date | null;
+    source: TournamentResolutionSource;
+    meta?: Record<string, unknown> | null;
+  }): Promise<TournamentRoundResolution> {
+    let row = await this.tournamentRoundResolutionRepository.findOne({
+      where: {
+        tournamentId: params.tournamentId,
+        stage: params.stage,
+        pairIndex: params.pairIndex,
+        roundNumber: params.roundNumber,
+      },
+    });
+
+    if (!row) {
+      row = this.tournamentRoundResolutionRepository.create({
+        tournamentId: params.tournamentId,
+        stage: params.stage,
+        pairIndex: params.pairIndex,
+        roundNumber: params.roundNumber,
+        slotAUserId: params.slotAUserId,
+        slotBUserId: params.slotBUserId,
+        outcome: params.outcome,
+        reason: TournamentResolutionReason.TIMEOUT,
+        winnerUserId: params.winnerUserId,
+        loserUserId: params.loserUserId,
+        sharedRoundStartedAt: params.sharedRoundStartedAt,
+        deadlineAt: params.deadlineAt,
+        source: params.source,
+        meta: params.meta ?? null,
+      });
+      return this.tournamentRoundResolutionRepository.save(row);
+    }
+
+    row.slotAUserId = params.slotAUserId;
+    row.slotBUserId = params.slotBUserId;
+    row.outcome = params.outcome;
+    row.reason = TournamentResolutionReason.TIMEOUT;
+    row.winnerUserId = params.winnerUserId;
+    row.loserUserId = params.loserUserId;
+    row.sharedRoundStartedAt = params.sharedRoundStartedAt;
+    row.deadlineAt = params.deadlineAt;
+    row.source = params.source;
+    row.meta = params.meta ?? null;
+    return this.tournamentRoundResolutionRepository.save(row);
+  }
+
+  private async getTournamentTimeoutResolutionMap(
+    tournamentId: number,
+  ): Promise<Map<string, TournamentRoundResolution>> {
+    const rows = await this.tournamentRoundResolutionRepository.find({
+      where: {
+        tournamentId,
+        reason: TournamentResolutionReason.TIMEOUT,
+      },
+    });
+    return this.buildLatestResolutionMap(rows);
+  }
+
+  private getOwnSemiTimeoutResolutionFromMap(
+    tournament: Tournament,
+    userId: number,
+    map: Map<string, TournamentRoundResolution>,
+  ): TournamentRoundResolution | null {
+    const order = tournament.playerOrder ?? [];
+    const playerSlot = order.indexOf(userId);
+    const pairIndex = this.getSemiPairIndexBySlot(playerSlot);
+    if (pairIndex == null) return null;
+    return this.getLatestResolutionFromMap(map, tournament.id, TournamentResolutionStage.SEMI, pairIndex);
+  }
+
+  private getOppositeSemiTimeoutResolutionFromMap(
+    tournament: Tournament,
+    userId: number,
+    map: Map<string, TournamentRoundResolution>,
+  ): TournamentRoundResolution | null {
+    const order = tournament.playerOrder ?? [];
+    const playerSlot = order.indexOf(userId);
+    if (playerSlot < 0 || order.length <= 2) return null;
+    const pairIndex: 0 | 1 = playerSlot < 2 ? 1 : 0;
+    return this.getLatestResolutionFromMap(map, tournament.id, TournamentResolutionStage.SEMI, pairIndex);
+  }
+
+  private getFinalTimeoutResolutionFromMap(
+    tournament: Tournament,
+    map: Map<string, TournamentRoundResolution>,
+  ): TournamentRoundResolution | null {
+    return this.getLatestResolutionFromMap(map, tournament.id, TournamentResolutionStage.FINAL, 0);
+  }
+
   async onModuleInit(): Promise<void> {
     await this.backfillTournamentResultCompletedAt().catch((err) => {
       this.logger.warn('backfillTournamentResultCompletedAt failed', err?.message ?? err);
@@ -132,6 +335,9 @@ export class TournamentsService implements OnModuleInit {
     });
     await this.backfillResolvedBracketResults().catch((err) => {
       this.logger.warn('backfillResolvedBracketResults failed', err?.message ?? err);
+    });
+    await this.backfillTimeoutRoundResolutions().catch((err) => {
+      this.logger.warn('backfillTimeoutRoundResolutions failed', err?.message ?? err);
     });
   }
 
@@ -292,6 +498,193 @@ export class TournamentsService implements OnModuleInit {
     return { updatedResults, updatedStatuses };
   }
 
+  async backfillTimeoutRoundResolutions(
+    onlyTournamentIds?: number[],
+  ): Promise<{ inserted: number }> {
+    const where: any = {};
+    if (onlyTournamentIds?.length) {
+      where.id = In(onlyTournamentIds);
+    }
+
+    const tournaments = await this.tournamentRepository.find({
+      where,
+      relations: ['players'],
+    });
+    if (tournaments.length === 0) return { inserted: 0 };
+
+    const tournamentIds = tournaments.map((t) => t.id);
+    const allProgress = await this.tournamentProgressRepository.find({
+      where: { tournamentId: In(tournamentIds) },
+    });
+    const timeoutResolutionRows = await this.tournamentRoundResolutionRepository.find({
+      where: {
+        tournamentId: In(tournamentIds),
+        reason: TournamentResolutionReason.TIMEOUT,
+      },
+    });
+    const timeoutResolutionMap = this.buildLatestResolutionMap(timeoutResolutionRows);
+    const progressByTournament = new Map<number, Map<number, TournamentProgress>>();
+    for (const progress of allProgress) {
+      if (!progressByTournament.has(progress.tournamentId)) {
+        progressByTournament.set(progress.tournamentId, new Map());
+      }
+      progressByTournament.get(progress.tournamentId)!.set(progress.userId, progress);
+    }
+
+    let inserted = 0;
+    const rememberResolution = (row: TournamentRoundResolution) => {
+      timeoutResolutionMap.set(
+        this.getResolutionMapKey(row.tournamentId, row.stage, row.pairIndex),
+        row,
+      );
+      inserted++;
+    };
+
+    const getPairWinnerProgress = (
+      tournament: Tournament,
+      pairIndex: 0 | 1,
+      progressByUser: Map<number, TournamentProgress>,
+    ): TournamentProgress | null => {
+      const pairResolution = this.getLatestResolutionFromMap(
+        timeoutResolutionMap,
+        tournament.id,
+        TournamentResolutionStage.SEMI,
+        pairIndex,
+      );
+      if (pairResolution?.winnerUserId) {
+        return progressByUser.get(pairResolution.winnerUserId) ?? null;
+      }
+      if (pairResolution?.outcome === TournamentResolutionOutcome.BOTH_LOST) {
+        return null;
+      }
+      const [slotAUserId, slotBUserId] = this.getSemiPairUserIds(tournament.playerOrder ?? [], pairIndex);
+      return this.findSemiWinner(
+        progressByUser.get(slotAUserId) ?? null,
+        progressByUser.get(slotBUserId) ?? null,
+        true,
+      );
+    };
+
+    for (const tournament of tournaments) {
+      this.sortPlayersByOrder(tournament);
+      const order = tournament.playerOrder ?? [];
+      const realCount = order.filter((id) => id > 0).length;
+      if (realCount < 2) continue;
+
+      const progressByUser = progressByTournament.get(tournament.id) ?? new Map<number, TournamentProgress>();
+
+      for (const pairIndex of [0, 1] as const) {
+        if (pairIndex === 1 && order.length < 4) continue;
+        if (this.getLatestResolutionFromMap(timeoutResolutionMap, tournament.id, TournamentResolutionStage.SEMI, pairIndex)) {
+          continue;
+        }
+
+        const [slotAUserId, slotBUserId] = this.getSemiPairUserIds(order, pairIndex);
+        if (!(slotAUserId > 0) || !(slotBUserId > 0)) continue;
+
+        const p1 = progressByUser.get(slotAUserId) ?? null;
+        const p2 = progressByUser.get(slotBUserId) ?? null;
+        const deadlinePassed = this.isSemiPairDeadlinePassed(p1, p2);
+        const timeoutOutcome = this.getSemiPairTimeoutOutcome(p1, p2, deadlinePassed);
+        if (timeoutOutcome === 'none') continue;
+
+        const row = await this.upsertTimeoutResolution({
+          tournamentId: tournament.id,
+          stage: TournamentResolutionStage.SEMI,
+          pairIndex,
+          roundNumber: this.getSemiCurrentRoundNumber(p1, p2),
+          slotAUserId,
+          slotBUserId,
+          outcome:
+            timeoutOutcome === 'p1_wins'
+              ? TournamentResolutionOutcome.SLOT_A_WINS
+              : timeoutOutcome === 'p2_wins'
+                ? TournamentResolutionOutcome.SLOT_B_WINS
+                : TournamentResolutionOutcome.BOTH_LOST,
+          winnerUserId: timeoutOutcome === 'p1_wins' ? slotAUserId : timeoutOutcome === 'p2_wins' ? slotBUserId : null,
+          loserUserId: timeoutOutcome === 'p1_wins' ? slotBUserId : timeoutOutcome === 'p2_wins' ? slotAUserId : null,
+          sharedRoundStartedAt: this.getSharedRoundStartForPair(p1, p2),
+          deadlineAt: this.getRoundDeadlineDate(this.getSharedRoundStartForPair(p1, p2)),
+          source: TournamentResolutionSource.BACKFILL,
+        });
+        rememberResolution(row);
+      }
+
+      if (realCount < 4) continue;
+      if (this.getLatestResolutionFromMap(timeoutResolutionMap, tournament.id, TournamentResolutionStage.FINAL, 0)) {
+        continue;
+      }
+
+      const finalist1 = getPairWinnerProgress(tournament, 0, progressByUser);
+      const finalist2 = getPairWinnerProgress(tournament, 1, progressByUser);
+      if (!finalist1 || !finalist2) continue;
+
+      const finalSharedStart = this.getSharedRoundStartForPair(finalist1, finalist2);
+      if (!this.isRoundDeadlinePassed(finalSharedStart)) continue;
+
+      const finalTargets = this.getFinalCurrentRoundTargets(finalist1, finalist2);
+      const f1Finished = (finalist1.questionsAnsweredCount ?? 0) >= finalTargets.p1Target;
+      const f2Finished = (finalist2.questionsAnsweredCount ?? 0) >= finalTargets.p2Target;
+      if (f1Finished && f2Finished) continue;
+
+      const getFinalCorrectCount = (progress: TournamentProgress): number => {
+        const total = progress.correctAnswersCount ?? 0;
+        const semi = progress.semiFinalCorrectCount ?? 0;
+        const tbSum = (progress.tiebreakerRoundsCorrect ?? []).reduce((a: number, b: number) => a + b, 0);
+        return total - semi - tbSum;
+      };
+
+      let outcome: TournamentResolutionOutcome | null = null;
+      let winnerUserId: number | null = null;
+      let loserUserId: number | null = null;
+
+      if (f1Finished && !f2Finished) {
+        const f1Correct = getFinalCorrectCount(finalist1);
+        if (f1Correct > 0) {
+          outcome = TournamentResolutionOutcome.SLOT_A_WINS;
+          winnerUserId = finalist1.userId;
+          loserUserId = finalist2.userId;
+        } else {
+          outcome = TournamentResolutionOutcome.BOTH_LOST;
+        }
+      } else if (f2Finished && !f1Finished) {
+        const f2Correct = getFinalCorrectCount(finalist2);
+        if (f2Correct > 0) {
+          outcome = TournamentResolutionOutcome.SLOT_B_WINS;
+          winnerUserId = finalist2.userId;
+          loserUserId = finalist1.userId;
+        } else {
+          outcome = TournamentResolutionOutcome.BOTH_LOST;
+        }
+      } else if (!f1Finished && !f2Finished) {
+        outcome = TournamentResolutionOutcome.BOTH_LOST;
+      }
+
+      if (!outcome) continue;
+
+      const row = await this.upsertTimeoutResolution({
+        tournamentId: tournament.id,
+        stage: TournamentResolutionStage.FINAL,
+        pairIndex: 0,
+        roundNumber: this.getFinalCurrentRoundNumber(finalist1, finalist2),
+        slotAUserId: finalist1.userId,
+        slotBUserId: finalist2.userId,
+        outcome,
+        winnerUserId,
+        loserUserId,
+        sharedRoundStartedAt: finalSharedStart,
+        deadlineAt: this.getRoundDeadlineDate(finalSharedStart),
+        source: TournamentResolutionSource.BACKFILL,
+      });
+      rememberResolution(row);
+    }
+
+    if (inserted > 0) {
+      this.logger.log(`backfillTimeoutRoundResolutions: inserted ${inserted} rows`);
+    }
+    return { inserted };
+  }
+
   async backfillResolvedBracketResults(): Promise<{ updatedResults: number; updatedStatuses: number }> {
     const tournaments = await this.tournamentRepository.find({
       where: { status: TournamentStatus.FINISHED },
@@ -353,10 +746,12 @@ export class TournamentsService implements OnModuleInit {
       const semi1BothLost = this.didSemiPairBothLoseByTimeout(
         progressByUser.get(order[0]) ?? null,
         progressByUser.get(order[1]) ?? null,
+        true,
       );
       const semi2BothLost = this.didSemiPairBothLoseByTimeout(
         progressByUser.get(order[2]) ?? null,
         progressByUser.get(order[3]) ?? null,
+        true,
       );
 
       let winnerId: number | null = null;
@@ -564,6 +959,26 @@ export class TournamentsService implements OnModuleInit {
     return now.getTime() - roundStartedAt.getTime() > ROUND_DEADLINE_HOURS * 3600000;
   }
 
+  private getSharedRoundStartForPair(
+    p1: Pick<TournamentProgress, 'roundStartedAt'> | null | undefined,
+    p2: Pick<TournamentProgress, 'roundStartedAt'> | null | undefined,
+  ): Date | null {
+    if (!p1 || !p2) return null;
+    const s1 = p1.roundStartedAt;
+    const s2 = p2.roundStartedAt;
+    if (!(s1 instanceof Date) || !(s2 instanceof Date)) return null;
+    return new Date(Math.max(s1.getTime(), s2.getTime()));
+  }
+
+  private isSemiPairDeadlinePassed(
+    p1: Pick<TournamentProgress, 'roundStartedAt'> | null | undefined,
+    p2: Pick<TournamentProgress, 'roundStartedAt'> | null | undefined,
+    now: Date = new Date(),
+  ): boolean {
+    const sharedStart = this.getSharedRoundStartForPair(p1, p2);
+    return this.isRoundDeadlinePassed(sharedStart, now);
+  }
+
   private getSoloFinalOutcome(
     prog: TournamentProgress | null | undefined,
     deadlinePassed = false,
@@ -585,33 +1000,47 @@ export class TournamentsService implements OnModuleInit {
   private getSoloFinalistByOppositeSemiTimeout(
     tournament: Tournament,
     allProgress: TournamentProgress[],
+    resolutionMap?: Map<string, TournamentRoundResolution>,
   ): TournamentProgress | null {
     this.sortPlayersByOrder(tournament);
     const order = tournament.playerOrder ?? [];
     if (order.filter((id) => id > 0).length < 4) return null;
 
     const progressByUser = new Map(allProgress.map((progress) => [progress.userId, progress]));
-    const semiWinner1 = this.findSemiWinner(
-      progressByUser.get(order[0] ?? -1) ?? null,
-      progressByUser.get(order[1] ?? -1) ?? null,
-      true,
-    );
-    const semiWinner2 = this.findSemiWinner(
-      progressByUser.get(order[2] ?? -1) ?? null,
-      progressByUser.get(order[3] ?? -1) ?? null,
-      true,
-    );
-    const semi1BothLost = this.didSemiPairBothLoseByTimeout(
-      progressByUser.get(order[0] ?? -1) ?? null,
-      progressByUser.get(order[1] ?? -1) ?? null,
-    );
-    const semi2BothLost = this.didSemiPairBothLoseByTimeout(
-      progressByUser.get(order[2] ?? -1) ?? null,
-      progressByUser.get(order[3] ?? -1) ?? null,
-    );
 
-    if (semiWinner1 && !semiWinner2 && semi2BothLost) return semiWinner1;
-    if (!semiWinner1 && semiWinner2 && semi1BothLost) return semiWinner2;
+    const getPairResolvedState = (pairIndex: 0 | 1): { winner: TournamentProgress | null; bothLost: boolean } => {
+      const [slotAUserId, slotBUserId] = this.getSemiPairUserIds(order, pairIndex);
+      const pairResolution = resolutionMap
+        ? this.getLatestResolutionFromMap(resolutionMap, tournament.id, TournamentResolutionStage.SEMI, pairIndex)
+        : null;
+      if (pairResolution) {
+        if (pairResolution.outcome === TournamentResolutionOutcome.BOTH_LOST) {
+          return { winner: null, bothLost: true };
+        }
+        const winnerId = pairResolution.winnerUserId;
+        return {
+          winner: winnerId ? (progressByUser.get(winnerId) ?? null) : null,
+          bothLost: false,
+        };
+      }
+
+      const p1 = progressByUser.get(slotAUserId ?? -1) ?? null;
+      const p2 = progressByUser.get(slotBUserId ?? -1) ?? null;
+      return {
+        winner: this.findSemiWinner(p1, p2, true),
+        bothLost: this.didSemiPairBothLoseByTimeout(
+          p1,
+          p2,
+          this.isSemiPairDeadlinePassed(p1, p2),
+        ),
+      };
+    };
+
+    const pair1 = getPairResolvedState(0);
+    const pair2 = getPairResolvedState(1);
+
+    if (pair1.winner && !pair2.winner && pair2.bothLost) return pair1.winner;
+    if (!pair1.winner && pair2.winner && pair1.bothLost) return pair2.winner;
     return null;
   }
 
@@ -620,8 +1049,8 @@ export class TournamentsService implements OnModuleInit {
   }
 
   private getSemiCurrentRoundTargets(
-    p1: TournamentProgress | null | undefined,
-    p2: TournamentProgress | null | undefined,
+    p1: Pick<TournamentProgress, 'questionsAnsweredCount' | 'semiFinalCorrectCount' | 'tiebreakerRoundsCorrect'> | null | undefined,
+    p2: Pick<TournamentProgress, 'questionsAnsweredCount' | 'semiFinalCorrectCount' | 'tiebreakerRoundsCorrect'> | null | undefined,
   ): { p1Target: number; p2Target: number } {
     const semiState = this.getSemiHeadToHeadState(
       p1?.questionsAnsweredCount ?? 0,
@@ -634,6 +1063,21 @@ export class TournamentsService implements OnModuleInit {
     const extraRounds = semiState.result === 'tie' ? (semiState.tiebreakerRound ?? 1) : 0;
     const target = this.QUESTIONS_PER_ROUND + extraRounds * this.TIEBREAKER_QUESTIONS;
     return { p1Target: target, p2Target: target };
+  }
+
+  private getSemiPairTimeoutOutcome(
+    p1: Pick<TournamentProgress, 'questionsAnsweredCount' | 'semiFinalCorrectCount' | 'tiebreakerRoundsCorrect'> | null | undefined,
+    p2: Pick<TournamentProgress, 'questionsAnsweredCount' | 'semiFinalCorrectCount' | 'tiebreakerRoundsCorrect'> | null | undefined,
+    deadlinePassed = false,
+  ): 'none' | 'p1_wins' | 'p2_wins' | 'both_lost' {
+    if (!deadlinePassed || !p1 || !p2) return 'none';
+    const semiTargets = this.getSemiCurrentRoundTargets(p1, p2);
+    const p1Finished = (p1.questionsAnsweredCount ?? 0) >= semiTargets.p1Target;
+    const p2Finished = (p2.questionsAnsweredCount ?? 0) >= semiTargets.p2Target;
+    if (p1Finished && !p2Finished) return 'p1_wins';
+    if (!p1Finished && p2Finished) return 'p2_wins';
+    if (!p1Finished && !p2Finished) return 'both_lost';
+    return 'none';
   }
 
   private getFinalCurrentRoundTargets(
@@ -741,6 +1185,7 @@ export class TournamentsService implements OnModuleInit {
     userId: number,
     myProg: TournamentProgress | undefined | null,
     allProgress: TournamentProgress[],
+    resolutionMap?: Map<string, TournamentRoundResolution>,
   ): Date | null {
     if (!myProg) return null;
 
@@ -748,7 +1193,7 @@ export class TournamentsService implements OnModuleInit {
     const playerSlot = tournament.playerOrder?.indexOf(userId) ?? -1;
     if (playerSlot < 0) return null;
 
-    const inFinal = this.isPlayerInFinalPhase(myProg, allProgress, tournament);
+    const inFinal = this.isPlayerInFinalPhase(myProg, allProgress, tournament, resolutionMap);
     if (inFinal) {
       const otherSlots: [number, number] = playerSlot < 2 ? [2, 3] : [0, 1];
       const fOpp1 = otherSlots[0] < (tournament.playerOrder?.length ?? 0) ? (tournament.playerOrder![otherSlots[0]]) : -1;
@@ -767,10 +1212,8 @@ export class TournamentsService implements OnModuleInit {
         );
         if (st.result === 'won') finalOppProg = fPr1;
         else if (st.result === 'lost') finalOppProg = fPr2;
-      } else {
-        finalOppProg = fPr1 ?? fPr2 ?? null;
       }
-      if (finalOppProg && this.isPlayerInFinalPhase(finalOppProg, allProgress, tournament)) {
+      if (finalOppProg && this.isPlayerInFinalPhase(finalOppProg, allProgress, tournament, resolutionMap)) {
         const shared = this.getSharedSemiTiebreakerStart(myProg, finalOppProg);
         if (shared) return shared;
         // Соперник в финале уже ответил на все вопросы финала — у него таймера нет; у входящего (текущий игрок) берём его roundStartedAt, чтобы таймер загорелся у входящего.
@@ -779,7 +1222,7 @@ export class TournamentsService implements OnModuleInit {
           return myProg.roundStartedAt;
         }
       }
-      const soloFinalist = this.getSoloFinalistByOppositeSemiTimeout(tournament, allProgress);
+      const soloFinalist = this.getSoloFinalistByOppositeSemiTimeout(tournament, allProgress, resolutionMap);
       if (soloFinalist?.userId === userId && myProg.roundStartedAt instanceof Date) {
         return myProg.roundStartedAt;
       }
@@ -800,6 +1243,7 @@ export class TournamentsService implements OnModuleInit {
     myProg: TournamentProgress | undefined | null,
     allProgress: TournamentProgress[],
     tournament: Tournament | undefined,
+    resolutionMap?: Map<string, TournamentRoundResolution>,
   ): boolean {
     if (!myProg || !tournament) return false;
     const myQ = myProg.questionsAnsweredCount ?? 0;
@@ -817,11 +1261,18 @@ export class TournamentsService implements OnModuleInit {
     const myTBLen = (myProg.tiebreakerRoundsCorrect ?? []).length;
     const mySemiTotal = this.QUESTIONS_PER_ROUND + myTBLen * this.TIEBREAKER_QUESTIONS;
 
+    const timeoutResolution = resolutionMap
+      ? this.getOwnSemiTimeoutResolutionFromMap(tournament, myProg.userId, resolutionMap)
+      : null;
+    const timeoutOutcome = this.getTimeoutOutcomeForUser(timeoutResolution, myProg.userId);
+    if (timeoutOutcome === 'won') return true;
+    if (timeoutOutcome === 'lost' || timeoutOutcome === 'both_lost') return false;
+
     if (oppId == null || oppId <= 0) return false;
 
     const oppProg = allProgress.find((p) => p.tournamentId === myProg.tournamentId && p.userId === oppId);
     if (!oppProg || oppProg.semiFinalCorrectCount == null) {
-      return myQ > mySemiTotal;
+      return false;
     }
 
     const semiState = this.getSemiHeadToHeadState(
@@ -898,6 +1349,7 @@ export class TournamentsService implements OnModuleInit {
         this.sortPlayersByOrder(tournament);
         const allProg = await this.tournamentProgressRepository.find({ where: { tournamentId: tournament.id } });
         const entries = await this.tournamentEntryRepository.find({ where: { tournament: { id: tournament.id } } as any });
+        const timeoutResolutionMap = await this.getTournamentTimeoutResolutionMap(tournament.id);
 
         const getPlayerRoundStart = (uid: number): Date | null => {
           const prog = allProg.find((p) => p.userId === uid);
@@ -918,6 +1370,12 @@ export class TournamentsService implements OnModuleInit {
           if (row) { row.passed = passed ? 1 : 0; if (!row.completedAt) row.completedAt = new Date(); await this.tournamentResultRepository.save(row); }
           else { await this.tournamentResultRepository.save(this.tournamentResultRepository.create({ userId: uid, tournamentId: tournament.id, passed: passed ? 1 : 0, completedAt: new Date() })); }
         };
+        const rememberResolution = (row: TournamentRoundResolution) => {
+          timeoutResolutionMap.set(
+            this.getResolutionMapKey(row.tournamentId, row.stage, row.pairIndex),
+            row,
+          );
+        };
 
         let tournamentResolved = false;
         const semiOutcomes: Array<{ winnerId: number | null; bothLost: boolean }> = [
@@ -933,20 +1391,62 @@ export class TournamentsService implements OnModuleInit {
 
           const prog1 = allProg.find((p) => p.userId === id1) ?? null;
           const prog2 = allProg.find((p) => p.userId === id2) ?? null;
-          const semiTargets = this.getSemiCurrentRoundTargets(prog1, prog2);
+          const timeoutOutcome = this.getSemiPairTimeoutOutcome(prog1, prog2, true);
+          const sharedStart = this.getSharedRoundStartForPair(prog1, prog2);
+          const deadlineAt = this.getRoundDeadlineDate(sharedStart);
+          const roundNumber = this.getSemiCurrentRoundNumber(prog1, prog2);
 
-          const p1Finished = (prog1?.questionsAnsweredCount ?? 0) >= semiTargets.p1Target;
-          const p2Finished = (prog2?.questionsAnsweredCount ?? 0) >= semiTargets.p2Target;
-
-          if (p1Finished && !p2Finished) {
+          if (timeoutOutcome === 'p1_wins') {
+            rememberResolution(await this.upsertTimeoutResolution({
+              tournamentId: tournament.id,
+              stage: TournamentResolutionStage.SEMI,
+              pairIndex,
+              roundNumber,
+              slotAUserId: id1,
+              slotBUserId: id2,
+              outcome: TournamentResolutionOutcome.SLOT_A_WINS,
+              winnerUserId: id1,
+              loserUserId: id2,
+              sharedRoundStartedAt: sharedStart,
+              deadlineAt,
+              source: TournamentResolutionSource.CRON,
+            }));
             this.logger.log(`[closeTimedOutRounds] T${tournament.id}: player ${id2} timed out, ${id1} wins`);
             await saveResult(id2, false);
             semiOutcomes[pairIndex] = { winnerId: id1, bothLost: false };
-          } else if (p2Finished && !p1Finished) {
+          } else if (timeoutOutcome === 'p2_wins') {
+            rememberResolution(await this.upsertTimeoutResolution({
+              tournamentId: tournament.id,
+              stage: TournamentResolutionStage.SEMI,
+              pairIndex,
+              roundNumber,
+              slotAUserId: id1,
+              slotBUserId: id2,
+              outcome: TournamentResolutionOutcome.SLOT_B_WINS,
+              winnerUserId: id2,
+              loserUserId: id1,
+              sharedRoundStartedAt: sharedStart,
+              deadlineAt,
+              source: TournamentResolutionSource.CRON,
+            }));
             this.logger.log(`[closeTimedOutRounds] T${tournament.id}: player ${id1} timed out, ${id2} wins`);
             await saveResult(id1, false);
             semiOutcomes[pairIndex] = { winnerId: id2, bothLost: false };
-          } else if (!p1Finished && !p2Finished) {
+          } else if (timeoutOutcome === 'both_lost') {
+            rememberResolution(await this.upsertTimeoutResolution({
+              tournamentId: tournament.id,
+              stage: TournamentResolutionStage.SEMI,
+              pairIndex,
+              roundNumber,
+              slotAUserId: id1,
+              slotBUserId: id2,
+              outcome: TournamentResolutionOutcome.BOTH_LOST,
+              winnerUserId: null,
+              loserUserId: null,
+              sharedRoundStartedAt: sharedStart,
+              deadlineAt,
+              source: TournamentResolutionSource.CRON,
+            }));
             this.logger.log(`[closeTimedOutRounds] T${tournament.id}: both ${id1} and ${id2} timed out`);
             await saveResult(id1, false);
             await saveResult(id2, false);
@@ -970,7 +1470,7 @@ export class TournamentsService implements OnModuleInit {
 
         const finalists: number[] = [];
         for (const prog of allProg) {
-          if (this.isPlayerInFinalPhase(prog, allProg, tournament)) {
+          if (this.isPlayerInFinalPhase(prog, allProg, tournament, timeoutResolutionMap)) {
             finalists.push(prog.userId);
           }
         }
@@ -1004,6 +1504,9 @@ export class TournamentsService implements OnModuleInit {
             const finalTargets = this.getFinalCurrentRoundTargets(f1Prog, f2Prog);
             const f1Finished = (f1Prog?.questionsAnsweredCount ?? 0) >= finalTargets.p1Target;
             const f2Finished = (f2Prog?.questionsAnsweredCount ?? 0) >= finalTargets.p2Target;
+            const finalSharedStart = this.getSharedRoundStartForPair(f1Prog, f2Prog);
+            const finalDeadlineAt = this.getRoundDeadlineDate(finalSharedStart);
+            const finalRoundNumber = this.getFinalCurrentRoundNumber(f1Prog, f2Prog);
 
             const getFinalCorrectCount = (uid: number): number => {
               const prog = allProg.find((p) => p.userId === uid);
@@ -1017,10 +1520,38 @@ export class TournamentsService implements OnModuleInit {
             if (f1Finished && !f2Finished) {
               const f1c = getFinalCorrectCount(f1);
               if (f1c === 0) {
+                rememberResolution(await this.upsertTimeoutResolution({
+                  tournamentId: tournament.id,
+                  stage: TournamentResolutionStage.FINAL,
+                  pairIndex: 0,
+                  roundNumber: finalRoundNumber,
+                  slotAUserId: f1,
+                  slotBUserId: f2,
+                  outcome: TournamentResolutionOutcome.BOTH_LOST,
+                  winnerUserId: null,
+                  loserUserId: null,
+                  sharedRoundStartedAt: finalSharedStart,
+                  deadlineAt: finalDeadlineAt,
+                  source: TournamentResolutionSource.CRON,
+                }));
                 this.logger.log(`[closeTimedOutRounds] T${tournament.id} final: ${f1} finished with 0 correct, ${f2} timed out → both lose`);
                 await saveResult(f1, false);
                 await saveResult(f2, false);
               } else {
+                rememberResolution(await this.upsertTimeoutResolution({
+                  tournamentId: tournament.id,
+                  stage: TournamentResolutionStage.FINAL,
+                  pairIndex: 0,
+                  roundNumber: finalRoundNumber,
+                  slotAUserId: f1,
+                  slotBUserId: f2,
+                  outcome: TournamentResolutionOutcome.SLOT_A_WINS,
+                  winnerUserId: f1,
+                  loserUserId: f2,
+                  sharedRoundStartedAt: finalSharedStart,
+                  deadlineAt: finalDeadlineAt,
+                  source: TournamentResolutionSource.CRON,
+                }));
                 this.logger.log(`[closeTimedOutRounds] T${tournament.id} final: ${f2} timed out, ${f1} wins (${f1c} correct)`);
                 await saveResult(f1, true);
                 await saveResult(f2, false);
@@ -1029,16 +1560,58 @@ export class TournamentsService implements OnModuleInit {
             } else if (f2Finished && !f1Finished) {
               const f2c = getFinalCorrectCount(f2);
               if (f2c === 0) {
+                rememberResolution(await this.upsertTimeoutResolution({
+                  tournamentId: tournament.id,
+                  stage: TournamentResolutionStage.FINAL,
+                  pairIndex: 0,
+                  roundNumber: finalRoundNumber,
+                  slotAUserId: f1,
+                  slotBUserId: f2,
+                  outcome: TournamentResolutionOutcome.BOTH_LOST,
+                  winnerUserId: null,
+                  loserUserId: null,
+                  sharedRoundStartedAt: finalSharedStart,
+                  deadlineAt: finalDeadlineAt,
+                  source: TournamentResolutionSource.CRON,
+                }));
                 this.logger.log(`[closeTimedOutRounds] T${tournament.id} final: ${f2} finished with 0 correct, ${f1} timed out → both lose`);
                 await saveResult(f1, false);
                 await saveResult(f2, false);
               } else {
+                rememberResolution(await this.upsertTimeoutResolution({
+                  tournamentId: tournament.id,
+                  stage: TournamentResolutionStage.FINAL,
+                  pairIndex: 0,
+                  roundNumber: finalRoundNumber,
+                  slotAUserId: f1,
+                  slotBUserId: f2,
+                  outcome: TournamentResolutionOutcome.SLOT_B_WINS,
+                  winnerUserId: f2,
+                  loserUserId: f1,
+                  sharedRoundStartedAt: finalSharedStart,
+                  deadlineAt: finalDeadlineAt,
+                  source: TournamentResolutionSource.CRON,
+                }));
                 this.logger.log(`[closeTimedOutRounds] T${tournament.id} final: ${f1} timed out, ${f2} wins (${f2c} correct)`);
                 await saveResult(f2, true);
                 await saveResult(f1, false);
               }
               tournamentResolved = true;
             } else if (!f1Finished && !f2Finished) {
+              rememberResolution(await this.upsertTimeoutResolution({
+                tournamentId: tournament.id,
+                stage: TournamentResolutionStage.FINAL,
+                pairIndex: 0,
+                roundNumber: finalRoundNumber,
+                slotAUserId: f1,
+                slotBUserId: f2,
+                outcome: TournamentResolutionOutcome.BOTH_LOST,
+                winnerUserId: null,
+                loserUserId: null,
+                sharedRoundStartedAt: finalSharedStart,
+                deadlineAt: finalDeadlineAt,
+                source: TournamentResolutionSource.CRON,
+              }));
               this.logger.log(`[closeTimedOutRounds] T${tournament.id} final: both finalists timed out`);
               await saveResult(f1, false);
               await saveResult(f2, false);
@@ -2188,14 +2761,50 @@ export class TournamentsService implements OnModuleInit {
       }
     }
 
+    const timeoutResolutionRows = allIds.length > 0
+      ? await this.tournamentRoundResolutionRepository.find({
+        where: {
+          tournamentId: In(allIds),
+          reason: TournamentResolutionReason.TIMEOUT,
+        },
+      })
+      : [];
+    const timeoutResolutionMap = this.buildLatestResolutionMap(timeoutResolutionRows);
+
     const lostSemiByTid = new Map<number, boolean>();
 
     const getPlayerCount = (t: Tournament): number =>
       t.playerOrder?.length ?? t.players?.length ?? 0;
 
+    const getOwnSemiTimeoutResolution = (t: Tournament): TournamentRoundResolution | null => {
+      const order = t.playerOrder ?? [];
+      const playerSlot = order.indexOf(userId);
+      const pairIndex = this.getSemiPairIndexBySlot(playerSlot);
+      if (pairIndex == null) return null;
+      return this.getLatestResolutionFromMap(timeoutResolutionMap, t.id, TournamentResolutionStage.SEMI, pairIndex);
+    };
+
+    const getOppositeSemiTimeoutResolution = (t: Tournament): TournamentRoundResolution | null => {
+      const order = t.playerOrder ?? [];
+      const playerSlot = order.indexOf(userId);
+      if (playerSlot < 0 || order.length <= 2) return null;
+      const pairIndex: 0 | 1 = playerSlot < 2 ? 1 : 0;
+      return this.getLatestResolutionFromMap(timeoutResolutionMap, t.id, TournamentResolutionStage.SEMI, pairIndex);
+    };
+
+    const getFinalTimeoutResolution = (t: Tournament): TournamentRoundResolution | null =>
+      this.getLatestResolutionFromMap(timeoutResolutionMap, t.id, TournamentResolutionStage.FINAL, 0);
+
     const getMoneySemiResult = (
       t: Tournament,
-    ): { result: 'won' | 'lost' | 'tie' | 'incomplete'; tiebreakerRound?: number; noOpponent?: boolean } => {
+    ): {
+      result: 'won' | 'lost' | 'tie' | 'incomplete';
+      tiebreakerRound?: number;
+      noOpponent?: boolean;
+      timedOut?: boolean;
+      bothLost?: boolean;
+      resolution?: TournamentRoundResolution | null;
+    } => {
       const order = t.playerOrder;
       if (!order || order.length < 2) return { result: 'incomplete' };
       const playerSlot = order.indexOf(userId);
@@ -2209,6 +2818,12 @@ export class TournamentsService implements OnModuleInit {
 
       // В паре нет соперника (ожидание игрока) — не считаем победой, турнир остаётся в активных.
       if (noOpponent) return { result: 'incomplete', noOpponent: true };
+
+      const timeoutResolution = getOwnSemiTimeoutResolution(t);
+      const timeoutOutcome = this.getTimeoutOutcomeForUser(timeoutResolution, userId);
+      if (timeoutOutcome === 'won') return { result: 'won', timedOut: true, resolution: timeoutResolution };
+      if (timeoutOutcome === 'lost') return { result: 'lost', timedOut: true, resolution: timeoutResolution };
+      if (timeoutOutcome === 'both_lost') return { result: 'lost', timedOut: true, bothLost: true, resolution: timeoutResolution };
 
       const opponentId = order[opponentSlot];
 
@@ -2252,6 +2867,14 @@ export class TournamentsService implements OnModuleInit {
 
       if (!p1Valid && !p2Valid) return null;
 
+      const timeoutResolution = getOppositeSemiTimeoutResolution(t);
+      if (timeoutResolution) {
+        if (timeoutResolution.outcome === TournamentResolutionOutcome.BOTH_LOST) return null;
+        const winnerId = timeoutResolution.winnerUserId;
+        if (!(winnerId && winnerId > 0)) return null;
+        return progressByTidAndUser.get(t.id)?.get(winnerId) ?? null;
+      }
+
       if (p1Valid && p2Valid) {
         const prog1 = progressByTidAndUser.get(t.id)?.get(p1Id);
         const prog2 = progressByTidAndUser.get(t.id)?.get(p2Id);
@@ -2269,13 +2892,14 @@ export class TournamentsService implements OnModuleInit {
         return null;
       }
 
-      const soloId = p1Valid ? p1Id : p2Id;
-      const soloProg = progressByTidAndUser.get(t.id)?.get(soloId);
-      if (!soloProg || (soloProg.q ?? 0) < QUESTIONS_PER_ROUND) return null;
-      return soloProg;
+      return null;
     };
 
     const didOppositeSemiBothLoseByTimeout = (t: Tournament): boolean => {
+      const timeoutResolution = getOppositeSemiTimeoutResolution(t);
+      if (timeoutResolution) {
+        return timeoutResolution.outcome === TournamentResolutionOutcome.BOTH_LOST;
+      }
       const order = t.playerOrder;
       if (!order || order.length <= 2) return false;
       const playerSlot = order.indexOf(userId);
@@ -2286,7 +2910,22 @@ export class TournamentsService implements OnModuleInit {
       if (!(p1Id > 0) || !(p2Id > 0)) return false;
       const prog1 = progressByTidAndUser.get(t.id)?.get(p1Id);
       const prog2 = progressByTidAndUser.get(t.id)?.get(p2Id);
-      return (prog1?.q ?? 0) < QUESTIONS_PER_ROUND && (prog2?.q ?? 0) < QUESTIONS_PER_ROUND;
+      const s1 = prog1?.roundStartedAt;
+      const s2 = prog2?.roundStartedAt;
+      if (!(s1 instanceof Date) || !(s2 instanceof Date)) return false;
+      const sharedStart = new Date(Math.max(s1.getTime(), s2.getTime()));
+      if (!this.isRoundDeadlinePassed(sharedStart, now)) return false;
+      const semiState = this.getSemiHeadToHeadState(
+        prog1?.q ?? 0,
+        prog1?.semiCorrect,
+        prog1?.tiebreakerRounds,
+        prog2?.q ?? 0,
+        prog2?.semiCorrect,
+        prog2?.tiebreakerRounds,
+      );
+      const extraRounds = semiState.result === 'tie' ? (semiState.tiebreakerRound ?? 1) : 0;
+      const target = QUESTIONS_PER_ROUND + extraRounds * TIEBREAKER_QUESTIONS;
+      return (prog1?.q ?? 0) < target && (prog2?.q ?? 0) < target;
     };
 
     const now = new Date();
@@ -2397,6 +3036,12 @@ export class TournamentsService implements OnModuleInit {
       t: Tournament,
       myProg: ProgressData,
     ): 'won' | 'lost' | 'tie' | 'incomplete' => {
+      const finalTimeoutResolution = getFinalTimeoutResolution(t);
+      const finalTimeoutOutcome = this.getTimeoutOutcomeForUser(finalTimeoutResolution, userId);
+      if (finalTimeoutOutcome === 'won') return 'won';
+      if (finalTimeoutOutcome === 'lost') return 'lost';
+      if (finalTimeoutOutcome === 'both_lost') return 'tie';
+
       const otherFin = getOtherFinalist(t);
       if (!otherFin) {
         if (didOppositeSemiBothLoseByTimeout(t)) {
@@ -2731,6 +3376,7 @@ export class TournamentsService implements OnModuleInit {
           return formatScoreLabel('Победа', progWin ? getFinalScore(t, progWin) : null);
         }
         const semiResFin = getMoneySemiResult(t);
+        if (semiResFin.timedOut && semiResFin.result === 'lost') return formatTimeoutDefeatLabel();
         if (semiResFin.result === 'won') {
           const progFin = progressByTid.get(t.id);
           if (progFin) {
@@ -2755,6 +3401,7 @@ export class TournamentsService implements OnModuleInit {
         if (answered >= roundEnd) return 'Ожидание соперника';
         return 'Этап не пройден';
       }
+      if (semiResult.timedOut && semiResult.result === 'lost') return formatTimeoutDefeatLabel();
       if (semiResult.result === 'lost') return formatScoreLabel('Поражение', getSemiScore(t));
       if (semiResult.result === 'won') {
         if (!prog) return 'Этап не пройден';
@@ -3208,6 +3855,7 @@ export class TournamentsService implements OnModuleInit {
     const opponentSlot = playerSlot % 2 === 0 ? playerSlot + 1 : playerSlot - 1;
     const oppIdState = opponentSlot >= 0 && opponentSlot < order.length ? order[opponentSlot] : -1;
     const opponent = oppIdState > 0 ? (tournament.players?.find((p) => p.id === oppIdState) ?? null) : null;
+    const timeoutResolutionMap = await this.getTournamentTimeoutResolutionMap(tournamentId);
     let deadline: string | null = null;
     let tiebreakerRound = 0;
     let tiebreakerQuestions: { id: number; question: string; options: string[]; correctAnswer: number }[] = [];
@@ -3217,7 +3865,7 @@ export class TournamentsService implements OnModuleInit {
       const oppProgress = await this.tournamentProgressRepository.findOne({
         where: { userId: opponent.id, tournamentId },
       });
-      const sharedStart = this.getCurrentRoundSharedStart(tournament, userId, progress, allProgress);
+      const sharedStart = this.getCurrentRoundSharedStart(tournament, userId, progress, allProgress, timeoutResolutionMap);
       deadline = sharedStart ? this.getRoundDeadline(sharedStart) : null;
       const myQ = progress.questionsAnsweredCount ?? 0;
       const oppQ = oppProgress?.questionsAnsweredCount ?? 0;
@@ -3326,7 +3974,11 @@ export class TournamentsService implements OnModuleInit {
             const myProgress = await this.tournamentProgressRepository.findOne({ where: { userId, tournamentId } });
             const oppProg1 = opp1 ? await this.tournamentProgressRepository.findOne({ where: { userId: opp1.id, tournamentId } }) : null;
             const oppProg2 = opp2 ? await this.tournamentProgressRepository.findOne({ where: { userId: opp2.id, tournamentId } }) : null;
-            if (this.didSemiPairBothLoseByTimeout(oppProg1, oppProg2)) {
+            if (this.didSemiPairBothLoseByTimeout(
+              oppProg1,
+              oppProg2,
+              this.isSemiPairDeadlinePassed(oppProg1, oppProg2),
+            )) {
               const soloFinal = this.getSoloFinalOutcome(
                 myProgress,
                 this.isRoundDeadlinePassed(myProgress?.roundStartedAt ?? null),
@@ -3461,9 +4113,10 @@ export class TournamentsService implements OnModuleInit {
       where: { userId, tournamentId },
     });
     let allProgress = await this.tournamentProgressRepository.find({ where: { tournamentId } });
-    let sharedStart = this.getCurrentRoundSharedStart(tournament, userId, progress, allProgress);
+    const timeoutResolutionMap = await this.getTournamentTimeoutResolutionMap(tournamentId);
+    let sharedStart = this.getCurrentRoundSharedStart(tournament, userId, progress, allProgress, timeoutResolutionMap);
     // Как только второй финалист зашёл в финал — запускаем таймеры у обоих (кроме того, кто уже ответил на все вопросы финала).
-    if (questionsFinal.length > 0 && progress && !sharedStart && this.isPlayerInFinalPhase(progress, allProgress, tournament)) {
+    if (questionsFinal.length > 0 && progress && !sharedStart && this.isPlayerInFinalPhase(progress, allProgress, tournament, timeoutResolutionMap)) {
       const order = tournament.playerOrder ?? [];
       const playerSlot = order.indexOf(userId);
       const otherSlots: [number, number] = playerSlot < 2 ? [2, 3] : [0, 1];
@@ -3472,7 +4125,10 @@ export class TournamentsService implements OnModuleInit {
       const p1 = id1 > 0 ? allProgress.find((p) => p.userId === id1) : null;
       const p2 = id2 > 0 ? allProgress.find((p) => p.userId === id2) : null;
       let otherFinalist: TournamentProgress | null = null;
-      if (p1 && p2) {
+      const oppositeSemiResolution = this.getOppositeSemiTimeoutResolutionFromMap(tournament, userId, timeoutResolutionMap);
+      if (oppositeSemiResolution?.winnerUserId) {
+        otherFinalist = allProgress.find((p) => p.userId === oppositeSemiResolution.winnerUserId) ?? null;
+      } else if (p1 && p2) {
         const st = this.getSemiHeadToHeadState(
           p1.questionsAnsweredCount ?? 0,
           p1.semiFinalCorrectCount,
@@ -3483,10 +4139,8 @@ export class TournamentsService implements OnModuleInit {
         );
         if (st.result === 'won') otherFinalist = p1;
         else if (st.result === 'lost') otherFinalist = p2;
-      } else {
-        otherFinalist = p1 ?? p2 ?? null;
       }
-      if (otherFinalist && this.isPlayerInFinalPhase(otherFinalist, allProgress, tournament)) {
+      if (otherFinalist && this.isPlayerInFinalPhase(otherFinalist, allProgress, tournament, timeoutResolutionMap)) {
         const nowStart = new Date();
         const mySemiTotalHere = this.QUESTIONS_PER_ROUND + (progress.tiebreakerRoundsCorrect?.length ?? 0) * this.TIEBREAKER_QUESTIONS;
         const otherSemiTotal = this.QUESTIONS_PER_ROUND + (otherFinalist.tiebreakerRoundsCorrect?.length ?? 0) * this.TIEBREAKER_QUESTIONS;
@@ -3499,9 +4153,9 @@ export class TournamentsService implements OnModuleInit {
         }
         await this.tournamentProgressRepository.save(progress);
         allProgress = await this.tournamentProgressRepository.find({ where: { tournamentId } });
-        sharedStart = this.getCurrentRoundSharedStart(tournament, userId, progress, allProgress);
+        sharedStart = this.getCurrentRoundSharedStart(tournament, userId, progress, allProgress, timeoutResolutionMap);
       } else {
-        const soloFinalist = this.getSoloFinalistByOppositeSemiTimeout(tournament, allProgress);
+        const soloFinalist = this.getSoloFinalistByOppositeSemiTimeout(tournament, allProgress, timeoutResolutionMap);
         const mySemiTotalHere = this.QUESTIONS_PER_ROUND + (progress.tiebreakerRoundsCorrect?.length ?? 0) * this.TIEBREAKER_QUESTIONS;
         if (
           soloFinalist?.userId === userId
@@ -3511,7 +4165,7 @@ export class TournamentsService implements OnModuleInit {
           progress.roundStartedAt = new Date();
           await this.tournamentProgressRepository.save(progress);
           allProgress = await this.tournamentProgressRepository.find({ where: { tournamentId } });
-          sharedStart = this.getCurrentRoundSharedStart(tournament, userId, progress, allProgress);
+          sharedStart = this.getCurrentRoundSharedStart(tournament, userId, progress, allProgress, timeoutResolutionMap);
         }
       }
     }
@@ -3598,10 +4252,6 @@ export class TournamentsService implements OnModuleInit {
           const p1 = await this.tournamentProgressRepository.findOne({ where: { userId: fOpp1Id, tournamentId } });
           const p2 = await this.tournamentProgressRepository.findOne({ where: { userId: fOpp2Id, tournamentId } });
           finalistProgress = this.findSemiWinner(p1, p2);
-        } else if (fOpp1Id > 0) {
-          finalistProgress = await this.tournamentProgressRepository.findOne({ where: { userId: fOpp1Id, tournamentId } });
-        } else if (fOpp2Id > 0) {
-          finalistProgress = await this.tournamentProgressRepository.findOne({ where: { userId: fOpp2Id, tournamentId } });
         }
 
         if (finalistProgress) {
@@ -3704,7 +4354,10 @@ export class TournamentsService implements OnModuleInit {
       const fOppId2 = fOtherSlots[1] < fOrder2.length ? fOrder2[fOtherSlots[1]] : -1;
       const p1 = fOppId1 > 0 ? await this.tournamentProgressRepository.findOne({ where: { userId: fOppId1, tournamentId } }) : null;
       const p2 = fOppId2 > 0 ? await this.tournamentProgressRepository.findOne({ where: { userId: fOppId2, tournamentId } }) : null;
-      const finalist = this.findSemiWinner(p1, p2);
+      const oppositeSemiResolution = this.getOppositeSemiTimeoutResolutionFromMap(tournament, userId, timeoutResolutionMap);
+      const finalist = oppositeSemiResolution?.winnerUserId
+        ? (p1?.userId === oppositeSemiResolution.winnerUserId ? p1 : p2?.userId === oppositeSemiResolution.winnerUserId ? p2 : null)
+        : this.findSemiWinner(p1, p2);
       if (finalist) {
         const finalistUser = (tournament.players ?? []).find((u) => u.id === finalist.userId) ?? null;
         const finalOppInfo = finalistUser ? { id: finalistUser.id, nickname: getOppNickname(finalistUser), avatarUrl: finalistUser.avatarUrl ?? null } : { id: 0, nickname: '—', avatarUrl: null };
@@ -3838,7 +4491,7 @@ export class TournamentsService implements OnModuleInit {
     p2: TournamentProgress | null,
     allowUnevenResolved = false,
   ): TournamentProgress | null {
-    if (!p1 || !p2) return p1 || p2;
+    if (!p1 || !p2) return null;
     const semiState = this.getSemiHeadToHeadState(
       p1.questionsAnsweredCount ?? 0,
       p1.semiFinalCorrectCount,
@@ -3856,11 +4509,9 @@ export class TournamentsService implements OnModuleInit {
   private didSemiPairBothLoseByTimeout(
     p1: TournamentProgress | null | undefined,
     p2: TournamentProgress | null | undefined,
+    deadlinePassed = false,
   ): boolean {
-    if (!p1 || !p2) return false;
-    const p1Answered = p1.questionsAnsweredCount ?? 0;
-    const p2Answered = p2.questionsAnsweredCount ?? 0;
-    return p1Answered < this.QUESTIONS_PER_ROUND && p2Answered < this.QUESTIONS_PER_ROUND;
+    return this.getSemiPairTimeoutOutcome(p1, p2, deadlinePassed) === 'both_lost';
   }
 
   private normalizeAnswersChosen(val: unknown): number[] {
@@ -3894,9 +4545,9 @@ export class TournamentsService implements OnModuleInit {
 
   /**
    * Определяет, выиграл ли пользователь полуфинал.
-   * Тренировка (1 игрок): финал доступен после завершения 10 вопросов полуфинала.
-   * Деньги (2+ игрока): финал доступен только если у пользователя больше правильных, чем у оппонента,
-   * либо он выиграл тайбрейкер.
+   * Финал доступен только после разрешённой пары: есть реальный соперник в слоте,
+   * оба прогресса достаточно полны для сравнения и пользователь реально выиграл head-to-head
+   * либо прошёл дальше по отдельному timeout-сценарию общей пары.
    */
   private async didUserWinSemiFinal(tournament: Tournament, userId: number): Promise<boolean> {
     const order = tournament.playerOrder ?? [];
@@ -3908,9 +4559,14 @@ export class TournamentsService implements OnModuleInit {
     const oppId = opponentSlot >= 0 && opponentSlot < order.length ? order[opponentSlot] : -1;
 
     if (oppId == null || oppId <= 0) {
-      const myProgress = await this.tournamentProgressRepository.findOne({ where: { userId, tournamentId: tournament.id } });
-      return (myProgress?.questionsAnsweredCount ?? 0) >= this.QUESTIONS_PER_ROUND;
+      return false;
     }
+
+    const timeoutResolutionMap = await this.getTournamentTimeoutResolutionMap(tournament.id);
+    const timeoutResolution = this.getOwnSemiTimeoutResolutionFromMap(tournament, userId, timeoutResolutionMap);
+    const timeoutOutcome = this.getTimeoutOutcomeForUser(timeoutResolution, userId);
+    if (timeoutOutcome === 'won') return true;
+    if (timeoutOutcome === 'lost' || timeoutOutcome === 'both_lost') return false;
 
     const myProgress = await this.tournamentProgressRepository.findOne({ where: { userId, tournamentId: tournament.id } });
     const allProgWin = await this.tournamentProgressRepository.find({ where: { tournamentId: tournament.id } });
@@ -3977,6 +4633,12 @@ export class TournamentsService implements OnModuleInit {
     const opponentSlot = playerSlot % 2 === 0 ? playerSlot + 1 : playerSlot - 1;
     const oppId = opponentSlot >= 0 && opponentSlot < order.length ? order[opponentSlot] : -1;
     if (oppId == null || oppId <= 0) return 'waiting';
+
+    const timeoutResolutionMap = await this.getTournamentTimeoutResolutionMap(tournament.id);
+    const timeoutResolution = this.getOwnSemiTimeoutResolutionFromMap(tournament, userId, timeoutResolutionMap);
+    const timeoutOutcome = this.getTimeoutOutcomeForUser(timeoutResolution, userId);
+    if (timeoutOutcome === 'won') return 'won';
+    if (timeoutOutcome === 'lost' || timeoutOutcome === 'both_lost') return 'lost';
 
     const oppProgress = await this.tournamentProgressRepository.findOne({ where: { userId: oppId, tournamentId: tournament.id } });
     const oppQ = oppProgress?.questionsAnsweredCount ?? 0;
@@ -4336,11 +4998,9 @@ export class TournamentsService implements OnModuleInit {
     let finalistProgress: TournamentProgress | null = null;
     if (opp1Id > 0 && opp2Id > 0) {
       finalistProgress = this.findSemiWinner(p1, p2);
-    } else {
-      finalistProgress = p1 || p2;
     }
     if (!finalistProgress) {
-      if (this.didSemiPairBothLoseByTimeout(p1, p2)) {
+      if (this.didSemiPairBothLoseByTimeout(p1, p2, this.isSemiPairDeadlinePassed(p1, p2))) {
         const soloFinal = this.getSoloFinalOutcome(myProgress, false);
         if (soloFinal.result === 'incomplete') return;
         await saveResult(userId, soloFinal.result === 'won');
@@ -4394,6 +5054,7 @@ export class TournamentsService implements OnModuleInit {
     let progressList = await this.tournamentProgressRepository.find({
       where: { tournamentId, userId: In(players.map((p) => p.id)) },
     });
+    const timeoutResolutionMap = await this.getTournamentTimeoutResolutionMap(tournamentId);
     // Backfill: если ровно 10 ответов, но semiFinalCorrectCount не установлен — восстанавливаем из correctAnswersCount.
     // При 10 ответах correctAnswersCount = верные в полуфинале. При 11+ это уже сумма полуфинал+финал — не трогаем.
     for (const p of progressList) {
@@ -4413,7 +5074,7 @@ export class TournamentsService implements OnModuleInit {
     const progressByUser = new Map(progressList.map((p) => [p.userId, p]));
     const viewerProgress = progressByUser.get(userId);
     const viewerSharedStart = viewerProgress
-      ? this.getCurrentRoundSharedStart(tournament, userId, viewerProgress, progressList)
+      ? this.getCurrentRoundSharedStart(tournament, userId, viewerProgress, progressList, timeoutResolutionMap)
       : null;
     const activeRoundDeadline = viewerSharedStart ? this.getRoundDeadline(viewerSharedStart) : null;
 
@@ -4436,7 +5097,7 @@ export class TournamentsService implements OnModuleInit {
           ? (prog?.correctAnswersCount ?? 0)
           : 0;
       const semiTiebreakerCorrectTotal = tbRounds.reduce((a: number, b: number) => a + b, 0);
-      const inFinalPhase = prog ? this.isPlayerInFinalPhase(prog, progressList, tournament) : false;
+      const inFinalPhase = prog ? this.isPlayerInFinalPhase(prog, progressList, tournament, timeoutResolutionMap) : false;
       const completedSemiQuestions = this.QUESTIONS_PER_ROUND + tbRounds.length * this.TIEBREAKER_QUESTIONS;
       let semiAnswered = Math.min(q, completedSemiQuestions);
       if (!inFinalPhase && q > completedSemiQuestions) {
@@ -4482,9 +5143,19 @@ export class TournamentsService implements OnModuleInit {
     };
 
     const getSemiLoserIndex = (
+      pairIndex: 0 | 1,
       prog0: TournamentProgress | undefined,
       prog1: TournamentProgress | undefined,
     ): 0 | 1 | null => {
+      const pairResolution = this.getLatestResolutionFromMap(
+        timeoutResolutionMap,
+        tournamentId,
+        TournamentResolutionStage.SEMI,
+        pairIndex,
+      );
+      if (pairResolution?.outcome === TournamentResolutionOutcome.SLOT_A_WINS) return 1;
+      if (pairResolution?.outcome === TournamentResolutionOutcome.SLOT_B_WINS) return 0;
+      if (pairResolution?.outcome === TournamentResolutionOutcome.BOTH_LOST) return null;
       const semiState = this.getSemiHeadToHeadState(
         prog0?.questionsAnsweredCount ?? 0,
         prog0?.semiFinalCorrectCount,
@@ -4532,7 +5203,7 @@ export class TournamentsService implements OnModuleInit {
 
       const prog0 = progressByUser.get(p0.id);
       const prog1 = progressByUser.get(p1.id);
-      const loserIndex = getSemiLoserIndex(prog0, prog1);
+      const loserIndex = getSemiLoserIndex(slot0 < 2 ? 0 : 1, prog0, prog1);
       const semiResolved = this.resolveStageTotals(
         prog0?.questionsAnsweredCount ?? 0,
         prog0?.semiFinalCorrectCount ?? 0,
@@ -4589,14 +5260,24 @@ export class TournamentsService implements OnModuleInit {
     const semi2Players = order.length > 2 ? toSemiPlayers(2, 3) : [];
 
     const semiWinner = (slot0: number, slot1: number): User | null => {
+      const pairIndex: 0 | 1 = slot0 < 2 ? 0 : 1;
+      const pairResolution = this.getLatestResolutionFromMap(
+        timeoutResolutionMap,
+        tournamentId,
+        TournamentResolutionStage.SEMI,
+        pairIndex,
+      );
       const uid0 = slot0 < order.length ? order[slot0] : -1;
       const uid1 = slot1 < order.length ? order[slot1] : -1;
       const p0 = uid0 > 0 ? players.find((p) => p.id === uid0) ?? null : null;
       const p1 = uid1 > 0 ? players.find((p) => p.id === uid1) ?? null : null;
       if (!p0 || !p1) return null;
+      if (pairResolution?.outcome === TournamentResolutionOutcome.SLOT_A_WINS) return p0;
+      if (pairResolution?.outcome === TournamentResolutionOutcome.SLOT_B_WINS) return p1;
+      if (pairResolution?.outcome === TournamentResolutionOutcome.BOTH_LOST) return null;
       const prog0 = progressByUser.get(p0.id);
       const prog1 = progressByUser.get(p1.id);
-      const loserIdx = getSemiLoserIndex(prog0, prog1);
+      const loserIdx = getSemiLoserIndex(pairIndex, prog0, prog1);
       if (loserIdx === 0) return p1;
       if (loserIdx === 1) return p0;
       return null;
@@ -4613,10 +5294,18 @@ export class TournamentsService implements OnModuleInit {
     }
 
     const getBracketFinalWinnerId = (): number | null => {
+      const finalResolution = this.getLatestResolutionFromMap(
+        timeoutResolutionMap,
+        tournamentId,
+        TournamentResolutionStage.FINAL,
+        0,
+      );
+      if (finalResolution?.winnerUserId) return finalResolution.winnerUserId;
+      if (finalResolution?.outcome === TournamentResolutionOutcome.BOTH_LOST) return null;
       if (finalPlayers.length === 1) {
         const finalistId = finalPlayers[0]?.id ?? null;
         if (!finalistId) return null;
-        const soloFinalist = this.getSoloFinalistByOppositeSemiTimeout(tournament, progressList);
+        const soloFinalist = this.getSoloFinalistByOppositeSemiTimeout(tournament, progressList, timeoutResolutionMap);
         if (soloFinalist?.userId !== finalistId) return null;
         const soloOutcome = this.getSoloFinalOutcome(
           soloFinalist,

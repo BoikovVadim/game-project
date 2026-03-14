@@ -13,7 +13,8 @@
     "verify-email": "ts-node -r tsconfig-paths/register src/scripts/verify-email-user.ts",
     "set-password": "ts-node -r tsconfig-paths/register src/scripts/set-password.ts",
     "check-user": "ts-node -r tsconfig-paths/register src/scripts/check-user.ts",
-    "seed:questions": "node dist/scripts/seed-questions.js"
+    "seed:questions": "node dist/scripts/seed-questions.js",
+    "backfill:tournament-resolutions": "ts-node -r tsconfig-paths/register src/scripts/backfill-tournament-round-resolutions.ts"
   },
   "dependencies": {
     "@nestjs/cache-manager": "^3.1.0",

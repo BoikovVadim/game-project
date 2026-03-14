@@ -29,6 +29,7 @@ import { SupportTicket } from './support/support-ticket.entity';
 import { NewsModule } from './news/news.module';
 import { News } from './news/news.entity';
 import { QuestionPoolItem } from './tournaments/question-pool.entity';
+import { TournamentRoundResolution } from './tournaments/tournament-round-resolution.entity';
 
 const frontendBuild = join(__dirname, '..', '..', 'Frontend', 'build');
 
@@ -65,7 +66,7 @@ const frontendBuild = join(__dirname, '..', '..', 'Frontend', 'build');
       username: process.env.DB_USER || 'legend',
       password: process.env.DB_PASS || 'legend',
       database: process.env.DB_NAME || 'legendgames',
-      entities: [User, Tournament, Question, QuestionPoolItem, TournamentEntry, TournamentResult, TournamentProgress, TournamentEscrow, Transaction, Payment, WithdrawalRequest, SupportMessage, SupportTicket, News],
+      entities: [User, Tournament, Question, QuestionPoolItem, TournamentEntry, TournamentResult, TournamentProgress, TournamentEscrow, TournamentRoundResolution, Transaction, Payment, WithdrawalRequest, SupportMessage, SupportTicket, News],
       synchronize: process.env.NODE_ENV !== 'production',
       logging: process.env.NODE_ENV !== 'production',
     }),
