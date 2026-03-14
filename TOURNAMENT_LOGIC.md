@@ -325,6 +325,23 @@ Escrow используется только в `money`-режиме.
 - `getMyTournaments(...)` больше не должен делать `update/save` в `tournament`, `tournament_result`, `tournament_progress`
 - backfill-и, cron-резолюции, escrow и синхронизация связей живут отдельно: в `onModuleInit()`, cron/writer-методах и explicit admin/backfill сценариях
 
+## Writer-логика завершения
+
+После выноса read-path в derived-state следующий инвариант такой:
+
+- `completeTournament(...)` не должен сам по себе решать, кто чемпион турнира
+- `tryAutoComplete(...)` не должен иметь отдельную ветку победителя, отличную от cron
+- `closeTimedOutRounds(...)` может создавать timeout-resolution, но финальную запись результата турнира должен делать через тот же общий resolver
+
+Практическое правило:
+
+1. writer сначала читает актуальный `tournament_progress`
+2. учитывает `tournament_round_resolution`
+3. общий resolver возвращает одно из двух:
+   - турнир еще не завершен
+   - турнир завершен, победитель `winnerId` известен либо победителя нет
+4. только после этого общий apply-шаг пишет `tournament_result`, переводит турнир в `finished` и при `money` вызывает escrow
+
 ### Как считается текст результата
 
 Функция `getResultLabel(...)` возвращает пользовательский статус:
