@@ -1,6 +1,7 @@
 import React from 'react';
 import axios from 'axios';
 import { formatNum, CURRENCY } from './formatNum.ts';
+import type { BracketViewData, QuestionsReviewData } from '../features/tournaments/contracts.ts';
 
 export type PlayerStats = {
   gamesPlayed: number;
@@ -20,50 +21,6 @@ export type BracketPlayerTooltipData = {
   avatarUrl: string | null;
   stats: PlayerStats;
   rect: DOMRect;
-};
-
-export type BracketPlayerData = {
-  id: number;
-  username?: string;
-  nickname?: string | null;
-  avatarUrl?: string | null;
-  isLoser?: boolean;
-  questionsAnswered?: number;
-  correctAnswersCount?: number;
-  semiScore?: number | null;
-  finalAnswered?: number;
-  finalScore?: number | null;
-  finalCorrect?: number | null;
-};
-
-export type BracketViewData = {
-  tournamentId: number;
-  gameType?: 'training' | 'money' | string | null;
-  semi1: { players: BracketPlayerData[] };
-  semi2: { players: BracketPlayerData[] } | null;
-  final: { players: BracketPlayerData[] };
-  finalWinnerId?: number | null;
-  status?: string;
-  isCompleted?: boolean;
-  isActive?: boolean;
-};
-
-export type QuestionsReviewData = {
-  questionsSemi1: { id: number; question: string; options: string[]; correctAnswer: number }[];
-  questionsSemi2: { id: number; question: string; options: string[]; correctAnswer: number }[];
-  questionsFinal: { id: number; question: string; options: string[]; correctAnswer: number }[];
-  questionsAnsweredCount: number;
-  correctAnswersCount: number;
-  semiFinalCorrectCount?: number | null;
-  semiTiebreakerCorrectSum?: number;
-  answersChosen: number[];
-  userSemiIndex?: number;
-  semiTiebreakerAllQuestions?: { id: number; question: string; options: string[]; correctAnswer: number }[][];
-  semiTiebreakerRoundsCorrect?: number[];
-  finalTiebreakerAllQuestions?: { id: number; question: string; options: string[]; correctAnswer: number }[][];
-  finalTiebreakerRoundsCorrect?: number[];
-  opponentAnswersByRound?: number[][];
-  opponentInfoByRound?: { id: number; nickname: string; avatarUrl?: string | null }[];
 };
 
 export type OppTooltipState = {

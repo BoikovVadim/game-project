@@ -9,40 +9,14 @@ import { Transaction } from './transaction.entity';
 import { WithdrawalRequest } from './withdrawal-request.entity';
 import * as fs from 'fs';
 import * as path from 'path';
-
-/** Лиги по возрастанию (как в TournamentsService). */
-const LEAGUE_AMOUNTS: number[] = (() => {
-  const base = [5, 10, 20, 50];
-  const seen = new Set<number>();
-  const result: number[] = [];
-  let mult = 1;
-  while (mult <= 1_000_000) {
-    for (const b of base) {
-      const v = b * mult;
-      if (v <= 1_000_000 && !seen.has(v)) {
-        seen.add(v);
-        result.push(v);
-      }
-    }
-    mult *= 10;
-  }
-  return result.sort((a, b) => a - b);
-})();
-
-const LEAGUE_MIN_BALANCE_MULTIPLIER = 10;
-const LEAGUE_WINS_TO_UNLOCK = 10;
-
-const LEAGUE_NAMES: Record<number, string> = {
-  5: 'Янтарная лига', 10: 'Коралловая лига', 20: 'Нефритовая лига', 50: 'Агатовая лига',
-  100: 'Аметистовая лига', 200: 'Топазовая лига', 500: 'Гранатовая лига', 1000: 'Изумрудовая лига',
-  2000: 'Рубиновая лига', 5000: 'Сапфировая лига', 10000: 'Опаловая лига', 20000: 'Жемчужная лига',
-  50000: 'Александритовая лига', 100000: 'Бриллиантовая лига', 200000: 'Лазуритовая лига',
-  500000: 'Лига чёрного опала', 1000000: 'Алмазная лига',
-};
-
-function getMinBalanceForLeague(leagueIndex: number, amount: number): number {
-  return leagueIndex === 0 ? amount : amount * LEAGUE_MIN_BALANCE_MULTIPLIER;
-}
+import {
+  LEAGUE_AMOUNTS,
+  LEAGUE_NAMES,
+  LEAGUE_WINS_TO_UNLOCK,
+  QUESTIONS_PER_ROUND,
+  TIEBREAKER_QUESTIONS,
+  getMinBalanceForLeague,
+} from '../tournaments/domain/constants';
 
 @Injectable()
 export class UsersService implements OnModuleInit {
@@ -1372,8 +1346,8 @@ export class UsersService implements OnModuleInit {
     return { data, availableMetrics };
   }
 
-  private static readonly QUESTIONS_PER_ROUND = 10;
-  private static readonly TIEBREAKER_QUESTIONS = 10;
+  private static readonly QUESTIONS_PER_ROUND = QUESTIONS_PER_ROUND;
+  private static readonly TIEBREAKER_QUESTIONS = TIEBREAKER_QUESTIONS;
 
   private static parseJsonArray(val: unknown): number[] {
     if (Array.isArray(val)) return val;

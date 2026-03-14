@@ -1,5 +1,4 @@
 import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import axios from 'axios';
 import { HashRouter as Router, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
 import VerifyEmail from './components/VerifyEmail.tsx';
 import VerifyCode from './components/VerifyCode.tsx';
@@ -19,6 +18,7 @@ import {
   storePendingReturnTo,
   type AuthFailureReason,
 } from './authSession.ts';
+import { refreshAccessToken } from './api/authClient.ts';
 import { preloadAllLeagueImages } from './preloadLeagueImages.ts';
 import './App.css';
 
@@ -93,13 +93,9 @@ function AppContent() {
       return;
     }
     let cancelled = false;
-    axios.get<{ access_token?: string }>('/auth/refresh', {
-      headers: { Authorization: `Bearer ${existingToken}` },
-    })
-      .then((response) => {
+    refreshAccessToken(existingToken)
+      .then((nextToken) => {
         if (cancelled) return;
-        const nextToken = response.data?.access_token || existingToken;
-        setStoredToken(nextToken);
         setToken(nextToken);
       })
       .catch(() => {
@@ -192,11 +188,6 @@ function AppContent() {
     window.addEventListener(AUTH_SESSION_INVALID_EVENT, onSessionInvalid);
     return () => window.removeEventListener(AUTH_SESSION_INVALID_EVENT, onSessionInvalid);
   }, [redirectToAuth]);
-
-  useEffect(() => {
-    if (authBootstrapping || hasToken || !isProtectedPath(location.pathname)) return;
-    storePendingReturnTo(buildReturnToPath(location.pathname, location.search));
-  }, [authBootstrapping, hasToken, location.pathname, location.search]);
 
   useEffect(() => {
     if (authBootstrapping || hasToken || !isProtectedPath(location.pathname)) return;

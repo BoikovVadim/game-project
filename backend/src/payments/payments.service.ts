@@ -24,9 +24,13 @@ export class PaymentsService {
     description: string,
   ): Promise<boolean> {
     return this.dataSource.transaction(async (manager) => {
-      const payment = await manager.findOne(Payment, {
-        where: { id: paymentId, provider, status: 'pending' },
-      });
+      const payment = await manager
+        .createQueryBuilder(Payment, 'payment')
+        .setLock('pessimistic_write')
+        .where('payment.id = :paymentId', { paymentId })
+        .andWhere('payment.provider = :provider', { provider })
+        .andWhere('payment.status = :status', { status: 'pending' })
+        .getOne();
       if (!payment) return false;
 
       const user = await manager.findOne(User, { where: { id: payment.userId } });

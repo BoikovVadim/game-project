@@ -19,49 +19,23 @@ import {
 import { User } from '../users/user.entity';
 import { Transaction } from '../users/transaction.entity';
 import { UsersService } from '../users/users.service';
-
-/** Все лиги по возрастанию: 5, 10, 20, 50, …, до 1 млн. */
-const LEAGUE_AMOUNTS: number[] = (() => {
-  const base = [5, 10, 20, 50];
-  const seen = new Set<number>();
-  const result: number[] = [];
-  let mult = 1;
-  while (mult <= 1_000_000) {
-    for (const b of base) {
-      const v = b * mult;
-      if (v <= 1_000_000 && !seen.has(v)) {
-        seen.add(v);
-        result.push(v);
-      }
-    }
-    mult *= 10;
-  }
-  return result.sort((a, b) => a - b);
-})();
-
-/** Для первой лиги (5 L) мин. баланс = ставка; для остальных = 10 × ставка. Побед для перехода = 10. */
-const LEAGUE_MIN_BALANCE_MULTIPLIER = 10;
-const LEAGUE_WINS_TO_UNLOCK = 10;
-
-const LEAGUE_NAMES: Record<number, string> = {
-  5: 'Янтарная лига', 10: 'Коралловая лига', 20: 'Нефритовая лига', 50: 'Агатовая лига',
-  100: 'Аметистовая лига', 200: 'Топазовая лига', 500: 'Гранатовая лига', 1000: 'Изумрудовая лига',
-  2000: 'Рубиновая лига', 5000: 'Сапфировая лига', 10000: 'Опаловая лига', 20000: 'Жемчужная лига',
-  50000: 'Александритовая лига', 100000: 'Бриллиантовая лига', 200000: 'Лазуритовая лига',
-  500000: 'Лига чёрного опала', 1000000: 'Алмазная лига',
-};
-
-function getLeagueName(amount: number): string {
-  return LEAGUE_NAMES[amount] ?? `Лига ${amount} L`;
-}
-
-/** Название турнира для отображения: лига (для money) или «Тренировка». */
-function getTournamentDisplayName(t: { gameType?: string | null; leagueAmount?: number | null }): string {
-  if (t.gameType === 'money' && t.leagueAmount != null) return getLeagueName(t.leagueAmount);
-  if (t.gameType === 'training') return 'Тренировка';
-  if (t.leagueAmount != null) return getLeagueName(t.leagueAmount);
-  return 'Турнир';
-}
+import {
+  LEAGUE_AMOUNTS,
+  LEAGUE_WINS_TO_UNLOCK,
+  QUESTIONS_PER_ROUND,
+  TIEBREAKER_QUESTIONS,
+  getLeagueName,
+  getLeaguePrize,
+  getMinBalanceForLeague,
+  getTournamentDisplayName,
+} from './domain/constants';
+import {
+  deriveTournamentViewMeta,
+  type TournamentListBucket,
+  type TournamentResultKind,
+  type TournamentResultTone,
+  type TournamentStageKind,
+} from './domain/view-model';
 
 /** Объект турнира в ответе — ID, название, тип, статус, ставка. */
 export interface TournamentInfoDto {
@@ -90,17 +64,15 @@ export interface TournamentListItemDto {
   completedAt?: string | null;
   roundFinished?: boolean;
   roundStartedAt?: string | null;
+  stageKind: TournamentStageKind;
+  resultKind: TournamentResultKind;
+  resultTone: TournamentResultTone;
+  listBucket: TournamentListBucket;
+  canContinue: boolean;
+  isWaitingOpponent: boolean;
+  isTimeoutResult: boolean;
   /** Объект турнира: ID, название, тип, статус — для фронтенда. */
   tournament: TournamentInfoDto;
-}
-
-/** Выигрыш победителя: 4 игрока × ставка − 20% с каждого из 3 проигравших = 3.4 × ставка L */
-function getLeaguePrize(stake: number): number {
-  return Math.round(3.4 * stake);
-}
-
-function getMinBalanceForLeague(leagueIndex: number, amount: number): number {
-  return leagueIndex === 0 ? amount : amount * LEAGUE_MIN_BALANCE_MULTIPLIER;
 }
 
 @Injectable()
@@ -2150,46 +2122,11 @@ export class TournamentsService implements OnModuleInit {
   }
 
   async createTournament(userId: number): Promise<{ tournamentId: number; playerSlot: number; questions: any[] }> {
-    const waitingTournament = await this.tournamentRepository.findOne({
-      where: { status: TournamentStatus.WAITING },
-      relations: ['players'],
-    });
-
-    let tournament: Tournament;
-    let playerSlot: number;
-
-    if (waitingTournament && waitingTournament.players.length < 4) {
-      tournament = waitingTournament;
-      const user = await this.userRepository.findOneBy({ id: userId });
-      if (!user) throw new NotFoundException('User not found');
-      await this.ensureTournamentPlayer(tournament.id, user.id);
-      const newOrder = [...(tournament.playerOrder ?? []), user.id];
-      await this.tournamentRepository.update({ id: tournament.id }, { playerOrder: newOrder });
-      playerSlot = newOrder.length - 1;
-    } else {
-      const user = await this.userRepository.findOneBy({ id: userId });
-      if (!user) throw new NotFoundException('User not found');
-      tournament = this.tournamentRepository.create({
-        status: TournamentStatus.WAITING,
-        players: [user],
-      });
-      await this.tournamentRepository.save(tournament);
-      playerSlot = 0;
-      const questions = (await this.pickFromDB(10)).map((q, i) => ({ ...q, roundIndex: 0 }));
-      for (const q of questions) {
-        const question = this.questionRepository.create({ ...q, tournament });
-        await this.questionRepository.save(question);
-      }
-    }
-
-    const questions = await this.questionRepository.find({
-      where: { tournament: { id: tournament.id } },
-      select: ['id', 'question', 'options'],
-    });
-
+    const training = await this.startTraining(userId);
+    const questions = [...training.questionsSemi1, ...training.questionsSemi2];
     return {
-      tournamentId: tournament.id,
-      playerSlot,
+      tournamentId: training.tournamentId,
+      playerSlot: training.playerSlot,
       questions,
     };
   }
@@ -2358,7 +2295,7 @@ export class TournamentsService implements OnModuleInit {
     const { allowedLeagues, balance } = await this.getAllowedLeagues(userId);
     if (!allowedLeagues.includes(leagueAmount)) {
       const idx = LEAGUE_AMOUNTS.indexOf(leagueAmount);
-      const minBalance = idx >= 0 ? getMinBalanceForLeague(idx, leagueAmount) : leagueAmount * LEAGUE_MIN_BALANCE_MULTIPLIER;
+      const minBalance = idx >= 0 ? getMinBalanceForLeague(idx, leagueAmount) : leagueAmount * 10;
       if (balance < minBalance) {
         throw new BadRequestException(
           `Недостаточно средств. Для лиги ${leagueAmount} L нужен баланс минимум ${minBalance} L.`,
@@ -2649,6 +2586,15 @@ export class TournamentsService implements OnModuleInit {
     const deadlineByTournamentId: Record<number, string | null> = {};
     const roundStartedAtByTid = new Map<number, string | null>();
     const playerRoundFinished = new Map<number, boolean>();
+    const timeoutResolutionRows = allIds.length > 0
+      ? await this.tournamentRoundResolutionRepository.find({
+        where: {
+          tournamentId: In(allIds),
+          reason: TournamentResolutionReason.TIMEOUT,
+        },
+      })
+      : [];
+    const timeoutResolutionMap = this.buildLatestResolutionMap(timeoutResolutionRows);
     if (allIds.length > 0) {
       const allProgress = await this.tournamentProgressRepository
         .createQueryBuilder('p')
@@ -2657,7 +2603,7 @@ export class TournamentsService implements OnModuleInit {
       for (const tid of allIds) {
         const myProg = allProgress.find((p) => p.tournamentId === tid && p.userId === userId);
         const t = tournaments.find((t2) => t2.id === tid);
-        const sharedStart = t && myProg ? this.getCurrentRoundSharedStart(t, userId, myProg, allProgress) : null;
+        const sharedStart = t && myProg ? this.getCurrentRoundSharedStart(t, userId, myProg, allProgress, timeoutResolutionMap) : null;
         deadlineByTournamentId[tid] = sharedStart
           ? this.getRoundDeadline(sharedStart)
           : null;
@@ -2745,9 +2691,6 @@ export class TournamentsService implements OnModuleInit {
       }
     }
 
-    const QUESTIONS_PER_ROUND = 10;
-    const TIEBREAKER_QUESTIONS = 10;
-
     type ProgressData = {
       userId: number;
       q: number;
@@ -2819,16 +2762,6 @@ export class TournamentsService implements OnModuleInit {
         progressByTidAndUser.get(p.tournamentId)!.set(p.userId, data);
       }
     }
-
-    const timeoutResolutionRows = allIds.length > 0
-      ? await this.tournamentRoundResolutionRepository.find({
-        where: {
-          tournamentId: In(allIds),
-          reason: TournamentResolutionReason.TIMEOUT,
-        },
-      })
-      : [];
-    const timeoutResolutionMap = this.buildLatestResolutionMap(timeoutResolutionRows);
 
     const getPlayerCount = (t: Tournament): number =>
       t.playerOrder?.length ?? t.players?.length ?? 0;
@@ -3191,10 +3124,7 @@ export class TournamentsService implements OnModuleInit {
           completionDate = completionDate ?? semiWinCompletionDate;
         }
       } else if (!(semiResult.result === 'incomplete' && semiResult.noOpponent)) {
-        if (isTimeExpired(t) && answered >= QUESTIONS_PER_ROUND) {
-          passed = true;
-          completionDate = completionDate ?? getCompletionDateFromUsers(t, [userId, opponentId]);
-        } else if (isTimeExpired(t)) {
+        if (isTimeExpired(t)) {
           completionDate = completionDate ?? getCompletionDateFromUsers(t, [userId, opponentId]);
         }
       }
@@ -3339,6 +3269,14 @@ export class TournamentsService implements OnModuleInit {
         : resultLabel === 'Ожидание соперника'
           ? TournamentStatus.WAITING
           : TournamentStatus.ACTIVE;
+      const bucket: TournamentListBucket = forCompletedList ? 'completed' : 'active';
+      const viewMeta = deriveTournamentViewMeta({
+        resultLabel,
+        stage,
+        userStatus,
+        deadline,
+        roundFinished: playerRoundFinished.get(t.id) ?? false,
+      }, bucket);
       return {
         id: t.id,
         status: displayStatus,
@@ -3356,6 +3294,13 @@ export class TournamentsService implements OnModuleInit {
         completedAt: completedAtVal,
         roundFinished: playerRoundFinished.get(t.id) ?? false,
         roundStartedAt: roundStartedAtDisplay,
+        stageKind: viewMeta.stageKind,
+        resultKind: viewMeta.resultKind,
+        resultTone: viewMeta.resultTone,
+        listBucket: viewMeta.listBucket,
+        canContinue: viewMeta.canContinue,
+        isWaitingOpponent: viewMeta.isWaitingOpponent,
+        isTimeoutResult: viewMeta.isTimeoutResult,
         tournament: {
           id: t.id,
           name: getTournamentDisplayName(t),
@@ -3471,26 +3416,8 @@ export class TournamentsService implements OnModuleInit {
         return label;
       }
       if (inCompleted && isTimeExpired(t) && !isDefeatLabel(label) && !isVictoryLabel(label)) {
-        const prog2 = progressByTid.get(t.id);
-        const answered2 = prog2?.q ?? 0;
-        if (answered2 >= QUESTIONS_PER_ROUND) {
-          const semiRes2 = getMoneySemiResult(t);
-          if (semiRes2.result === 'won') return formatScoreLabel('Победа', getSemiScore(t));
-          if (semiRes2.result === 'incomplete') return semiRes2.noOpponent ? 'Ожидание соперника' : formatScoreLabel('Победа', getSemiScore(t));
-          if (semiRes2.result === 'tie') {
-            const tbRound2 = semiRes2.tiebreakerRound ?? 1;
-            const roundEnd2 = QUESTIONS_PER_ROUND + tbRound2 * TIEBREAKER_QUESTIONS;
-            if (answered2 >= roundEnd2) return formatScoreLabel('Победа', getSemiScore(t));
-            const ord2 = t.playerOrder ?? [];
-            const sl2 = ord2.indexOf(userId);
-            const os2 = sl2 >= 0 ? (sl2 % 2 === 0 ? sl2 + 1 : sl2 - 1) : -1;
-            const oid2 = os2 >= 0 && os2 < ord2.length ? ord2[os2] : -1;
-            if (oid2 > 0) {
-              const opPr2 = progressByTidAndUser.get(t.id)?.get(oid2);
-              if ((opPr2?.q ?? 0) >= roundEnd2) return formatScoreLabel('Поражение', getSemiScore(t));
-            }
-          }
-        }
+        const semiRes2 = getMoneySemiResult(t);
+        if (semiRes2.result === 'incomplete' && semiRes2.noOpponent) return 'Ожидание соперника';
         return formatTimeoutDefeatLabel();
       }
       return label;
@@ -3941,6 +3868,7 @@ export class TournamentsService implements OnModuleInit {
   async getTrainingState(
     userId: number,
     tournamentId: number,
+    allowMutations = false,
   ): Promise<{
     tournamentId: number;
     deadline: string | null;
@@ -3989,7 +3917,7 @@ export class TournamentsService implements OnModuleInit {
       questions = [...byId.values()].sort((a, b) => a.roundIndex - b.roundIndex || a.id - b.id);
     };
 
-    if (questions.filter((q) => q.roundIndex === 0).length === 0) {
+    if (allowMutations && questions.filter((q) => q.roundIndex === 0).length === 0) {
       const { semi1, semi2 } = await this.pickQuestionsForSemi();
       for (const q of semi1) {
         const row = this.questionRepository.create({ ...q, tournament, roundIndex: 0 });
@@ -4010,7 +3938,7 @@ export class TournamentsService implements OnModuleInit {
     let questionsFinal = questions.filter((q) => q.roundIndex === 2).map((q) => this.toTrainingQuestionDto(q));
 
     // Lazy-создание финальных вопросов: только когда определён победитель полуфинала
-    if (questionsFinal.length === 0) {
+    if (allowMutations && questionsFinal.length === 0) {
       const wonSemi = await this.didUserWinSemiFinal(tournament, userId);
       if (wonSemi) {
         const finalRows = await this.ensureQuestionRound(
@@ -4031,7 +3959,7 @@ export class TournamentsService implements OnModuleInit {
     const timeoutResolutionMap = await this.getTournamentTimeoutResolutionMap(tournamentId);
     let sharedStart = this.getCurrentRoundSharedStart(tournament, userId, progress, allProgress, timeoutResolutionMap);
     // Как только второй финалист зашёл в финал — запускаем таймеры у обоих (кроме того, кто уже ответил на все вопросы финала).
-    if (questionsFinal.length > 0 && progress && !sharedStart && this.isPlayerInFinalPhase(progress, allProgress, tournament, timeoutResolutionMap)) {
+    if (allowMutations && questionsFinal.length > 0 && progress && !sharedStart && this.isPlayerInFinalPhase(progress, allProgress, tournament, timeoutResolutionMap)) {
       const progressByUser = new Map(allProgress.map((p) => [p.userId, p]));
       const currentPairIndex: 0 | 1 = (tournament.playerOrder ?? []).indexOf(userId) < 2 ? 0 : 1;
       const oppositePairIndex: 0 | 1 = currentPairIndex === 0 ? 1 : 0;
@@ -4121,15 +4049,20 @@ export class TournamentsService implements OnModuleInit {
       tiebreakerRound = semiState.tiebreakerRound ?? 1;
       tiebreakerBase = this.QUESTIONS_PER_ROUND + (tiebreakerRound - 1) * this.TIEBREAKER_QUESTIONS;
       const roundIndex = 2 + tiebreakerRound;
-      const existing = await this.ensureQuestionRound(
-        tournament,
-        roundIndex,
-        this.TIEBREAKER_QUESTIONS,
-        async () => {
-          const excludedQuestionKeys = await this.getTournamentQuestionKeySet(tournamentId);
-          return this.pickRandomQuestions(this.TIEBREAKER_QUESTIONS, excludedQuestionKeys);
-        },
-      );
+      const existing = allowMutations
+        ? await this.ensureQuestionRound(
+          tournament,
+          roundIndex,
+          this.TIEBREAKER_QUESTIONS,
+          async () => {
+            const excludedQuestionKeys = await this.getTournamentQuestionKeySet(tournamentId);
+            return this.pickRandomQuestions(this.TIEBREAKER_QUESTIONS, excludedQuestionKeys);
+          },
+        )
+        : await this.questionRepository.find({
+          where: { tournament: { id: tournamentId }, roundIndex },
+          order: { id: 'ASC', },
+        });
       mergeQuestions(existing);
       questionsTiebreaker = existing.map((q) => this.toTrainingQuestionDto(q));
     }
@@ -4161,15 +4094,20 @@ export class TournamentsService implements OnModuleInit {
               tiebreakerRound = ftbRound;
               tiebreakerBase = mySemiTotal + this.QUESTIONS_PER_ROUND + (ftbRound - 1) * this.TIEBREAKER_QUESTIONS;
               const roundIndex = 100 + ftbRound;
-              const existing = await this.ensureQuestionRound(
-                tournament,
-                roundIndex,
-                this.TIEBREAKER_QUESTIONS,
-                async () => {
-                  const excludedQuestionKeys = await this.getTournamentQuestionKeySet(tournamentId);
-                  return this.pickRandomQuestions(this.TIEBREAKER_QUESTIONS, excludedQuestionKeys);
-                },
-              );
+              const existing = allowMutations
+                ? await this.ensureQuestionRound(
+                  tournament,
+                  roundIndex,
+                  this.TIEBREAKER_QUESTIONS,
+                  async () => {
+                    const excludedQuestionKeys = await this.getTournamentQuestionKeySet(tournamentId);
+                    return this.pickRandomQuestions(this.TIEBREAKER_QUESTIONS, excludedQuestionKeys);
+                  },
+                )
+                : await this.questionRepository.find({
+                  where: { tournament: { id: tournamentId }, roundIndex },
+                  order: { id: 'ASC' },
+                });
               mergeQuestions(existing);
               questionsTiebreaker = existing.map((q) => this.toTrainingQuestionDto(q));
             }
@@ -4290,6 +4228,11 @@ export class TournamentsService implements OnModuleInit {
       opponentAnswersByRound,
       opponentInfoByRound,
     };
+  }
+
+  async prepareTrainingState(userId: number, tournamentId: number): Promise<{ ok: true }> {
+    await this.getTrainingState(userId, tournamentId, true);
+    return { ok: true };
   }
 
   /**
@@ -4461,8 +4404,8 @@ export class TournamentsService implements OnModuleInit {
     return [];
   }
 
-  private readonly QUESTIONS_PER_ROUND = 10;
-  private readonly TIEBREAKER_QUESTIONS = 10;
+  private readonly QUESTIONS_PER_ROUND = QUESTIONS_PER_ROUND;
+  private readonly TIEBREAKER_QUESTIONS = TIEBREAKER_QUESTIONS;
 
   private sortPlayersByOrder(tournament: Tournament): void {
     const order = tournament.playerOrder;
@@ -4913,19 +4856,12 @@ export class TournamentsService implements OnModuleInit {
       return p;
     });
     const progressByUser = new Map(progressList.map((p) => [p.userId, p]));
-    const viewerProgress = progressByUser.get(userId);
-    const viewerSharedStart = viewerProgress
-      ? this.getCurrentRoundSharedStart(tournament, userId, viewerProgress, progressList, timeoutResolutionMap)
-      : null;
-    const activeRoundDeadline = viewerSharedStart ? this.getRoundDeadline(viewerSharedStart) : null;
-
-    const isTimeExpired = activeRoundDeadline ? new Date(activeRoundDeadline) < new Date() : false;
     const hasWinner =
       (await this.tournamentResultRepository.findOne({
         where: { tournamentId, passed: 1 },
       })) != null;
     const isCompleted =
-      tournament.status === TournamentStatus.FINISHED || hasWinner || isTimeExpired;
+      tournament.status === TournamentStatus.FINISHED || hasWinner;
     const isActive = !isCompleted;
 
     const toPlayer = (p: User, isLoser?: boolean) => {

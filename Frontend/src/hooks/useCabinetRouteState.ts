@@ -1,0 +1,86 @@
+import { useCallback, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
+
+export type CabinetSection =
+  | 'profile'
+  | 'statistics'
+  | 'games'
+  | 'games-training'
+  | 'games-money'
+  | 'finance'
+  | 'finance-topup'
+  | 'finance-withdraw'
+  | 'partner'
+  | 'partner-statistics'
+  | 'news';
+
+export type CabinetStatsMode = 'personal' | 'general';
+export type CabinetGameMode = 'training' | 'money' | null;
+
+const VALID_SECTIONS = new Set<CabinetSection>([
+  'profile',
+  'statistics',
+  'games',
+  'games-training',
+  'games-money',
+  'finance',
+  'finance-topup',
+  'finance-withdraw',
+  'partner',
+  'partner-statistics',
+  'news',
+]);
+
+function parseSection(raw: string | null, fallback: CabinetSection = 'news'): CabinetSection {
+  if (raw && VALID_SECTIONS.has(raw as CabinetSection)) return raw as CabinetSection;
+  return fallback;
+}
+
+export function useCabinetRouteState(defaultSection: CabinetSection = 'news') {
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const section = useMemo(() => parseSection(searchParams.get('section'), defaultSection), [defaultSection, searchParams]);
+  const gameMode: CabinetGameMode = section === 'games-training' ? 'training' : section === 'games-money' ? 'money' : null;
+  const statsMode: CabinetStatsMode = searchParams.get('statsMode') === 'general' ? 'general' : 'personal';
+  const paymentStatus = searchParams.get('payment');
+
+  const setSection = useCallback((nextSection: CabinetSection) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('section', nextSection);
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  const setGameMode = useCallback((nextMode: CabinetGameMode) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (nextMode === 'training') next.set('section', 'games-training');
+      else if (nextMode === 'money') next.set('section', 'games-money');
+      else next.set('section', 'games');
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  const setStatsMode = useCallback((nextMode: CabinetStatsMode) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('section', 'statistics');
+      if (nextMode === 'general') next.set('statsMode', 'general');
+      else next.delete('statsMode');
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+
+  return {
+    searchParams,
+    setSearchParams,
+    section,
+    gameMode,
+    statsMode,
+    paymentStatus,
+    setSection,
+    setGameMode,
+    setStatsMode,
+  };
+}

@@ -1,7 +1,11 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
-import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
-import { buildReturnToPath } from '../authSession.ts';
+import { buildReturnToPath, getAdminToken } from '../authSession.ts';
+import { refreshAccessToken, restoreAdminSession } from '../api/authClient.ts';
+import { fetchTournamentBracket, fetchTournamentQuestions, fetchTrainingState, prepareTrainingState } from '../features/tournaments/api.ts';
+import type { BracketViewData, TournamentHistoryResponse, TournamentListItem, TrainingQuestion } from '../features/tournaments/contracts.ts';
+import { useCabinetRouteState } from '../hooks/useCabinetRouteState.ts';
 import { formatNum, CURRENCY } from './formatNum.ts';
 import { toMoscowDateStr, parseMoscowDate, formatMoscowDateTime, formatMoscowDateTimeFull } from './dateUtils.ts';
 import { preloadAllLeagueImages } from '../preloadLeagueImages.ts';
@@ -27,8 +31,6 @@ type NotificationItem = {
   meta?: { goToGames: true; gameMode?: 'training' | 'money' };
 };
 type GameMode = null | 'training' | 'money';
-
-type TrainingQuestion = { id: number; question: string; options: string[]; correctAnswer: number };
 type TrainingData = {
   tournamentId: number;
   deadline: string | null;
@@ -114,6 +116,11 @@ function getResultLabelTone(label?: string | null): string {
   if (label === 'Доп. раунд') return 'tiebreaker';
   if (isWaitingResultLabel(label)) return 'stage-passed';
   return 'stage-not-passed';
+}
+
+function getTournamentResultTone(item?: Pick<TournamentListItem, 'resultTone' | 'resultLabel'> | null): string {
+  if (!item) return 'stage-not-passed';
+  return item.resultTone ?? getResultLabelTone(item.resultLabel);
 }
 
 const GemIcon = ({ amount, className }: { amount: number; className?: string }) => {
@@ -408,20 +415,22 @@ function getSectionFromSearchParams(params: URLSearchParams): CabinetSection | n
 const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceSectionProp }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const paymentStatus = searchParams.get('payment');
+  const {
+    searchParams,
+    setSearchParams,
+    paymentStatus,
+    section: routeSection,
+    gameMode: routeGameMode,
+    statsMode: routeStatsMode,
+  } = useCabinetRouteState('news');
   const forceSection = (forceSectionProp && (VALID_SECTIONS as readonly string[]).includes(forceSectionProp)) ? forceSectionProp as CabinetSection : undefined;
 
   const [section, setSection] = useState<CabinetSection>(() => {
     if (forceSection) return forceSection;
-    const fromSearch = getSectionFromSearchParams(searchParams);
-    if (fromSearch) return fromSearch;
-    return 'news';
+    return routeSection as CabinetSection;
   });
   const [gameMode, setGameModeState] = useState<GameMode>(() => {
-    const sectionValue = getSectionFromSearchParams(searchParams);
-    if (sectionValue === 'games-training') return 'training';
-    if (sectionValue === 'games-money') return 'money';
+    if (routeGameMode) return routeGameMode;
     try {
       const stored = typeof window !== 'undefined' ? localStorage.getItem(GAME_MODE_STORAGE_KEY) : null;
       if (stored === 'training' || stored === 'money') return stored as GameMode;
@@ -516,7 +525,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   };
   const [user, setUser] = useState<any>(null);
   const [showAdminLink, setShowAdminLink] = useState(false);
-  const [isImpersonating] = useState(() => !!localStorage.getItem('adminToken'));
+  const [isImpersonating] = useState(() => !!getAdminToken());
   const [transactions, setTransactions] = useState<any[]>([]);
   const [transactionsLoaded, setTransactionsLoaded] = useState(false);
   const [avatar, setAvatar] = useState<string | null>(null);
@@ -580,13 +589,9 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   const logoutDropdownRef = useRef<HTMLDivElement>(null);
 
   const returnToAdmin = () => {
-    const adminToken = localStorage.getItem('adminToken');
-    const adminReturnHash = localStorage.getItem('adminReturnHash');
-    if (!adminToken) return;
-    localStorage.removeItem('adminToken');
-    localStorage.removeItem('adminReturnHash');
-    localStorage.setItem('token', adminToken);
-    window.dispatchEvent(new CustomEvent('token-refresh', { detail: adminToken }));
+    const restored = restoreAdminSession();
+    if (!restored) return;
+    const adminReturnHash = restored.returnHash;
     const targetAdminRoute = adminReturnHash && adminReturnHash.startsWith('#/')
       ? adminReturnHash.slice(1)
       : '/admin?tab=users';
@@ -721,27 +726,11 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   const [leagueCarouselIndex, setLeagueCarouselIndex] = useState(0);
   const selectedLeagueRef = useRef(5);
 
-  const [gameHistory, setGameHistory] = useState<{
-    active: { id: number; status: string; createdAt: string; playersCount: number; deadline?: string; userStatus?: 'passed' | 'not_passed'; stage?: string; resultLabel?: string; roundForQuestions?: 'semi' | 'final'; roundFinished?: boolean; roundStartedAt?: string | null }[];
-    completed: { id: number; status: string; createdAt: string; playersCount: number; userStatus?: 'passed' | 'not_passed'; stage?: string; resultLabel?: string; roundForQuestions?: 'semi' | 'final'; roundStartedAt?: string | null }[];
-  } | null>(null);
+  const [gameHistory, setGameHistory] = useState<TournamentHistoryResponse | null>(null);
 
-  const [gameHistoryMoney, setGameHistoryMoney] = useState<{
-    active: { id: number; status: string; createdAt: string; playersCount: number; deadline?: string; userStatus?: 'passed' | 'not_passed'; stage?: string; resultLabel?: string; roundForQuestions?: 'semi' | 'final'; roundFinished?: boolean; roundStartedAt?: string | null }[];
-    completed: { id: number; status: string; createdAt: string; playersCount: number; userStatus?: 'passed' | 'not_passed'; stage?: string; resultLabel?: string; roundForQuestions?: 'semi' | 'final'; roundStartedAt?: string | null }[];
-  } | null>(null);
+  const [gameHistoryMoney, setGameHistoryMoney] = useState<TournamentHistoryResponse | null>(null);
 
-  const [bracketView, setBracketView] = useState<{
-    tournamentId: number;
-    semi1: { players: { id: number; username: string; nickname?: string | null; semiScore?: number; questionsAnswered?: number; correctAnswersCount?: number; isLoser?: boolean; tiebreakerRound?: number; tiebreakerAnswered?: number; tiebreakerCorrect?: number }[] };
-    semi2: { players: { id: number; username: string; nickname?: string | null; semiScore?: number; questionsAnswered?: number; correctAnswersCount?: number; isLoser?: boolean; tiebreakerRound?: number; tiebreakerAnswered?: number; tiebreakerCorrect?: number }[] } | null;
-    final: { players: { id: number; username: string; nickname?: string | null; finalScore?: number; finalAnswered?: number; finalCorrect?: number }[] };
-    finalWinnerId?: number | null;
-    gameType: string | null;
-    status: string;
-    isCompleted?: boolean;
-    isActive?: boolean;
-  } | null>(null);
+  const [bracketView, setBracketView] = useState<BracketViewData | null>(null);
   const [bracketLoading, setBracketLoading] = useState(false);
   const [bracketError, setBracketError] = useState('');
   const [bracketPlayerTooltip, setBracketPlayerTooltip] = useState<{
@@ -876,7 +865,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     return { rowGrid: grid, subtreeLevels: levelsForDisplay, hasChildren, getDescendantCount };
   }, [referralTree, partnerDetailExpandedIds, user]);
 
-  const [statsMode, setStatsMode] = useState<'personal' | 'general'>(() => getStatsModeFromSearchParams(searchParams));
+  const [statsMode, setStatsMode] = useState<'personal' | 'general'>(() => routeStatsMode);
   const [rankingMetric, setRankingMetric] = useState<'gamesPlayed' | 'wins' | 'totalWinnings' | 'correctAnswers' | 'correctAnswerRate' | 'referrals' | 'totalWithdrawn'>('gamesPlayed');
   const [rankings, setRankings] = useState<null | {
     rankings: { rank: number; userId: number; displayName: string; value: number; valueFormatted: string }[];
@@ -1325,12 +1314,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         const status = e?.response?.status;
         if (status === 401) {
           try {
-            const { data } = await axios.get<{ access_token: string }>('/auth/refresh', {
-              headers: { Authorization: `Bearer ${token}` },
-            });
-            const newToken = data.access_token;
-            localStorage.setItem('token', newToken);
-            window.dispatchEvent(new CustomEvent('token-refresh', { detail: newToken }));
+            const newToken = await refreshAccessToken(token);
             const retryRes = await fetchStats(newToken);
             setStats(retryRes.data);
             return;
@@ -1702,21 +1686,8 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
       }>('/tournaments/join', { leagueAmount }, { headers: { Authorization: `Bearer ${token}` } });
       setTournamentJoinInfo(data);
       addNotification({ type: 'game_started', title: 'Турнир начался', text: `Вы присоединились к турниру в лиге ${leagueAmount} L. Удачи!`, meta: { goToGames: true, gameMode: 'money' } });
-      const { data: trainData } = await axios.get<{
-        tournamentId: number;
-        deadline: string | null;
-        questionsSemi1: TrainingQuestion[];
-        questionsSemi2: TrainingQuestion[];
-        questionsFinal: TrainingQuestion[];
-        questionsAnsweredCount: number;
-        currentQuestionIndex: number;
-        timeLeftSeconds: number | null;
-        leftAt: string | null;
-        correctAnswersCount: number;
-        semiFinalCorrectCount: number | null;
-        answersChosen?: number[];
-        semiResult?: 'playing' | 'won' | 'lost' | 'tie' | 'waiting';
-      }>(`/tournaments/${data.tournamentId}/training-state`, { headers: { Authorization: `Bearer ${token}` } });
+      await prepareTrainingState(token, data.tournamentId);
+      const trainData = await fetchTrainingState(token, data.tournamentId);
       setTrainingData({
         tournamentId: trainData.tournamentId,
         deadline: trainData.deadline,
@@ -1834,27 +1805,8 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     setContinueTrainingLoading(tournamentId);
     setContinueTrainingError('');
     try {
-      const { data } = await axios.get<{
-        tournamentId: number;
-        deadline: string | null;
-        questionsSemi1: TrainingQuestion[];
-        questionsSemi2: TrainingQuestion[];
-        questionsFinal: TrainingQuestion[];
-        questionsTiebreaker?: TrainingQuestion[];
-        tiebreakerRound?: number;
-        tiebreakerBase?: number;
-        tiebreakerPhase?: 'semi' | 'final' | null;
-        questionsAnsweredCount: number;
-        currentQuestionIndex: number;
-        lockedAnswerCount?: number;
-        timeLeftSeconds: number | null;
-        leftAt: string | null;
-        correctAnswersCount: number;
-        semiFinalCorrectCount: number | null;
-        answersChosen?: number[];
-        semiResult?: 'playing' | 'won' | 'lost' | 'tie' | 'waiting';
-        userSemiIndex?: number;
-      }>(`/tournaments/${tournamentId}/training-state`, { headers: { Authorization: `Bearer ${token}` } });
+      await prepareTrainingState(token, tournamentId);
+      const data = await fetchTrainingState(token, tournamentId);
       const semiIdx = data.userSemiIndex ?? 0;
       setTrainingData({
         tournamentId: data.tournamentId,
@@ -1994,7 +1946,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     }
     const requestId = ++bracketRequestIdRef.current;
     try {
-      const { data } = await axios.get(`/tournaments/${tournamentId}/bracket`, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await fetchTournamentBracket(token, tournamentId);
       if (bracketRequestIdRef.current !== requestId) return;
       setBracketView(data);
     } catch (e: unknown) {
@@ -2062,23 +2014,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     }
     const requestId = ++questionsRequestIdRef.current;
     try {
-      const { data } = await axios.get<{
-        questionsSemi1: { id: number; question: string; options: string[]; correctAnswer: number }[];
-        questionsSemi2: { id: number; question: string; options: string[]; correctAnswer: number }[];
-        questionsFinal: { id: number; question: string; options: string[]; correctAnswer: number }[];
-        questionsAnsweredCount: number;
-        correctAnswersCount: number;
-        semiFinalCorrectCount?: number | null;
-        semiTiebreakerCorrectSum?: number;
-        answersChosen?: number[];
-        userSemiIndex?: number;
-        semiTiebreakerAllQuestions?: { id: number; question: string; options: string[]; correctAnswer: number }[][];
-        semiTiebreakerRoundsCorrect?: number[];
-        finalTiebreakerAllQuestions?: { id: number; question: string; options: string[]; correctAnswer: number }[][];
-        finalTiebreakerRoundsCorrect?: number[];
-        opponentAnswersByRound?: number[][];
-        opponentInfoByRound?: { id: number; nickname: string; avatarUrl?: string | null }[];
-      }>(`/tournaments/${tournamentId}/training-state`, { headers: { Authorization: `Bearer ${token}` } });
+      const data = await fetchTournamentQuestions(token, tournamentId);
       if (questionsRequestIdRef.current !== requestId) return;
       const answersChosenRaw = data.answersChosen ?? (data as { answers_chosen?: number[] }).answers_chosen;
       setQuestionsReviewData({
@@ -2173,21 +2109,8 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
       }>(`/tournaments/${tournamentId}/state`, { headers: { Authorization: `Bearer ${token}` } });
       setTournamentJoinInfo(data);
       setContinueTournamentError('');
-      const { data: trainData } = await axios.get<{
-        tournamentId: number;
-        deadline: string | null;
-        questionsSemi1: TrainingQuestion[];
-        questionsSemi2: TrainingQuestion[];
-        questionsFinal: TrainingQuestion[];
-        questionsAnsweredCount: number;
-        currentQuestionIndex: number;
-        timeLeftSeconds: number | null;
-        leftAt: string | null;
-        correctAnswersCount: number;
-        semiFinalCorrectCount: number | null;
-        answersChosen?: number[];
-        semiResult?: 'playing' | 'won' | 'lost' | 'tie' | 'waiting';
-      }>(`/tournaments/${tournamentId}/training-state`, { headers: { Authorization: `Bearer ${token}` } });
+      await prepareTrainingState(token, tournamentId);
+      const trainData = await fetchTrainingState(token, tournamentId);
       const ac = Array.isArray(trainData.answersChosen) ? trainData.answersChosen : [];
       setFullAnswersChosen(ac);
       const hasQuestions = (trainData.questionsSemi1?.length ?? 0) > 0 || (trainData.questionsSemi2?.length ?? 0) > 0 || (trainData.questionsFinal?.length ?? 0) > 0;
@@ -3313,9 +3236,9 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                         <div className="training-start-buttons">
                           {(() => {
                             const continueTarget = [...(gameHistory?.active ?? [])]
-                              .filter((t) => t.userStatus === 'not_passed' && !isWaitingResultLabel(t.resultLabel) && !isDefeatResultLabel(t.resultLabel) && !isTimeoutResultLabel(t.resultLabel) && (!t.deadline || new Date(t.deadline) > new Date()))
+                              .filter((t) => t.canContinue)
                               .sort((a, b) => a.id - b.id)[0] ?? null;
-                            const hasActiveGames = (gameHistory?.active ?? []).some((t) => !isWaitingResultLabel(t.resultLabel) && !isDefeatResultLabel(t.resultLabel) && !isTimeoutResultLabel(t.resultLabel));
+                            const hasActiveGames = (gameHistory?.active ?? []).some((t) => t.canContinue);
                             if (continueTarget) {
                               return (
                                 <button
@@ -3392,7 +3315,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                       <td>{t.roundStartedAt ? formatMoscowDateTime(t.roundStartedAt) : '—'}</td>
                                       <td>{t.roundFinished ? '—' : t.deadline ? (new Date(t.deadline) > new Date() ? formatTimeLeft(t.deadline) : 'Время вышло') : '—'}</td>
                                       <td>
-                                        <span className={`game-history-status game-history-status--${getResultLabelTone(t.resultLabel)}`}>
+                                        <span className={`game-history-status game-history-status--${getTournamentResultTone(t)}`}>
                                           {t.resultLabel ?? 'Этап не пройден'}
                                         </span>
                                       </td>
@@ -3439,7 +3362,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                       </td>
                                       <td>{t.roundStartedAt ? formatMoscowDateTime(t.roundStartedAt) : '—'}</td>
                                       <td>{(t as any).completedAt ? formatMoscowDateTime((t as any).completedAt) : '—'}</td>
-                                      <td><span className={`game-history-status game-history-status--${getResultLabelTone(t.resultLabel)}`}>{t.resultLabel ?? 'Этап не пройден'}</span></td>
+                                      <td><span className={`game-history-status game-history-status--${getTournamentResultTone(t)}`}>{t.resultLabel ?? 'Этап не пройден'}</span></td>
                                     </tr>
                                   ))}
                                 </tbody>
@@ -3719,9 +3642,9 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                 {(() => {
                                   const moneyActive = gameHistoryMoney?.active ?? [];
                                   const continueTarget = [...moneyActive]
-                                    .filter((t) => t.userStatus === 'not_passed' && !isWaitingResultLabel(t.resultLabel) && !isDefeatResultLabel(t.resultLabel) && !isTimeoutResultLabel(t.resultLabel) && (!t.deadline || new Date(t.deadline) > new Date()))
+                                    .filter((t) => t.canContinue)
                                     .sort((a, b) => a.id - b.id)[0] ?? null;
-                                  const hasActiveGames = moneyActive.some((t) => !isWaitingResultLabel(t.resultLabel) && !isDefeatResultLabel(t.resultLabel) && !isTimeoutResultLabel(t.resultLabel));
+                                  const hasActiveGames = moneyActive.some((t) => t.canContinue);
                                   if (continueTarget) {
                                     return (
                                       <button
@@ -3820,7 +3743,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                         </td>
                                         <td>{t.roundStartedAt ? formatMoscowDateTime(t.roundStartedAt) : '—'}</td>
                                         <td>{t.roundFinished ? '—' : t.deadline ? (new Date(t.deadline) > new Date() ? formatTimeLeft(t.deadline) : 'Время вышло') : '—'}</td>
-                                        <td><span className={`game-history-status game-history-status--${getResultLabelTone(t.resultLabel)}`}>{t.resultLabel ?? 'Этап не пройден'}</span></td>
+                                        <td><span className={`game-history-status game-history-status--${getTournamentResultTone(t)}`}>{t.resultLabel ?? 'Этап не пройден'}</span></td>
                                       </tr>
                                     ))}
                                   </tbody>
@@ -3865,7 +3788,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                         </td>
                                         <td>{t.roundStartedAt ? formatMoscowDateTime(t.roundStartedAt) : '—'}</td>
                                         <td>{(t as any).completedAt ? formatMoscowDateTime((t as any).completedAt) : '—'}</td>
-                                        <td><span className={`game-history-status game-history-status--${getResultLabelTone(t.resultLabel)}`}>{t.resultLabel ?? 'Этап не пройден'}</span></td>
+                                        <td><span className={`game-history-status game-history-status--${getTournamentResultTone(t)}`}>{t.resultLabel ?? 'Этап не пройден'}</span></td>
                                       </tr>
                                     ))}
                                   </tbody>

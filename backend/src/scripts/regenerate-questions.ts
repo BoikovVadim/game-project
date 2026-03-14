@@ -5,7 +5,8 @@ import { User } from '../users/user.entity';
 import { TournamentEntry } from '../tournaments/tournament-entry.entity';
 import { TournamentResult } from '../tournaments/tournament-result.entity';
 import { TournamentProgress } from '../tournaments/tournament-progress.entity';
-import { QUESTION_POOL, CATEGORIES, QuestionCategory } from '../tournaments/questions-pool';
+import { generateQuestionCatalog } from '../tournaments/question-generators/catalog';
+import type { RawQuestion } from '../tournaments/question-generators/types';
 import * as dotenv from 'dotenv';
 dotenv.config();
 
@@ -18,19 +19,26 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-function pickBalanced(n: number): typeof QUESTION_POOL {
-  const byCategory = new Map<QuestionCategory, typeof QUESTION_POOL>();
-  for (const cat of CATEGORIES) {
-    byCategory.set(cat, shuffle(QUESTION_POOL.filter((q) => q.category === cat)));
+function getCategory(question: RawQuestion): string {
+  const [prefix] = question.topic.split('_');
+  return prefix || 'misc';
+}
+
+function pickBalanced(n: number): RawQuestion[] {
+  const catalog = generateQuestionCatalog();
+  const categories = [...new Set(catalog.map(getCategory))];
+  const byCategory = new Map<string, RawQuestion[]>();
+  for (const category of categories) {
+    byCategory.set(category, shuffle(catalog.filter((question) => getCategory(question) === category)));
   }
-  const out: typeof QUESTION_POOL = [];
+  const out: RawQuestion[] = [];
   let round = 0;
   while (out.length < n) {
-    const cat = CATEGORIES[round % CATEGORIES.length]!;
+    const cat = categories[round % categories.length]!;
     const pool = byCategory.get(cat) ?? [];
     if (pool.length > 0) out.push(pool.shift()!);
     round++;
-    if (round > n * 4 + 100) break;
+    if (round > n * Math.max(categories.length, 1) + 100) break;
   }
   return out;
 }

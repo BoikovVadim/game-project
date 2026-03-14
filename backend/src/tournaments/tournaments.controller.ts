@@ -2,6 +2,7 @@ import { Controller, Post, Get, Body, Param, Query, UseGuards, Request, ParseInt
 import { TournamentsService } from './tournaments.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminGuard } from '../auth/admin.guard';
+import { CompleteTournamentDto, CreateTournamentDto, JoinTournamentDto, SetTournamentProgressDto } from './dto/tournament-write.dto';
 
 @Controller('tournaments')
 export class TournamentsController {
@@ -68,6 +69,15 @@ export class TournamentsController {
     return this.tournamentsService.getTrainingState(req.user.id, id);
   }
 
+  @Post(':id/training-state/prepare')
+  @UseGuards(JwtAuthGuard)
+  prepareTrainingState(
+    @Param('id', ParseIntPipe) id: number,
+    @Request() req: { user: { id: number } },
+  ) {
+    return this.tournamentsService.prepareTrainingState(req.user.id, id);
+  }
+
   @Get('admin/:id/training-state')
   @UseGuards(JwtAuthGuard, AdminGuard)
   getTrainingStateForAdmin(
@@ -77,11 +87,20 @@ export class TournamentsController {
     return this.tournamentsService.getTrainingState(userId, id);
   }
 
+  @Post('admin/:id/training-state/prepare')
+  @UseGuards(JwtAuthGuard, AdminGuard)
+  prepareTrainingStateForAdmin(
+    @Param('id', ParseIntPipe) id: number,
+    @Query('userId', ParseIntPipe) userId: number,
+  ) {
+    return this.tournamentsService.prepareTrainingState(userId, id);
+  }
+
   @Post(':id/complete')
   @UseGuards(JwtAuthGuard)
   completeTournament(
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: { passed?: boolean },
+    @Body() body: CompleteTournamentDto,
     @Request() req: { user: { id: number } },
   ) {
     return this.tournamentsService.completeTournament(req.user.id, id, body.passed === true);
@@ -91,7 +110,7 @@ export class TournamentsController {
   @UseGuards(JwtAuthGuard)
   setProgress(
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: { count?: number; currentIndex?: number; timeLeft?: number; correctCount?: number; answersChosen?: number[]; answerFinal?: boolean },
+    @Body() body: SetTournamentProgressDto,
     @Request() req: { user: { id: number } },
   ) {
     return this.tournamentsService.setProgress(req.user.id, id, body.count ?? 0, body.currentIndex, body.timeLeft, body.correctCount, body.answersChosen, body.answerFinal === true);
@@ -99,7 +118,7 @@ export class TournamentsController {
 
   @Post('create')
   @UseGuards(JwtAuthGuard, AdminGuard)
-  async create(@Body() body: { userId: number }) {
+  async create(@Body() body: CreateTournamentDto) {
     return this.tournamentsService.createTournament(body.userId);
   }
 
@@ -111,7 +130,7 @@ export class TournamentsController {
 
   @Post('join')
   @UseGuards(JwtAuthGuard)
-  async joinTournament(@Body() body: { leagueAmount?: number }, @Request() req: { user: { id: number } }) {
+  async joinTournament(@Body() body: JoinTournamentDto, @Request() req: { user: { id: number } }) {
     const amount = body.leagueAmount ?? 5;
     return this.tournamentsService.joinOrCreateMoneyTournament(req.user.id, amount);
   }

@@ -26,3 +26,8 @@ Thumbs.db
 .tmp
 node_modules
 fix_*.sql
+tmp_*.js
+
+# Local diagnostics
+tools/diagnostics/.env.local
+tools/diagnostics/*.token

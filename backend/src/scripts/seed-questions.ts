@@ -7,20 +7,8 @@ import { AppModule } from '../app.module';
 import { Repository } from 'typeorm';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { QuestionPoolItem } from '../tournaments/question-pool.entity';
-import { RawQuestion } from '../tournaments/question-generators/types';
-
-import { generateMath } from '../tournaments/question-generators/math';
-import { generateLogic } from '../tournaments/question-generators/logic';
-import { generateGeoSpace } from '../tournaments/question-generators/geo-space';
-import { generateEnglish } from '../tournaments/question-generators/english-words';
-import { generateLiterature } from '../tournaments/question-generators/literature';
-import { generateMusicFilm } from '../tournaments/question-generators/music-film';
-import { generateHistoryScience } from '../tournaments/question-generators/history-science';
-import { generateNatureTechCulture } from '../tournaments/question-generators/nature-tech-culture';
-import { generateGeo500 } from '../tournaments/question-generators/expand-geo-500';
-import { generateCulture500 } from '../tournaments/question-generators/expand-culture-500';
-import { generateHistory500 } from '../tournaments/question-generators/expand-history-500';
-import { generateNatureTech500 } from '../tournaments/question-generators/expand-nature-tech-500';
+import type { RawQuestion } from '../tournaments/question-generators/types';
+import { getQuestionGeneratorGroups } from '../tournaments/question-generators/catalog';
 
 async function run() {
   console.log('Инициализация приложения...');
@@ -28,20 +16,10 @@ async function run() {
   const repo = app.get<Repository<QuestionPoolItem>>(getRepositoryToken(QuestionPoolItem));
 
   console.log('Генерация вопросов...');
-  const generators: { name: string; fn: () => RawQuestion[] }[] = [
-    { name: 'Math', fn: generateMath },
-    { name: 'Logic', fn: generateLogic },
-    { name: 'GeoSpace', fn: generateGeoSpace },
-    { name: 'English', fn: generateEnglish },
-    { name: 'Literature', fn: generateLiterature },
-    { name: 'MusicFilm', fn: generateMusicFilm },
-    { name: 'HistoryScience', fn: generateHistoryScience },
-    { name: 'NatureTechCulture', fn: generateNatureTechCulture },
-    { name: 'Culture500', fn: generateCulture500 },
-    { name: 'Geo500', fn: generateGeo500 },
-    { name: 'History500', fn: generateHistory500 },
-    { name: 'NatureTech500', fn: generateNatureTech500 },
-  ];
+  const generators: { name: string; fn: () => RawQuestion[] }[] = getQuestionGeneratorGroups().map((group) => ({
+    name: group.name,
+    fn: group.generate,
+  }));
 
   const allQuestions: RawQuestion[] = [];
   for (const g of generators) {

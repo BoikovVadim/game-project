@@ -42,6 +42,13 @@ jobs:
           DB_PASS: ci
           DB_NAME: ci
 
+      - name: Test backend
+        run: npm test
+        working-directory: backend
+
       - name: Build frontend
         run: CI= npm run build
         working-directory: Frontend
+
+      - name: Smoke config stability
+        run: npm run smoke:stability

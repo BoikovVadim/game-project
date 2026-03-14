@@ -2,7 +2,8 @@ import React, { Component, type ErrorInfo, type ReactNode } from 'react';
 import ReactDOM from 'react-dom/client';
 import axios from 'axios';
 import App from './App.tsx';
-import { AUTH_SESSION_INVALID_EVENT, TOKEN_REFRESH_EVENT } from './authSession.ts';
+import { AUTH_SESSION_INVALID_EVENT } from './authSession.ts';
+import { refreshAccessToken } from './api/authClient.ts';
 
 /** Локальный ErrorBoundary без зависимостей от Router — только ссылки по hash */
 class RootErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
@@ -47,16 +48,8 @@ function setupAxiosInterceptor() {
           const now = Date.now();
           if (token && now - lastRefresh > REFRESH_INTERVAL && !url.includes('auth/login') && !url.includes('auth/register') && !url.includes('auth/refresh') && !url.includes('withdrawal-request')) {
             lastRefresh = now;
-            axios.get('/auth/refresh', { headers: { Authorization: `Bearer ${token}` } })
-              .then((r) => {
-                try {
-                  const newToken = r.data?.access_token;
-                  if (newToken && typeof localStorage !== 'undefined') {
-                    localStorage.setItem('token', newToken);
-                    window.dispatchEvent(new CustomEvent(TOKEN_REFRESH_EVENT, { detail: newToken }));
-                  }
-                } catch (_) {}
-              })
+            refreshAccessToken(token)
+              .then(() => {})
               .catch(() => {});
           }
         } catch (_) {}

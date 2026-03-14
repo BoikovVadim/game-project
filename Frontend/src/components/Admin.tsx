@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { setAdminImpersonationSession } from '../api/authClient.ts';
+import { fetchTournamentBracket, fetchTournamentQuestions } from '../features/tournaments/api.ts';
+import type { BracketViewData, QuestionsReviewData } from '../features/tournaments/contracts.ts';
+import { useAdminQueryState } from '../hooks/useAdminQueryState.ts';
 import { formatMoscowDateTimeFull, formatMoscowDateTime } from './dateUtils.ts';
 import { TournamentBracketModal, TournamentQuestionsModal } from './TournamentModals.tsx';
 import './Admin.css';
@@ -151,24 +155,21 @@ const resolveTournamentColumns = (raw: string | null): TournamentColumnKey[] => 
 
 const Admin: React.FC<AdminProps> = ({ token }) => {
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const tabFromUrl = searchParams.get('tab');
+  const { searchParams, setSearchParams, state: adminQueryState, patchQuery } = useAdminQueryState();
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRequestRow[]>([]);
   const [pendingWithdrawalsCount, setPendingWithdrawalsCount] = useState(0);
   const [withdrawalStatusFilter, setWithdrawalStatusFilter] = useState<string>(() => {
-    const s = searchParams.get('status');
-    if (s === 'pending' || s === 'approved' || s === 'rejected' || s === '') return s;
-    return 'pending';
+    return adminQueryState.withdrawalStatus;
   });
   const [withdrawalSortBy, setWithdrawalSortBy] = useState<'id' | 'user' | 'amount' | 'details' | 'status' | 'admin' | 'processedAt' | 'createdAt'>('createdAt');
   const [withdrawalSortDir, setWithdrawalSortDir] = useState<'asc' | 'desc'>('desc');
   const [users, setUsers] = useState<UserRow[]>([]);
   const [userSortBy, setUserSortBy] = useState<'id' | 'username' | 'email' | 'balance' | 'balanceRubles' | 'isAdmin'>('id');
   const [userSortDir, setUserSortDir] = useState<'asc' | 'desc'>('asc');
-  const [userSearch, setUserSearch] = useState(() => searchParams.get('userSearch') ?? '');
+  const [userSearch, setUserSearch] = useState(() => adminQueryState.userSearch);
   const [section, setSection] = useState<'withdrawals' | 'users' | 'credit' | 'support' | 'statistics' | 'news'>(() =>
-    tabFromUrl === 'users' ? 'users' : tabFromUrl === 'credit' ? 'credit' : tabFromUrl === 'support' ? 'support' : tabFromUrl === 'withdrawals' ? 'withdrawals' : tabFromUrl === 'news' ? 'news' : 'statistics'
+    adminQueryState.section
   );
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -198,11 +199,9 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
 
   const [supportTickets, setSupportTickets] = useState<any[]>([]);
   const [supportUnreadCount, setSupportUnreadCount] = useState(0);
-  const [supportStatusFilter, setSupportStatusFilter] = useState<string>(() => searchParams.get('supportStatus') ?? 'open');
+  const [supportStatusFilter, setSupportStatusFilter] = useState<string>(() => adminQueryState.supportStatus);
   const [supportOpenTicketId, setSupportOpenTicketId] = useState<number | null>(() => {
-    const raw = searchParams.get('supportTicket');
-    const parsed = raw ? parseInt(raw, 10) : NaN;
-    return Number.isNaN(parsed) || parsed <= 0 ? null : parsed;
+    return adminQueryState.supportTicket;
   });
   const [supportMessages, setSupportMessages] = useState<any[]>([]);
   const [supportReply, setSupportReply] = useState('');
@@ -213,16 +212,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
   const [statsMetrics, setStatsMetrics] = useState<Set<string>>(() => new Set(['registrations', 'topups', 'withdrawals', 'gameIncome']));
 
   const [statsSubTab, setStatsSubTab] = useState<'overview' | 'transactions' | 'questions' | 'tournaments' | 'project-cost'>(() => {
-    const sub = searchParams.get('statsTab');
-    return sub === 'transactions'
-      ? 'transactions'
-      : sub === 'questions'
-        ? 'questions'
-        : sub === 'tournaments'
-          ? 'tournaments'
-          : sub === 'project-cost'
-            ? 'project-cost'
-            : 'overview';
+    return adminQueryState.statsTab;
   });
   type QuestionStatRow = { topic: string; count: number };
   const topicNames: Record<string, string> = {
@@ -306,31 +296,11 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
     userId: number; userNickname: string; phase: 'active' | 'history';
     gameType?: 'training' | 'money' | null;
   };
-  type BracketPlayer = {
-    id: number;
-    nickname?: string | null;
-    avatarUrl?: string | null;
-    isLoser?: boolean;
-    questionsAnswered?: number;
-    correctAnswersCount?: number;
-    semiScore?: number | null;
-    finalAnswered?: number;
-    finalScore?: number | null;
-    finalCorrect?: number | null;
-  };
-  type BracketViewData = {
-    tournamentId: number;
-    gameType?: 'training' | 'money' | null;
-    semi1: { players: BracketPlayer[] };
-    semi2: { players: BracketPlayer[] } | null;
-    final: { players: BracketPlayer[] };
-    finalWinnerId?: number | null;
-  };
   const [tournamentsList, setTournamentsList] = useState<TournamentListRow[]>([]);
   const [tournamentsListLoading, setTournamentsListLoading] = useState(false);
   const [tournamentsListError, setTournamentsListError] = useState<string | null>(null);
   const tournamentsListLoadedRef = React.useRef(false);
-  const [tournamentIdFilter, setTournamentIdFilter] = useState<string>(() => searchParams.get('tournamentId') ?? '');
+  const [tournamentIdFilter, setTournamentIdFilter] = useState<string>(() => adminQueryState.tournamentId);
   const [tournamentColumns, setTournamentColumns] = useState<TournamentColumnKey[]>(
     () => resolveTournamentColumns(searchParams.get('tournamentCols')),
   );
@@ -353,23 +323,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
   const [questionsReviewTournamentId, setQuestionsReviewTournamentId] = useState<number | null>(null);
   const [questionsReviewRound, setQuestionsReviewRound] = useState<'semi' | 'final'>('semi');
   const [questionsReviewTabIdx, setQuestionsReviewTabIdx] = useState(-1);
-  const [questionsReviewData, setQuestionsReviewData] = useState<{
-    questionsSemi1: { id: number; question: string; options: string[]; correctAnswer: number }[];
-    questionsSemi2: { id: number; question: string; options: string[]; correctAnswer: number }[];
-    questionsFinal: { id: number; question: string; options: string[]; correctAnswer: number }[];
-    questionsAnsweredCount: number;
-    correctAnswersCount: number;
-    semiFinalCorrectCount?: number | null;
-    semiTiebreakerCorrectSum?: number;
-    answersChosen: number[];
-    userSemiIndex?: number;
-    semiTiebreakerAllQuestions?: { id: number; question: string; options: string[]; correctAnswer: number }[][];
-    semiTiebreakerRoundsCorrect?: number[];
-    finalTiebreakerAllQuestions?: { id: number; question: string; options: string[]; correctAnswer: number }[][];
-    finalTiebreakerRoundsCorrect?: number[];
-    opponentAnswersByRound?: number[][];
-    opponentInfoByRound?: { id: number; nickname: string; avatarUrl?: string | null }[];
-  } | null>(null);
+  const [questionsReviewData, setQuestionsReviewData] = useState<QuestionsReviewData | null>(null);
   const [questionsReviewLoading, setQuestionsReviewLoading] = useState(false);
   const [questionsReviewError, setQuestionsReviewError] = useState('');
   const [oppTooltip, setOppTooltip] = useState<{ loading: boolean; data: null | PlayerStats; visible: boolean; avatarUrl?: string | null }>({ loading: false, data: null, visible: false });
@@ -381,8 +335,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
   const [txLoading, setTxLoading] = useState(false);
   const txLoadedRef = React.useRef(false);
   const [txCategoryFilter, setTxCategoryFilter] = useState<'' | 'topup' | 'withdraw' | 'win' | 'other'>(() => {
-    const raw = searchParams.get('txCategory');
-    return raw === 'topup' || raw === 'withdraw' || raw === 'win' || raw === 'other' ? raw : '';
+    return adminQueryState.txCategory;
   });
   const [txSortBy, setTxSortBy] = useState<'id' | 'userId' | 'username' | 'email' | 'category' | 'amount' | 'createdAt'>('id');
   const [txSortDir, setTxSortDir] = useState<'asc' | 'desc'>('desc');
@@ -468,34 +421,21 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
 
   useEffect(() => {
     if (section !== 'users') return;
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev);
-      if (userSearch.trim()) next.set('userSearch', userSearch.trim());
-      else next.delete('userSearch');
-      return next;
-    }, { replace: true });
-  }, [section, userSearch, setSearchParams]);
+    patchQuery({ userSearch: userSearch.trim() || null });
+  }, [section, userSearch, patchQuery]);
 
   useEffect(() => {
     if (section !== 'support') return;
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev);
-      next.set('supportStatus', supportStatusFilter || 'open');
-      if (supportOpenTicketId) next.set('supportTicket', String(supportOpenTicketId));
-      else next.delete('supportTicket');
-      return next;
-    }, { replace: true });
-  }, [section, supportStatusFilter, supportOpenTicketId, setSearchParams]);
+    patchQuery({
+      supportStatus: supportStatusFilter || 'open',
+      supportTicket: supportOpenTicketId ? String(supportOpenTicketId) : null,
+    });
+  }, [section, supportStatusFilter, supportOpenTicketId, patchQuery]);
 
   useEffect(() => {
     if (section !== 'statistics' || statsSubTab !== 'transactions') return;
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev);
-      if (txCategoryFilter) next.set('txCategory', txCategoryFilter);
-      else next.delete('txCategory');
-      return next;
-    }, { replace: true });
-  }, [section, statsSubTab, txCategoryFilter, setSearchParams]);
+    patchQuery({ txCategory: txCategoryFilter || null });
+  }, [section, statsSubTab, txCategoryFilter, patchQuery]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [actionSuccessMsg, setActionSuccessMsg] = useState('');
@@ -948,9 +888,9 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
     setBracketLoading(true);
     setBracketError('');
     setBracketPlayerTooltip(null);
-    axios.get<BracketViewData>(`/tournaments/admin/${id}/bracket?userId=${viewerUserId}`, { headers })
-      .then((res) => {
-        setBracketView(res.data);
+    fetchTournamentBracket(token, id, viewerUserId)
+      .then((data) => {
+        setBracketView(data);
         setBracketError('');
       })
       .catch((e: unknown) => {
@@ -1017,26 +957,9 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
     setQuestionsReviewData(null);
     setQuestionsReviewError('');
     setQuestionsReviewLoading(true);
-    axios.get<{
-      questionsSemi1: { id: number; question: string; options: string[]; correctAnswer: number }[];
-      questionsSemi2: { id: number; question: string; options: string[]; correctAnswer: number }[];
-      questionsFinal: { id: number; question: string; options: string[]; correctAnswer: number }[];
-      questionsAnsweredCount: number;
-      correctAnswersCount: number;
-      semiFinalCorrectCount?: number | null;
-      semiTiebreakerCorrectSum?: number;
-      answersChosen?: number[];
-      userSemiIndex?: number;
-      semiTiebreakerAllQuestions?: { id: number; question: string; options: string[]; correctAnswer: number }[][];
-      semiTiebreakerRoundsCorrect?: number[];
-      finalTiebreakerAllQuestions?: { id: number; question: string; options: string[]; correctAnswer: number }[][];
-      finalTiebreakerRoundsCorrect?: number[];
-      opponentAnswersByRound?: number[][];
-      opponentInfoByRound?: { id: number; nickname: string; avatarUrl?: string | null }[];
-      answers_chosen?: number[];
-    }>(`/tournaments/admin/${id}/training-state?userId=${viewerUserId}`, { headers })
-      .then(({ data }) => {
-        const answersChosenRaw = data.answersChosen ?? data.answers_chosen;
+    fetchTournamentQuestions(token, id, viewerUserId)
+      .then((data) => {
+        const answersChosenRaw = data.answersChosen;
         setQuestionsReviewData({
           questionsSemi1: data.questionsSemi1 ?? [],
           questionsSemi2: data.questionsSemi2 ?? [],
@@ -1360,10 +1283,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
         const currentAdminHash = window.location.hash && window.location.hash.startsWith('#/')
           ? window.location.hash
           : '#/admin?tab=users';
-        localStorage.setItem('adminToken', token);
-        localStorage.setItem('adminReturnHash', currentAdminHash);
-        localStorage.setItem('token', newToken);
-        window.dispatchEvent(new CustomEvent('token-refresh', { detail: newToken }));
+        setAdminImpersonationSession(token, newToken, currentAdminHash);
         navigate('/profile');
         window.location.reload();
       }
