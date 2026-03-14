@@ -4,6 +4,7 @@ import axios from 'axios';
 import { formatNum, CURRENCY } from './formatNum.ts';
 import { toMoscowDateStr, parseMoscowDate, formatMoscowDateTime, formatMoscowDateTimeFull } from './dateUtils.ts';
 import { preloadAllLeagueImages } from '../preloadLeagueImages.ts';
+import { TournamentBracketModal, TournamentQuestionsModal } from './TournamentModals.tsx';
 import './Profile.css';
 
 interface ProfileProps {
@@ -181,52 +182,6 @@ type PlayerStats = {
   totalWithdrawn: number;
   maxLeague: number | null;
   maxLeagueName: string | null;
-};
-
-/** Имя игрока в сетке турнира — клик показывает/скрывает статистику */
-const BracketPlayerName = ({
-  playerId,
-  displayName,
-  avatarUrl,
-  token,
-  isTooltipOpen,
-  onShowTooltip,
-  onCloseTooltip,
-}: {
-  playerId: number;
-  displayName: string;
-  avatarUrl: string | null;
-  token: string;
-  isTooltipOpen: boolean;
-  onShowTooltip: (data: { playerId: number; displayName: string; avatarUrl: string | null; stats: PlayerStats; rect: DOMRect }) => void;
-  onCloseTooltip: () => void;
-}) => {
-  const elRef = useRef<HTMLButtonElement | null>(null);
-
-  const handleClick = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (isTooltipOpen) {
-      onCloseTooltip();
-      return;
-    }
-    const rect = elRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    axios.get<PlayerStats>(`/users/${playerId}/public-stats`, { headers: { Authorization: `Bearer ${token}` } })
-      .then((res) => onShowTooltip({ playerId, displayName, avatarUrl, stats: res.data, rect }))
-      .catch(() => {});
-  };
-
-  return (
-    <button
-      type="button"
-      ref={elRef}
-      className="bracket-player-name bracket-player-name--clickable bracket-player-name-btn"
-      onClick={handleClick}
-      title={isTooltipOpen ? 'Нажмите, чтобы закрыть' : 'Нажмите для просмотра статистики'}
-    >
-      {displayName}
-    </button>
-  );
 };
 
 type PartnerDetailNode = { id: number; displayName: string; referrerId: number | null; avatarUrl?: string | null };
@@ -420,12 +375,6 @@ const GAME_MODE_STORAGE_KEY = 'cabinetGameMode';
 const STATS_MODE_STORAGE_KEY = 'cabinetStatsMode';
 const SELECTED_LEAGUE_STORAGE_KEY = 'cabinetSelectedLeague';
 const VALID_SECTIONS = ['profile', 'statistics', 'games', 'finance', 'finance-topup', 'finance-withdraw', 'partner', 'partner-statistics', 'news'] as const;
-
-const BRACKET_NAME_MAX_LEN = 20;
-
-function truncateBracketName(s: string): string {
-  return s;
-}
 
 /** Не показываем «Возврат по отклонённой заявке» — деньги формально не уходили. */
 function filterRejectedWithdrawalRefunds(list: { category?: string; description?: string | null }[]): typeof list {
@@ -5019,403 +4968,36 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         </main>
       </div>
       {/* Модалка сетки турнира */}
-      {(bracketView || bracketLoading || bracketError) && (
-        <div className="bracket-overlay" onClick={() => !bracketLoading && closeBracket()}>
-          <div
-            className="bracket-modal"
-            onClick={(e) => {
-              e.stopPropagation();
-              const t = e.target as HTMLElement;
-              if (!t.closest('.bracket-player-tooltip') && !t.closest('.bracket-player-name--clickable')) {
-                setBracketPlayerTooltip(null);
-              }
-            }}
-          >
-            <div className="bracket-modal-header">
-              <h3>{bracketView?.gameType === 'money' ? 'Противостояние' : 'Турнир'} #{bracketView?.tournamentId ?? '...'}{bracketView?.status === 'finished' || bracketView?.isCompleted ? <span className="bracket-completed-badge">Завершен</span> : bracketView?.isActive ? <span className="bracket-active-badge">Активен</span> : null}</h3>
-              <button type="button" className="bracket-close" onClick={closeBracket} aria-label="Закрыть">
-                ×
-              </button>
-            </div>
-            {bracketLoading && !bracketView && <p className="bracket-loading">Загрузка…</p>}
-            {bracketError && !bracketLoading && <p className="bracket-error">{bracketError}</p>}
-            {bracketPlayerTooltip && (
-              <div
-                className="bracket-player-tooltip"
-                role="button"
-                tabIndex={0}
-                style={{
-                  position: 'fixed',
-                  left: Math.min(bracketPlayerTooltip.rect.left, window.innerWidth - 280),
-                  top: bracketPlayerTooltip.rect.bottom + 6,
-                  zIndex: 1100,
-                  maxWidth: 'calc(100vw - 20px)',
-                }}
-                onClick={() => setBracketPlayerTooltip(null)}
-                onKeyDown={(e) => e.key === 'Enter' && setBracketPlayerTooltip(null)}
-                onMouseEnter={(e) => e.stopPropagation()}
-                onMouseLeave={(e) => e.stopPropagation()}
-              >
-                <div className="bracket-player-tooltip-inner">
-                  <div className="bracket-player-tooltip-avatar">
-                    {bracketPlayerTooltip.avatarUrl ? (
-                      <img src={bracketPlayerTooltip.avatarUrl} alt="" />
-                    ) : (
-                      <DollarIcon />
-                    )}
-                  </div>
-                  <div className="bracket-player-tooltip-stats">
-                    <div className="bracket-player-tooltip-name">{bracketPlayerTooltip.displayName}</div>
-                    <div className="bracket-player-tooltip-stat"><strong>Лига:</strong> {bracketPlayerTooltip.stats.maxLeagueName ?? '—'}</div>
-                    <div className="bracket-player-tooltip-stat">Сыграно раундов: {formatNum(bracketPlayerTooltip.stats.gamesPlayed ?? 0)}</div>
-                    <div className="bracket-player-tooltip-stat">Сыгранных матчей: {formatNum(bracketPlayerTooltip.stats.completedMatches ?? 0)}</div>
-                    <div className="bracket-player-tooltip-stat"><strong>Сумма выигрыша:</strong> {formatNum(bracketPlayerTooltip.stats.totalWinnings ?? 0)} {CURRENCY}</div>
-                    <div className="bracket-player-tooltip-stat"><strong>Выиграно турниров:</strong> {formatNum(bracketPlayerTooltip.stats.wins ?? 0)}</div>
-                    <div className="bracket-player-tooltip-stat"><strong>Верных ответов:</strong> {formatNum(bracketPlayerTooltip.stats.correctAnswers ?? 0)} из {formatNum(bracketPlayerTooltip.stats.totalQuestions ?? 0)}</div>
-                    <div className="bracket-player-tooltip-stat"><strong>% верных ответов:</strong> {(bracketPlayerTooltip.stats.totalQuestions ?? 0) > 0 ? `${(((bracketPlayerTooltip.stats.correctAnswers ?? 0) / (bracketPlayerTooltip.stats.totalQuestions ?? 1)) * 100).toFixed(2)}%` : '—'}</div>
-                  </div>
-                </div>
-              </div>
-            )}
-            {bracketView && (
-              <div className={`bracket-grid ${bracketBlocksEqualized ? 'bracket-blocks-equalized' : ''}`}>
-                <div className="bracket-left-col" ref={bracketLeftColRef}>
-                  <div className="bracket-semi-block bracket-semi-1">
-                    <h4>Полуфинал 1</h4>
-                    <div className="bracket-match">
-                      {[0, 1].map((i) => {
-                        const p = bracketView.semi1.players[i];
-                        const opp = bracketView.semi1.players[1 - i];
-                        const isReal = p != null && p.id > 0;
-                        const isWinner = isReal && !p.isLoser && opp?.isLoser === true;
-                        const displayName = truncateBracketName(isReal ? (p.nickname?.trim() || `Игрок ${p.id}`) : 'Ожидание соперника');
-                        const pAvatar = isReal && p.id === user?.id ? avatar : (isReal ? (p.avatarUrl ?? null) : null);
-                        return (
-                          <div key={isReal ? p.id : `s1-${i}`} className={`bracket-player-slot ${!isReal ? 'bracket-slot-empty' : ''} ${isReal && p.isLoser ? 'bracket-slot-loser' : ''}`}>
-                            <span className="bracket-player-info">
-                              {isReal && (
-                                <span className="bracket-player-avatar">
-                                  {pAvatar ? (
-                                    <img src={pAvatar} alt="" />
-                                  ) : (
-                                    <DollarIcon />
-                                  )}
-                                </span>
-                              )}
-                              {isWinner && <span className="bracket-winner-label">Победитель</span>}
-                              {isReal ? (
-                                <BracketPlayerName
-                                  playerId={p.id}
-                                  displayName={displayName}
-                                  avatarUrl={pAvatar}
-                                  token={token}
-                                  isTooltipOpen={bracketPlayerTooltip?.playerId === p.id}
-                                  onShowTooltip={({ playerId: pid, displayName: dn, avatarUrl: av, stats, rect }) => setBracketPlayerTooltip({ playerId: pid, displayName: dn, avatarUrl: av, stats, rect })}
-                                  onCloseTooltip={() => setBracketPlayerTooltip(null)}
-                                />
-                              ) : (
-                                <span className="bracket-player-name">{displayName}</span>
-                              )}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                  <div className="bracket-semi-block bracket-semi-2">
-                    <h4>Полуфинал 2</h4>
-                    <div className="bracket-match">
-                      {[0, 1].map((i) => {
-                        const p = bracketView.semi2?.players[i];
-                        const opp = bracketView.semi2?.players[1 - i];
-                        const isReal = p != null && p.id > 0;
-                        const isWinner = isReal && !p.isLoser && opp?.isLoser === true;
-                        const displayName = truncateBracketName(isReal ? (p.nickname?.trim() || `Игрок ${p.id}`) : 'Ожидание соперника');
-                        const pAvatar = isReal && p.id === user?.id ? avatar : (isReal ? (p.avatarUrl ?? null) : null);
-                        return (
-                          <div key={isReal ? p.id : `s2-${i}`} className={`bracket-player-slot ${!isReal ? 'bracket-slot-empty' : ''} ${isReal && p.isLoser ? 'bracket-slot-loser' : ''}`}>
-                            <span className="bracket-player-info">
-                              {isReal && (
-                                <span className="bracket-player-avatar">
-                                  {pAvatar ? (
-                                    <img src={pAvatar} alt="" />
-                                  ) : (
-                                    <DollarIcon />
-                                  )}
-                                </span>
-                              )}
-                              {isWinner && <span className="bracket-winner-label">Победитель</span>}
-                              {isReal ? (
-                                <BracketPlayerName
-                                  playerId={p.id}
-                                  displayName={displayName}
-                                  avatarUrl={pAvatar}
-                                  token={token}
-                                  isTooltipOpen={bracketPlayerTooltip?.playerId === p.id}
-                                  onShowTooltip={({ playerId: pid, displayName: dn, avatarUrl: av, stats, rect }) => setBracketPlayerTooltip({ playerId: pid, displayName: dn, avatarUrl: av, stats, rect })}
-                                  onCloseTooltip={() => setBracketPlayerTooltip(null)}
-                                />
-                              ) : (
-                                <span className="bracket-player-name">{displayName}</span>
-                              )}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-                <div className="bracket-connector">
-                  <svg viewBox="0 0 256 220" preserveAspectRatio="none" className="bracket-lines">
-                    <path d="M 0 51 L 178 51 L 178 110 L 256 110" fill="none" stroke="#888" strokeWidth="2" />
-                    <path d="M 0 169 L 178 169 L 178 110" fill="none" stroke="#888" strokeWidth="2" />
-                  </svg>
-                </div>
-                <div className="bracket-final-block" ref={bracketFinalBlockRef}>
-                  <h4>Финал</h4>
-                  <div className="bracket-match">
-                    {(() => {
-                      const fp = bracketView.final.players;
-                      const finalWinnerId = bracketView.finalWinnerId ?? null;
-                      const bothFinished = finalWinnerId != null;
-                      return [0, 1].map((i) => {
-                        const p = fp[i];
-                        const isReal = p != null && p.id > 0;
-                        const isWinner = isReal && finalWinnerId === p.id;
-                        const isLoser = bothFinished && isReal && finalWinnerId != null && finalWinnerId !== p.id;
-                        const displayName = truncateBracketName(isReal ? (p.nickname?.trim() || `Игрок ${p.id}`) : 'Ожидание соперника');
-                        const answered = p?.finalAnswered ?? 0;
-                        const total = answered;
-                        const correct = p?.finalScore ?? p?.finalCorrect ?? 0;
-                        const pAvatar = isReal && p.id === user?.id ? avatar : (isReal ? (p.avatarUrl ?? null) : null);
-                        return (
-                          <div key={isReal ? p.id : `f-${i}`} className={`bracket-player-slot ${!isReal ? 'bracket-slot-empty' : ''} ${isLoser ? 'bracket-slot-loser' : ''}`}>
-                            <span className="bracket-player-info">
-                              {isReal && (
-                                <span className="bracket-player-avatar">
-                                  {pAvatar ? (
-                                    <img src={pAvatar} alt="" />
-                                  ) : (
-                                    <DollarIcon />
-                                  )}
-                                </span>
-                              )}
-                              {isWinner && <span className="bracket-winner-label">Победитель</span>}
-                              {isReal ? (
-                                <BracketPlayerName
-                                  playerId={p.id}
-                                  displayName={displayName}
-                                  avatarUrl={pAvatar}
-                                  token={token}
-                                  isTooltipOpen={bracketPlayerTooltip?.playerId === p.id}
-                                  onShowTooltip={({ playerId: pid, displayName: dn, avatarUrl: av, stats, rect }) => setBracketPlayerTooltip({ playerId: pid, displayName: dn, avatarUrl: av, stats, rect })}
-                                  onCloseTooltip={() => setBracketPlayerTooltip(null)}
-                                />
-                              ) : (
-                                <span className="bracket-player-name">{displayName}</span>
-                              )}
-                              {isReal && total > 0 && (
-                                <span className="bracket-player-score">{correct}/{total} ({Math.round((correct / total) * 100)}%)</span>
-                              )}
-                            </span>
-                          </div>
-                        );
-                      });
-                    })()}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      <TournamentBracketModal
+        variant="player"
+        bracketView={bracketView}
+        bracketLoading={bracketLoading}
+        bracketError={bracketError}
+        token={token}
+        onClose={closeBracket}
+        bracketPlayerTooltip={bracketPlayerTooltip}
+        setBracketPlayerTooltip={setBracketPlayerTooltip}
+        bracketLeftColRef={bracketLeftColRef}
+        bracketFinalBlockRef={bracketFinalBlockRef}
+        bracketBlocksEqualized={bracketBlocksEqualized}
+        currentUserId={user?.id}
+        currentUserAvatar={avatar}
+      />
       {/* Модалка просмотра вопросов турнира */}
-      {questionsReviewTournamentId != null && (
-        <div className="questions-review-overlay" onClick={closeQuestionsReview}>
-          <div className="questions-review-modal questions-review-modal--player" onClick={(e) => e.stopPropagation()}>
-            <div className="questions-review-header">
-              <h3>Вопросы турнира #{questionsReviewTournamentId}</h3>
-              <button type="button" className="questions-review-close" onClick={closeQuestionsReview} aria-label="Закрыть">×</button>
-            </div>
-            {questionsReviewLoading && !questionsReviewData && <p className="questions-review-loading">Загрузка…</p>}
-            {questionsReviewError && !questionsReviewLoading && <p className="questions-review-error">{questionsReviewError}</p>}
-            {questionsReviewData && (() => {
-                const raw = questionsReviewData.answersChosen ?? (questionsReviewData as { answers_chosen?: number[] }).answers_chosen;
-                const ac = Array.isArray(raw)
-                  ? raw.map((a: unknown) => {
-                      const n = typeof a === 'number' && !Number.isNaN(a) ? a : (typeof a === 'string' ? Number(a) : NaN);
-                      if (typeof n !== 'number' || Number.isNaN(n)) return -1;
-                      return n < 0 ? -1 : Math.floor(n);
-                    })
-                  : [];
-                const oppRounds = questionsReviewData.opponentAnswersByRound ?? [];
-                const oppInfoRounds = questionsReviewData.opponentInfoByRound ?? [];
-                const userSemiIdx = questionsReviewData.userSemiIndex ?? 0;
-                const n = questionsReviewData.questionsAnsweredCount;
-                const semiQuestions = userSemiIdx === 0 ? questionsReviewData.questionsSemi1 : questionsReviewData.questionsSemi2;
-                const semiCorrect = questionsReviewData.semiFinalCorrectCount ?? (n <= 10 ? questionsReviewData.correctAnswersCount : 0);
-                const semiTBAll = questionsReviewData.semiTiebreakerAllQuestions ?? [];
-                const semiTBCorrects = questionsReviewData.semiTiebreakerRoundsCorrect ?? [];
-                const finalQuestions = questionsReviewData.questionsFinal ?? [];
-                const finalTBAll = questionsReviewData.finalTiebreakerAllQuestions ?? [];
-                const finalTBCorrects = questionsReviewData.finalTiebreakerRoundsCorrect ?? [];
-                const semiTBSum = semiTBCorrects.reduce((a: number, b: number) => a + b, 0);
-                const finalTBSum = finalTBCorrects.reduce((a: number, b: number) => a + b, 0);
-                const completedSemiTBCount = semiTBCorrects.length;
-                const hasFinalStarted = finalQuestions.length > 0 && n > 10 + completedSemiTBCount * 10;
-                const visibleSemiTBCount = hasFinalStarted
-                  ? Math.min(semiTBAll.length, completedSemiTBCount)
-                  : Math.min(semiTBAll.length, Math.max(completedSemiTBCount, Math.ceil(Math.max(0, n - 10) / 10)));
-
-                type ReviewTab = { label: string; questions: typeof semiQuestions; startIdx: number; correctCount: number; oppRoundIdx: number };
-                const tabs: ReviewTab[] = [];
-                let oppIdx = 0;
-
-                tabs.push({ label: userSemiIdx === 0 ? 'Полуфинал 1' : 'Полуфинал 2', questions: semiQuestions, startIdx: 0, correctCount: semiCorrect, oppRoundIdx: oppIdx++ });
-
-                let cursor = 10;
-                for (let r = 0; r < visibleSemiTBCount; r++) {
-                  if (n <= cursor) break;
-                  tabs.push({ label: semiTBAll.length === 1 ? 'Доп. раунд (ПФ)' : `Доп. раунд ${r + 1} (ПФ)`, questions: semiTBAll[r], startIdx: cursor, correctCount: semiTBCorrects[r] ?? 0, oppRoundIdx: oppIdx++ });
-                  cursor += 10;
-                }
-
-                if (finalQuestions.length > 0 && n > cursor) {
-                  const finalBaseCorrect = Math.max(0, questionsReviewData.correctAnswersCount - semiCorrect - semiTBSum - finalTBSum);
-                  tabs.push({ label: 'Финал', questions: finalQuestions, startIdx: cursor, correctCount: finalBaseCorrect, oppRoundIdx: oppIdx++ });
-                  cursor += 10;
-                  const visibleFinalTBCount = Math.min(
-                    finalTBAll.length,
-                    Math.max(finalTBCorrects.length, Math.ceil(Math.max(0, n - cursor) / 10)),
-                  );
-
-                  for (let r = 0; r < visibleFinalTBCount; r++) {
-                    if (n <= cursor) break;
-                    tabs.push({ label: finalTBAll.length === 1 ? 'Доп. раунд (Ф)' : `Доп. раунд ${r + 1} (Ф)`, questions: finalTBAll[r], startIdx: cursor, correctCount: finalTBCorrects[r] ?? 0, oppRoundIdx: oppIdx++ });
-                    cursor += 10;
-                  }
-                }
-
-                const preferredTabIdx = questionsReviewRound === 'final'
-                  ? Math.max(0, tabs.findIndex((tab) => tab.label === 'Финал' || tab.label.includes('(Ф)')))
-                  : 0;
-                const resolvedTabIdx = questionsReviewTabIdx >= 0 && questionsReviewTabIdx < tabs.length
-                  ? questionsReviewTabIdx
-                  : preferredTabIdx;
-                const activeTab = tabs[resolvedTabIdx] ?? tabs[0];
-                if (!activeTab) return null;
-                const isSemiReviewTab = activeTab.label.includes('Полуфинал') || activeTab.label.includes('(ПФ)');
-                const answeredInRound = Math.min(activeTab.questions.length, Math.max(0, n - activeTab.startIdx));
-                const questionsToShow = activeTab.questions.slice(0, answeredInRound);
-                const oppAC = oppRounds[activeTab.oppRoundIdx] ?? [];
-                const oppInfo = oppInfoRounds[activeTab.oppRoundIdx] ?? null;
-
-                return (
-                  <>
-                    {/* Legend */}
-                    <div className="qr-legend">
-                      <span className="qr-legend-item"><span className="qr-check qr-check--correct">✓</span> Правильный ответ</span>
-                      <span className="qr-legend-item"><span className="qr-check qr-check--mine">✓</span> Мой ответ</span>
-                      <span className="qr-legend-item"><span className="qr-check qr-check--opp">✓</span> Ответ соперника</span>
-                      <span className="qr-legend-item"><span className="qr-cross">✗</span> Нет ответа</span>
-                    </div>
-                    {tabs.length > 1 && (
-                      <div className="questions-review-tabs">
-                        {tabs.map((tab, ti) => (
-                          <button key={ti} type="button" className={`questions-review-tab ${ti === resolvedTabIdx ? 'active' : ''}`} onClick={() => setQuestionsReviewTabIdx(ti)}>{tab.label}</button>
-                        ))}
-                      </div>
-                    )}
-                    <div className="questions-review-body">
-                      {oppInfo && oppInfo.id > 0 && (
-                        <p className="qr-opponent-line">
-                          Соперник:{' '}
-                          <span className="qr-opponent-name-wrap">
-                            <button type="button" className="qr-opponent-link" onClick={() => loadOppStats(oppInfo.id, oppInfo.avatarUrl)}>{oppInfo.nickname}</button>
-                            {oppTooltip.visible && (
-                              <div className="bracket-player-tooltip qr-opponent-tooltip" onClick={() => setOppTooltip((p) => ({ ...p, visible: false }))} role="button" tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && setOppTooltip((p) => ({ ...p, visible: false }))}>
-                                {oppTooltip.loading ? (
-                                  <div className="bracket-player-tooltip-inner"><span className="qr-opponent-tooltip-loading">Загрузка…</span></div>
-                                ) : oppTooltip.data ? (
-                                  <div className="bracket-player-tooltip-inner">
-                                    <div className="bracket-player-tooltip-avatar">
-                                      {oppTooltip.avatarUrl ? <img src={oppTooltip.avatarUrl} alt="" /> : <DollarIcon />}
-                                    </div>
-                                    <div className="bracket-player-tooltip-stats">
-                                      <div className="bracket-player-tooltip-name">{oppInfo.nickname}</div>
-                                      <div className="bracket-player-tooltip-stat"><strong>Лига:</strong> {oppTooltip.data.maxLeagueName ?? '—'}</div>
-                                      <div className="bracket-player-tooltip-stat">Сыграно раундов: {formatNum(oppTooltip.data.gamesPlayed ?? 0)}</div>
-                                      <div className="bracket-player-tooltip-stat">Сыгранных матчей: {formatNum(oppTooltip.data.completedMatches ?? 0)}</div>
-                                      <div className="bracket-player-tooltip-stat"><strong>Сумма выигрыша:</strong> {formatNum(oppTooltip.data.totalWinnings ?? 0)} {CURRENCY}</div>
-                                      <div className="bracket-player-tooltip-stat"><strong>Выиграно турниров:</strong> {formatNum(oppTooltip.data.wins ?? 0)}</div>
-                                      <div className="bracket-player-tooltip-stat"><strong>Верных ответов:</strong> {formatNum(oppTooltip.data.correctAnswers ?? 0)} из {formatNum(oppTooltip.data.totalQuestions ?? 0)}</div>
-                                      <div className="bracket-player-tooltip-stat"><strong>% верных ответов:</strong> {(oppTooltip.data.totalQuestions ?? 0) > 0 ? `${(((oppTooltip.data.correctAnswers ?? 0) / (oppTooltip.data.totalQuestions ?? 1)) * 100).toFixed(2)}%` : '—'}</div>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div className="bracket-player-tooltip-inner"><span className="qr-opponent-tooltip-loading">Нет данных</span></div>
-                                )}
-                              </div>
-                            )}
-                          </span>
-                        </p>
-                      )}
-                      {!isSemiReviewTab && (
-                        <p className="questions-review-stats">
-                          {activeTab.label}: верно <strong>{activeTab.correctCount}</strong> из <strong>{answeredInRound}</strong> вопросов{answeredInRound < activeTab.questions.length ? ` (отвечено ${answeredInRound} из ${activeTab.questions.length})` : ''}.
-                        </p>
-                      )}
-                      {questionsToShow.length === 0 ? (
-                        <p className="questions-review-empty">Вы не ответили ни на один вопрос в этом раунде.</p>
-                      ) : (
-                        <div className="questions-review-round">
-                          <h4>{activeTab.label}</h4>
-                          {questionsToShow.map((q, idx) => {
-                            const rawChoice = ac[activeTab.startIdx + idx];
-                            const playerChoice = typeof rawChoice === 'number' && !Number.isNaN(rawChoice) && rawChoice >= 0 && rawChoice < (q.options?.length ?? 0) ? rawChoice : -1;
-                            const oppRaw = oppAC[idx];
-                            const oppChoice = typeof oppRaw === 'number' && !Number.isNaN(oppRaw) && oppRaw >= 0 && oppRaw < (q.options?.length ?? 0) ? oppRaw : -1;
-                            const correctIdx = Number(q.correctAnswer);
-                            const noMyAnswer = playerChoice === -1;
-                            const noOppAnswer = oppChoice === -1;
-                            return (
-                              <div key={q.id ?? idx} className="questions-review-question">
-                                <p className="questions-review-question-text">
-                                  <span className="questions-review-question-id">ID: {q.id ?? '—'}</span>
-                                  {' '}{idx + 1}. {q.question}
-                                </p>
-                                <table className="qr-table">
-                                  <thead>
-                                    <tr>
-                                      <th>Ответ</th>
-                                      <th className="qr-th-icon qr-th-correct" title="Правильный ответ">✓</th>
-                                      <th className="qr-th-icon qr-th-mine" title="Мой ответ">{noMyAnswer ? <span className="qr-cross">✗</span> : '✓'}</th>
-                                      <th className="qr-th-icon qr-th-opp" title="Ответ соперника">{noOppAnswer ? <span className="qr-cross">✗</span> : '✓'}</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {q.options.map((opt, oi) => (
-                                      <tr key={oi}>
-                                        <td className="qr-td-text">{opt}</td>
-                                        <td className="qr-td-icon">{oi === correctIdx && <span className="qr-check qr-check--correct">✓</span>}</td>
-                                        <td className="qr-td-icon">{oi === playerChoice && <span className="qr-check qr-check--mine">✓</span>}</td>
-                                        <td className="qr-td-icon">{oi === oppChoice && <span className="qr-check qr-check--opp">✓</span>}</td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  </>
-                );
-              })()}
-          </div>
-        </div>
-      )}
+      <TournamentQuestionsModal
+        variant="player"
+        questionsReviewTournamentId={questionsReviewTournamentId}
+        questionsReviewLoading={questionsReviewLoading}
+        questionsReviewError={questionsReviewError}
+        questionsReviewData={questionsReviewData}
+        closeQuestionsReview={closeQuestionsReview}
+        questionsReviewRound={questionsReviewRound}
+        questionsReviewTabIdx={questionsReviewTabIdx}
+        setQuestionsReviewTabIdx={setQuestionsReviewTabIdx}
+        loadOppStats={loadOppStats}
+        oppTooltip={oppTooltip}
+        setOppTooltip={setOppTooltip}
+      />
     </div>
   );
 };
