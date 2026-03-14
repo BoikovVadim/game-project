@@ -27,10 +27,16 @@ cd ../Frontend
 CI= npm run build
 cd ..
 pm2 restart "$REMOTE_PM2_APP"
-sleep 8
-http_code=\$(curl -s -o /dev/null -w "%{http_code}" "$REMOTE_HEALTHCHECK_URL")
+for attempt in 1 2 3 4 5 6 7 8 9 10; do
+  http_code=\$(curl -s -o /dev/null -w "%{http_code}" "$REMOTE_HEALTHCHECK_URL" || true)
+  if [ "\$http_code" = "200" ]; then
+    printf "__DEPLOY_HTTP__%s\n" "\$http_code"
+    exit 0
+  fi
+  sleep 3
+done
 printf "__DEPLOY_HTTP__%s\n" "\$http_code"
-test "\$http_code" = "200"'
+exit 1'
 EOF
 )
     ;;
@@ -43,10 +49,16 @@ cd Frontend
 CI= npm run build
 cd ..
 pm2 restart "$REMOTE_PM2_APP"
-sleep 8
-http_code=\$(curl -s -o /dev/null -w "%{http_code}" "$REMOTE_HEALTHCHECK_URL")
+for attempt in 1 2 3 4 5 6 7 8 9 10; do
+  http_code=\$(curl -s -o /dev/null -w "%{http_code}" "$REMOTE_HEALTHCHECK_URL" || true)
+  if [ "\$http_code" = "200" ]; then
+    printf "__DEPLOY_HTTP__%s\n" "\$http_code"
+    exit 0
+  fi
+  sleep 3
+done
 printf "__DEPLOY_HTTP__%s\n" "\$http_code"
-test "\$http_code" = "200"'
+exit 1'
 EOF
 )
     ;;
