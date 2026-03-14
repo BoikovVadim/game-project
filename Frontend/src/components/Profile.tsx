@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { Link, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import axios from 'axios';
+import { buildReturnToPath } from '../authSession.ts';
 import { formatNum, CURRENCY } from './formatNum.ts';
 import { toMoscowDateStr, parseMoscowDate, formatMoscowDateTime, formatMoscowDateTimeFull } from './dateUtils.ts';
 import { preloadAllLeagueImages } from '../preloadLeagueImages.ts';
@@ -408,6 +409,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
+  const paymentStatus = searchParams.get('payment');
   const forceSection = (forceSectionProp && (VALID_SECTIONS as readonly string[]).includes(forceSectionProp)) ? forceSectionProp as CabinetSection : undefined;
 
   const [section, setSection] = useState<CabinetSection>(() => {
@@ -2647,7 +2649,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
             <button
               type="button"
               className="cabinet-header-chat"
-              onClick={() => navigate('/support')}
+              onClick={() => navigate(`/support?returnTo=${encodeURIComponent(buildReturnToPath(location.pathname, location.search))}`)}
               aria-label="Тех. поддержка"
             >
               <span className="cabinet-header-chat-icon-wrap">
@@ -4051,10 +4053,54 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
           };
           if (isTopup) {
             const hasProvider = paymentProviders.yookassa || paymentProviders.robokassa;
+            const paymentStatusMessage = paymentStatus === 'success'
+              ? 'Оплата успешно завершена. Баланс обновится сразу после подтверждения платежа.'
+              : paymentStatus === 'cancelled'
+                ? 'Оплата была отменена. Вы можете попробовать снова.'
+                : '';
             return (
               <div className="cabinet-finance">
                 <button type="button" className="cabinet-finance-back" onClick={() => goToFinanceSub('main')}>← Назад</button>
                 <h2>Пополнить баланс</h2>
+                {paymentStatusMessage && (
+                  <div style={{
+                    background: paymentStatus === 'success' ? '#eefaf0' : '#fff7e8',
+                    border: `1px solid ${paymentStatus === 'success' ? '#b7e4c7' : '#f0c36d'}`,
+                    borderRadius: 10,
+                    color: paymentStatus === 'success' ? '#1a7a3a' : '#8a5a00',
+                    padding: '12px 14px',
+                    marginBottom: 16,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                  }}>
+                    <span>{paymentStatusMessage}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchParams((prev) => {
+                          const next = new URLSearchParams(prev);
+                          next.delete('payment');
+                          return next;
+                        }, { replace: true });
+                      }}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        boxShadow: 'none',
+                        color: 'inherit',
+                        cursor: 'pointer',
+                        fontSize: 18,
+                        lineHeight: 1,
+                        padding: 0,
+                      }}
+                      aria-label="Закрыть уведомление об оплате"
+                    >
+                      ×
+                    </button>
+                  </div>
+                )}
                 {hasProvider ? (
                   <form
                     className="cabinet-finance-topup"

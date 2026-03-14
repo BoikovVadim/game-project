@@ -3,8 +3,8 @@ import { existsSync } from 'fs';
 import { join } from 'path';
 
 const envCandidates = [
-  join(__dirname, '..', `.env.${process.env.NODE_ENV || 'development'}`),
   join(__dirname, '..', '.env'),
+  join(__dirname, '..', `.env.${process.env.NODE_ENV || 'development'}`),
 ];
 for (const envPath of envCandidates) {
   if (existsSync(envPath)) {

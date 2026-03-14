@@ -75,8 +75,8 @@ export class PaymentsService {
     const saved = await this.paymentRepository.save(payment);
 
     const appUrl = (process.env.APP_URL || 'http://localhost:3000').replace(/\/$/, '');
-    const returnUrl = `${appUrl}/profile#finance-topup?payment=success`;
-    const cancelUrl = `${appUrl}/profile#finance-topup?payment=cancelled`;
+    const returnUrl = `${appUrl}/#/profile?section=finance-topup&payment=success`;
+    const cancelUrl = `${appUrl}/#/profile?section=finance-topup&payment=cancelled`;
 
     if (provider === 'yookassa') {
       const orderId = `pay-${saved.id}`;

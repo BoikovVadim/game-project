@@ -58,5 +58,20 @@ GET /api/health
 ## Важные замечания
 
 - production bootstrap больше не использует insecure fallback secrets
+- `backend/.env` загружается раньше `backend/.env.production`, поэтому реальные server secrets не должны затираться шаблонными значениями
 - startup backfill-и не должны автоматически мутировать данные на каждом старте
 - денежные операции и критичные tournament write-path должны выполняться через транзакции
+
+## Audit / Smoke
+
+Быстрый аудит продовых auth/payment данных:
+
+```bash
+npm run audit:auth-payments
+```
+
+Безопасное исправление очевидного противоречия "`emailVerified=true`, но verification token не очищен":
+
+```bash
+npm run fix:auth-payments-data
+```

@@ -21,12 +21,19 @@ case "$MODE" in
 bash -lc 'set -euo pipefail
 cd "$REMOTE_DIR"
 git pull origin main
+npm install
 cd backend
+npm install
 npm run build
 cd ../Frontend
+npm install
 CI= npm run build
 cd ..
-pm2 restart "$REMOTE_PM2_APP"
+if pm2 describe "$REMOTE_PM2_APP" >/dev/null 2>&1; then
+  pm2 restart "$REMOTE_PM2_APP" --update-env
+else
+  pm2 start ecosystem.config.js --only "$REMOTE_PM2_APP"
+fi
 for attempt in 1 2 3 4 5 6 7 8 9 10; do
   http_code=\$(curl -s -o /dev/null -w "%{http_code}" "$REMOTE_HEALTHCHECK_URL" || true)
   if [ "\$http_code" = "200" ]; then
@@ -45,10 +52,16 @@ EOF
 bash -lc 'set -euo pipefail
 cd "$REMOTE_DIR"
 git pull origin main
+npm install
 cd Frontend
+npm install
 CI= npm run build
 cd ..
-pm2 restart "$REMOTE_PM2_APP"
+if pm2 describe "$REMOTE_PM2_APP" >/dev/null 2>&1; then
+  pm2 restart "$REMOTE_PM2_APP" --update-env
+else
+  pm2 start ecosystem.config.js --only "$REMOTE_PM2_APP"
+fi
 for attempt in 1 2 3 4 5 6 7 8 9 10; do
   http_code=\$(curl -s -o /dev/null -w "%{http_code}" "$REMOTE_HEALTHCHECK_URL" || true)
   if [ "\$http_code" = "200" ]; then

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 
 interface LoginProps {
   onLogin: (token: string) => void;
@@ -23,25 +23,28 @@ const EyeClosed = () => (
 );
 
 const Login: React.FC<LoginProps> = ({ onLogin }) => {
-  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const authNotice = searchParams.get('reason') === 'session-expired'
+    ? 'Сессия истекла. Войдите снова.'
+    : searchParams.get('reason') === 'login-required'
+      ? 'Войдите, чтобы открыть личный кабинет.'
+      : '';
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     try {
-      const response = await axios.post<{ access_token?: string }>('/auth/login', { email: login, password });
+      const response = await axios.post<{ access_token?: string }>('/auth/login', { identifier: login, password });
       const token = response.data?.access_token;
       if (!token) {
         setError('Сервер не вернул токен. Попробуйте ещё раз.');
         return;
       }
       onLogin(token);
-      localStorage.setItem('token', token);
-      navigate('/profile');
     } catch (err: unknown) {
       const ax = err && typeof err === 'object' && 'isAxiosError' in err && (err as { isAxiosError?: boolean }).isAxiosError;
       const res = ax && err && typeof err === 'object' && 'response' in err ? (err as { response?: { status?: number; data?: { message?: string; error?: string; email?: string } } }).response : undefined;
@@ -52,7 +55,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       if (status === 401) {
         if (backendMessage === 'EMAIL_NOT_VERIFIED') {
           const userEmail = res?.data?.email || login;
-          navigate(`/verify-code?email=${encodeURIComponent(userEmail)}`);
+          window.location.hash = `#/verify-code?email=${encodeURIComponent(userEmail)}`;
           return;
         }
         const text = backendMessage && typeof backendMessage === 'string' && backendMessage !== 'Invalid credentials' ? backendMessage : 'Неверный логин/email или пароль.';
@@ -111,6 +114,21 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         <p style={{ margin: '8px 0 0', fontSize: 14, textAlign: 'center' }}>
           Забыли пароль? <Link to="/forgot-password">Восстановить</Link>
         </p>
+        {!error && authNotice && (
+          <div style={{
+            background: '#fff7e8',
+            border: '1px solid #f0c36d',
+            borderRadius: 8,
+            color: '#8a5a00',
+            padding: '10px 16px',
+            marginTop: 12,
+            fontSize: 15,
+            textAlign: 'center',
+            lineHeight: 1.4,
+          }}>
+            {authNotice}
+          </div>
+        )}
         {error && (
           <div style={{
             background: '#fff0f0',

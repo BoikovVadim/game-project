@@ -35,6 +35,7 @@ function dateKey(iso: string): string {
 export default function SupportChat({ token }: { token: string }) {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const returnTo = searchParams.get('returnTo');
   const [tickets, setTickets] = useState<Ticket[]>([]);
   const [openTicketId, setOpenTicketId] = useState<number | null>(() => {
     const raw = searchParams.get('ticket');
@@ -152,6 +153,13 @@ export default function SupportChat({ token }: { token: string }) {
   };
 
   const currentTicket = tickets.find((t) => t.id === openTicketId);
+  const navigateBackToCabinet = useCallback(() => {
+    if (returnTo && returnTo.startsWith('/')) {
+      navigate(returnTo);
+      return;
+    }
+    navigate('/profile?section=news');
+  }, [navigate, returnTo]);
 
   useEffect(() => {
     const raw = searchParams.get('ticket');
@@ -165,7 +173,7 @@ export default function SupportChat({ token }: { token: string }) {
     return (
       <div className="support-chat-page">
         <header className="support-chat-header">
-          <button type="button" className="support-chat-back" onClick={() => navigate('/profile?section=support')}>
+          <button type="button" className="support-chat-back" onClick={navigateBackToCabinet}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="15 18 9 12 15 6" />
             </svg>

@@ -6,9 +6,9 @@ set -e
 # Запускать от root: bash setup-server.sh
 # ============================================
 
-DOMAIN="legendgames.ru"
-APP_DIR="/home/legend/app"
-LOG_DIR="/home/legend/logs"
+DOMAIN="legendgames.space"
+APP_DIR="/var/www/game"
+LOG_DIR="/var/www/game/logs"
 REPO="https://github.com/BoikovVadim/game-project.git"
 
 echo "=== 1/7. Обновление системы ==="
@@ -40,7 +40,8 @@ fi
 
 cd "$APP_DIR"
 
-echo "=== 6a. Установка зависимостей бэкенда ==="
+echo "=== 6a. Установка зависимостей проекта и бэкенда ==="
+npm install
 cd backend && npm install && npm run build && cd ..
 
 echo "=== 6b. Сборка фронтенда ==="
@@ -53,8 +54,8 @@ if [ ! -f backend/.env ]; then
 fi
 
 echo "=== 7/7. Настройка Nginx ==="
-cp deploy/nginx.conf /etc/nginx/sites-available/"$DOMAIN"
-ln -sf /etc/nginx/sites-available/"$DOMAIN" /etc/nginx/sites-enabled/
+cp deploy/nginx.conf /etc/nginx/sites-available/game
+ln -sf /etc/nginx/sites-available/game /etc/nginx/sites-enabled/game
 rm -f /etc/nginx/sites-enabled/default
 nginx -t && systemctl reload nginx
 
@@ -76,7 +77,7 @@ echo "   nano $APP_DIR/backend/.env"
 echo ""
 echo "4. Запусти приложение:"
 echo "   cd $APP_DIR"
-echo "   pm2 start ecosystem.config.js"
+echo "   pm2 start ecosystem.config.js --only game-backend"
 echo "   pm2 save"
 echo "   pm2 startup"
 echo ""

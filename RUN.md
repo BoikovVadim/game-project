@@ -32,3 +32,19 @@ npm run start:simple
 2. Обновить страницу (F5).
 3. Открыть консоль браузера (F12 → вкладка Console) и посмотреть ошибки — их можно прислать для диагностики.
 4. Проверить API health: `http://localhost:3001/api/health` должно вернуть `{"ok":true,...}`.
+
+## Smoke-проверки после правок
+
+Перед production deploy полезно прогонять:
+
+```bash
+npm run smoke:stability
+cd backend && npm run audit:auth-payments
+```
+
+Что проверяется:
+
+- auth/session bootstrap и возврат в intended route не дрейфуют
+- payment return URL остаётся совместимым с `HashRouter`
+- repo runtime contract (`PM2`, `nginx`, `.env` load order) не расходится с production
+- база не содержит очевидно противоречивых auth/payment состояний

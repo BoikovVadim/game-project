@@ -51,7 +51,13 @@ CI= npm run build
 
 ## Деплой
 
-Продовые доступы не должны храниться в репозитории.
+Продовые доступы не должны храниться в репозитории. Актуальный production contract в проекте такой:
+
+- серверный путь: `/var/www/game`
+- PM2 app: `game-backend`
+- backend listener: `127.0.0.1:3000`
+- public health-check: `https://legendgames.space/api/health`
+- основной домен: `https://legendgames.space`
 
 Перед запуском деплоя нужно передать переменные окружения:
 
@@ -86,3 +92,9 @@ cd ../Frontend && CI= npm run build
 ```
 
 Дополнительный ручной чек-лист описан в `QA_CHECKLIST.md`.
+
+Перед production deploy обязательно проверь:
+
+- `backend/.env` на сервере заполнен реальными значениями и имеет приоритет над шаблонным `backend/.env.production`
+- `pm2 describe game-backend` показывает один процесс
+- Nginx использует один активный конфиг `game` и проксирует `/api/health` в backend

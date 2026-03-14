@@ -1,21 +1,19 @@
 module.exports = {
   apps: [
     {
-      name: 'legendgames',
+      name: 'game-backend',
       script: 'backend/dist/main.js',
-      cwd: '/home/legend/app',
+      cwd: '/var/www/game',
       env: {
         NODE_ENV: 'production',
         PORT: 3000,
         TZ: 'Europe/Moscow',
       },
       instances: 1,
+      exec_mode: 'fork',
       autorestart: true,
       max_memory_restart: '512M',
       log_date_format: 'YYYY-MM-DD HH:mm:ss',
-      error_file: '/home/legend/logs/error.log',
-      out_file: '/home/legend/logs/out.log',
-      merge_logs: true,
     },
   ],
 };

@@ -2,6 +2,7 @@ import React, { Component, type ErrorInfo, type ReactNode } from 'react';
 import ReactDOM from 'react-dom/client';
 import axios from 'axios';
 import App from './App.tsx';
+import { AUTH_SESSION_INVALID_EVENT, TOKEN_REFRESH_EVENT } from './authSession.ts';
 
 /** Локальный ErrorBoundary без зависимостей от Router — только ссылки по hash */
 class RootErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean; error: Error | null }> {
@@ -34,7 +35,9 @@ class RootErrorBoundary extends Component<{ children: ReactNode }, { hasError: b
 // Сессия: обновление токена при активности (дебаунс — не чаще раза в 5 минут)
 function setupAxiosInterceptor() {
   let lastRefresh = 0;
+  let lastSessionInvalid = 0;
   const REFRESH_INTERVAL = 5 * 60 * 1000;
+  const SESSION_INVALID_DEBOUNCE_MS = 1500;
   try {
     axios.interceptors.response.use(
       (response) => {
@@ -50,7 +53,7 @@ function setupAxiosInterceptor() {
                   const newToken = r.data?.access_token;
                   if (newToken && typeof localStorage !== 'undefined') {
                     localStorage.setItem('token', newToken);
-                    window.dispatchEvent(new CustomEvent('token-refresh', { detail: newToken }));
+                    window.dispatchEvent(new CustomEvent(TOKEN_REFRESH_EVENT, { detail: newToken }));
                   }
                 } catch (_) {}
               })
@@ -59,7 +62,27 @@ function setupAxiosInterceptor() {
         } catch (_) {}
         return response;
       },
-      (error) => Promise.reject(error),
+      (error) => {
+        try {
+          const status = error?.response?.status;
+          const url = String(error?.config?.url || '');
+          const authHeader = error?.config?.headers?.Authorization || error?.config?.headers?.authorization;
+          const now = Date.now();
+          const isAuthFlow =
+            url.includes('auth/login') ||
+            url.includes('auth/register') ||
+            url.includes('auth/verify-code') ||
+            url.includes('auth/resend-code') ||
+            url.includes('auth/verify-email');
+          if (status === 401 && authHeader && !isAuthFlow && now - lastSessionInvalid > SESSION_INVALID_DEBOUNCE_MS) {
+            lastSessionInvalid = now;
+            window.dispatchEvent(new CustomEvent(AUTH_SESSION_INVALID_EVENT, {
+              detail: { reason: 'session-expired' },
+            }));
+          }
+        } catch (_) {}
+        return Promise.reject(error);
+      },
     );
   } catch (_) {}
 }

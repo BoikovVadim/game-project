@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
-import { useSearchParams, Link, useNavigate } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 
 const CODE_LENGTH = 6;
 
@@ -11,7 +11,7 @@ interface VerifyCodeProps {
 const VerifyCode: React.FC<VerifyCodeProps> = ({ onLogin }) => {
   const [searchParams] = useSearchParams();
   const emailFromUrl = searchParams.get('email') ?? '';
-  const navigate = useNavigate();
+  const initialDeliveryFailed = searchParams.get('delivery') === 'failed';
 
   const [digits, setDigits] = useState<string[]>(Array(CODE_LENGTH).fill(''));
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
@@ -22,6 +22,12 @@ const VerifyCode: React.FC<VerifyCodeProps> = ({ onLogin }) => {
   useEffect(() => {
     inputsRef.current[0]?.focus();
   }, []);
+
+  useEffect(() => {
+    if (!initialDeliveryFailed) return;
+    setStatus('error');
+    setMessage('Код не удалось отправить автоматически. Нажмите "Отправить повторно" и проверьте почту.');
+  }, [initialDeliveryFailed]);
 
   useEffect(() => {
     if (resendCooldown <= 0) return;
@@ -80,7 +86,6 @@ const VerifyCode: React.FC<VerifyCodeProps> = ({ onLogin }) => {
           setStatus('success');
           setMessage('Почта подтверждена! Переходим в кабинет…');
           onLogin(token);
-          setTimeout(() => navigate('/profile'), 800);
         } else {
           setStatus('success');
           setMessage(res.data.message || 'Почта подтверждена!');
@@ -103,9 +108,14 @@ const VerifyCode: React.FC<VerifyCodeProps> = ({ onLogin }) => {
       return;
     }
     try {
-      await axios.post('/auth/resend-code', { email: emailFromUrl });
+      const res = await axios.post<{ success?: boolean; message?: string }>('/auth/resend-code', { email: emailFromUrl });
+      if (res.data?.success === false) {
+        setMessage(res.data.message || 'Не удалось отправить код. Попробуйте позже.');
+        setStatus('error');
+        return;
+      }
       setResendCooldown(60);
-      setMessage('Новый код отправлен!');
+      setMessage(res.data?.message || 'Новый код отправлен!');
       setStatus('idle');
       setDigits(Array(CODE_LENGTH).fill(''));
       inputsRef.current[0]?.focus();
@@ -217,7 +227,7 @@ const VerifyCode: React.FC<VerifyCodeProps> = ({ onLogin }) => {
           <p style={{ marginTop: 10, fontSize: 13 }}>
             <Link to="/register">Назад к регистрации</Link>
             {' | '}
-            <Link to="/">Вход</Link>
+            <Link to="/?reason=login-required">Вход</Link>
           </p>
         </form>
       )}

@@ -105,8 +105,13 @@ const Register: React.FC = () => {
     }
     const referralCode = parseReferralInput(referralInput) || undefined;
     try {
-      await axios.post('/auth/register', { username, email, password, referralCode });
-      navigate(`/verify-code?email=${encodeURIComponent(email)}`);
+      const response = await axios.post<{ deliveryFailed?: boolean }>('/auth/register', { username, email, password, referralCode });
+      const nextParams = new URLSearchParams();
+      nextParams.set('email', email);
+      if (response.data?.deliveryFailed) {
+        nextParams.set('delivery', 'failed');
+      }
+      navigate(`/verify-code?${nextParams.toString()}`);
     } catch (err: any) {
       const msg = err?.response?.data?.message;
       setError(Array.isArray(msg) ? msg.join('. ') : (msg || 'Не удалось зарегистрироваться'));

@@ -23,6 +23,8 @@ type RegisterResult = {
   requiresEmailVerification: true;
   email: string;
   username: string;
+  message: string;
+  deliveryFailed?: boolean;
 };
 
 @Injectable()
@@ -83,14 +85,23 @@ export class AuthService {
       emailVerificationExpiresAt: expiresAt,
     });
     const saved = await this.userRepository.save(user);
-    this.mailService.sendVerificationCode(normalizedEmail, code, normalizedUsername).catch((err) => {
+    let deliveryFailed = false;
+    try {
+      const sent = await this.mailService.sendVerificationCode(normalizedEmail, code, normalizedUsername);
+      deliveryFailed = !sent;
+    } catch (err) {
+      deliveryFailed = true;
       console.error('[AuthService] Не удалось отправить код подтверждения:', err);
-    });
+    }
     return {
       success: true,
       requiresEmailVerification: true,
       email: saved.email,
       username: saved.username,
+      message: deliveryFailed
+        ? 'Аккаунт создан, но письмо с кодом не удалось отправить. Запросите код повторно на следующем шаге.'
+        : 'Код подтверждения отправлен на почту.',
+      ...(deliveryFailed ? { deliveryFailed: true } : {}),
     };
   }
 
@@ -199,9 +210,15 @@ export class AuthService {
     user.emailVerificationToken = code;
     user.emailVerificationExpiresAt = expiresAt;
     await this.userRepository.save(user);
-    this.mailService.sendVerificationCode(user.email, code, user.username).catch((err) => {
+    try {
+      const sent = await this.mailService.sendVerificationCode(user.email, code, user.username);
+      if (!sent) {
+        return { success: false, message: 'Не удалось отправить код. Попробуйте позже или повторите попытку.' };
+      }
+    } catch (err) {
       console.error('[AuthService] Не удалось отправить код:', err);
-    });
+      return { success: false, message: 'Не удалось отправить код. Попробуйте позже или повторите попытку.' };
+    }
     return { success: true, message: 'Новый код отправлен на почту.' };
   }
 

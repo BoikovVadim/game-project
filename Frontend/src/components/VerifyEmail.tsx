@@ -17,6 +17,11 @@ const VerifyEmail: React.FC = () => {
     axios
       .get(`/auth/verify-email?token=${encodeURIComponent(token)}`)
       .then((res) => {
+        if (res.data?.success === false) {
+          setStatus('error');
+          setMessage(res.data?.message ?? 'Ссылка недействительна или уже использована.');
+          return;
+        }
         setStatus('success');
         setMessage(res.data?.message ?? 'Почта подтверждена.');
       })

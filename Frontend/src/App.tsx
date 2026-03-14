@@ -1,10 +1,24 @@
-import React, { Suspense, useState, useEffect } from 'react';
-import { HashRouter as Router, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom';
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import axios from 'axios';
+import { HashRouter as Router, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom';
 import VerifyEmail from './components/VerifyEmail.tsx';
 import VerifyCode from './components/VerifyCode.tsx';
 import ForgotPassword from './components/ForgotPassword.tsx';
 import ResetPassword from './components/ResetPassword.tsx';
 import { ErrorBoundary } from './components/ErrorBoundary.tsx';
+import {
+  AUTH_SESSION_INVALID_EVENT,
+  TOKEN_REFRESH_EVENT,
+  buildReturnToPath,
+  clearAllStoredSessions,
+  clearStoredToken,
+  consumePendingReturnTo,
+  getStoredToken,
+  isProtectedPath,
+  setStoredToken,
+  storePendingReturnTo,
+  type AuthFailureReason,
+} from './authSession.ts';
 import { preloadAllLeagueImages } from './preloadLeagueImages.ts';
 import './App.css';
 
@@ -23,14 +37,6 @@ const VerificationRules = React.lazy(() => import('./components/VerificationRule
 const DisputesPolicy = React.lazy(() => import('./components/DisputesPolicy.tsx'));
 const Contacts = React.lazy(() => import('./components/Contacts.tsx'));
 
-function getToken(): string {
-  try {
-    return localStorage.getItem('token') || '';
-  } catch {
-    return '';
-  }
-}
-
 const SCROLL_RESTORE_KEY = 'app_scroll_restore';
 
 function removeLoadingScreen() {
@@ -41,9 +47,26 @@ function removeLoadingScreen() {
 }
 
 function AppContent() {
-  const [token, setToken] = useState(getToken);
+  const navigate = useNavigate();
+  const [token, setToken] = useState(getStoredToken);
+  const [authBootstrapping, setAuthBootstrapping] = useState(() => !!getStoredToken());
   const location = useLocation();
+  const bootstrapAttemptedRef = useRef(false);
   const hasToken = !!token;
+  const isAuthenticated = hasToken && !authBootstrapping;
+
+  const redirectToAuth = useCallback((reason: AuthFailureReason, preserveCurrentPath = true) => {
+    if (preserveCurrentPath && isProtectedPath(location.pathname)) {
+      const currentPath = buildReturnToPath(location.pathname, location.search);
+      storePendingReturnTo(currentPath);
+    }
+    clearStoredToken();
+    setToken('');
+    setAuthBootstrapping(false);
+    const nextParams = new URLSearchParams();
+    nextParams.set('reason', reason);
+    navigate(`/?${nextParams.toString()}`, { replace: true });
+  }, [location.pathname, location.search, navigate]);
 
   useEffect(() => {
     const el = document.getElementById('loading-screen');
@@ -60,6 +83,38 @@ function AppContent() {
     const safety = setTimeout(() => { observer.disconnect(); removeLoadingScreen(); }, 3000);
     return () => { observer.disconnect(); clearTimeout(safety); };
   }, []);
+
+  useEffect(() => {
+    if (bootstrapAttemptedRef.current) return;
+    bootstrapAttemptedRef.current = true;
+    const existingToken = getStoredToken();
+    if (!existingToken) {
+      setAuthBootstrapping(false);
+      return;
+    }
+    let cancelled = false;
+    axios.get<{ access_token?: string }>('/auth/refresh', {
+      headers: { Authorization: `Bearer ${existingToken}` },
+    })
+      .then((response) => {
+        if (cancelled) return;
+        const nextToken = response.data?.access_token || existingToken;
+        setStoredToken(nextToken);
+        setToken(nextToken);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        redirectToAuth('session-expired', isProtectedPath(location.pathname));
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setAuthBootstrapping(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [location.pathname, redirectToAuth]);
 
   useEffect(() => {
     import('./components/Profile.tsx');
@@ -119,15 +174,34 @@ function AppContent() {
   }, [location.pathname, location.search]);
 
   useEffect(() => {
-    const t = getToken();
+    const t = getStoredToken();
     if (t) setToken(t);
   }, []);
 
   useEffect(() => {
     const onRefresh = (e: Event) => setToken((e as CustomEvent<string>).detail);
-    window.addEventListener('token-refresh', onRefresh);
-    return () => window.removeEventListener('token-refresh', onRefresh);
+    window.addEventListener(TOKEN_REFRESH_EVENT, onRefresh);
+    return () => window.removeEventListener(TOKEN_REFRESH_EVENT, onRefresh);
   }, []);
+
+  useEffect(() => {
+    const onSessionInvalid = (e: Event) => {
+      const reason = (e as CustomEvent<{ reason?: AuthFailureReason }>).detail?.reason || 'session-expired';
+      redirectToAuth(reason, true);
+    };
+    window.addEventListener(AUTH_SESSION_INVALID_EVENT, onSessionInvalid);
+    return () => window.removeEventListener(AUTH_SESSION_INVALID_EVENT, onSessionInvalid);
+  }, [redirectToAuth]);
+
+  useEffect(() => {
+    if (authBootstrapping || hasToken || !isProtectedPath(location.pathname)) return;
+    storePendingReturnTo(buildReturnToPath(location.pathname, location.search));
+  }, [authBootstrapping, hasToken, location.pathname, location.search]);
+
+  useEffect(() => {
+    if (authBootstrapping || hasToken || !isProtectedPath(location.pathname)) return;
+    storePendingReturnTo(buildReturnToPath(location.pathname, location.search));
+  }, [authBootstrapping, hasToken, location.pathname, location.search]);
 
   useEffect(() => {
     const root = document.getElementById('root');
@@ -138,27 +212,60 @@ function AppContent() {
     }
   }, [hasToken]);
 
-  const handleLogin = (newToken: string) => {
-    localStorage.setItem('token', newToken);
+  const handleLogin = useCallback((newToken: string) => {
+    setStoredToken(newToken);
     setToken(newToken);
-  };
+    setAuthBootstrapping(false);
+    navigate(consumePendingReturnTo('/profile'), { replace: true });
+  }, [navigate]);
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('adminToken');
+  const handleLogout = useCallback(() => {
+    clearAllStoredSessions();
     setToken('');
-    window.location.hash = '#/';
-  };
+    setAuthBootstrapping(false);
+    navigate('/', { replace: true });
+  }, [navigate]);
 
-  const isProfile = location.pathname === '/profile' && hasToken;
-  const isAdmin = location.pathname === '/admin' && hasToken;
-  const isSupport = location.pathname === '/support' && hasToken;
-  const isRedirecting = hasToken && (location.pathname === '/' || location.pathname === '/login');
+  const isProfile = location.pathname === '/profile' && isAuthenticated;
+  const isAdmin = location.pathname === '/admin' && isAuthenticated;
+  const isSupport = location.pathname === '/support' && isAuthenticated;
+  const isRedirecting = isAuthenticated && (location.pathname === '/' || location.pathname === '/login');
 
   const publicInfoPages = ['/', '/about', '/offer', '/privacy', '/payment-terms', '/tournament-rules', '/balance-rules', '/reward-rules', '/verification-rules', '/disputes-policy', '/contacts', '/register'];
   const isPublicPage = !hasToken && publicInfoPages.includes(location.pathname);
   const hideTopNav = isProfile || isAdmin || isSupport || isRedirecting || isPublicPage;
   const noPadding = hideTopNav || isPublicPage;
+
+  const routeElement = useMemo(() => {
+    if (authBootstrapping) {
+      return <div style={{ minHeight: '100vh' }} />;
+    }
+    return (
+      <Routes>
+        <Route path="/" element={isAuthenticated ? <Navigate to="/profile" replace /> : <LandingHome onLogin={handleLogin} />} />
+        <Route path="/login" element={<Navigate to={isAuthenticated ? '/profile' : '/'} replace />} />
+        <Route path="/register" element={<Navigate to="/?tab=register" replace />} />
+        <Route path="/offer" element={<Offer />} />
+        <Route path="/about" element={<About />} />
+        <Route path="/privacy" element={<Privacy />} />
+        <Route path="/payment-terms" element={<PaymentTerms />} />
+        <Route path="/tournament-rules" element={<TournamentRules />} />
+        <Route path="/balance-rules" element={<BalanceRules />} />
+        <Route path="/reward-rules" element={<RewardRules />} />
+        <Route path="/verification-rules" element={<VerificationRules />} />
+        <Route path="/disputes-policy" element={<DisputesPolicy />} />
+        <Route path="/contacts" element={<Contacts />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
+        <Route path="/verify-code" element={<VerifyCode onLogin={handleLogin} />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/profile" element={isAuthenticated ? <ErrorBoundary><Profile token={token} onLogout={handleLogout} /></ErrorBoundary> : <Navigate to="/?reason=login-required" replace />} />
+        <Route path="/support" element={isAuthenticated ? <SupportChat token={token} /> : <Navigate to="/?reason=login-required" replace />} />
+        <Route path="/admin" element={isAuthenticated ? <Admin token={token} onLogout={handleLogout} /> : <Navigate to="/?reason=login-required" replace />} />
+        <Route path="*" element={<Navigate to={isAuthenticated ? '/profile' : '/'} replace />} />
+      </Routes>
+    );
+  }, [authBootstrapping, handleLogin, handleLogout, isAuthenticated, token]);
 
   return (
     <ErrorBoundary>
@@ -182,29 +289,7 @@ function AppContent() {
         )}
         <main className="app-main" style={{ flex: 1, padding: noPadding ? 0 : '24px 16px' }}>
           <Suspense fallback={<div style={{ minHeight: '100vh' }} />}>
-          <Routes>
-            <Route path="/" element={hasToken ? <Navigate to="/profile" replace /> : <LandingHome onLogin={handleLogin} />} />
-            <Route path="/login" element={<Navigate to={hasToken ? '/profile' : '/'} replace />} />
-            <Route path="/register" element={<Navigate to="/?tab=register" replace />} />
-            <Route path="/offer" element={<Offer />} />
-            <Route path="/about" element={<About />} />
-            <Route path="/privacy" element={<Privacy />} />
-            <Route path="/payment-terms" element={<PaymentTerms />} />
-            <Route path="/tournament-rules" element={<TournamentRules />} />
-            <Route path="/balance-rules" element={<BalanceRules />} />
-            <Route path="/reward-rules" element={<RewardRules />} />
-            <Route path="/verification-rules" element={<VerificationRules />} />
-            <Route path="/disputes-policy" element={<DisputesPolicy />} />
-            <Route path="/contacts" element={<Contacts />} />
-            <Route path="/verify-email" element={<VerifyEmail />} />
-            <Route path="/verify-code" element={<VerifyCode onLogin={handleLogin} />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/reset-password" element={<ResetPassword />} />
-            <Route path="/profile" element={hasToken ? <ErrorBoundary><Profile token={token} onLogout={handleLogout} /></ErrorBoundary> : <Navigate to="/" replace />} />
-            <Route path="/support" element={hasToken ? <SupportChat token={token} /> : <Navigate to="/" replace />} />
-            <Route path="/admin" element={hasToken ? <Admin token={token} onLogout={handleLogout} /> : <Navigate to="/login" replace />} />
-            <Route path="*" element={<Navigate to={hasToken ? '/profile' : '/'} replace />} />
-          </Routes>
+            {routeElement}
           </Suspense>
         </main>
       </div>
