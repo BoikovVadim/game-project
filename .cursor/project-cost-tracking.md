@@ -1,7 +1,8 @@
-731810.92
-За сегодня (2026-03-14): 49 218,83 ₽
+732904.67
+За сегодня (2026-03-14): 50 312,58 ₽
 
 # Последние изменения (для резюме по задаче). Формат: YYYY-MM-DD HH:MM | Z ₽ | N ч M мин | описание. «За сегодня» — сумма всех Z за текущий день.
+2026-03-14 20:40 | 1 093,75 ₽ | 0 ч 30 мин | Прод-стабилизация: после деплоя диагностирован `502`, найден missing runtime dependency `express` в backend, обновлён dependency graph, локальная сборка перепроверена и подготовлен повторный production deploy с сохранением серверного env
 2026-03-14 20:20 | 8 312,50 ₽ | 3 ч 48 мин | Стабилизация проекта: восстановлены auth/cabinet bootstrap и единая обработка 401/refresh, выровнены verify-code/payment/support маршруты под HashRouter, сведён production contract env/nginx/pm2/deploy, добавлены smoke-проверки и аудит auth/payment данных, документация синхронизирована с фактическим runtime
 2026-03-14 18:59 | 6 125,00 ₽ | 2 ч 48 мин | Стабилизация проекта: закрыты auth/payment/security дыры, денежные write-path и money tournament join переведены на транзакции, backend read-path и playerOrder-статистика дочищены, Profile/Admin/SupportChat переведены на URL-state без ручного hash-drifts, добавлены health endpoint, CI и smoke checklist, документация и deploy-конфиг выровнены
 2026-03-14 18:27 | 1 312,50 ₽ | 0 ч 36 мин | Турниры: финальный hard-pass по read-path — `getTournamentState` перестал удалять/создавать вопросы на GET, `getTrainingState` переведён на общие question/helper/resolver-правила для финала и тайбрейков, выполнен сценарный аудит оставшихся зон риска, backend пересобран и `dev:live` перезапущен
