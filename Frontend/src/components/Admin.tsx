@@ -378,7 +378,6 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
   const [bracketView, setBracketView] = useState<BracketViewData | null>(null);
   const [bracketLoading, setBracketLoading] = useState(false);
   const [bracketError, setBracketError] = useState('');
-  const [bracketOpenSource, setBracketOpenSource] = useState<'active' | 'completed' | null>(null);
   const [bracketPlayerTooltip, setBracketPlayerTooltip] = useState<{
     playerId: number;
     displayName: string;
@@ -904,7 +903,6 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
     setBracketView(null);
     setBracketError('');
     setBracketPlayerTooltip(null);
-    setBracketOpenSource(null);
     bracketLoadedTournamentIdRef.current = null;
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
@@ -926,20 +924,17 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
       setBracketView(null);
       setBracketError('');
       setBracketLoading(false);
-      setBracketOpenSource(normalizedSource);
       bracketLoadedTournamentIdRef.current = null;
       return;
     }
     const bracketKey = `${id}:${viewerUserId}`;
     if (bracketLoadedTournamentIdRef.current === bracketKey && (bracketView || bracketError)) {
-      setBracketOpenSource(normalizedSource);
       return;
     }
     bracketLoadedTournamentIdRef.current = bracketKey;
     setBracketLoading(true);
     setBracketError('');
     setBracketPlayerTooltip(null);
-    setBracketOpenSource(normalizedSource);
     axios.get<BracketViewData>(`/tournaments/admin/${id}/bracket?userId=${viewerUserId}`, { headers })
       .then((res) => {
         setBracketView(res.data);
@@ -2377,7 +2372,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
             <div className="bracket-modal-header">
               <h3>
                 {bracketView?.gameType === 'money' ? 'Противостояние' : 'Турнир'} #{bracketView?.tournamentId ?? '...'}
-                {bracketOpenSource === 'completed' ? <span className="bracket-completed-badge">Завершен</span> : bracketOpenSource === 'active' ? <span className="bracket-active-badge">Активен</span> : null}
+                {bracketView?.status === 'finished' || bracketView?.isCompleted ? <span className="bracket-completed-badge">Завершен</span> : bracketView?.isActive ? <span className="bracket-active-badge">Активен</span> : null}
               </h3>
               <button type="button" className="bracket-close" onClick={closeBracket} aria-label="Закрыть">×</button>
             </div>

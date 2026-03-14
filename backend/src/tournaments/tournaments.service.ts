@@ -528,6 +528,41 @@ export class TournamentsService implements OnModuleInit {
     );
   }
 
+  private getSemiPhaseQuestionCount(prog: Pick<TournamentProgress, 'tiebreakerRoundsCorrect'> | null | undefined): number {
+    return this.QUESTIONS_PER_ROUND + ((prog?.tiebreakerRoundsCorrect?.length ?? 0) * this.TIEBREAKER_QUESTIONS);
+  }
+
+  private getSemiCurrentRoundTargets(
+    p1: TournamentProgress | null | undefined,
+    p2: TournamentProgress | null | undefined,
+  ): { p1Target: number; p2Target: number } {
+    const semiState = this.getSemiHeadToHeadState(
+      p1?.questionsAnsweredCount ?? 0,
+      p1?.semiFinalCorrectCount,
+      p1?.tiebreakerRoundsCorrect,
+      p2?.questionsAnsweredCount ?? 0,
+      p2?.semiFinalCorrectCount,
+      p2?.tiebreakerRoundsCorrect,
+    );
+    const extraRounds = semiState.result === 'tie' ? (semiState.tiebreakerRound ?? 1) : 0;
+    const target = this.QUESTIONS_PER_ROUND + extraRounds * this.TIEBREAKER_QUESTIONS;
+    return { p1Target: target, p2Target: target };
+  }
+
+  private getFinalCurrentRoundTargets(
+    p1: TournamentProgress | null | undefined,
+    p2: TournamentProgress | null | undefined,
+  ): { p1Target: number; p2Target: number } {
+    const p1SemiTotal = this.getSemiPhaseQuestionCount(p1);
+    const p2SemiTotal = this.getSemiPhaseQuestionCount(p2);
+    const finalState = this.getFinalHeadToHeadState(p1, p2);
+    const extraRounds = finalState.result === 'tie' ? (finalState.tiebreakerRound ?? 1) : 0;
+    return {
+      p1Target: p1SemiTotal + this.QUESTIONS_PER_ROUND + extraRounds * this.TIEBREAKER_QUESTIONS,
+      p2Target: p2SemiTotal + this.QUESTIONS_PER_ROUND + extraRounds * this.TIEBREAKER_QUESTIONS,
+    };
+  }
+
   private getSharedSemiTiebreakerStart(
     myProg: TournamentProgress | undefined | null,
     oppProg: TournamentProgress | undefined | null,
@@ -773,11 +808,6 @@ export class TournamentsService implements OnModuleInit {
         const allProg = await this.tournamentProgressRepository.find({ where: { tournamentId: tournament.id } });
         const entries = await this.tournamentEntryRepository.find({ where: { tournament: { id: tournament.id } } as any });
 
-        const playerHasStarted = (uid: number): boolean => {
-          const prog = allProg.find((p) => p.userId === uid);
-          return !!prog && (prog.questionsAnsweredCount ?? 0) > 0;
-        };
-
         const getPlayerRoundStart = (uid: number): Date | null => {
           const prog = allProg.find((p) => p.userId === uid);
           if (prog?.roundStartedAt) return prog.roundStartedAt;
@@ -790,17 +820,6 @@ export class TournamentsService implements OnModuleInit {
           if (!s1 || !s2) return false;
           const shared = Math.max(s1.getTime(), s2.getTime());
           return now.getTime() - shared > roundCutoffMs;
-        };
-
-        const playerFinishedCurrentRound = (uid: number): boolean => {
-          const prog = allProg.find((p) => p.userId === uid);
-          if (!prog) return false;
-          const q = prog.questionsAnsweredCount ?? 0;
-          const tbLen = (prog.tiebreakerRoundsCorrect ?? []).length;
-          const semiTotal = this.QUESTIONS_PER_ROUND + tbLen * this.TIEBREAKER_QUESTIONS;
-          const inFinal = this.isPlayerInFinalPhase(prog, allProg, tournament);
-          if (!inFinal) return q >= semiTotal && q % this.QUESTIONS_PER_ROUND === 0;
-          return q >= semiTotal + this.QUESTIONS_PER_ROUND;
         };
 
         const saveResult = async (uid: number, passed: boolean) => {
@@ -819,11 +838,14 @@ export class TournamentsService implements OnModuleInit {
           const id1 = pair[0] < order.length ? order[pair[0]] : -1;
           const id2 = pair[1] < order.length ? order[pair[1]] : -1;
           if (id1 <= 0 || id2 <= 0) continue;
-          if (!playerHasStarted(id1) || !playerHasStarted(id2)) continue;
           if (!sharedDeadlinePassed(id1, id2)) continue;
 
-          const p1Finished = playerFinishedCurrentRound(id1);
-          const p2Finished = playerFinishedCurrentRound(id2);
+          const prog1 = allProg.find((p) => p.userId === id1) ?? null;
+          const prog2 = allProg.find((p) => p.userId === id2) ?? null;
+          const semiTargets = this.getSemiCurrentRoundTargets(prog1, prog2);
+
+          const p1Finished = (prog1?.questionsAnsweredCount ?? 0) >= semiTargets.p1Target;
+          const p2Finished = (prog2?.questionsAnsweredCount ?? 0) >= semiTargets.p2Target;
 
           if (p1Finished && !p2Finished) {
             this.logger.log(`[closeTimedOutRounds] T${tournament.id}: player ${id2} timed out, ${id1} wins`);
@@ -838,6 +860,20 @@ export class TournamentsService implements OnModuleInit {
             await saveResult(id1, false);
             await saveResult(id2, false);
             semiOutcomes[pairIndex] = { winnerId: null, bothLost: true };
+          }
+        }
+
+        if (realCount === 2) {
+          const headToHeadOutcome = semiOutcomes[0];
+          if (headToHeadOutcome) {
+            if (headToHeadOutcome.bothLost) {
+              tournamentResolved = true;
+            } else if (headToHeadOutcome.winnerId) {
+              const loserId = headToHeadOutcome.winnerId === order[0] ? order[1] : order[0];
+              if (loserId > 0) await saveResult(loserId, false);
+              await saveResult(headToHeadOutcome.winnerId, true);
+              tournamentResolved = true;
+            }
           }
         }
 
@@ -861,8 +897,11 @@ export class TournamentsService implements OnModuleInit {
           const f1 = finalists[0], f2 = finalists[1];
           if (!sharedDeadlinePassed(f1, f2)) { /* wait */ }
           else {
-            const f1Finished = playerFinishedCurrentRound(f1);
-            const f2Finished = playerFinishedCurrentRound(f2);
+            const f1Prog = allProg.find((p) => p.userId === f1) ?? null;
+            const f2Prog = allProg.find((p) => p.userId === f2) ?? null;
+            const finalTargets = this.getFinalCurrentRoundTargets(f1Prog, f2Prog);
+            const f1Finished = (f1Prog?.questionsAnsweredCount ?? 0) >= finalTargets.p1Target;
+            const f2Finished = (f2Prog?.questionsAnsweredCount ?? 0) >= finalTargets.p2Target;
 
             const getFinalCorrectCount = (uid: number): number => {
               const prog = allProg.find((p) => p.userId === uid);
@@ -3793,8 +3832,10 @@ export class TournamentsService implements OnModuleInit {
   }
 
   /** Подсчитать количество верных ответов на основе answersChosen и вопросов турнира.
-   *  answersChosen хранится как: [semi0..semi9, final0..final9, ...tiebreakers].
-   *  Нужно сравнивать с вопросами НУЖНОГО полуфинала (по semiRoundIndex) + финал. */
+   *  answersChosen хранится в реальном порядке игры:
+   *  [semi, semi-tiebreakers..., final, final-tiebreakers...].
+   *  Нужно сравнивать с вопросами нужного полуфинала (по semiRoundIndex),
+   *  затем с полуфинальными допраундами, потом с финалом и только потом с финальными допраундами. */
   private async computeCorrectFromAnswers(
     tournamentId: number,
     answersChosen: number[],
@@ -3806,9 +3847,14 @@ export class TournamentsService implements OnModuleInit {
       order: { roundIndex: 'ASC', id: 'ASC' },
     });
     const semiQuestions = questions.filter((q) => q.roundIndex === semiRoundIndex);
-    const tiebreakerQuestions = questions.filter((q) => q.roundIndex >= 3).sort((a, b) => a.roundIndex - b.roundIndex || a.id - b.id);
+    const semiTiebreakerQuestions = questions
+      .filter((q) => q.roundIndex >= 3 && q.roundIndex < 100)
+      .sort((a, b) => a.roundIndex - b.roundIndex || a.id - b.id);
     const finalQuestions = questions.filter((q) => q.roundIndex === 2).sort((a, b) => a.id - b.id);
-    const playerQuestions = [...semiQuestions, ...tiebreakerQuestions, ...finalQuestions];
+    const finalTiebreakerQuestions = questions
+      .filter((q) => q.roundIndex >= 100)
+      .sort((a, b) => a.roundIndex - b.roundIndex || a.id - b.id);
+    const playerQuestions = [...semiQuestions, ...semiTiebreakerQuestions, ...finalQuestions, ...finalTiebreakerQuestions];
     let total = 0;
     let semi = 0;
     for (let i = 0; i < answersChosen.length && i < playerQuestions.length; i++) {
@@ -4011,6 +4057,10 @@ export class TournamentsService implements OnModuleInit {
         for (let r = 1; r <= semiTBLen + 1; r++) boundaries.push(this.QUESTIONS_PER_ROUND + r * this.TIEBREAKER_QUESTIONS);
         const fStart = this.QUESTIONS_PER_ROUND + semiTBLen * this.TIEBREAKER_QUESTIONS;
         boundaries.push(fStart + this.QUESTIONS_PER_ROUND);
+        const finalTBLen = (progress.finalTiebreakerRoundsCorrect ?? []).length;
+        for (let r = 1; r <= finalTBLen; r++) {
+          boundaries.push(fStart + this.QUESTIONS_PER_ROUND + r * this.TIEBREAKER_QUESTIONS);
+        }
         for (const b of boundaries) {
           if (prevQ < b && safeCount >= b) { progress.roundStartedAt = new Date(); break; }
         }
@@ -4172,7 +4222,6 @@ export class TournamentsService implements OnModuleInit {
     let progressList = await this.tournamentProgressRepository.find({
       where: { tournamentId, userId: In(players.map((p) => p.id)) },
     });
-    const baseDeadline = this.getRoundDeadline(tournament.createdAt ?? new Date());
     // Backfill: если ровно 10 ответов, но semiFinalCorrectCount не установлен — восстанавливаем из correctAnswersCount.
     // При 10 ответах correctAnswersCount = верные в полуфинале. При 11+ это уже сумма полуфинал+финал — не трогаем.
     for (const p of progressList) {
@@ -4190,8 +4239,13 @@ export class TournamentsService implements OnModuleInit {
       }
     }
     const progressByUser = new Map(progressList.map((p) => [p.userId, p]));
+    const viewerProgress = progressByUser.get(userId);
+    const viewerSharedStart = viewerProgress
+      ? this.getCurrentRoundSharedStart(tournament, userId, viewerProgress, progressList)
+      : null;
+    const activeRoundDeadline = viewerSharedStart ? this.getRoundDeadline(viewerSharedStart) : null;
 
-    const isTimeExpired = new Date(baseDeadline) < new Date();
+    const isTimeExpired = activeRoundDeadline ? new Date(activeRoundDeadline) < new Date() : false;
     const hasWinner =
       (await this.tournamentResultRepository.findOne({
         where: { tournamentId, passed: 1 },

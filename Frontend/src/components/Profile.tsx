@@ -878,7 +878,6 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     completed: { id: number; status: string; createdAt: string; playersCount: number; userStatus?: 'passed' | 'not_passed'; stage?: string; resultLabel?: string; roundForQuestions?: 'semi' | 'final'; roundStartedAt?: string | null }[];
   } | null>(null);
 
-  const [bracketOpenSource, setBracketOpenSource] = useState<'active' | 'completed' | null>(null);
   const [bracketView, setBracketView] = useState<{
     tournamentId: number;
     semi1: { players: { id: number; username: string; nickname?: string | null; semiScore?: number; questionsAnswered?: number; correctAnswersCount?: number; isLoser?: boolean; tiebreakerRound?: number; tiebreakerAnswered?: number; tiebreakerCorrect?: number }[] };
@@ -2117,7 +2116,6 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   const openBracket = React.useCallback(async (tournamentId: number, source?: 'active' | 'completed') => {
     setBracketLoading(true);
     setBracketError('');
-    setBracketOpenSource(source ?? null);
     const base = `${window.location.pathname}${window.location.search}`;
     const h = window.location.hash.replace(/^#/, '');
     const baseHash = getHashBase(h);
@@ -2155,7 +2153,6 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     setBracketView(null);
     setBracketError('');
     setBracketPlayerTooltip(null);
-    setBracketOpenSource(null);
     const base = `${window.location.pathname}${window.location.search}`;
     const h = window.location.hash.replace(/^#/, '');
     const parts = h.split('&').filter((p) => !p.startsWith('bracket=') && !p.startsWith('bracketSource='));
@@ -3480,7 +3477,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                       </td>
                                       <td>{t.stage ?? 'Полуфинал'}</td>
                                       <td className="game-history-questions-col">
-                                        <button type="button" className="game-history-questions-link" onClick={() => openQuestionsReview(t.id, t.roundForQuestions ?? (t.stage === 'Финал' ? 'final' : 'semi'))} title="Посмотреть вопросы турнира">
+                                        <button type="button" className="game-history-questions-link" onClick={() => openQuestionsReview(t.id, t.roundForQuestions)} title="Посмотреть вопросы турнира">
                                           {(t as any).questionsTotal ?? 10}/{(t as any).questionsAnswered ?? 0}/{(t as any).correctAnswersInRound ?? 0}
                                         </button>
                                       </td>
@@ -3528,7 +3525,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                       </td>
                                       <td>{t.stage ?? 'Полуфинал'}</td>
                                       <td className="game-history-questions-col">
-                                        <button type="button" className="game-history-questions-link" onClick={() => openQuestionsReview(t.id, t.roundForQuestions ?? (t.stage === 'Финал' ? 'final' : 'semi'))} title="Посмотреть вопросы турнира">
+                                        <button type="button" className="game-history-questions-link" onClick={() => openQuestionsReview(t.id, t.roundForQuestions)} title="Посмотреть вопросы турнира">
                                           {(t as any).questionsTotal ?? 10}/{(t as any).questionsAnswered ?? 0}/{(t as any).correctAnswersInRound ?? 0}
                                         </button>
                                       </td>
@@ -5009,7 +5006,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
             }}
           >
             <div className="bracket-modal-header">
-              <h3>{bracketView?.gameType === 'money' ? 'Противостояние' : 'Турнир'} #{bracketView?.tournamentId ?? '...'}{bracketOpenSource === 'completed' ? <span className="bracket-completed-badge">Завершен</span> : bracketOpenSource === 'active' ? <span className="bracket-active-badge">Активен</span> : null}</h3>
+              <h3>{bracketView?.gameType === 'money' ? 'Противостояние' : 'Турнир'} #{bracketView?.tournamentId ?? '...'}{bracketView?.status === 'finished' || bracketView?.isCompleted ? <span className="bracket-completed-badge">Завершен</span> : bracketView?.isActive ? <span className="bracket-active-badge">Активен</span> : null}</h3>
               <button type="button" className="bracket-close" onClick={closeBracket} aria-label="Закрыть">
                 ×
               </button>
