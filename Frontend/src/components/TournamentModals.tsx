@@ -284,10 +284,8 @@ export function TournamentBracketModal(props: {
                     const displayName = truncateBracketName(isReal ? (p.nickname?.trim() || `Игрок ${p.id}`) : 'Ожидание соперника');
                     const finalAnswered = Math.max(0, p?.finalAnswered ?? 0);
                     const finalCorrect = Math.max(0, p?.finalScore ?? p?.finalCorrect ?? 0);
-                    const fallbackAnswered = Math.max(0, p?.questionsAnswered ?? 0);
-                    const fallbackCorrect = Math.max(0, p?.semiScore ?? p?.correctAnswersCount ?? 0);
-                    const total = finalAnswered > 0 ? finalAnswered : fallbackAnswered;
-                    const correct = finalAnswered > 0 ? finalCorrect : fallbackCorrect;
+                    const total = finalAnswered;
+                    const correct = finalCorrect;
                     const pAvatar = isReal && p.id === currentUserId ? (currentUserAvatar ?? null) : (isReal ? (p.avatarUrl ?? null) : null);
                     return (
                       <div key={isReal ? p.id : `f-${i}`} className={`bracket-player-slot ${!isReal ? 'bracket-slot-empty' : ''} ${isLoser ? 'bracket-slot-loser' : ''}`}>
@@ -307,8 +305,10 @@ export function TournamentBracketModal(props: {
                           ) : (
                             <span className="bracket-player-name">{displayName}</span>
                           )}
-                          {isReal && total > 0 && (
-                            <span className="bracket-player-score">{correct}/{total} ({Math.round((correct / total) * 100)}%)</span>
+                          {isReal && (
+                            <span className="bracket-player-score">
+                              {total > 0 ? `${correct}/${total} (${Math.round((correct / total) * 100)}%)` : '0/0'}
+                            </span>
                           )}
                         </span>
                       </div>
