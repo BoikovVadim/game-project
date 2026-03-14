@@ -2698,6 +2698,9 @@ export class TournamentsService implements OnModuleInit {
 
     const getDisplayResultLabel = (t: Tournament, inCompleted: boolean): string => {
       const label = getResultLabel(t);
+      if (t.status === TournamentStatus.FINISHED) {
+        return label;
+      }
       if (inCompleted && isTimeExpired(t) && label !== 'Поражение' && label !== 'Победа') {
         const prog2 = progressByTid.get(t.id);
         const answered2 = prog2?.q ?? 0;
