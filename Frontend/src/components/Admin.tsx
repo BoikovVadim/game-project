@@ -916,10 +916,8 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
   useEffect(() => {
     const rawId = searchParams.get('tournamentModal');
     const id = rawId && /^\d+$/.test(rawId) ? Number(rawId) : null;
-    const source = searchParams.get('tournamentSource');
     const rawUserId = searchParams.get('tournamentUserId');
     const viewerUserId = rawUserId && /^\d+$/.test(rawUserId) ? Number(rawUserId) : null;
-    const normalizedSource = source === 'completed' ? 'completed' : source === 'active' ? 'active' : null;
     if (!id || !token || !viewerUserId) {
       setBracketView(null);
       setBracketError('');
