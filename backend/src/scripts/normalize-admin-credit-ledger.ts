@@ -1,10 +1,10 @@
 import * as dotenv from 'dotenv';
+dotenv.config();
+
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../app.module';
 import { UsersService } from '../users/users.service';
 import { DataSource } from 'typeorm';
-
-dotenv.config();
 
 async function main() {
   const app = await NestFactory.createApplicationContext(AppModule, { logger: false });

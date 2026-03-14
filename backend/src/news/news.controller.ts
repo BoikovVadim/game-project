@@ -2,6 +2,7 @@ import { Controller, Get, Post, Put, Delete, Body, Param, ParseIntPipe, UseGuard
 import { NewsService } from './news.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminGuard } from '../auth/admin.guard';
+import { CreateNewsDto, UpdateNewsDto } from './dto/news-write.dto';
 
 @Controller('news')
 export class NewsController {
@@ -26,7 +27,7 @@ export class NewsController {
 
   @Post()
   @UseGuards(JwtAuthGuard, AdminGuard)
-  create(@Body() body: { topic: string; body: string }) {
+  create(@Body() body: CreateNewsDto) {
     return this.newsService.create(body.topic, body.body);
   }
 
@@ -34,7 +35,7 @@ export class NewsController {
   @UseGuards(JwtAuthGuard, AdminGuard)
   update(
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: { topic?: string; body?: string; published?: boolean },
+    @Body() body: UpdateNewsDto,
   ) {
     return this.newsService.update(id, body);
   }

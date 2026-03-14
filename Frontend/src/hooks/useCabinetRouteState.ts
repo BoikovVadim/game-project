@@ -17,6 +17,12 @@ export type CabinetSection =
 export type CabinetStatsMode = 'personal' | 'general';
 export type CabinetGameMode = 'training' | 'money' | null;
 
+function parsePositiveInt(raw: string | null): number | null {
+  if (!raw || !/^\d+$/.test(raw)) return null;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
 export const CABINET_SECTIONS: readonly CabinetSection[] = [
   'profile',
   'statistics',
@@ -45,6 +51,7 @@ export function useCabinetRouteState(defaultSection: CabinetSection = 'news') {
   const gameMode: CabinetGameMode = section === 'games-training' ? 'training' : section === 'games-money' ? 'money' : null;
   const statsMode: CabinetStatsMode = searchParams.get('statsMode') === 'general' ? 'general' : 'personal';
   const paymentStatus = searchParams.get('payment');
+  const selectedLeague = parsePositiveInt(searchParams.get('league'));
 
   const setSection = useCallback((nextSection: CabinetSection) => {
     setSearchParams((prev) => {
@@ -74,6 +81,15 @@ export function useCabinetRouteState(defaultSection: CabinetSection = 'news') {
     }, { replace: true });
   }, [setSearchParams]);
 
+  const setSelectedLeague = useCallback((nextLeague: number | null) => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (nextLeague == null || nextLeague <= 0) next.delete('league');
+      else next.set('league', String(nextLeague));
+      return next;
+    }, { replace: true });
+  }, [setSearchParams]);
+
   return {
     searchParams,
     setSearchParams,
@@ -81,8 +97,10 @@ export function useCabinetRouteState(defaultSection: CabinetSection = 'news') {
     gameMode,
     statsMode,
     paymentStatus,
+    selectedLeague,
     setSection,
     setGameMode,
     setStatsMode,
+    setSelectedLeague,
   };
 }

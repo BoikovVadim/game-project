@@ -2,6 +2,7 @@ import { Controller, Get, Post, Body, Query, UseGuards, Request, UnauthorizedExc
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import { ResendCodeDto, VerifyCodeDto } from './dto/auth-write.dto';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
@@ -35,14 +36,14 @@ export class AuthController {
 
   @Throttle({ short: { ttl: 60000, limit: 10 } })
   @Post('verify-code')
-  async verifyCode(@Body() body: { email?: string; code?: string }) {
-    return this.authService.verifyCode(body?.email ?? '', body?.code ?? '');
+  async verifyCode(@Body() body: VerifyCodeDto) {
+    return this.authService.verifyCode(body.email, body.code);
   }
 
   @Throttle({ short: { ttl: 60000, limit: 3 } })
   @Post('resend-code')
-  async resendCode(@Body() body: { email?: string }) {
-    return this.authService.resendCode(body?.email ?? '');
+  async resendCode(@Body() body: ResendCodeDto) {
+    return this.authService.resendCode(body.email);
   }
 
   @Throttle({ short: { ttl: 60000, limit: 3 } })

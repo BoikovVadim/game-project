@@ -183,7 +183,13 @@ export class AdminService {
       if (req.status !== 'pending') throw new BadRequestException('Заявка уже обработана');
 
       const amount = Number(req.amount);
-      await this.usersService.addTransactionWithManager(manager, req.userId, -amount, `Заявка #${requestId}`, 'withdraw');
+      await this.usersService.addTransactionWithManager(
+        manager,
+        req.userId,
+        -amount,
+        UsersService.buildApprovedWithdrawalDescription(requestId),
+        'withdraw',
+      );
 
       req.status = 'approved';
       req.adminComment = comment || null;

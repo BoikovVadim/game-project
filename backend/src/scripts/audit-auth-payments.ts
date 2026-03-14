@@ -89,6 +89,11 @@ async function main() {
             FROM transaction t
             WHERE t."userId" = p."userId"
               AND t.category = 'topup'
+              AND (
+                t.description = 'Пополнение через ЮKassa'
+                OR t.description = 'Пополнение через Robokassa'
+                OR t.description LIKE 'Пополнение через платёжного провайдера (%'
+              )
               AND ABS(CAST(t.amount AS numeric) - CAST(p.amount AS numeric)) < 0.01
               AND t."createdAt" >= p."createdAt" - interval '1 day'
           )

@@ -339,8 +339,6 @@ const PartnerDetailTreeSection = React.memo(({
   </div>
 ));
 
-const SELECTED_LEAGUE_STORAGE_KEY = 'cabinetSelectedLeague';
-
 /** Не показываем «Возврат по отклонённой заявке» — деньги формально не уходили. */
 function filterRejectedWithdrawalRefunds(list: { category?: string; description?: string | null }[]): typeof list {
   return list.filter((t) => {
@@ -348,10 +346,6 @@ function filterRejectedWithdrawalRefunds(list: { category?: string; description?
     const d = t.description.toLowerCase().replace(/ё/g, 'е');
     return !((d.includes('отклонен') && d.includes('заявк')) || d.includes('возврат по отклонен'));
   });
-}
-
-function getStatsModeFromSearchParams(params: URLSearchParams): 'personal' | 'general' {
-  return params.get('statsMode') === 'general' ? 'general' : 'personal';
 }
 
 function getReadNewsStorageKey(userId: number | string | null | undefined): string {
@@ -379,6 +373,9 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     section: routeSection,
     gameMode: routeGameMode,
     statsMode: routeStatsMode,
+    setStatsMode: setRouteStatsMode,
+    selectedLeague: routeSelectedLeague,
+    setSelectedLeague: setRouteSelectedLeague,
   } = useCabinetRouteState('news');
   const forceSection = (forceSectionProp && CABINET_SECTIONS.includes(forceSectionProp as RouteCabinetSection)) ? forceSectionProp as CabinetSection : undefined;
 
@@ -547,11 +544,6 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   const [showStartGameConfirm, setShowStartGameConfirm] = useState(false);
   const [pendingStartGameAction, setPendingStartGameAction] = useState<(() => void) | null>(null);
   const [, setHashVersion] = useState(0);
-  useEffect(() => {
-    if (section === 'statistics') {
-      setStatsMode(getStatsModeFromSearchParams(searchParams));
-    }
-  }, [section, searchParams]);
 
   // Пинг «в личном кабинете» для подсчёта онлайн по лигам (пропускаем при импeрсонации админом)
   useEffect(() => {
@@ -656,12 +648,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   const [tournamentJoinError, setTournamentJoinError] = useState('');
   const [continueTournamentLoading, setContinueTournamentLoading] = useState<number | null>(null);
   const [continueTournamentError, setContinueTournamentError] = useState('');
-  const [selectedLeague, setSelectedLeague] = useState<number>(() => {
-    if (typeof window === 'undefined') return 5;
-    const saved = localStorage.getItem(SELECTED_LEAGUE_STORAGE_KEY);
-    const num = saved ? parseInt(saved, 10) : NaN;
-    return !Number.isNaN(num) && num > 0 ? num : 5;
-  });
+  const [selectedLeague, setSelectedLeague] = useState<number>(() => routeSelectedLeague ?? 5);
   const [readNewsIds, setReadNewsIds] = useState<number[]>([]);
   const [apiNews, setApiNews] = useState<{ id: number; topic: string; body: string; createdAt: string }[]>([]);
   const [allLeagues, setAllLeagues] = useState<number[]>([5, 10, 20, 50, 100, 200, 500]);
@@ -811,7 +798,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     return { rowGrid: grid, subtreeLevels: levelsForDisplay, hasChildren, getDescendantCount };
   }, [referralTree, partnerDetailExpandedIds, user]);
 
-  const [statsMode, setStatsMode] = useState<'personal' | 'general'>(() => routeStatsMode);
+  const statsMode = routeStatsMode;
   const [rankingMetric, setRankingMetric] = useState<'gamesPlayed' | 'wins' | 'totalWinnings' | 'correctAnswers' | 'correctAnswerRate' | 'referrals' | 'totalWithdrawn'>('gamesPlayed');
   const [rankings, setRankings] = useState<null | {
     rankings: { rank: number; userId: number; displayName: string; value: number; valueFormatted: string }[];
@@ -1095,10 +1082,16 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   }, [selectedLeague]);
 
   useEffect(() => {
-    if (gameMode === 'money' && selectedLeague) {
-      localStorage.setItem(SELECTED_LEAGUE_STORAGE_KEY, String(selectedLeague));
+    if (routeSelectedLeague != null && routeSelectedLeague !== selectedLeague) {
+      setSelectedLeague(routeSelectedLeague);
     }
-  }, [gameMode, selectedLeague]);
+  }, [routeSelectedLeague, selectedLeague]);
+
+  useEffect(() => {
+    if (selectedLeague > 0 && routeSelectedLeague !== selectedLeague) {
+      setRouteSelectedLeague(selectedLeague);
+    }
+  }, [selectedLeague, routeSelectedLeague, setRouteSelectedLeague]);
 
   useEffect(() => {
     preloadAllLeagueImages();
@@ -1122,20 +1115,6 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   }, [allLeagues, leagueCarouselIndex]);
 
   useEffect(() => {
-    const saveOnUnload = () => {
-      if (gameMode === 'money' && selectedLeagueRef.current) {
-        localStorage.setItem(SELECTED_LEAGUE_STORAGE_KEY, String(selectedLeagueRef.current));
-      }
-    };
-    window.addEventListener('beforeunload', saveOnUnload);
-    window.addEventListener('pagehide', saveOnUnload);
-    return () => {
-      window.removeEventListener('beforeunload', saveOnUnload);
-      window.removeEventListener('pagehide', saveOnUnload);
-    };
-  }, [gameMode]);
-
-  useEffect(() => {
     if (gameMode !== 'money' || !token) {
       setAllowedLeagues([]);
       setAllLeagues([5, 10, 20, 50, 100, 200, 500]);
@@ -1155,16 +1134,16 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         setAllLeagues(fullList);
         setLeagueWins(res.data.leagueWins ?? {});
         setPlayersOnlineByLeague(res.data.playersOnlineByLeague ?? {});
-        const saved = localStorage.getItem(SELECTED_LEAGUE_STORAGE_KEY);
-        const savedNum = saved ? parseInt(saved, 10) : NaN;
-        const savedIdx = fullList.indexOf(savedNum);
-        if (!Number.isNaN(savedNum) && savedIdx >= 0) {
-          setSelectedLeague(savedNum);
-          setLeagueCarouselIndex(savedIdx);
+        const routeLeague = routeSelectedLeague ?? null;
+        const routeIdx = routeLeague != null ? fullList.indexOf(routeLeague) : -1;
+        if (routeLeague != null && routeIdx >= 0) {
+          setSelectedLeague(routeLeague);
+          setLeagueCarouselIndex(routeIdx);
         } else {
           const fallback = list[0] ?? fullList[0] ?? 5;
           const fallbackIdx = fullList.indexOf(fallback);
           setSelectedLeague(fallback);
+          setRouteSelectedLeague(fallback);
           setLeagueCarouselIndex(fallbackIdx >= 0 ? fallbackIdx : 0);
         }
       })
@@ -1174,7 +1153,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         setPlayersOnlineByLeague({});
       })
       .finally(() => setAllowedLeaguesLoading(false));
-  }, [gameMode, token]);
+  }, [gameMode, token, routeSelectedLeague, setRouteSelectedLeague]);
 
   useEffect(() => {
     if (section === 'finance' || section === 'finance-topup' || section === 'finance-withdraw') {
@@ -2848,28 +2827,14 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
               <button
                 type="button"
                 className={`cabinet-statistics-tab ${statsMode === 'personal' ? 'cabinet-statistics-tab--active' : ''}`}
-                onClick={() => {
-                  setStatsMode('personal');
-                  setSearchParams((prev) => {
-                    const next = new URLSearchParams(prev);
-                    next.delete('statsMode');
-                    return next;
-                  }, { replace: true });
-                }}
+                onClick={() => setRouteStatsMode('personal')}
               >
                 Личная
               </button>
               <button
                 type="button"
                 className={`cabinet-statistics-tab ${statsMode === 'general' ? 'cabinet-statistics-tab--active' : ''}`}
-                onClick={() => {
-                  setStatsMode('general');
-                  setSearchParams((prev) => {
-                    const next = new URLSearchParams(prev);
-                    next.set('statsMode', 'general');
-                    return next;
-                  }, { replace: true });
-                }}
+                onClick={() => setRouteStatsMode('general')}
               >
                 Общая
               </button>

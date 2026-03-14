@@ -5,7 +5,7 @@
   "main": "src/main.ts",
   "scripts": {
     "build": "node node_modules/typescript/bin/tsc",
-    "test": "tsx --test src/tournaments/domain/*.test.ts src/tournaments/question-generators/*.test.ts",
+    "test": "tsx --test src/tournaments/domain/*.test.ts src/tournaments/question-generators/*.test.ts src/users/*.test.ts",
     "start": "node dist/main.js",
     "start:dev": "ts-node-dev --respawn src/main.ts",
     "seed:referral": "node dist/scripts/seed-referral-once.js",
@@ -17,6 +17,7 @@
     "audit:auth-payments": "ts-node src/scripts/audit-auth-payments.ts",
     "fix:auth-payments-data": "ts-node src/scripts/audit-auth-payments.ts --fix",
     "fix:admin-credit-ledger": "ts-node src/scripts/normalize-admin-credit-ledger.ts",
+    "fix:ruble-ledger": "ts-node src/scripts/repair-ruble-ledger.ts",
     "seed:questions": "node dist/scripts/seed-questions.js",
     "backfill:tournament-resolutions": "ts-node -r tsconfig-paths/register src/scripts/backfill-tournament-round-resolutions.ts"
   },

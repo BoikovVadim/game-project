@@ -30,6 +30,11 @@ import {
   getTournamentDisplayName,
 } from './domain/constants';
 import {
+  getOpponentSlot,
+  getSemiPairIndexBySlot as getSemiPairIndexBySlotFromOrder,
+  getSemiPairUserIds as getSemiPairUserIdsFromOrder,
+} from './domain/player-order';
+import {
   deriveTournamentViewMeta,
   type TournamentListBucket,
   type TournamentResultKind,
@@ -148,20 +153,14 @@ export class TournamentsService implements OnModuleInit {
   }
 
   private getSemiPairIndexBySlot(playerSlot: number): 0 | 1 | null {
-    if (playerSlot < 0) return null;
-    return playerSlot < 2 ? 0 : 1;
+    return getSemiPairIndexBySlotFromOrder(playerSlot);
   }
 
   private getSemiPairUserIds(
     order: number[] | null | undefined,
     pairIndex: 0 | 1,
   ): [number, number] {
-    const slotA = pairIndex === 0 ? 0 : 2;
-    const slotB = slotA + 1;
-    return [
-      slotA < (order?.length ?? 0) ? (order?.[slotA] ?? -1) : -1,
-      slotB < (order?.length ?? 0) ? (order?.[slotB] ?? -1) : -1,
-    ];
+    return getSemiPairUserIdsFromOrder(order, pairIndex);
   }
 
   private getSemiCurrentRoundNumber(
@@ -439,8 +438,8 @@ export class TournamentsService implements OnModuleInit {
       const order = t.playerOrder;
       if (order?.length && order.indexOf(row.userId) >= 0) {
         const playerSlot = order.indexOf(row.userId);
-        const opponentSlot = playerSlot % 2 === 0 ? playerSlot + 1 : playerSlot - 1;
-        const opponentId = opponentSlot >= 0 && opponentSlot < order.length ? (order[opponentSlot] ?? -1) : -1;
+        const opponentSlot = getOpponentSlot(playerSlot, order.length);
+        const opponentId = opponentSlot != null ? (order[opponentSlot] ?? -1) : -1;
         const userIds = [row.userId, opponentId].filter((id) => id > 0);
         const map = progressByTidAndUser.get(row.tournamentId);
         const dates: Date[] = [];
@@ -1410,8 +1409,8 @@ export class TournamentsService implements OnModuleInit {
     joinedAt: Date,
   ): Promise<void> {
     if (!playerOrder || playerSlot < 0 || playerSlot >= playerOrder.length) return;
-    const opponentSlot = playerSlot % 2 === 0 ? playerSlot + 1 : playerSlot - 1;
-    if (opponentSlot < 0 || opponentSlot >= playerOrder.length) return;
+    const opponentSlot = getOpponentSlot(playerSlot, playerOrder.length);
+    if (opponentSlot == null) return;
 
     const joinedUserId = playerOrder[playerSlot] ?? -1;
     const opponentUserId = playerOrder[opponentSlot] ?? -1;
@@ -3877,8 +3876,8 @@ export class TournamentsService implements OnModuleInit {
 
     const progress = await this.tournamentProgressRepository.findOne({ where: { userId, tournamentId } });
     const normalizedProgress = this.normalizeProgressSnapshot(progress, true);
-    const opponentSlot = playerSlot % 2 === 0 ? playerSlot + 1 : playerSlot - 1;
-    const oppIdState = opponentSlot >= 0 && opponentSlot < order.length ? order[opponentSlot] : -1;
+    const opponentSlot = getOpponentSlot(playerSlot, order.length);
+    const oppIdState = opponentSlot != null ? order[opponentSlot] : -1;
     const opponent = oppIdState > 0 ? (tournament.players?.find((p) => p.id === oppIdState) ?? null) : null;
     const timeoutResolutionMap = await this.getTournamentTimeoutResolutionMap(tournamentId);
     let deadline: string | null = null;

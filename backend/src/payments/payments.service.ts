@@ -34,7 +34,6 @@ export class PaymentsService {
     paymentId: number,
     provider: 'yookassa' | 'robokassa',
     externalId: string,
-    description: string,
   ): Promise<boolean> {
     return this.dataSource.transaction(async (manager) => {
       const payment = await manager
@@ -50,7 +49,12 @@ export class PaymentsService {
       payment.status = 'succeeded';
       payment.externalId = externalId || payment.externalId;
 
-      await this.usersService.creditRublesWithManager(manager, payment.userId, amount, description);
+      await this.usersService.creditRublesWithManager(
+        manager,
+        payment.userId,
+        amount,
+        UsersService.buildPaymentTopupDescription(provider, payment.id, externalId),
+      );
       await manager.save(payment);
 
       return true;
@@ -140,7 +144,7 @@ export class PaymentsService {
       return { success: true, retryable: false, code: 'invalid_amount' };
     }
 
-    const finalized = await this.finalizeTopupPayment(paymentId, 'yookassa', obj.id, 'Пополнение через ЮKassa');
+    const finalized = await this.finalizeTopupPayment(paymentId, 'yookassa', obj.id);
     return {
       success: true,
       retryable: false,
@@ -159,7 +163,7 @@ export class PaymentsService {
     const remoteAmount = parseFloat(outSum);
     if (!remoteAmount || Number(payment.amount) !== remoteAmount) return false;
 
-    await this.finalizeTopupPayment(paymentId, 'robokassa', invId, 'Пополнение через Robokassa');
+    await this.finalizeTopupPayment(paymentId, 'robokassa', invId);
     return true;
   }
 

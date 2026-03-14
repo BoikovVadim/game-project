@@ -17,11 +17,18 @@ import {
   TIEBREAKER_QUESTIONS,
   getMinBalanceForLeague,
 } from '../tournaments/domain/constants';
+import { getOpponentSlot, parsePlayerOrder } from '../tournaments/domain/player-order';
+import {
+  buildAdminTopupDescription,
+  buildApprovedWithdrawalDescription,
+  buildPaymentTopupDescription,
+  parseAdminTopupDescription,
+  parseApprovedWithdrawalDescription,
+  parsePaymentTopupDescription,
+} from './ruble-ledger-descriptions';
 
 @Injectable()
 export class UsersService implements OnModuleInit {
-  private static readonly ADMIN_TOPUP_PREFIX = 'Пополнение баланса администратором';
-
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
@@ -477,22 +484,33 @@ export class UsersService implements OnModuleInit {
   }
 
   static buildAdminTopupDescription(adminId: number, comment?: string | null): string {
-    const safeComment = String(comment ?? '').trim();
-    return safeComment
-      ? `${UsersService.ADMIN_TOPUP_PREFIX} (ID ${adminId}): ${safeComment}`
-      : `${UsersService.ADMIN_TOPUP_PREFIX} (ID ${adminId})`;
+    return buildAdminTopupDescription(adminId, comment);
   }
 
   static parseAdminTopupDescription(description: string | null | undefined): { adminId: number | null; comment: string | null } {
-    const text = String(description ?? '').trim();
-    const match = text.match(/^Пополнение баланса администратором \(ID (\d+)\)(?::\s*(.*))?$/);
-    if (!match) return { adminId: null, comment: null };
-    const adminId = Number.parseInt(match[1] ?? '', 10);
-    const comment = (match[2] ?? '').trim();
-    return {
-      adminId: Number.isFinite(adminId) ? adminId : null,
-      comment: comment || null,
-    };
+    return parseAdminTopupDescription(description);
+  }
+
+  static buildPaymentTopupDescription(
+    provider: 'yookassa' | 'robokassa',
+    paymentId: number,
+    externalId?: string | null,
+  ): string {
+    return buildPaymentTopupDescription(provider, paymentId, externalId);
+  }
+
+  static parsePaymentTopupDescription(
+    description: string | null | undefined,
+  ): { provider: 'yookassa' | 'robokassa' | null; paymentId: number | null; externalId: string | null } {
+    return parsePaymentTopupDescription(description);
+  }
+
+  static buildApprovedWithdrawalDescription(requestId: number): string {
+    return buildApprovedWithdrawalDescription(requestId);
+  }
+
+  static parseApprovedWithdrawalDescription(description: string | null | undefined): { requestId: number | null } {
+    return parseApprovedWithdrawalDescription(description);
   }
 
   async creditRublesWithManager(
@@ -571,6 +589,118 @@ export class UsersService implements OnModuleInit {
     }
 
     return { updatedCount: legacyRows.length, affectedUserIds: Array.from(affectedUserIds) };
+  }
+
+  async repairPaymentTopupTransactions(): Promise<{
+    insertedCount: number;
+    normalizedCount: number;
+    affectedUserIds: number[];
+  }> {
+    const payments = await this.dataSource.query(
+      `SELECT id, "userId", amount, provider, "externalId", status, "createdAt"
+       FROM payment
+       WHERE status = 'succeeded'
+       ORDER BY id ASC`,
+    ) as {
+      id: number;
+      userId: number;
+      amount: number;
+      provider: 'yookassa' | 'robokassa';
+      externalId: string | null;
+      status: string;
+      createdAt: string | Date;
+    }[];
+
+    if (payments.length === 0) {
+      return { insertedCount: 0, normalizedCount: 0, affectedUserIds: [] };
+    }
+
+    const rows = await this.dataSource.query(
+      `SELECT id, "userId", amount, category, description, "createdAt"
+       FROM "transaction"
+       WHERE category = 'topup'
+       ORDER BY id ASC`,
+    ) as {
+      id: number;
+      userId: number;
+      amount: number;
+      category: string;
+      description: string | null;
+      createdAt: string | Date;
+    }[];
+
+    const affectedUserIds = new Set<number>();
+    let insertedCount = 0;
+    let normalizedCount = 0;
+
+    const matchedTransactionIds = new Set<number>();
+    await this.dataSource.transaction(async (manager) => {
+      for (const payment of payments) {
+        const structuredDescription = UsersService.buildPaymentTopupDescription(
+          payment.provider,
+          Number(payment.id),
+          payment.externalId,
+        );
+
+        const exactMatch = rows.find((row) => {
+          if (matchedTransactionIds.has(row.id)) return false;
+          const parsed = UsersService.parsePaymentTopupDescription(row.description);
+          return parsed.paymentId === Number(payment.id) && parsed.provider === payment.provider;
+        });
+
+        if (exactMatch) {
+          matchedTransactionIds.add(exactMatch.id);
+          continue;
+        }
+
+        const fuzzyMatch = rows.find((row) => {
+          if (matchedTransactionIds.has(row.id)) return false;
+          if (Number(row.userId) !== Number(payment.userId)) return false;
+          if (Math.abs(Number(row.amount) - Number(payment.amount)) >= 0.01) return false;
+          const desc = String(row.description ?? '').trim();
+          if (!desc) return false;
+          if (UsersService.parseAdminTopupDescription(desc).adminId) return false;
+          const lower = desc.toLowerCase();
+          if (!lower.includes('пополнение')) return false;
+          const txTime = new Date(row.createdAt).getTime();
+          const paymentTime = new Date(payment.createdAt).getTime();
+          return Math.abs(txTime - paymentTime) <= 24 * 60 * 60 * 1000;
+        });
+
+        if (fuzzyMatch) {
+          matchedTransactionIds.add(fuzzyMatch.id);
+          if (String(fuzzyMatch.description ?? '').trim() !== structuredDescription) {
+            await manager.query(
+              `UPDATE "transaction" SET description = $1 WHERE id = $2`,
+              [structuredDescription, fuzzyMatch.id],
+            );
+            normalizedCount += 1;
+            affectedUserIds.add(Number(payment.userId));
+          }
+          continue;
+        }
+
+        await this.addTransactionWithManager(
+          manager,
+          Number(payment.userId),
+          Number(payment.amount),
+          structuredDescription,
+          'topup',
+        );
+        insertedCount += 1;
+        affectedUserIds.add(Number(payment.userId));
+      }
+    });
+
+    for (const userId of affectedUserIds) {
+      await this.reconcileBalanceRubles(userId);
+    }
+
+    return {
+      insertedCount,
+      normalizedCount,
+      affectedUserIds: Array.from(affectedUserIds),
+    };
   }
 
   /** Добавляет сумму на баланс L (для игр) и создаёт транзакцию. Атомарно через DB-транзакцию. */
@@ -870,11 +1000,11 @@ export class UsersService implements OnModuleInit {
     let totalMoneyWithResult = 0;
     for (const row of ((moneyToursRow as { tid: number; playerOrder: string | null }[]) || [])) {
       const tid = row.tid;
-      const playerIds = UsersService.parseJsonArray(row.playerOrder).filter((id) => id > 0);
+      const playerIds = parsePlayerOrder(row.playerOrder).filter((id) => id > 0);
       const userSlot = playerIds.indexOf(userId);
       if (userSlot < 0) continue;
-      const opponentSlot = userSlot % 2 === 0 ? userSlot + 1 : userSlot - 1;
-      if (opponentSlot < 0 || opponentSlot >= playerIds.length) continue;
+      const opponentSlot = getOpponentSlot(userSlot, playerIds.length);
+      if (opponentSlot == null) continue;
       const opponentId = playerIds[opponentSlot]!;
       const progressRows = (await manager.query(
         `SELECT "userId", "questionsAnsweredCount" as q FROM tournament_progress WHERE "tournamentId" = $1 AND "userId" IN ($2, $3)`,
@@ -1333,7 +1463,7 @@ export class UsersService implements OnModuleInit {
               const dateStr = row.d && String(row.d).slice(0, 10);
               if (!dateStr || !days.includes(dateStr)) continue;
 
-              const po = UsersService.parseJsonArray(row.playerOrder);
+              const po = parsePlayerOrder(row.playerOrder);
               const progMap = progressByTid.get(tid);
 
               let w = 0;
@@ -1483,8 +1613,8 @@ export class UsersService implements OnModuleInit {
     if (!playerOrder || playerOrder.length < 2) return false;
     const slot = playerOrder.indexOf(userId);
     if (slot < 0) return false;
-    const oppSlot = slot % 2 === 0 ? slot + 1 : slot - 1;
-    if (oppSlot < 0 || oppSlot >= playerOrder.length) return false;
+    const oppSlot = getOpponentSlot(slot, playerOrder.length);
+    if (oppSlot == null) return false;
     const oppId = playerOrder[oppSlot];
     if (oppId == null || oppId <= 0) return false;
 
@@ -1574,7 +1704,7 @@ export class UsersService implements OnModuleInit {
     for (const row of userTournRows) {
       const tid = Number(row.tournamentId);
       const gt = row.gameType;
-      const po = UsersService.parseJsonArray(row.playerOrder);
+      const po = parsePlayerOrder(row.playerOrder);
       const progMap = progressByTid.get(tid);
       countedTids.add(tid);
 
@@ -1631,7 +1761,7 @@ export class UsersService implements OnModuleInit {
     for (const row of allUserTourn) {
       const uid = Number(row.userId);
       const tid = Number(row.tournamentId);
-      const po = UsersService.parseJsonArray(row.playerOrder);
+      const po = parsePlayerOrder(row.playerOrder);
       const progMap = progressByTid.get(tid);
 
       let w = 0;
