@@ -298,31 +298,32 @@ Escrow используется только в `money`-режиме.
 
 Это центральная функция пользовательского списка турниров.
 
-Она делает сразу много вещей:
+Теперь `getMyTournaments(...)` должен быть **read-only**.
 
-1. Нормализует старые записи:
-   - `gameType = null` + `leagueAmount != null` -> `money`
-   - `gameType = null` + `leagueAmount = null` -> `training`
-   - ошибочно помеченные `training` с ненулевой ставкой -> `money`
-2. Запускает backfill связей участников.
-3. Для `money` дополнительно:
-   - обрабатывает просроченные escrow
-   - синхронизирует участников из entry
-4. Собирает ID турниров пользователя из нескольких источников:
+Она:
+
+1. Собирает ID турниров пользователя из нескольких источников:
    - `tournament_progress`
    - `tournament_entry`
    - join по `players`
    - `playerOrder`
    - raw SQL fallback для camelCase/snake_case схем
-5. Загружает турниры и режет их по режиму `training` / `money`.
-6. Собирает прогресс, дедлайны, результаты, даты завершения.
-7. Пересчитывает `tournament_result`.
-8. При необходимости:
-   - переводит турниры в `finished`
-   - откатывает `finished -> waiting`, если фактически там еще ничья
-9. Возвращает списки:
+2. Загружает турниры и режет их по режиму `training` / `money`, не меняя `gameType` в БД:
+   - если `leagueAmount != null`, турнир считается `money`
+   - иначе `training`
+3. Собирает прогресс, timeout-resolution, дедлайны, результаты и даты завершения.
+4. Делает только **in-memory нормализацию** старого прогресса:
+   - `9/10` и `19/20` поднимаются только для отображения
+   - `semiFinalCorrectCount`, если его нет, восстанавливается только в памяти
+5. Считает `passed`, `completedAt`, `resultLabel`, `belongsToHistory` и `stage` как derived-state.
+6. Возвращает списки:
    - `active`
    - `completed`
+
+Важно:
+
+- `getMyTournaments(...)` больше не должен делать `update/save` в `tournament`, `tournament_result`, `tournament_progress`
+- backfill-и, cron-резолюции, escrow и синхронизация связей живут отдельно: в `onModuleInit()`, cron/writer-методах и explicit admin/backfill сценариях
 
 ### Как считается текст результата
 

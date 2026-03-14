@@ -2351,27 +2351,6 @@ export class TournamentsService implements OnModuleInit {
     active: TournamentListItemDto[];
     completed: TournamentListItemDto[];
   }> {
-    // Старые записи: gameType IS NULL — если есть leagueAmount, то money, иначе training (не затирать денежные турниры)
-    await this.tournamentRepository.update(
-      { gameType: IsNull(), leagueAmount: Not(IsNull()) },
-      { gameType: 'money' },
-    );
-    await this.tournamentRepository.update(
-      { gameType: IsNull(), leagueAmount: IsNull() },
-      { gameType: 'training' },
-    );
-    // Восстановить денежные турниры, ошибочно помеченные как training (например после старого UPDATE)
-    await this.tournamentRepository.update(
-      { gameType: 'training', leagueAmount: Not(IsNull()) },
-      { gameType: 'money' },
-    );
-
-    await this.backfillTournamentPlayersFromEntry().catch(() => {});
-    if (mode === 'money') {
-      await this.processAllExpiredEscrows().catch((e) => this.logger.warn('[getMyTournaments] processAllExpiredEscrows', (e as Error)?.message));
-      await this.syncTournamentPlayersFromEntry(userId).catch((e) => this.logger.warn('[getMyTournaments] syncTournamentPlayersFromEntry', (e as Error)?.message));
-    }
-
     const tids = new Set<number>();
 
     try {
@@ -2486,6 +2465,9 @@ export class TournamentsService implements OnModuleInit {
 
     const ids = [...tids];
 
+    const getModeForTournament = (t: Tournament): 'training' | 'money' =>
+      t.gameType === 'money' || t.leagueAmount != null ? 'money' : 'training';
+
     let tournaments: Tournament[];
     if (ids.length === 0) {
       tournaments = [];
@@ -2497,19 +2479,16 @@ export class TournamentsService implements OnModuleInit {
       });
       if (mode === 'money') {
         tournaments = list.filter(
-          (t) => t.gameType === 'money' || (t.gameType == null && t.leagueAmount != null),
+          (t) => getModeForTournament(t) === 'money',
         );
       } else {
         tournaments = list.filter(
-          (t) => t.gameType === 'training' || (t.gameType == null && t.leagueAmount == null),
+          (t) => getModeForTournament(t) === 'training',
         );
       }
     }
 
     const allIds = tournaments.map((t) => t.id);
-    if (allIds.length > 0) {
-      await this.backfillTournamentResultCompletedAt(allIds).catch(() => {});
-    }
     const resultByTournamentId = new Map<number, boolean>();
     const completedAtByTid = new Map<number, string | null>();
     if (allIds.length > 0) {
@@ -2530,15 +2509,6 @@ export class TournamentsService implements OnModuleInit {
         .createQueryBuilder('p')
         .where('p.tournamentId IN (:...ids)', { ids: allIds })
         .getMany();
-
-      const entriesByTid = new Map<number, Date>();
-      if (allIds.length > 0) {
-        const allEntries = await this.tournamentEntryRepository.find({ where: { user: { id: userId } } as any });
-        for (const e of allEntries) {
-          const tid2 = (e as any).tournamentId ?? (e.tournament as any)?.id;
-          if (tid2 && e.joinedAt) entriesByTid.set(tid2, e.joinedAt);
-        }
-      }
       for (const tid of allIds) {
         const myProg = allProgress.find((p) => p.tournamentId === tid && p.userId === userId);
         const t = tournaments.find((t2) => t2.id === tid);
@@ -2651,80 +2621,9 @@ export class TournamentsService implements OnModuleInit {
       const allProgressList = await this.tournamentProgressRepository.find({
         where: { tournamentId: In(allIds) },
       });
-      let progressList = allProgressList;
-      const othersProgress = allProgressList.filter((p) => p.userId !== userId);
-
-      // Backfill: исправляем рассинхрон 9/10 и 19/20 для всех турниров.
-      if (allIds.length > 0) {
-        await this.tournamentProgressRepository
-          .createQueryBuilder()
-          .update(TournamentProgress)
-          .set({ questionsAnsweredCount: QUESTIONS_PER_ROUND })
-          .where('userId = :userId', { userId })
-          .andWhere('tournamentId IN (:...ids)', { ids: allIds })
-          .andWhere('questionsAnsweredCount = :q', { q: QUESTIONS_PER_ROUND - 1 })
-          .andWhere('currentQuestionIndex = :idx', { idx: QUESTIONS_PER_ROUND - 1 })
-          .execute();
-        await this.tournamentProgressRepository
-          .createQueryBuilder()
-          .update(TournamentProgress)
-          .set({ questionsAnsweredCount: 2 * QUESTIONS_PER_ROUND })
-          .where('userId = :userId', { userId })
-          .andWhere('tournamentId IN (:...ids)', { ids: allIds })
-          .andWhere('questionsAnsweredCount = :q', { q: 2 * QUESTIONS_PER_ROUND - 1 })
-          .andWhere('currentQuestionIndex = :idx', { idx: 2 * QUESTIONS_PER_ROUND - 1 })
-          .execute();
-        await this.tournamentProgressRepository
-          .createQueryBuilder()
-          .update(TournamentProgress)
-          .set({ questionsAnsweredCount: QUESTIONS_PER_ROUND })
-          .where('userId = :userId', { userId })
-          .andWhere('tournamentId IN (:...ids)', { ids: allIds })
-          .andWhere('currentQuestionIndex >= :minIdx', { minIdx: QUESTIONS_PER_ROUND })
-          .andWhere('questionsAnsweredCount < :q', { q: QUESTIONS_PER_ROUND })
-          .execute();
-      }
-
-      // Backfill: если 10 ответов, но semiFinalCorrectCount не установлен — восстанавливаем из correctAnswersCount.
-      if (allIds.length > 0) {
-        const toFix = await this.tournamentProgressRepository.find({
-          where: { userId, tournamentId: In(allIds) },
-        });
-        for (const p of toFix) {
-          if (
-            p.questionsAnsweredCount === QUESTIONS_PER_ROUND + 1 &&
-            (p.currentQuestionIndex ?? 0) >= QUESTIONS_PER_ROUND &&
-            p.semiFinalCorrectCount != null &&
-            (p.lockedAnswerCount ?? 0) <= QUESTIONS_PER_ROUND
-          ) {
-            await this.tournamentProgressRepository.update(
-              { id: p.id },
-              {
-                questionsAnsweredCount: QUESTIONS_PER_ROUND,
-                currentQuestionIndex: QUESTIONS_PER_ROUND,
-                correctAnswersCount: p.semiFinalCorrectCount,
-              },
-            );
-          } else if (
-            p.questionsAnsweredCount === QUESTIONS_PER_ROUND &&
-            p.semiFinalCorrectCount == null &&
-            p.correctAnswersCount != null
-          ) {
-            await this.tournamentProgressRepository.update(
-              { id: p.id },
-              { semiFinalCorrectCount: p.correctAnswersCount },
-            );
-          }
-        }
-        // Перечитываем прогресс после backfill, чтобы использовать обновлённые данные.
-        const refreshedProgress = await this.tournamentProgressRepository.find({
-          where: { userId, tournamentId: In(allIds) },
-        });
-        progressList = [...refreshedProgress, ...othersProgress.filter((p) => p.userId !== userId)];
-      }
-
-      for (const p of progressList) {
+      for (const p of allProgressList) {
         let adjustedQ = p.questionsAnsweredCount;
+        let adjustedSemiCorrect = p.semiFinalCorrectCount;
         if (p.userId === userId) {
           if (p.questionsAnsweredCount === QUESTIONS_PER_ROUND - 1 && p.currentQuestionIndex === QUESTIONS_PER_ROUND - 1) {
             adjustedQ = QUESTIONS_PER_ROUND;
@@ -2742,10 +2641,25 @@ export class TournamentsService implements OnModuleInit {
             adjustedQ = Math.max(adjustedQ, QUESTIONS_PER_ROUND);
           }
         }
+        if (
+          adjustedSemiCorrect == null &&
+          adjustedQ >= QUESTIONS_PER_ROUND &&
+          p.correctAnswersCount != null
+        ) {
+          adjustedSemiCorrect = Math.min(QUESTIONS_PER_ROUND, p.correctAnswersCount);
+        }
+        if (
+          adjustedQ === QUESTIONS_PER_ROUND + 1 &&
+          (p.currentQuestionIndex ?? 0) >= QUESTIONS_PER_ROUND &&
+          adjustedSemiCorrect != null &&
+          (p.lockedAnswerCount ?? 0) <= QUESTIONS_PER_ROUND
+        ) {
+          adjustedQ = QUESTIONS_PER_ROUND;
+        }
         const data: ProgressData = {
           userId: p.userId,
           q: adjustedQ,
-          semiCorrect: p.semiFinalCorrectCount,
+          semiCorrect: adjustedSemiCorrect,
           totalCorrect: p.correctAnswersCount ?? 0,
           currentIndex: p.currentQuestionIndex,
           tiebreakerRounds: Array.isArray(p.tiebreakerRoundsCorrect) ? p.tiebreakerRoundsCorrect : [],
@@ -2770,8 +2684,6 @@ export class TournamentsService implements OnModuleInit {
       })
       : [];
     const timeoutResolutionMap = this.buildLatestResolutionMap(timeoutResolutionRows);
-
-    const lostSemiByTid = new Map<number, boolean>();
 
     const getPlayerCount = (t: Tournament): number =>
       t.playerOrder?.length ?? t.players?.length ?? 0;
@@ -3094,31 +3006,25 @@ export class TournamentsService implements OnModuleInit {
       return !getOtherFinalist(t) && !didOppositeSemiBothLoseByTimeout(t);
     };
 
-    for (const t of tournaments) {
+    const getDerivedTournamentState = (
+      t: Tournament,
+    ): { passed: boolean; completedAt: string | null } => {
       const userProgress = progressByTid.get(t.id);
       const answered = userProgress?.q ?? 0;
-      let passed: boolean;
-      let userCompleted = t.status === TournamentStatus.FINISHED;
       const order = t.playerOrder ?? [];
       const playerSlot = order.indexOf(userId);
       const opponentSlot = playerSlot >= 0 ? (playerSlot % 2 === 0 ? playerSlot + 1 : playerSlot - 1) : -1;
       const opponentId = opponentSlot >= 0 && opponentSlot < order.length ? (order[opponentSlot] ?? -1) : -1;
-      const rawDeadline = deadlineByTournamentId[t.id];
-      const deadlineAt = rawDeadline ? (toDate(rawDeadline) ?? now) : new Date('2099-01-01');
-      let row = await this.tournamentResultRepository.findOne({ where: { userId, tournamentId: t.id } });
-      let completionDate = maxDate(row?.completedAt ?? null);
-
+      const existingCompletedAt = completedAtByTid.get(t.id) ?? null;
       const semiResult = getMoneySemiResult(t);
 
+      let passed = false;
+      let completionDate = maxDate(existingCompletedAt);
+
       if (semiResult.result === 'lost') {
-        lostSemiByTid.set(t.id, true);
-        passed = false;
-        userCompleted = true;
         completionDate = completionDate ?? getCompletionDateFromUsers(t, [userId, opponentId]);
       } else if (semiResult.result === 'tie') {
-        passed = false;
-        if (deadlineAt < now) {
-          userCompleted = true;
+        if (isTimeExpired(t)) {
           completionDate = completionDate ?? getCompletionDateFromUsers(t, [userId, opponentId]);
         }
       } else if (semiResult.result === 'won' && userProgress) {
@@ -3128,91 +3034,40 @@ export class TournamentsService implements OnModuleInit {
           const fr = getFinalResult(t, userProgress);
           if (fr === 'won') {
             passed = true;
-            userCompleted = true;
             const otherFinalist = getOtherFinalist(t);
             completionDate = completionDate ?? getCompletionDateFromUsers(t, [userId, otherFinalist?.userId ?? -1]);
-          } else if (fr === 'lost') {
-            passed = false;
-            userCompleted = true;
+          } else if (fr === 'lost' || fr === 'tie') {
             const otherFinalist = getOtherFinalist(t);
             completionDate = completionDate ?? getCompletionDateFromUsers(t, [userId, otherFinalist?.userId ?? -1]);
           } else {
-            passed = false;
-            userCompleted = true;
             completionDate = completionDate ?? semiWinCompletionDate;
           }
-        } else {
-          passed = false;
-          userCompleted = true;
+        } else if (answered >= mySemiTotal) {
           completionDate = completionDate ?? semiWinCompletionDate;
         }
-      } else if (semiResult.result === 'incomplete' && semiResult.noOpponent) {
-        passed = false;
-        userCompleted = false;
-      } else {
-        if (deadlineAt < now && answered >= QUESTIONS_PER_ROUND) {
+      } else if (!(semiResult.result === 'incomplete' && semiResult.noOpponent)) {
+        if (isTimeExpired(t) && answered >= QUESTIONS_PER_ROUND) {
           passed = true;
-          userCompleted = true;
           completionDate = completionDate ?? getCompletionDateFromUsers(t, [userId, opponentId]);
-        } else {
-          passed = row?.passed === 1 ? true : false;
-          if (deadlineAt < now) {
-            userCompleted = true;
-            completionDate = completionDate ?? getCompletionDateFromUsers(t, [userId, opponentId]);
-          }
+        } else if (isTimeExpired(t)) {
+          completionDate = completionDate ?? getCompletionDateFromUsers(t, [userId, opponentId]);
         }
       }
 
-      if (row) {
-        row.passed = passed ? 1 : 0;
-        if (userCompleted) row.completedAt = completionDate ?? row.completedAt ?? now;
-        if (!userCompleted && row.completedAt) row.completedAt = null as any;
-        await this.tournamentResultRepository.save(row);
-      } else {
-        row = this.tournamentResultRepository.create({
-          userId, tournamentId: t.id, passed: passed ? 1 : 0,
-          ...(userCompleted ? { completedAt: completionDate ?? now } : {}),
-        });
-        await this.tournamentResultRepository.save(row);
+      if (!completionDate && t.status === TournamentStatus.FINISHED) {
+        completionDate = getTournamentCompletionDate(t);
       }
-      completedAtByTid.set(t.id, row.completedAt ? (row.completedAt instanceof Date ? row.completedAt.toISOString() : String(row.completedAt)) : null);
-      resultByTournamentId.set(t.id, passed);
-    }
 
-    // Backfill: помечаем FINISHED только турниры с подтверждённой победой (после пересчёта).
-    const finishedIds = tournaments
-      .filter(
-        (t) =>
-          resultByTournamentId.get(t.id) === true &&
-          (t.playerOrder?.length ?? t.players?.length ?? 0) >= 2 &&
-          t.status !== TournamentStatus.FINISHED,
-      )
-      .map((t) => t.id);
-    if (finishedIds.length > 0) {
-      await this.tournamentRepository.update(
-        { id: In(finishedIds) },
-        { status: TournamentStatus.FINISHED },
-      );
-      for (const t of tournaments) {
-        if (finishedIds.includes(t.id)) t.status = TournamentStatus.FINISHED;
-      }
-    }
+      return {
+        passed,
+        completedAt: completionDate ? completionDate.toISOString() : existingCompletedAt,
+      };
+    };
 
-    // Safety: если турнир FINISHED но сейчас ничья — вернуть в waiting
-    const tieButFinished = tournaments.filter(
-      (t) =>
-        t.status === TournamentStatus.FINISHED &&
-        getMoneySemiResult(t).result === 'tie',
-    );
-    if (tieButFinished.length > 0) {
-      const revertIds = tieButFinished.map((t) => t.id);
-      await this.tournamentRepository.update(
-        { id: In(revertIds) },
-        { status: TournamentStatus.WAITING },
-      );
-      for (const t of tieButFinished) {
-        t.status = TournamentStatus.WAITING;
-      }
+    for (const t of tournaments) {
+      const derivedState = getDerivedTournamentState(t);
+      completedAtByTid.set(t.id, derivedState.completedAt);
+      resultByTournamentId.set(t.id, derivedState.passed);
     }
 
     /** В истории этап только «Полуфинал» или «Финал», без «Доп. раунд». */
@@ -3359,7 +3214,7 @@ export class TournamentsService implements OnModuleInit {
         tournament: {
           id: t.id,
           name: getTournamentDisplayName(t),
-          type: t.gameType ?? null,
+          type: getModeForTournament(t),
           status: displayStatus,
           leagueAmount: t.leagueAmount ?? null,
         },
@@ -5055,22 +4910,19 @@ export class TournamentsService implements OnModuleInit {
       where: { tournamentId, userId: In(players.map((p) => p.id)) },
     });
     const timeoutResolutionMap = await this.getTournamentTimeoutResolutionMap(tournamentId);
-    // Backfill: если ровно 10 ответов, но semiFinalCorrectCount не установлен — восстанавливаем из correctAnswersCount.
-    // При 10 ответах correctAnswersCount = верные в полуфинале. При 11+ это уже сумма полуфинал+финал — не трогаем.
-    for (const p of progressList) {
+    progressList = progressList.map((p) => {
       if (
         p.questionsAnsweredCount === this.QUESTIONS_PER_ROUND &&
         p.semiFinalCorrectCount == null &&
         p.correctAnswersCount != null
       ) {
-        const semiCorrect = Math.min(this.QUESTIONS_PER_ROUND, p.correctAnswersCount);
-        await this.tournamentProgressRepository.update(
-          { id: p.id },
-          { semiFinalCorrectCount: semiCorrect },
-        );
-        p.semiFinalCorrectCount = semiCorrect;
+        return {
+          ...p,
+          semiFinalCorrectCount: Math.min(this.QUESTIONS_PER_ROUND, p.correctAnswersCount),
+        };
       }
-    }
+      return p;
+    });
     const progressByUser = new Map(progressList.map((p) => [p.userId, p]));
     const viewerProgress = progressByUser.get(userId);
     const viewerSharedStart = viewerProgress
