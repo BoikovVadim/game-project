@@ -5232,7 +5232,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
       {/* Модалка просмотра вопросов турнира */}
       {questionsReviewTournamentId != null && (
         <div className="questions-review-overlay" onClick={closeQuestionsReview}>
-          <div className="questions-review-modal" onClick={(e) => e.stopPropagation()}>
+          <div className="questions-review-modal questions-review-modal--player" onClick={(e) => e.stopPropagation()}>
             <div className="questions-review-header">
               <h3>Вопросы турнира #{questionsReviewTournamentId}</h3>
               <button type="button" className="questions-review-close" onClick={closeQuestionsReview} aria-label="Закрыть">×</button>
@@ -5304,6 +5304,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                   : preferredTabIdx;
                 const activeTab = tabs[resolvedTabIdx] ?? tabs[0];
                 if (!activeTab) return null;
+                const isSemiReviewTab = activeTab.label.includes('Полуфинал') || activeTab.label.includes('(ПФ)');
                 const answeredInRound = Math.min(activeTab.questions.length, Math.max(0, n - activeTab.startIdx));
                 const questionsToShow = activeTab.questions.slice(0, answeredInRound);
                 const oppAC = oppRounds[activeTab.oppRoundIdx] ?? [];
@@ -5359,9 +5360,11 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                           </span>
                         </p>
                       )}
-                      <p className="questions-review-stats">
-                        {activeTab.label}: верно <strong>{activeTab.correctCount}</strong> из <strong>{answeredInRound}</strong> вопросов{answeredInRound < activeTab.questions.length ? ` (отвечено ${answeredInRound} из ${activeTab.questions.length})` : ''}.
-                      </p>
+                      {!isSemiReviewTab && (
+                        <p className="questions-review-stats">
+                          {activeTab.label}: верно <strong>{activeTab.correctCount}</strong> из <strong>{answeredInRound}</strong> вопросов{answeredInRound < activeTab.questions.length ? ` (отвечено ${answeredInRound} из ${activeTab.questions.length})` : ''}.
+                        </p>
+                      )}
                       {questionsToShow.length === 0 ? (
                         <p className="questions-review-empty">Вы не ответили ни на один вопрос в этом раунде.</p>
                       ) : (
