@@ -364,6 +364,14 @@ export class TournamentsService implements OnModuleInit {
         const finalState = this.getFinalHeadToHeadState(semiWinner1, semiWinner2, true);
         if (finalState.result === 'won') winnerId = semiWinner1.userId;
         else if (finalState.result === 'lost') winnerId = semiWinner2.userId;
+        else if (finalState.result === 'tie') {
+          const now = new Date();
+          for (const userId of order) {
+            await upsertResult(tournament.id, userId, false, now);
+          }
+          touchedTournamentIds.add(tournament.id);
+          continue;
+        }
       } else if (semiWinner1 && !semiWinner2 && semi2BothLost) {
         winnerId = semiWinner1.userId;
       } else if (!semiWinner1 && semiWinner2 && semi1BothLost) {
@@ -2604,6 +2612,7 @@ export class TournamentsService implements OnModuleInit {
             const finalResult = getFinalResult(t, progFin);
             if (finalResult === 'won') return 'Победа';
             if (finalResult === 'lost') return 'Поражение';
+            if (finalResult === 'tie') return 'Время истекло';
             if ((progFin.q ?? 0) < semiPhaseQuestions(progFin) + QUESTIONS_PER_ROUND) return 'Этап не пройден';
           }
         }
