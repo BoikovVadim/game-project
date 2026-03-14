@@ -2134,6 +2134,20 @@ export class TournamentsService implements OnModuleInit {
       return soloProg;
     };
 
+    const didOppositeSemiBothLoseByTimeout = (t: Tournament): boolean => {
+      const order = t.playerOrder;
+      if (!order || order.length <= 2) return false;
+      const playerSlot = order.indexOf(userId);
+      if (playerSlot < 0) return false;
+      const otherSlots: [number, number] = playerSlot < 2 ? [2, 3] : [0, 1];
+      const p1Id = otherSlots[0] < order.length ? order[otherSlots[0]] : -1;
+      const p2Id = otherSlots[1] < order.length ? order[otherSlots[1]] : -1;
+      if (!(p1Id > 0) || !(p2Id > 0)) return false;
+      const prog1 = progressByTidAndUser.get(t.id)?.get(p1Id);
+      const prog2 = progressByTidAndUser.get(t.id)?.get(p2Id);
+      return (prog1?.q ?? 0) < QUESTIONS_PER_ROUND && (prog2?.q ?? 0) < QUESTIONS_PER_ROUND;
+    };
+
     const now = new Date();
 
     const toDate = (value: Date | string | null | undefined): Date | null => {
@@ -2197,7 +2211,7 @@ export class TournamentsService implements OnModuleInit {
       if (getPlayerCount(t) <= 2) return 'incomplete';
       const otherFin = getOtherFinalist(t);
       if (!otherFin) {
-        if (t.status === TournamentStatus.FINISHED && resultByTournamentId.get(t.id) === true) return 'won';
+        if (t.status === TournamentStatus.FINISHED && didOppositeSemiBothLoseByTimeout(t)) return 'won';
         return 'incomplete';
       }
       const mySemiTotal = semiPhaseQuestions(myProg);
@@ -2208,6 +2222,16 @@ export class TournamentsService implements OnModuleInit {
       const oppFinalTotal = computeFinalCorrect(otherFin);
       const myFinalBase = myFinalTotal - myProg.finalTiebreakerRounds.reduce((a, b) => a + b, 0);
       const oppFinalBase = oppFinalTotal - otherFin.finalTiebreakerRounds.reduce((a, b) => a + b, 0);
+      if (t.status === TournamentStatus.FINISHED) {
+        const myFinishedBaseFinal = myFinalAnswered >= QUESTIONS_PER_ROUND;
+        const oppFinishedBaseFinal = oppFinalAnswered >= QUESTIONS_PER_ROUND;
+        if (myFinishedBaseFinal && !oppFinishedBaseFinal) {
+          return myFinalTotal > 0 ? 'won' : 'tie';
+        }
+        if (!myFinishedBaseFinal && oppFinishedBaseFinal) {
+          return oppFinalTotal > 0 ? 'lost' : 'tie';
+        }
+      }
       return this.compareStageTotals(
         myFinalAnswered,
         myFinalBase,
@@ -2534,12 +2558,15 @@ export class TournamentsService implements OnModuleInit {
       if (t.status === TournamentStatus.FINISHED) {
         if (answered < QUESTIONS_PER_ROUND) return 'Время истекло';
         if (resultByTournamentId.get(t.id) === true) return 'Победа';
-        // Выиграл полуфинал, но финал ещё не начал — показываем этап не пройден / ожидание, доступ к финалу остаётся.
         const semiResFin = getMoneySemiResult(t);
         if (semiResFin.result === 'won') {
           const progFin = progressByTid.get(t.id);
-          if (progFin && (progFin.q ?? 0) < semiPhaseQuestions(progFin) + QUESTIONS_PER_ROUND)
-            return 'Этап не пройден';
+          if (progFin) {
+            const finalResult = getFinalResult(t, progFin);
+            if (finalResult === 'won') return 'Победа';
+            if (finalResult === 'lost') return 'Поражение';
+            if ((progFin.q ?? 0) < semiPhaseQuestions(progFin) + QUESTIONS_PER_ROUND) return 'Этап не пройден';
+          }
         }
         return 'Поражение';
       }
