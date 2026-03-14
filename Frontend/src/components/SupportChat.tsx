@@ -47,7 +47,7 @@ export default function SupportChat({ token }: { token: string }) {
     axios.get<{ nickname?: string; username?: string }>('/users/profile', { headers })
       .then((r) => setUserName(r.data.nickname || r.data.username || ''))
       .catch(() => {});
-  }, [token]);
+  }, [headers]);
 
   const fetchTickets = useCallback(() => {
     axios.get<Ticket[]>('/support/tickets', { headers })

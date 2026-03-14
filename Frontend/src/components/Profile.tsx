@@ -446,54 +446,6 @@ function getSectionFromSearchParams(params: URLSearchParams): CabinetSection | n
   return null;
 }
 
-function getInitialSection(): CabinetSection {
-  try {
-    if (typeof window === 'undefined') return 'news';
-    const hash = (typeof window !== 'undefined' ? window.location.hash.replace(/^#/, '') : '') || '/';
-    const fromQuery = getSectionFromHashQuery(hash);
-    if (fromQuery) return fromQuery;
-    const searchParams = new URLSearchParams(window.location.search);
-    const fromSearch = getSectionFromSearchParams(searchParams);
-    if (fromSearch) return fromSearch;
-    const base = getHashBase(hash);
-    const baseFirst = base.split('-')[0];
-    const stored = localStorage.getItem(SECTION_STORAGE_KEY);
-    const isValidStored = stored && (VALID_SECTIONS as readonly string[]).includes(stored);
-    if (base && (base === '/profile' || base === 'profile')) return 'news';
-    if (base && ((VALID_SECTIONS as readonly string[]).includes(base) || (baseFirst === 'games' && (base === 'games' || base === 'games-training' || base === 'games-money')) || (baseFirst === 'finance' && ['finance', 'finance-topup', 'finance-withdraw'].includes(base)) || (baseFirst === 'partner' && ['partner', 'partner-statistics'].includes(base)))) {
-      return base as CabinetSection;
-    }
-    if (isValidStored) return stored as CabinetSection;
-    if (typeof window !== 'undefined' && (window.location.pathname === '/profile' || hash === '/profile' || hash.startsWith('/profile'))) return 'news';
-  } catch (_e) {}
-  const stored = typeof window !== 'undefined' ? localStorage.getItem(SECTION_STORAGE_KEY) : null;
-  if (stored && (VALID_SECTIONS as readonly string[]).includes(stored)) return stored as CabinetSection;
-  return 'news';
-}
-
-function getInitialGameMode(): GameMode {
-  try {
-    if (typeof window !== 'undefined') {
-      const hash = window.location.hash.replace(/^#/, '') || '/';
-      const fromHash = getSectionFromHashQuery(hash);
-      if (fromHash === 'games-training') return 'training';
-      if (fromHash === 'games-money') return 'money';
-      const sp = new URLSearchParams(window.location.search);
-      const sec = sp.get('section');
-      if (sec === 'games-training') return 'training';
-      if (sec === 'games-money') return 'money';
-      const base = getHashBase(hash);
-      if (base === 'games-training') return 'training';
-      if (base === 'games-money') return 'money';
-      if (base === 'games' || (base && base.startsWith('games-'))) {
-        const stored = localStorage.getItem(GAME_MODE_STORAGE_KEY);
-        if (stored === 'training' || stored === 'money') return stored as GameMode;
-      }
-    }
-  } catch (_e) {}
-  return null;
-}
-
 const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceSectionProp }) => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -660,7 +612,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     }
   });
   const [gender, setGender] = useState<string | null>(null);
-  const [birthDate, setBirthDate] = useState<string | null>(null);
+  const [, setBirthDate] = useState<string | null>(null);
   const [birthYear, setBirthYear] = useState('');
   const [birthMonth, setBirthMonth] = useState('');
   const [birthDay, setBirthDay] = useState('');
@@ -754,7 +706,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   const [trainingRound, setTrainingRound] = useState<TrainingRound | null>(null);
   const [trainingQuestionIndex, setTrainingQuestionIndex] = useState(0);
   const [trainingAnswers, setTrainingAnswers] = useState<number[]>([]);
-  const [fullAnswersChosen, _setFullAnswersChosen] = useState<number[]>([]);
+  const [, _setFullAnswersChosen] = useState<number[]>([]);
   const fullAnswersChosenRef = useRef<number[]>([]);
   const setFullAnswersChosen = (val: number[] | ((prev: number[]) => number[])) => {
     if (typeof val === 'function') {
@@ -1015,7 +967,6 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   }>(null);
   const [rankingsError, setRankingsError] = useState('');
   const [globalStats, setGlobalStats] = useState<null | { totalUsers: number; onlineCount: number; totalEarnings: number; totalGamesPlayed: number; totalTournaments: number; totalWithdrawn: number }>(null);
-  const [globalStatsLoading, setGlobalStatsLoading] = useState(false);
   const [globalStatsError, setGlobalStatsError] = useState('');
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -1258,7 +1209,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
       const currentId = gameMode === 'training' && dlOk ? trainingData?.tournamentId : undefined;
       fetchGameHistory(gameMode, currentId);
     }
-  }, [section, token, gameMode, fetchGameHistory, trainingData?.tournamentId]);
+  }, [section, token, gameMode, fetchGameHistory, trainingData?.tournamentId, trainingData?.deadline]);
 
   useEffect(() => {
     if (section === 'games' && gameMode === 'training') {
@@ -1324,7 +1275,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
       setAllLeagues([5, 10, 20, 50, 100, 200, 500]);
       return;
     }
-    if (!allLeagues || allLeagues.length === 0) setAllowedLeaguesLoading(true);
+    setAllowedLeaguesLoading(true);
     axios
       .get<{ allLeagues?: number[]; allowedLeagues: number[]; balance: number; leagueWins: Record<number, number>; playersOnlineByLeague?: Record<number, number> }>('/tournaments/allowed-leagues', {
         headers: { Authorization: `Bearer ${token}` },
@@ -1391,7 +1342,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         .then((res) => setReferralCode(res.data.referralCode))
         .catch(() => setReferralCode(null));
       setReferralTreeError('');
-      if (!referralTree) setReferralTreeLoading(true);
+      setReferralTreeLoading(true);
       const treeUrl = `/users/referral-tree?t=${Date.now()}`;
       axios.get<{ rootUserId?: number; levels: { id: number; displayName: string; referrerId: number | null }[][] }>(treeUrl, { headers: { Authorization: `Bearer ${token}` } })
         .then(async (res) => {
@@ -1463,14 +1414,12 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     if ((section !== 'statistics' || statsMode !== 'general') || !token) return;
     if (globalStats) return;
     setGlobalStatsError('');
-    setGlobalStatsLoading(true);
     axios.get<{ totalUsers: number; onlineCount: number; totalEarnings: number; totalGamesPlayed: number; totalTournaments: number; totalWithdrawn: number }>('/users/global-stats', { headers: { Authorization: `Bearer ${token}` } })
       .then((res) => setGlobalStats(res.data))
       .catch((e) => {
         setGlobalStats(null);
         setGlobalStatsError(e?.response?.data?.message || e?.message || 'Не удалось загрузить общую статистику');
-      })
-      .finally(() => setGlobalStatsLoading(false));
+      });
   }, [section, token, statsMode, globalStats]);
 
   useEffect(() => {
