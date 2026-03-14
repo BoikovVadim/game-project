@@ -350,14 +350,23 @@ export class TournamentsService implements OnModuleInit {
         true,
       );
 
+      const semi1BothLost = this.didSemiPairBothLoseByTimeout(
+        progressByUser.get(order[0]) ?? null,
+        progressByUser.get(order[1]) ?? null,
+      );
+      const semi2BothLost = this.didSemiPairBothLoseByTimeout(
+        progressByUser.get(order[2]) ?? null,
+        progressByUser.get(order[3]) ?? null,
+      );
+
       let winnerId: number | null = null;
       if (semiWinner1 && semiWinner2) {
         const finalState = this.getFinalHeadToHeadState(semiWinner1, semiWinner2, true);
         if (finalState.result === 'won') winnerId = semiWinner1.userId;
         else if (finalState.result === 'lost') winnerId = semiWinner2.userId;
-      } else if (semiWinner1 && !semiWinner2) {
+      } else if (semiWinner1 && !semiWinner2 && semi2BothLost) {
         winnerId = semiWinner1.userId;
-      } else if (!semiWinner1 && semiWinner2) {
+      } else if (!semiWinner1 && semiWinner2 && semi1BothLost) {
         winnerId = semiWinner2.userId;
       }
 
@@ -3613,6 +3622,16 @@ export class TournamentsService implements OnModuleInit {
     return null;
   }
 
+  private didSemiPairBothLoseByTimeout(
+    p1: TournamentProgress | null | undefined,
+    p2: TournamentProgress | null | undefined,
+  ): boolean {
+    if (!p1 || !p2) return false;
+    const p1Answered = p1.questionsAnsweredCount ?? 0;
+    const p2Answered = p2.questionsAnsweredCount ?? 0;
+    return p1Answered < this.QUESTIONS_PER_ROUND && p2Answered < this.QUESTIONS_PER_ROUND;
+  }
+
   private normalizeAnswersChosen(val: unknown): number[] {
     const mapFn = (a: unknown): number => {
       if (typeof a === 'number' && !Number.isNaN(a)) {
@@ -4341,7 +4360,18 @@ export class TournamentsService implements OnModuleInit {
 
     const getBracketFinalWinnerId = (): number | null => {
       if (finalPlayers.length === 1) {
-        return tournament.status === TournamentStatus.FINISHED ? finalPlayers[0]?.id ?? null : null;
+        if (tournament.status !== TournamentStatus.FINISHED) return null;
+        const finalistId = finalPlayers[0]?.id ?? null;
+        if (!finalistId) return null;
+        const finalistSlot = order.indexOf(finalistId);
+        if (finalistSlot < 0) return null;
+        const oppositePair: [number, number] = finalistSlot < 2 ? [2, 3] : [0, 1];
+        const oppositeId1 = oppositePair[0] < order.length ? order[oppositePair[0]] : -1;
+        const oppositeId2 = oppositePair[1] < order.length ? order[oppositePair[1]] : -1;
+        if (oppositeId1 <= 0 || oppositeId2 <= 0) return null;
+        const oppositeProg1 = progressByUser.get(oppositeId1) ?? null;
+        const oppositeProg2 = progressByUser.get(oppositeId2) ?? null;
+        return this.didSemiPairBothLoseByTimeout(oppositeProg1, oppositeProg2) ? finalistId : null;
       }
       if (finalPlayers.length < 2) return null;
 
