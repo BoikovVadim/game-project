@@ -1300,7 +1300,11 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
       const res = await axios.post<{ access_token: string }>('/admin/impersonate', { userId }, { headers });
       const newToken = res.data?.access_token;
       if (newToken) {
+        const currentAdminHash = window.location.hash && window.location.hash.startsWith('#/')
+          ? window.location.hash
+          : '#/admin?tab=users';
         localStorage.setItem('adminToken', token);
+        localStorage.setItem('adminReturnHash', currentAdminHash);
         localStorage.setItem('token', newToken);
         window.dispatchEvent(new CustomEvent('token-refresh', { detail: newToken }));
         navigate('/profile');

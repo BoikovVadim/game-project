@@ -692,11 +692,16 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
 
   const returnToAdmin = () => {
     const adminToken = localStorage.getItem('adminToken');
+    const adminReturnHash = localStorage.getItem('adminReturnHash');
     if (!adminToken) return;
     localStorage.removeItem('adminToken');
+    localStorage.removeItem('adminReturnHash');
     localStorage.setItem('token', adminToken);
     window.dispatchEvent(new CustomEvent('token-refresh', { detail: adminToken }));
-    navigate('/admin?tab=users');
+    const targetAdminRoute = adminReturnHash && adminReturnHash.startsWith('#/')
+      ? adminReturnHash.slice(1)
+      : '/admin?tab=users';
+    navigate(targetAdminRoute);
     window.location.reload();
   };
   const [showStartGameConfirm, setShowStartGameConfirm] = useState(false);
