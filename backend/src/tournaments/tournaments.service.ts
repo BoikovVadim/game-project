@@ -3911,39 +3911,10 @@ export class TournamentsService implements OnModuleInit {
         const roundIndex = 2 + tiebreakerRound;
         const existing = await this.questionRepository.find({
           where: { tournament: { id: tournamentId }, roundIndex },
+          order: { id: 'ASC' },
         });
-        if (myQ === this.QUESTIONS_PER_ROUND && oppQ === this.QUESTIONS_PER_ROUND) {
-          if (existing.length > 0) {
-            for (const q of existing) {
-              await this.questionRepository.remove(q);
-            }
-          }
-        } else if (existing.length >= this.TIEBREAKER_QUESTIONS) {
-          const questions = await this.questionRepository.find({
-            where: { tournament: { id: tournamentId }, roundIndex },
-            order: { id: 'ASC' },
-          });
-          tiebreakerQuestions = questions.map((q) => {
-            const fixed = this.ensureQuestionOptions(q.question, q.options, q.correctAnswer);
-            const qText = this.sanitizeUtf8ForDisplay(q.question);
-            return { id: q.id, question: qText, options: fixed.options.map((o) => this.sanitizeUtf8ForDisplay(String(o))), correctAnswer: fixed.correctAnswer };
-          });
-        } else if (existing.length < this.TIEBREAKER_QUESTIONS && (myQ > this.QUESTIONS_PER_ROUND || oppQ > this.QUESTIONS_PER_ROUND)) {
-          const excludedQuestionKeys = await this.getTournamentQuestionKeySet(tournamentId);
-          const pool = await this.pickRandomQuestions(this.TIEBREAKER_QUESTIONS, excludedQuestionKeys);
-          for (const q of pool) {
-            const row = this.questionRepository.create({ ...q, tournament, roundIndex });
-            await this.questionRepository.save(row);
-          }
-          const questions = await this.questionRepository.find({
-            where: { tournament: { id: tournamentId }, roundIndex },
-            order: { id: 'ASC' },
-          });
-          tiebreakerQuestions = questions.map((q) => {
-            const fixed = this.ensureQuestionOptions(q.question, q.options, q.correctAnswer);
-            const qText = this.sanitizeUtf8ForDisplay(q.question);
-            return { id: q.id, question: qText, options: fixed.options.map((o) => this.sanitizeUtf8ForDisplay(String(o))), correctAnswer: fixed.correctAnswer };
-          });
+        if (existing.length >= this.TIEBREAKER_QUESTIONS) {
+          tiebreakerQuestions = existing.map((q) => this.toTrainingQuestionDto(q));
         }
       }
     }
@@ -4037,6 +4008,12 @@ export class TournamentsService implements OnModuleInit {
       where: { tournament: { id: tournamentId } },
       order: { roundIndex: 'ASC', id: 'ASC' },
     });
+    const mergeQuestions = (nextRows: Question[]): void => {
+      const byId = new Map<number, Question>();
+      for (const row of questions) byId.set(row.id, row);
+      for (const row of nextRows) byId.set(row.id, row);
+      questions = [...byId.values()].sort((a, b) => a.roundIndex - b.roundIndex || a.id - b.id);
+    };
 
     if (questions.filter((q) => q.roundIndex === 0).length === 0) {
       const { semi1, semi2 } = await this.pickQuestionsForSemi();
@@ -4054,34 +4031,22 @@ export class TournamentsService implements OnModuleInit {
       });
     }
 
-    const toDto = (q: Question) => {
-      const questionText = this.sanitizeUtf8ForDisplay(q.question);
-      const fixed = this.ensureQuestionOptions(questionText, q.options, q.correctAnswer);
-      return {
-        id: q.id,
-        question: questionText,
-        options: fixed.options.map((o) => this.sanitizeUtf8ForDisplay(String(o))),
-        correctAnswer: fixed.correctAnswer,
-      };
-    };
-    const questionsSemi1 = questions.filter((q) => q.roundIndex === 0).map(toDto);
-    const questionsSemi2 = questions.filter((q) => q.roundIndex === 1).map(toDto);
-    let questionsFinal = questions.filter((q) => q.roundIndex === 2).map(toDto);
-    let createdFinalQuestions = false;
+    const questionsSemi1 = questions.filter((q) => q.roundIndex === 0).map((q) => this.toTrainingQuestionDto(q));
+    const questionsSemi2 = questions.filter((q) => q.roundIndex === 1).map((q) => this.toTrainingQuestionDto(q));
+    let questionsFinal = questions.filter((q) => q.roundIndex === 2).map((q) => this.toTrainingQuestionDto(q));
 
     // Lazy-создание финальных вопросов: только когда определён победитель полуфинала
     if (questionsFinal.length === 0) {
       const wonSemi = await this.didUserWinSemiFinal(tournament, userId);
       if (wonSemi) {
-        const finalPool = await this.pickQuestionsForFinal(tournamentId);
-        const created: typeof questionsFinal = [];
-        for (const q of finalPool) {
-          const row = this.questionRepository.create({ ...q, tournament, roundIndex: 2 });
-          await this.questionRepository.save(row);
-          created.push(toDto(row));
-        }
-        questionsFinal = created;
-        createdFinalQuestions = true;
+        const finalRows = await this.ensureQuestionRound(
+          tournament,
+          2,
+          this.QUESTIONS_PER_ROUND,
+          () => this.pickQuestionsForFinal(tournamentId),
+        );
+        mergeQuestions(finalRows);
+        questionsFinal = finalRows.map((q) => this.toTrainingQuestionDto(q));
       }
     }
 
@@ -4093,29 +4058,16 @@ export class TournamentsService implements OnModuleInit {
     let sharedStart = this.getCurrentRoundSharedStart(tournament, userId, progress, allProgress, timeoutResolutionMap);
     // Как только второй финалист зашёл в финал — запускаем таймеры у обоих (кроме того, кто уже ответил на все вопросы финала).
     if (questionsFinal.length > 0 && progress && !sharedStart && this.isPlayerInFinalPhase(progress, allProgress, tournament, timeoutResolutionMap)) {
-      const order = tournament.playerOrder ?? [];
-      const playerSlot = order.indexOf(userId);
-      const otherSlots: [number, number] = playerSlot < 2 ? [2, 3] : [0, 1];
-      const id1 = otherSlots[0] < order.length ? order[otherSlots[0]] : -1;
-      const id2 = otherSlots[1] < order.length ? order[otherSlots[1]] : -1;
-      const p1 = id1 > 0 ? allProgress.find((p) => p.userId === id1) : null;
-      const p2 = id2 > 0 ? allProgress.find((p) => p.userId === id2) : null;
-      let otherFinalist: TournamentProgress | null = null;
-      const oppositeSemiResolution = this.getOppositeSemiTimeoutResolutionFromMap(tournament, userId, timeoutResolutionMap);
-      if (oppositeSemiResolution?.winnerUserId) {
-        otherFinalist = allProgress.find((p) => p.userId === oppositeSemiResolution.winnerUserId) ?? null;
-      } else if (p1 && p2) {
-        const st = this.getSemiHeadToHeadState(
-          p1.questionsAnsweredCount ?? 0,
-          p1.semiFinalCorrectCount,
-          p1.tiebreakerRoundsCorrect,
-          p2.questionsAnsweredCount ?? 0,
-          p2.semiFinalCorrectCount,
-          p2.tiebreakerRoundsCorrect,
-        );
-        if (st.result === 'won') otherFinalist = p1;
-        else if (st.result === 'lost') otherFinalist = p2;
-      }
+      const progressByUser = new Map(allProgress.map((p) => [p.userId, p]));
+      const currentPairIndex: 0 | 1 = (tournament.playerOrder ?? []).indexOf(userId) < 2 ? 0 : 1;
+      const oppositePairIndex: 0 | 1 = currentPairIndex === 0 ? 1 : 0;
+      const oppositeSemiState = this.getResolvedSemiPairState(
+        tournament,
+        oppositePairIndex,
+        progressByUser,
+        timeoutResolutionMap,
+      );
+      const otherFinalist = oppositeSemiState.winner;
       if (otherFinalist && this.isPlayerInFinalPhase(otherFinalist, allProgress, tournament, timeoutResolutionMap)) {
         const nowStart = new Date();
         const mySemiTotalHere = this.QUESTIONS_PER_ROUND + (progress.tiebreakerRoundsCorrect?.length ?? 0) * this.TIEBREAKER_QUESTIONS;
@@ -4135,7 +4087,6 @@ export class TournamentsService implements OnModuleInit {
         const mySemiTotalHere = this.QUESTIONS_PER_ROUND + (progress.tiebreakerRoundsCorrect?.length ?? 0) * this.TIEBREAKER_QUESTIONS;
         if (
           soloFinalist?.userId === userId
-          && createdFinalQuestions
           && (progress.questionsAnsweredCount ?? 0) < mySemiTotalHere + this.QUESTIONS_PER_ROUND
         ) {
           progress.roundStartedAt = new Date();
@@ -4196,23 +4147,17 @@ export class TournamentsService implements OnModuleInit {
       tiebreakerRound = semiState.tiebreakerRound ?? 1;
       tiebreakerBase = this.QUESTIONS_PER_ROUND + (tiebreakerRound - 1) * this.TIEBREAKER_QUESTIONS;
       const roundIndex = 2 + tiebreakerRound;
-      let existing = await this.questionRepository.find({
-        where: { tournament: { id: tournamentId }, roundIndex },
-        order: { id: 'ASC' },
-      });
-      if (existing.length < this.TIEBREAKER_QUESTIONS) {
-        const excludedQuestionKeys = await this.getTournamentQuestionKeySet(tournamentId);
-        const pool = await this.pickRandomQuestions(this.TIEBREAKER_QUESTIONS, excludedQuestionKeys);
-        for (const q of pool) {
-          const row = this.questionRepository.create({ ...q, tournament, roundIndex });
-          await this.questionRepository.save(row);
-        }
-        existing = await this.questionRepository.find({
-          where: { tournament: { id: tournamentId }, roundIndex },
-          order: { id: 'ASC' },
-        });
-      }
-      questionsTiebreaker = existing.map(toDto);
+      const existing = await this.ensureQuestionRound(
+        tournament,
+        roundIndex,
+        this.TIEBREAKER_QUESTIONS,
+        async () => {
+          const excludedQuestionKeys = await this.getTournamentQuestionKeySet(tournamentId);
+          return this.pickRandomQuestions(this.TIEBREAKER_QUESTIONS, excludedQuestionKeys);
+        },
+      );
+      mergeQuestions(existing);
+      questionsTiebreaker = existing.map((q) => this.toTrainingQuestionDto(q));
     }
 
     if (semiResult === 'won' && progress) {
@@ -4242,23 +4187,17 @@ export class TournamentsService implements OnModuleInit {
               tiebreakerRound = ftbRound;
               tiebreakerBase = mySemiTotal + this.QUESTIONS_PER_ROUND + (ftbRound - 1) * this.TIEBREAKER_QUESTIONS;
               const roundIndex = 100 + ftbRound;
-              let existing = await this.questionRepository.find({
-                where: { tournament: { id: tournamentId }, roundIndex },
-                order: { id: 'ASC' },
-              });
-              if (existing.length < this.TIEBREAKER_QUESTIONS) {
-                const excludedQuestionKeys = await this.getTournamentQuestionKeySet(tournamentId);
-                const pool = await this.pickRandomQuestions(this.TIEBREAKER_QUESTIONS, excludedQuestionKeys);
-                for (const q of pool) {
-                  const row = this.questionRepository.create({ ...q, tournament, roundIndex });
-                  await this.questionRepository.save(row);
-                }
-                existing = await this.questionRepository.find({
-                  where: { tournament: { id: tournamentId }, roundIndex },
-                  order: { id: 'ASC' },
-                });
-              }
-              questionsTiebreaker = existing.map(toDto);
+              const existing = await this.ensureQuestionRound(
+                tournament,
+                roundIndex,
+                this.TIEBREAKER_QUESTIONS,
+                async () => {
+                  const excludedQuestionKeys = await this.getTournamentQuestionKeySet(tournamentId);
+                  return this.pickRandomQuestions(this.TIEBREAKER_QUESTIONS, excludedQuestionKeys);
+                },
+              );
+              mergeQuestions(existing);
+              questionsTiebreaker = existing.map((q) => this.toTrainingQuestionDto(q));
             }
           }
         }
@@ -4268,14 +4207,14 @@ export class TournamentsService implements OnModuleInit {
     const semiTiebreakerAllQuestions: (typeof questionsSemi1)[] = [];
     for (let r = 1; r <= 50; r++) {
       const ri = 2 + r;
-      const qs = questions.filter((q) => q.roundIndex === ri).map(toDto);
+      const qs = questions.filter((q) => q.roundIndex === ri).map((q) => this.toTrainingQuestionDto(q));
       if (qs.length === 0) break;
       semiTiebreakerAllQuestions.push(qs);
     }
     const finalTiebreakerAllQuestions: (typeof questionsSemi1)[] = [];
     for (let r = 1; r <= 50; r++) {
       const ri = 100 + r;
-      const qs = questions.filter((q) => q.roundIndex === ri).map(toDto);
+      const qs = questions.filter((q) => q.roundIndex === ri).map((q) => this.toTrainingQuestionDto(q));
       if (qs.length === 0) break;
       finalTiebreakerAllQuestions.push(qs);
     }
@@ -4460,6 +4399,45 @@ export class TournamentsService implements OnModuleInit {
       [newOpts[i], newOpts[j]] = [newOpts[j]!, newOpts[i]!];
     }
     return { options: newOpts, correctAnswer: newOpts.indexOf(correctStr) };
+  }
+
+  private toTrainingQuestionDto(q: Question): { id: number; question: string; options: string[]; correctAnswer: number } {
+    const questionText = this.sanitizeUtf8ForDisplay(q.question);
+    const fixed = this.ensureQuestionOptions(questionText, q.options, q.correctAnswer);
+    return {
+      id: q.id,
+      question: questionText,
+      options: fixed.options.map((o) => this.sanitizeUtf8ForDisplay(String(o))),
+      correctAnswer: fixed.correctAnswer,
+    };
+  }
+
+  private async ensureQuestionRound(
+    tournament: Tournament,
+    roundIndex: number,
+    desiredCount: number,
+    createPool: () => Promise<Omit<Question, 'id' | 'tournament' | 'roundIndex'>[]>,
+  ): Promise<Question[]> {
+    let existing = await this.questionRepository.find({
+      where: { tournament: { id: tournament.id }, roundIndex },
+      order: { id: 'ASC' },
+    });
+    if (existing.length >= desiredCount) {
+      return existing;
+    }
+
+    const pool = await createPool();
+    const missing = Math.max(0, desiredCount - existing.length);
+    for (const q of pool.slice(0, missing)) {
+      const row = this.questionRepository.create({ ...q, tournament, roundIndex });
+      await this.questionRepository.save(row);
+    }
+
+    existing = await this.questionRepository.find({
+      where: { tournament: { id: tournament.id }, roundIndex },
+      order: { id: 'ASC' },
+    });
+    return existing;
   }
 
   private findSemiWinner(
