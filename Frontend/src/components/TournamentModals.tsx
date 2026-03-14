@@ -394,9 +394,7 @@ export function TournamentQuestionsModal(props: {
           let oppIdx = 0;
 
           tabs.push({
-            label: variant === 'player'
-              ? 'Полуфинал'
-              : (userSemiIdx === 0 ? 'Полуфинал 1' : 'Полуфинал 2'),
+            label: 'Полуфинал',
             questions: semiQuestions,
             startIdx: 0,
             correctCount: semiCorrect,
