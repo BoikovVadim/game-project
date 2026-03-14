@@ -2397,7 +2397,6 @@ export class TournamentsService implements OnModuleInit {
       t: Tournament,
       myProg: ProgressData,
     ): 'won' | 'lost' | 'tie' | 'incomplete' => {
-      if (getPlayerCount(t) <= 2) return 'incomplete';
       const otherFin = getOtherFinalist(t);
       if (!otherFin) {
         if (didOppositeSemiBothLoseByTimeout(t)) {
@@ -2438,6 +2437,16 @@ export class TournamentsService implements OnModuleInit {
       ).result;
     };
 
+    const isWaitingForFinalOpponent = (
+      t: Tournament,
+      myProg?: ProgressData | null,
+    ): boolean => {
+      if (!myProg) return false;
+      if (getMoneySemiResult(t).result !== 'won') return false;
+      if (getFinalResult(t, myProg) !== 'incomplete') return false;
+      return !getOtherFinalist(t) && !didOppositeSemiBothLoseByTimeout(t);
+    };
+
     for (const t of tournaments) {
       const userProgress = progressByTid.get(t.id);
       const answered = userProgress?.q ?? 0;
@@ -2452,17 +2461,9 @@ export class TournamentsService implements OnModuleInit {
       let row = await this.tournamentResultRepository.findOne({ where: { userId, tournamentId: t.id } });
       let completionDate = maxDate(row?.completedAt ?? null);
 
-      const realPlayers = (t.playerOrder?.filter((id: number) => id > 0).length) ?? 0;
       const semiResult = getMoneySemiResult(t);
 
-      if (realPlayers < 4) {
-        const done4 = t.status === TournamentStatus.FINISHED || deadlineAt < now;
-        passed = done4 && semiResult.result === 'won';
-        if (done4) {
-          userCompleted = true;
-          completionDate = completionDate ?? getCompletionDateFromUsers(t, [userId, opponentId > 0 ? opponentId : -1]);
-        }
-      } else if (semiResult.result === 'lost') {
+      if (semiResult.result === 'lost') {
         lostSemiByTid.set(t.id, true);
         passed = false;
         userCompleted = true;
@@ -2718,42 +2719,9 @@ export class TournamentsService implements OnModuleInit {
       };
     };
 
-    const getRealPlayerCount = (t: Tournament): number =>
-      (t.playerOrder?.filter((id: number) => id > 0).length) ?? 0;
-
     const getResultLabel = (t: Tournament): string => {
       const prog = progressByTid.get(t.id);
       const answered = prog?.q ?? 0;
-      const rp = getRealPlayerCount(t);
-
-      if (rp < 4) {
-        const done = t.status === TournamentStatus.FINISHED || isTimeExpired(t);
-        const ord4 = t.playerOrder ?? [];
-        const sl4 = ord4.indexOf(userId);
-        const os4 = sl4 >= 0 ? (sl4 % 2 === 0 ? sl4 + 1 : sl4 - 1) : -1;
-        const oid4 = os4 >= 0 && os4 < ord4.length ? ord4[os4] : -1;
-        if (!done) {
-          if (oid4 <= 0) return 'Ожидание соперника';
-          const semiRes4 = getMoneySemiResult(t);
-          if (semiRes4.result === 'lost') return formatScoreLabel('Поражение', getSemiScore(t));
-          if (answered < QUESTIONS_PER_ROUND) return 'Этап не пройден';
-          if (semiRes4.result === 'tie') {
-            const tbR4 = semiRes4.tiebreakerRound ?? 1;
-            const rEnd4 = QUESTIONS_PER_ROUND + tbR4 * TIEBREAKER_QUESTIONS;
-            if (answered < rEnd4) return 'Этап не пройден';
-          }
-          return 'Ожидание соперника';
-        }
-        if (answered < QUESTIONS_PER_ROUND) return formatTimeoutDefeatLabel();
-        const semiRes4 = getMoneySemiResult(t);
-        if (semiRes4.result === 'lost') return formatScoreLabel('Поражение', getSemiScore(t));
-        // Старые турниры на 2 игроков показываем как выигранный полуфинал:
-        // итоговая "Победа" по этапу попадёт в историю отдельной записью,
-        // а сам турнир остаётся активным с ожиданием соперника по финалу.
-        if (semiRes4.result === 'won') return 'Ожидание соперника';
-        return 'Ожидание соперника';
-      }
-
       if (t.status === TournamentStatus.FINISHED) {
         if (answered < QUESTIONS_PER_ROUND) return formatTimeoutDefeatLabel();
         if (resultByTournamentId.get(t.id) === true) {
@@ -2764,6 +2732,7 @@ export class TournamentsService implements OnModuleInit {
         if (semiResFin.result === 'won') {
           const progFin = progressByTid.get(t.id);
           if (progFin) {
+            if (isWaitingForFinalOpponent(t, progFin)) return 'Ожидание соперника';
             const finalResult = getFinalResult(t, progFin);
             if (finalResult === 'won') return formatScoreLabel('Победа', getFinalScore(t, progFin));
             if (finalResult === 'lost') return formatScoreLabel('Поражение', getFinalScore(t, progFin));
@@ -2787,6 +2756,7 @@ export class TournamentsService implements OnModuleInit {
       if (semiResult.result === 'lost') return formatScoreLabel('Поражение', getSemiScore(t));
       if (semiResult.result === 'won') {
         if (!prog) return 'Этап не пройден';
+        if (isWaitingForFinalOpponent(t, prog)) return 'Ожидание соперника';
         const mySemiTotal = semiPhaseQuestions(prog);
         const fr = getFinalResult(t, prog);
         if (fr === 'won') return formatScoreLabel('Победа', getFinalScore(t, prog));
@@ -2799,11 +2769,6 @@ export class TournamentsService implements OnModuleInit {
     };
 
     const getUserStatus = (t: Tournament): 'passed' | 'not_passed' => {
-      const rp = getRealPlayerCount(t);
-      if (rp < 4) {
-        return 'not_passed';
-      }
-
       const prog = progressByTid.get(t.id);
       if (!prog) return 'not_passed';
 
