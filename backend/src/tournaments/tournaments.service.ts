@@ -130,6 +130,9 @@ export class TournamentsService implements OnModuleInit {
     await this.backfillResolvedHeadToHeadResults().catch((err) => {
       this.logger.warn('backfillResolvedHeadToHeadResults failed', err?.message ?? err);
     });
+    await this.backfillResolvedBracketResults().catch((err) => {
+      this.logger.warn('backfillResolvedBracketResults failed', err?.message ?? err);
+    });
   }
 
   /**
@@ -283,6 +286,102 @@ export class TournamentsService implements OnModuleInit {
       await this.backfillTournamentResultCompletedAt([...touchedTournamentIds]).catch(() => {});
       this.logger.log(
         `backfillResolvedHeadToHeadResults: updated ${updatedResults} result rows and ${updatedStatuses} tournament statuses`,
+      );
+    }
+
+    return { updatedResults, updatedStatuses };
+  }
+
+  async backfillResolvedBracketResults(): Promise<{ updatedResults: number; updatedStatuses: number }> {
+    const tournaments = await this.tournamentRepository.find({
+      where: { status: TournamentStatus.FINISHED },
+      relations: ['players'],
+    });
+
+    let updatedResults = 0;
+    let updatedStatuses = 0;
+    const touchedTournamentIds = new Set<number>();
+
+    const upsertResult = async (tournamentId: number, userId: number, passed: boolean, now: Date): Promise<void> => {
+      const passedValue = passed ? 1 : 0;
+      let row = await this.tournamentResultRepository.findOne({
+        where: { userId, tournamentId },
+      });
+      if (row) {
+        const shouldSave = row.passed !== passedValue || !row.completedAt;
+        if (!shouldSave) return;
+        row.passed = passedValue;
+        if (!row.completedAt) row.completedAt = now;
+        await this.tournamentResultRepository.save(row);
+        updatedResults += 1;
+        touchedTournamentIds.add(tournamentId);
+        return;
+      }
+
+      row = this.tournamentResultRepository.create({
+        userId,
+        tournamentId,
+        passed: passedValue,
+        completedAt: now,
+      });
+      await this.tournamentResultRepository.save(row);
+      updatedResults += 1;
+      touchedTournamentIds.add(tournamentId);
+    };
+
+    for (const tournament of tournaments) {
+      this.sortPlayersByOrder(tournament);
+      const order = (tournament.playerOrder ?? []).filter((id) => id > 0);
+      if (order.length < 4) continue;
+
+      const progressList = await this.tournamentProgressRepository.find({
+        where: { tournamentId: tournament.id },
+      });
+      const progressByUser = new Map(progressList.map((progress) => [progress.userId, progress]));
+
+      const semiWinner1 = this.findSemiWinner(
+        progressByUser.get(order[0]) ?? null,
+        progressByUser.get(order[1]) ?? null,
+        true,
+      );
+      const semiWinner2 = this.findSemiWinner(
+        progressByUser.get(order[2]) ?? null,
+        progressByUser.get(order[3]) ?? null,
+        true,
+      );
+
+      let winnerId: number | null = null;
+      if (semiWinner1 && semiWinner2) {
+        const finalState = this.getFinalHeadToHeadState(semiWinner1, semiWinner2, true);
+        if (finalState.result === 'won') winnerId = semiWinner1.userId;
+        else if (finalState.result === 'lost') winnerId = semiWinner2.userId;
+      } else if (semiWinner1 && !semiWinner2) {
+        winnerId = semiWinner1.userId;
+      } else if (!semiWinner1 && semiWinner2) {
+        winnerId = semiWinner2.userId;
+      }
+
+      if (!winnerId) continue;
+
+      const now = new Date();
+      for (const userId of order) {
+        await upsertResult(tournament.id, userId, userId === winnerId, now);
+      }
+
+      if (tournament.status !== TournamentStatus.FINISHED) {
+        await this.tournamentRepository.update(
+          { id: tournament.id },
+          { status: TournamentStatus.FINISHED },
+        );
+        updatedStatuses += 1;
+        touchedTournamentIds.add(tournament.id);
+      }
+    }
+
+    if (touchedTournamentIds.size > 0) {
+      await this.backfillTournamentResultCompletedAt([...touchedTournamentIds]).catch(() => {});
+      this.logger.log(
+        `backfillResolvedBracketResults: updated ${updatedResults} result rows and ${updatedStatuses} tournament statuses`,
       );
     }
 
@@ -3481,7 +3580,11 @@ export class TournamentsService implements OnModuleInit {
     return { options: newOpts, correctAnswer: newOpts.indexOf(correctStr) };
   }
 
-  private findSemiWinner(p1: TournamentProgress | null, p2: TournamentProgress | null): TournamentProgress | null {
+  private findSemiWinner(
+    p1: TournamentProgress | null,
+    p2: TournamentProgress | null,
+    allowUnevenResolved = false,
+  ): TournamentProgress | null {
     if (!p1 || !p2) return p1 || p2;
     const semiState = this.getSemiHeadToHeadState(
       p1.questionsAnsweredCount ?? 0,
@@ -3490,6 +3593,7 @@ export class TournamentsService implements OnModuleInit {
       p2.questionsAnsweredCount ?? 0,
       p2.semiFinalCorrectCount,
       p2.tiebreakerRoundsCorrect,
+      allowUnevenResolved,
     );
     if (semiState.result === 'won') return p1;
     if (semiState.result === 'lost') return p2;
