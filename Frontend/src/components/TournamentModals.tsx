@@ -223,7 +223,7 @@ export function TournamentBracketModal(props: {
             <div className="bracket-left-col" ref={bracketLeftColRef}>
               {[bracketView.semi1, bracketView.semi2].map((semi, semiIdx) => (
                 <div key={semiIdx} className={`bracket-semi-block bracket-semi-${semiIdx + 1}`}>
-                  <h4>{variant === 'player' ? 'Полуфинал' : `Полуфинал ${semiIdx + 1}`}</h4>
+                  <h4>Полуфинал</h4>
                   <div className="bracket-match">
                     {[0, 1].map((i) => {
                       const p = semi?.players[i];
@@ -232,6 +232,8 @@ export function TournamentBracketModal(props: {
                       const isWinner = isReal && !p.isLoser && opp?.isLoser === true;
                       const displayName = truncateBracketName(isReal ? (p.nickname?.trim() || `Игрок ${p.id}`) : 'Ожидание соперника');
                       const pAvatar = isReal && p.id === currentUserId ? (currentUserAvatar ?? null) : (isReal ? (p.avatarUrl ?? null) : null);
+                      const answered = Math.max(0, p?.questionsAnswered ?? 0);
+                      const correct = Math.max(0, p?.semiScore ?? p?.correctAnswersCount ?? 0);
                       return (
                         <div key={isReal ? p.id : `s${semiIdx + 1}-${i}`} className={`bracket-player-slot ${!isReal ? 'bracket-slot-empty' : ''} ${isReal && p.isLoser ? 'bracket-slot-loser' : ''}`}>
                           <span className="bracket-player-info">
@@ -249,6 +251,9 @@ export function TournamentBracketModal(props: {
                               />
                             ) : (
                               <span className="bracket-player-name">{displayName}</span>
+                            )}
+                            {isReal && answered > 0 && (
+                              <span className="bracket-player-score">{correct}/{answered} ({Math.round((correct / answered) * 100)}%)</span>
                             )}
                           </span>
                         </div>
