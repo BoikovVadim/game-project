@@ -60,12 +60,13 @@ export class AuthController {
   @Post('login')
   async login(@Body() body: LoginDto) {
     try {
-      return await this.authService.login(body?.email ?? '', body?.password ?? '');
+      const identifier = body?.identifier ?? body?.email ?? '';
+      return await this.authService.login(identifier, body?.password ?? '');
     } catch (e) {
       if (e instanceof UnauthorizedException) throw e;
       const msg = e instanceof Error ? e.message : String(e);
       console.error('[Auth] Login error:', msg, e);
-      throw new InternalServerErrorException({ error: msg });
+      throw new InternalServerErrorException({ error: 'Login failed' });
     }
   }
 

@@ -4,7 +4,8 @@ import { DataSource, Repository } from 'typeorm';
 import { Payment } from './payment.entity';
 import { YooKassaService } from './yookassa.service';
 import { RobokassaService } from './robokassa.service';
-import { UsersService } from '../users/users.service';
+import { Transaction } from '../users/transaction.entity';
+import { User } from '../users/user.entity';
 
 @Injectable()
 export class PaymentsService {
@@ -14,8 +15,42 @@ export class PaymentsService {
     private readonly yookassa: YooKassaService,
     private readonly robokassa: RobokassaService,
     private readonly dataSource: DataSource,
-    private readonly usersService: UsersService,
   ) {}
+
+  private async finalizeTopupPayment(
+    paymentId: number,
+    provider: 'yookassa' | 'robokassa',
+    externalId: string,
+    description: string,
+  ): Promise<boolean> {
+    return this.dataSource.transaction(async (manager) => {
+      const payment = await manager.findOne(Payment, {
+        where: { id: paymentId, provider, status: 'pending' },
+      });
+      if (!payment) return false;
+
+      const user = await manager.findOne(User, { where: { id: payment.userId } });
+      if (!user) {
+        throw new BadRequestException('User not found for payment');
+      }
+
+      const amount = Number(payment.amount);
+      user.balanceRubles = Number(user.balanceRubles ?? 0) + amount;
+      payment.status = 'succeeded';
+      payment.externalId = externalId || payment.externalId;
+
+      await manager.save(user);
+      await manager.save(payment);
+      await manager.save(manager.create(Transaction, {
+        userId: payment.userId,
+        amount,
+        description,
+        category: 'topup',
+      }));
+
+      return true;
+    });
+  }
 
   /** Создаёт платёж и возвращает URL для редиректа */
   async createPayment(userId: number, amount: number, provider: 'yookassa' | 'robokassa'): Promise<{ paymentUrl: string; paymentId: number }> {
@@ -72,21 +107,23 @@ export class PaymentsService {
   /** Обработка успешного уведомления от ЮKassa (webhook). Идемпотентно через DB-транзакцию. */
   async handleYooKassaNotification(payload: { object?: { id?: string; status?: string; metadata?: { orderId?: string }; amount?: { value?: string } } }): Promise<void> {
     const obj = payload?.object;
-    if (!obj || obj.status !== 'succeeded') return;
-    const orderId = obj.metadata?.orderId;
+    if (!obj?.id) return;
+
+    const remotePayment = await this.yookassa.getPayment(obj.id);
+    if (!remotePayment || remotePayment.status !== 'succeeded' || remotePayment.paid !== true) return;
+
+    const orderId = remotePayment.metadata?.orderId;
     if (!orderId || !orderId.startsWith('pay-')) return;
     const paymentId = parseInt(orderId.replace('pay-', ''), 10);
     if (Number.isNaN(paymentId)) return;
-    const credited = await this.dataSource.transaction(async (manager) => {
-      const payment = await manager.findOne(Payment, { where: { id: paymentId, provider: 'yookassa', status: 'pending' } });
-      if (!payment) return false;
-      const amount = parseFloat(obj.amount?.value ?? '0') || Number(payment.amount);
-      payment.status = 'succeeded';
-      payment.externalId = obj.id || payment.externalId;
-      await manager.save(payment);
-      return { userId: payment.userId, amount };
-    });
-    if (credited) await this.usersService.addToBalance(credited.userId, credited.amount, `Пополнение через ЮKassa`);
+
+    const payment = await this.paymentRepository.findOne({ where: { id: paymentId, provider: 'yookassa' } });
+    if (!payment || payment.externalId !== obj.id) return;
+
+    const remoteAmount = Number(remotePayment.amount?.value ?? 0);
+    if (!remoteAmount || Number(payment.amount) !== remoteAmount) return;
+
+    await this.finalizeTopupPayment(paymentId, 'yookassa', obj.id, 'Пополнение через ЮKassa');
   }
 
   /** Обработка Result URL от Robokassa. Идемпотентно через DB-транзакцию. */
@@ -94,16 +131,13 @@ export class PaymentsService {
     if (!this.robokassa.verifyResultSignature(outSum, invId, signatureValue)) return false;
     const paymentId = parseInt(invId, 10);
     if (Number.isNaN(paymentId)) return false;
-    const credited = await this.dataSource.transaction(async (manager) => {
-      const payment = await manager.findOne(Payment, { where: { id: paymentId, provider: 'robokassa', status: 'pending' } });
-      if (!payment) return false;
-      const amount = parseFloat(outSum) || Number(payment.amount);
-      payment.status = 'succeeded';
-      payment.externalId = invId;
-      await manager.save(payment);
-      return { userId: payment.userId, amount };
-    });
-    if (credited) await this.usersService.addToBalance(credited.userId, credited.amount, `Пополнение через Robokassa`);
+    const payment = await this.paymentRepository.findOne({ where: { id: paymentId, provider: 'robokassa' } });
+    if (!payment) return false;
+
+    const remoteAmount = parseFloat(outSum);
+    if (!remoteAmount || Number(payment.amount) !== remoteAmount) return false;
+
+    await this.finalizeTopupPayment(paymentId, 'robokassa', invId, 'Пополнение через Robokassa');
     return true;
   }
 

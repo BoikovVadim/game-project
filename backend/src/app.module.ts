@@ -30,6 +30,7 @@ import { NewsModule } from './news/news.module';
 import { News } from './news/news.entity';
 import { QuestionPoolItem } from './tournaments/question-pool.entity';
 import { TournamentRoundResolution } from './tournaments/tournament-round-resolution.entity';
+import { getRequiredEnv } from './common/env';
 
 const frontendBuild = join(__dirname, '..', '..', 'Frontend', 'build');
 
@@ -61,11 +62,11 @@ const frontendBuild = join(__dirname, '..', '..', 'Frontend', 'build');
     }),
     TypeOrmModule.forRoot({
       type: 'postgres',
-      host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT || '5432', 10),
-      username: process.env.DB_USER || 'legend',
-      password: process.env.DB_PASS || 'legend',
-      database: process.env.DB_NAME || 'legendgames',
+      host: getRequiredEnv('DB_HOST'),
+      port: parseInt(getRequiredEnv('DB_PORT'), 10),
+      username: getRequiredEnv('DB_USER'),
+      password: getRequiredEnv('DB_PASS'),
+      database: getRequiredEnv('DB_NAME'),
       entities: [User, Tournament, Question, QuestionPoolItem, TournamentEntry, TournamentResult, TournamentProgress, TournamentEscrow, TournamentRoundResolution, Transaction, Payment, WithdrawalRequest, SupportMessage, SupportTicket, News],
       synchronize: process.env.NODE_ENV !== 'production',
       logging: process.env.NODE_ENV !== 'production',

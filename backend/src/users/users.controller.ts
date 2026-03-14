@@ -84,7 +84,7 @@ export class UsersController {
     return this.usersService.getReferralTree(Number(req.user.id));
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, AdminGuard)
   @Post('seed-referral-model')
   async seedReferralModel(@Request() req: { user: { id: number } }) {
     return this.usersService.seedReferralModel(req.user.id);

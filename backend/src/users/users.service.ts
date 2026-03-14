@@ -2,7 +2,7 @@ import { BadRequestException, Inject, Injectable, NotFoundException, OnModuleIni
 import { InjectRepository } from '@nestjs/typeorm';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
-import { DataSource, In, MoreThanOrEqual, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, MoreThanOrEqual, Repository } from 'typeorm';
 import { generateReferralCode } from '../common/referral';
 import { User } from './user.entity';
 import { Transaction } from './transaction.entity';
@@ -58,9 +58,8 @@ export class UsersService implements OnModuleInit {
   ) {}
 
   async onModuleInit(): Promise<void> {
-    this.normalizeRefundDescriptions().catch((err) =>
-      console.error('[UsersService] normalizeRefundDescriptions:', err?.message || err),
-    );
+    // Startup should stay read-only. Legacy refund description normalization
+    // can be executed as an explicit maintenance action, not on every boot.
   }
 
   /** При старте приложения переписывает старые описания возвратов за турниры в формат «Возврат за турнир, {лига}, ID {id}». */
@@ -111,7 +110,7 @@ export class UsersService implements OnModuleInit {
   }
 
   findByEmail(email: string) {
-    return this.userRepository.findOne({ where: { email } });
+    return this.userRepository.findOne({ where: { email: String(email || '').trim().toLowerCase() } });
   }
 
   /**
@@ -223,31 +222,28 @@ export class UsersService implements OnModuleInit {
   async getProfile(userId: number) {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
-    const balanceRublesFromTx = await this.forceReconcileBalanceRubles(userId);
-    const balanceLFromTx = await this.forceReconcileBalanceL(userId);
+    const balanceRublesFromTx = await this.getComputedBalanceRubles(userId);
+    const balanceLFromTx = await this.getBalanceLFromTransactions(userId);
     const escrowRows = await this.dataSource.query(
       'SELECT COALESCE(SUM(amount), 0) AS total FROM tournament_escrow WHERE "userId" = $1 AND status = $2',
       [userId, 'held'],
     );
     const reservedBalance = escrowRows?.[0]?.total != null ? Number(escrowRows[0].total) : 0;
-    const userAfter = await this.userRepository.findOne({ where: { id: userId } });
-    if (!userAfter) throw new NotFoundException('User not found');
-    const isAdmin = userId === 1 || !!userAfter.isAdmin;
     return {
-      id: userAfter.id,
-      username: userAfter.username,
-      nickname: userAfter.nickname ?? null,
-      email: userAfter.email,
+      id: user.id,
+      username: user.username,
+      nickname: user.nickname ?? null,
+      email: user.email,
       balance: balanceLFromTx,
       balanceRubles: balanceRublesFromTx,
       reservedBalance,
-      referralCode: userAfter.referralCode ?? null,
-      referrerId: userAfter.referrerId ?? null,
-      isAdmin: !!isAdmin,
-      gender: userAfter.gender ?? null,
-      birthDate: userAfter.birthDate ?? null,
-      avatarUrl: userAfter.avatarUrl ?? null,
-      readNewsIds: Array.isArray(userAfter.readNewsIds) ? userAfter.readNewsIds : [],
+      referralCode: user.referralCode ?? null,
+      referrerId: user.referrerId ?? null,
+      isAdmin: !!user.isAdmin,
+      gender: user.gender ?? null,
+      birthDate: user.birthDate ?? null,
+      avatarUrl: user.avatarUrl ?? null,
+      readNewsIds: Array.isArray(user.readNewsIds) ? user.readNewsIds : [],
     };
   }
 
@@ -486,6 +482,24 @@ export class UsersService implements OnModuleInit {
     return this.transactionRepository.save(transaction);
   }
 
+  async addTransactionWithManager(
+    manager: EntityManager,
+    userId: number,
+    amount: number,
+    description: string,
+    category: string = 'other',
+    tournamentId?: number,
+  ) {
+    const transaction = manager.create(Transaction, {
+      userId,
+      amount,
+      description,
+      category,
+      ...(tournamentId != null && { tournamentId }),
+    });
+    return manager.save(transaction);
+  }
+
   /** Добавляет сумму на баланс L (для игр) и создаёт транзакцию. Атомарно через DB-транзакцию. */
   async addToBalanceL(userId: number, amount: number, description: string, category: 'win' | 'other' | 'referral' | 'refund' = 'win', tournamentId?: number): Promise<User> {
     if (amount <= 0) throw new BadRequestException('Сумма должна быть положительной');
@@ -617,38 +631,28 @@ export class UsersService implements OnModuleInit {
     if (!amountNum || amountNum < 100) throw new BadRequestException('Минимальная сумма вывода — 100 ₽');
     const detailsStr = (details?.trim() || '').slice(0, 500);
     if (!detailsStr) throw new BadRequestException('Укажите реквизиты для перевода (карта, счёт и т.д.)');
-    await this.reconcileBalanceRubles(userId);
-    const user = await this.userRepository.findOne({ where: { id: userId } });
-    if (!user) throw new NotFoundException('User not found');
-    const rubles = Number(user.balanceRubles ?? 0);
-    if (rubles < amountNum) throw new BadRequestException('Недостаточно средств на балансе в рублях');
+    return this.dataSource.transaction(async (manager) => {
+      const user = await manager
+        .createQueryBuilder(User, 'user')
+        .setLock('pessimistic_write')
+        .where('user.id = :userId', { userId })
+        .getOne();
+      if (!user) throw new NotFoundException('User not found');
 
-    user.balanceRubles = rubles - amountNum;
-    await this.userRepository.save(user);
+      const rubles = Number(user.balanceRubles ?? 0);
+      if (rubles < amountNum) throw new BadRequestException('Недостаточно средств на балансе в рублях');
 
-    try {
-      const rows = await this.dataSource.query(
-        'INSERT INTO withdrawal_request ("userId", amount, details, status) VALUES ($1, $2, $3, $4) RETURNING id, "userId", amount, details, status, "createdAt"',
-        [userId, amountNum, detailsStr, 'pending'],
-      ) as { id: number; userId: number; amount: number; details: string | null; status: string; createdAt: string }[];
-      const row = rows?.[0];
-      if (!row) throw new Error('Withdrawal request not found after insert');
-      console.log('[Withdrawal] Created request id=%s userId=%s amount=%s', row.id, userId, amountNum);
-      return {
-        id: row.id,
-        userId: row.userId,
-        amount: row.amount,
-        details: row.details,
-        status: row.status,
-        createdAt: row.createdAt,
-      } as unknown as WithdrawalRequest;
-    } catch (e) {
-      console.error('[Withdrawal] INSERT failed, trying TypeORM save', e);
-      const req = this.withdrawalRepository.create({ userId, amount: amountNum, details: detailsStr, status: 'pending' });
-      const saved = await this.withdrawalRepository.save(req);
-      console.log('[Withdrawal] Created via TypeORM id=%s', saved.id);
-      return saved;
-    }
+      user.balanceRubles = rubles - amountNum;
+      await manager.save(user);
+
+      const req = manager.create(WithdrawalRequest, {
+        userId,
+        amount: amountNum,
+        details: detailsStr,
+        status: 'pending',
+      });
+      return manager.save(req);
+    });
   }
 
   /** Список заявок на вывод текущего пользователя (для личного кабинета). */
@@ -790,21 +794,16 @@ export class UsersService implements OnModuleInit {
     const totalTrainingWithResult = Number(trainingMatchesRow?.[0]?.cnt) || 0;
 
     const moneyToursRow = await manager.query(
-      `SELECT t.id as tid FROM tournament t
+      `SELECT t.id as tid, t."playerOrder" as "playerOrder" FROM tournament t
        INNER JOIN tournament_players_user tpu ON tpu."tournamentId" = t.id
        WHERE t."gameType" = 'money' AND tpu."userId" = $1
        AND t.id IN (SELECT "tournamentId" FROM tournament_players_user GROUP BY "tournamentId" HAVING COUNT(*) >= 2)`,
       [userId],
     );
-    const moneyTourIds = ((moneyToursRow as { tid: number }[]) || []).map((r) => r.tid);
     let totalMoneyWithResult = 0;
-    for (const tid of moneyTourIds) {
-      const playersRow = (await manager.query(
-        `SELECT "userId" FROM tournament_players_user WHERE "tournamentId" = $1 ORDER BY "userId"`,
-        [tid],
-      )) as { userId: number }[];
-      if (playersRow.length < 2) continue;
-      const playerIds = playersRow.map((r) => r.userId);
+    for (const row of ((moneyToursRow as { tid: number; playerOrder: string | null }[]) || [])) {
+      const tid = row.tid;
+      const playerIds = UsersService.parseJsonArray(row.playerOrder).filter((id) => id > 0);
       const userSlot = playerIds.indexOf(userId);
       if (userSlot < 0) continue;
       const opponentSlot = userSlot % 2 === 0 ? userSlot + 1 : userSlot - 1;

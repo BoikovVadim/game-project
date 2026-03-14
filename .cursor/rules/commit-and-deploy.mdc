@@ -25,11 +25,15 @@ alwaysApply: true
 
 ## Деплой на reg.ru
 
-- **Сервер**: `95.163.226.154`
-- **Логин**: `root`
-- **Пароль**: `ffsP7Tb7KBjxeHXw`
-- **Путь проекта**: `/var/www/game/`
-- **Процесс-менеджер**: `pm2`
+- Не хранить продовые доступы в репозитории или правилах Cursor.
+- Для деплоя использовать переменные окружения локальной машины/CI:
+  - `DEPLOY_REMOTE_HOST`
+  - `DEPLOY_REMOTE_USER`
+  - `DEPLOY_REMOTE_PASSWORD` или `DEPLOY_SSH_KEY_PATH`
+  - `DEPLOY_REMOTE_DIR`
+  - `DEPLOY_PM2_APP`
+  - `DEPLOY_HEALTHCHECK_URL`
+- Предпочтительно использовать SSH-ключ, а не пароль.
 
 ### Команда деплоя
 
@@ -44,9 +48,9 @@ npm run deploy:prod
 - `git pull origin main`
 - сборка backend
 - сборка frontend с `CI=`
-- `pm2 restart all`
+- `pm2 restart $DEPLOY_PM2_APP`
 - пауза после рестарта
-- проверка `http://localhost:3000/` на `200`
+- проверка `DEPLOY_HEALTHCHECK_URL` на `200`
 
 ### Если только фронт (без изменений бэкенда)
 

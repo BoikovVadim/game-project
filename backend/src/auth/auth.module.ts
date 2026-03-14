@@ -6,13 +6,14 @@ import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
 import { User } from '../users/user.entity';
+import { getRequiredEnv } from '../common/env';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User]),
     PassportModule,
     JwtModule.register({
-      secret: process.env.JWT_SECRET || 'fallback-dev-key-change-me',
+      secret: getRequiredEnv('JWT_SECRET'),
       signOptions: { expiresIn: '6h' },
     }),
   ],

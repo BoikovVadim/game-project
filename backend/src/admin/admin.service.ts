@@ -144,35 +144,54 @@ export class AdminService {
 
   /** Одобрить заявку: сумма уже снята при подаче — только записать транзакцию и отметить заявку. */
   async approveWithdrawal(requestId: number, adminId: number, comment?: string): Promise<WithdrawalRequest> {
-    const req = await this.withdrawalRepository.findOne({
-      where: { id: requestId },
-      relations: ['user'],
+    return this.dataSource.transaction(async (manager) => {
+      const req = await manager
+        .createQueryBuilder(WithdrawalRequest, 'wr')
+        .setLock('pessimistic_write')
+        .where('wr.id = :requestId', { requestId })
+        .getOne();
+      if (!req) throw new NotFoundException('Заявка не найдена');
+      if (req.status !== 'pending') throw new BadRequestException('Заявка уже обработана');
+
+      const amount = Number(req.amount);
+      await this.usersService.addTransactionWithManager(manager, req.userId, -amount, `Заявка #${requestId}`, 'withdraw');
+
+      req.status = 'approved';
+      req.adminComment = comment || null;
+      req.processedByAdminId = adminId;
+      req.processedAt = new Date();
+      return manager.save(req);
     });
-    if (!req) throw new NotFoundException('Заявка не найдена');
-    if (req.status !== 'pending') throw new BadRequestException('Заявка уже обработана');
-    const amount = Number(req.amount);
-    await this.usersService.addTransaction(req.userId, -amount, `Заявка #${requestId}`, 'withdraw');
-    req.status = 'approved';
-    req.adminComment = comment || null;
-    req.processedByAdminId = adminId;
-    req.processedAt = new Date();
-    await this.withdrawalRepository.save(req);
-    return req;
   }
 
   /** Отклонить заявку: вернуть сумму на баланс (без записи транзакции — деньги формально оставались у игрока, только были заблокированы). */
   async rejectWithdrawal(requestId: number, adminId: number, comment?: string): Promise<WithdrawalRequest> {
-    const req = await this.withdrawalRepository.findOne({ where: { id: requestId } });
-    if (!req) throw new NotFoundException('Заявка не найдена');
-    if (req.status !== 'pending') throw new BadRequestException('Заявка уже обработана');
-    const amount = Number(req.amount);
-    await this.usersService.restoreBalanceRublesAfterRejectedWithdrawal(req.userId, amount);
-    req.status = 'rejected';
-    req.adminComment = comment || null;
-    req.processedByAdminId = adminId;
-    req.processedAt = new Date();
-    await this.withdrawalRepository.save(req);
-    return req;
+    return this.dataSource.transaction(async (manager) => {
+      const req = await manager
+        .createQueryBuilder(WithdrawalRequest, 'wr')
+        .setLock('pessimistic_write')
+        .where('wr.id = :requestId', { requestId })
+        .getOne();
+      if (!req) throw new NotFoundException('Заявка не найдена');
+      if (req.status !== 'pending') throw new BadRequestException('Заявка уже обработана');
+
+      const user = await manager
+        .createQueryBuilder(User, 'user')
+        .setLock('pessimistic_write')
+        .where('user.id = :userId', { userId: req.userId })
+        .getOne();
+      if (!user) throw new NotFoundException('User not found');
+
+      const amount = Number(req.amount);
+      user.balanceRubles = Number(user.balanceRubles ?? 0) + amount;
+      await manager.save(user);
+
+      req.status = 'rejected';
+      req.adminComment = comment || null;
+      req.processedByAdminId = adminId;
+      req.processedAt = new Date();
+      return manager.save(req);
+    });
   }
 
   /** Список пользователей (кратко) — через то же подключение TypeORM, что и всё приложение */
@@ -230,13 +249,27 @@ export class AdminService {
   async creditBalance(adminId: number, targetUserId: number, amount: number, comment?: string): Promise<{ success: true; newBalanceRubles: number }> {
     const admin = await this.userRepository.findOne({ where: { id: adminId }, select: ['id', 'isAdmin', 'username'] });
     if (!admin?.isAdmin) throw new ForbiddenException('Требуются права администратора');
-    const target = await this.userRepository.findOne({ where: { id: targetUserId } });
-    if (!target) throw new NotFoundException('Пользователь не найден');
     if (!amount || amount <= 0) throw new BadRequestException('Сумма должна быть больше 0');
-    target.balanceRubles = Number(target.balanceRubles ?? 0) + amount;
-    await this.userRepository.save(target);
-    await this.usersService.addTransaction(targetUserId, amount, 'Пополнение баланса', 'topup', adminId);
-    return { success: true, newBalanceRubles: target.balanceRubles };
+    return this.dataSource.transaction(async (manager) => {
+      const target = await manager
+        .createQueryBuilder(User, 'user')
+        .setLock('pessimistic_write')
+        .where('user.id = :targetUserId', { targetUserId })
+        .getOne();
+      if (!target) throw new NotFoundException('Пользователь не найден');
+
+      target.balanceRubles = Number(target.balanceRubles ?? 0) + amount;
+      await manager.save(target);
+      await this.usersService.addTransactionWithManager(
+        manager,
+        targetUserId,
+        amount,
+        'Пополнение баланса',
+        'admin_credit',
+        adminId,
+      );
+      return { success: true as const, newBalanceRubles: target.balanceRubles };
+    });
   }
 
   /** История ручных начислений */

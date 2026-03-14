@@ -1,16 +1,26 @@
 import { config } from 'dotenv';
+import { existsSync } from 'fs';
 import { join } from 'path';
-config({ path: join(__dirname, '..', '.env') });
+
+const envCandidates = [
+  join(__dirname, '..', `.env.${process.env.NODE_ENV || 'development'}`),
+  join(__dirname, '..', '.env'),
+];
+for (const envPath of envCandidates) {
+  if (existsSync(envPath)) {
+    config({ path: envPath, override: false });
+  }
+}
 process.env.TZ = 'Europe/Moscow';
 
 // Предотвращение падения при необработанных ошибках (код 5 — V8 FATAL)
 process.on('uncaughtException', (err) => {
   console.error('[FATAL] uncaughtException:', err?.message || err);
-  process.exitCode = 1;
+  process.exit(1);
 });
 process.on('unhandledRejection', (reason, promise) => {
   console.error('[FATAL] unhandledRejection:', reason);
-  process.exitCode = 1;
+  process.exit(1);
 });
 
 import { NestFactory } from '@nestjs/core';

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import './SupportChat.css';
 
 interface Ticket {
@@ -34,13 +34,21 @@ function dateKey(iso: string): string {
 
 export default function SupportChat({ token }: { token: string }) {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [tickets, setTickets] = useState<Ticket[]>([]);
-  const [openTicketId, setOpenTicketId] = useState<number | null>(null);
+  const [openTicketId, setOpenTicketId] = useState<number | null>(() => {
+    const raw = searchParams.get('ticket');
+    const parsed = raw ? parseInt(raw, 10) : NaN;
+    return Number.isNaN(parsed) || parsed <= 0 ? null : parsed;
+  });
   const [messages, setMessages] = useState<Message[]>([]);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
+  const [messagesLoading, setMessagesLoading] = useState(false);
   const [userName, setUserName] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
+  const messagesWrapRef = useRef<HTMLDivElement>(null);
+  const messagesRequestIdRef = useRef(0);
   const headers = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
 
   useEffect(() => {
@@ -63,9 +71,18 @@ export default function SupportChat({ token }: { token: string }) {
 
   const fetchMessages = useCallback(() => {
     if (!openTicketId) return;
+    const requestId = ++messagesRequestIdRef.current;
+    setMessagesLoading(true);
     axios.get<Message[]>(`/support/tickets/${openTicketId}/messages`, { headers })
-      .then((r) => setMessages(r.data))
-      .catch(() => {});
+      .then((r) => {
+        if (messagesRequestIdRef.current !== requestId) return;
+        setMessages(Array.isArray(r.data) ? r.data : []);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (messagesRequestIdRef.current !== requestId) return;
+        setMessagesLoading(false);
+      });
   }, [headers, openTicketId]);
 
   useEffect(() => {
@@ -77,12 +94,22 @@ export default function SupportChat({ token }: { token: string }) {
   }, [openTicketId, fetchMessages]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const wrap = messagesWrapRef.current;
+    if (!wrap) return;
+    const nearBottom = wrap.scrollHeight - wrap.scrollTop - wrap.clientHeight < 80;
+    if (nearBottom) {
+      bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [messages]);
 
   const openTicket = (id: number) => {
     setOpenTicketId(id);
     setMessages([]);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('ticket', String(id));
+      return next;
+    }, { replace: true });
   };
 
   const createNewTicket = async () => {
@@ -93,6 +120,11 @@ export default function SupportChat({ token }: { token: string }) {
       const r = await axios.post<{ ticket: Ticket }>('/support/tickets', { text }, { headers });
       setDraft('');
       setOpenTicketId(r.data.ticket.id);
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('ticket', String(r.data.ticket.id));
+        return next;
+      }, { replace: true });
       fetchTickets();
     } catch (_) {}
     setSending(false);
@@ -121,12 +153,19 @@ export default function SupportChat({ token }: { token: string }) {
 
   const currentTicket = tickets.find((t) => t.id === openTicketId);
 
+  useEffect(() => {
+    const raw = searchParams.get('ticket');
+    const parsed = raw ? parseInt(raw, 10) : NaN;
+    const nextTicketId = Number.isNaN(parsed) || parsed <= 0 ? null : parsed;
+    setOpenTicketId((prev) => prev === nextTicketId ? prev : nextTicketId);
+  }, [searchParams]);
+
   // --- Список тикетов ---
   if (!openTicketId) {
     return (
       <div className="support-chat-page">
         <header className="support-chat-header">
-          <button type="button" className="support-chat-back" onClick={() => navigate('/profile')}>
+          <button type="button" className="support-chat-back" onClick={() => navigate('/profile?section=support')}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="15 18 9 12 15 6" />
             </svg>
@@ -182,7 +221,15 @@ export default function SupportChat({ token }: { token: string }) {
   return (
     <div className="support-chat-page">
       <header className="support-chat-header">
-        <button type="button" className="support-chat-back" onClick={() => { setOpenTicketId(null); fetchTickets(); }}>
+        <button type="button" className="support-chat-back" onClick={() => {
+          setOpenTicketId(null);
+          setSearchParams((prev) => {
+            const next = new URLSearchParams(prev);
+            next.delete('ticket');
+            return next;
+          }, { replace: true });
+          fetchTickets();
+        }}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="15 18 9 12 15 6" />
           </svg>
@@ -196,9 +243,12 @@ export default function SupportChat({ token }: { token: string }) {
         )}
       </header>
 
-      <div className="support-chat-messages">
-        {messages.length === 0 && (
+      <div className="support-chat-messages" ref={messagesWrapRef}>
+        {messagesLoading && messages.length === 0 && (
           <div className="support-chat-empty">Загрузка...</div>
+        )}
+        {!messagesLoading && messages.length === 0 && (
+          <div className="support-chat-empty">Сообщений пока нет</div>
         )}
         {messages.map((m) => {
           const dk = dateKey(m.createdAt);

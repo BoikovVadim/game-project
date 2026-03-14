@@ -385,54 +385,12 @@ function filterRejectedWithdrawalRefunds(list: { category?: string; description?
   });
 }
 
-function getHashBase(hash: string): string {
-  const withoutQuery = (hash.split('?')[0] ?? hash).trim();
-  return withoutQuery.split('&')[0] ?? withoutQuery;
+function getStatsModeFromSearchParams(params: URLSearchParams): 'personal' | 'general' {
+  return params.get('statsMode') === 'general' ? 'general' : 'personal';
 }
 
-function getBracketIdFromHash(hash: string): number | null {
-  const parts = hash.split('&');
-  const bracketPart = parts.find((p) => p.startsWith('bracket='));
-  if (!bracketPart) return null;
-  const id = parseInt(bracketPart.split('=')[1] ?? '', 10);
-  return !Number.isNaN(id) ? id : null;
-}
-
-function getBracketSourceFromHash(hash: string): 'active' | 'completed' | null {
-  const parts = hash.split('&');
-  const sourcePart = parts.find((p) => p.startsWith('bracketSource='));
-  if (!sourcePart) return null;
-  const val = sourcePart.split('=')[1];
-  return val === 'active' || val === 'completed' ? val : null;
-}
-
-function getQuestionsReviewFromHash(hash: string): { tournamentId: number; round: 'semi' | 'final' } | null {
-  const parts = hash.split('&');
-  const idPart = parts.find((p) => p.startsWith('questions='));
-  const roundPart = parts.find((p) => p.startsWith('questionsRound='));
-  if (!idPart) return null;
-  const id = parseInt(idPart.split('=')[1] ?? '', 10);
-  if (Number.isNaN(id) || id <= 0) return null;
-  const round = roundPart?.split('=')[1];
-  return round === 'semi' || round === 'final' ? { tournamentId: id, round } : { tournamentId: id, round: 'semi' };
-}
-
-function getStatsModeFromHash(hash: string): 'personal' | 'general' {
-  const parts = hash.split('&');
-  const part = parts.find((p) => p.startsWith('statsMode='));
-  if (part?.split('=')[1] === 'general') return 'general';
-  if (typeof window !== 'undefined') {
-    const stored = localStorage.getItem(STATS_MODE_STORAGE_KEY);
-    if (stored === 'general') return 'general';
-  }
-  return 'personal';
-}
-
-function getSectionFromHashQuery(hash: string): CabinetSection | null {
-  const q = hash.indexOf('?');
-  if (q < 0) return null;
-  const params = new URLSearchParams(hash.slice(q));
-  return getSectionFromSearchParams(params);
+function getReadNewsStorageKey(userId: number | string | null | undefined): string {
+  return `readNewsIds_${userId ?? 'guest'}`;
 }
 
 function getSectionFromSearchParams(params: URLSearchParams): CabinetSection | null {
@@ -449,32 +407,20 @@ function getSectionFromSearchParams(params: URLSearchParams): CabinetSection | n
 const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceSectionProp }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const forceSection = (forceSectionProp && (VALID_SECTIONS as readonly string[]).includes(forceSectionProp)) ? forceSectionProp as CabinetSection : undefined;
 
   const [section, setSection] = useState<CabinetSection>(() => {
     if (forceSection) return forceSection;
-    const hash = typeof window !== 'undefined' ? window.location.hash.replace(/^#/, '') : '';
-    const fromHash = getSectionFromHashQuery(hash);
-    if (fromHash) return fromHash;
-    try {
-      const ss = typeof window !== 'undefined' ? sessionStorage.getItem('cabinetSectionSession') : null;
-      if (ss) {
-        const parsed = getSectionFromSearchParams(new URLSearchParams(`section=${ss}`));
-        if (parsed) return parsed;
-      }
-    } catch (_e) {}
+    const fromSearch = getSectionFromSearchParams(searchParams);
+    if (fromSearch) return fromSearch;
     return 'news';
   });
   const [gameMode, setGameModeState] = useState<GameMode>(() => {
-    const hash = typeof window !== 'undefined' ? window.location.hash.replace(/^#/, '') : '';
-    const fromHash = getSectionFromHashQuery(hash);
-    if (fromHash === 'games-training') return 'training';
-    if (fromHash === 'games-money') return 'money';
+    const sectionValue = getSectionFromSearchParams(searchParams);
+    if (sectionValue === 'games-training') return 'training';
+    if (sectionValue === 'games-money') return 'money';
     try {
-      const ss = typeof window !== 'undefined' ? sessionStorage.getItem('cabinetSectionSession') : null;
-      if (ss === 'games-training') return 'training';
-      if (ss === 'games-money') return 'money';
       const stored = typeof window !== 'undefined' ? localStorage.getItem(GAME_MODE_STORAGE_KEY) : null;
       if (stored === 'training' || stored === 'money') return stored as GameMode;
     } catch (_e) {}
@@ -482,18 +428,8 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   });
 
   const sectionFromUrl = (() => {
-    const rawHash = typeof window !== 'undefined' ? window.location.hash.replace(/^#/, '') : '';
-    const fromHash = getSectionFromHashQuery(rawHash);
-    if (fromHash) return fromHash;
     const fromSearch = getSectionFromSearchParams(searchParams);
     if (fromSearch) return fromSearch;
-    try {
-      const ss = typeof window !== 'undefined' ? sessionStorage.getItem('cabinetSectionSession') : null;
-      if (ss) {
-        const parsed = getSectionFromSearchParams(new URLSearchParams(`section=${ss}`));
-        if (parsed) return parsed;
-      }
-    } catch (_e) {}
     return forceSection || 'news';
   })();
 
@@ -526,7 +462,6 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   useEffect(() => {
     const current = searchParams.get('section');
     const toSet = section || 'news';
-    try { sessionStorage.setItem('cabinetSectionSession', toSet); } catch (_e) {}
     if (current === toSet) return;
     navigate(`/profile?section=${encodeURIComponent(toSet)}`, { replace: true });
   }, [section, navigate, searchParams]);
@@ -660,20 +595,10 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
   const [pendingStartGameAction, setPendingStartGameAction] = useState<(() => void) | null>(null);
   const [, setHashVersion] = useState(0);
   useEffect(() => {
-    const syncStatsModeFromHash = () => {
-      const hash = typeof window !== 'undefined' ? window.location.hash.replace(/^#/, '') : '';
-      if (getHashBase(hash).split('-')[0] === 'statistics') {
-        setStatsMode(getStatsModeFromHash(hash));
-      }
-    };
-    syncStatsModeFromHash();
-    const onHashChange = () => {
-      setHashVersion((v) => v + 1);
-      syncStatsModeFromHash();
-    };
-    window.addEventListener('hashchange', onHashChange);
-    return () => window.removeEventListener('hashchange', onHashChange);
-  }, []);
+    if (section === 'statistics') {
+      setStatsMode(getStatsModeFromSearchParams(searchParams));
+    }
+  }, [section, searchParams]);
 
   // Пинг «в личном кабинете» для подсчёта онлайн по лигам (пропускаем при импeрсонации админом)
   useEffect(() => {
@@ -784,13 +709,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     const num = saved ? parseInt(saved, 10) : NaN;
     return !Number.isNaN(num) && num > 0 ? num : 5;
   });
-  const [readNewsIds, setReadNewsIds] = useState<number[]>(() => {
-    try {
-      const saved = localStorage.getItem('readNewsIds');
-      if (saved) { const arr = JSON.parse(saved); if (Array.isArray(arr)) return arr.filter((v: unknown) => typeof v === 'number'); }
-    } catch {}
-    return [];
-  });
+  const [readNewsIds, setReadNewsIds] = useState<number[]>([]);
   const [apiNews, setApiNews] = useState<{ id: number; topic: string; body: string; createdAt: string }[]>([]);
   const [allLeagues, setAllLeagues] = useState<number[]>([5, 10, 20, 50, 100, 200, 500]);
   const [allowedLeagues, setAllowedLeagues] = useState<number[]>([]);
@@ -955,9 +874,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     return { rowGrid: grid, subtreeLevels: levelsForDisplay, hasChildren, getDescendantCount };
   }, [referralTree, partnerDetailExpandedIds, user]);
 
-  const [statsMode, setStatsMode] = useState<'personal' | 'general'>(() =>
-    typeof window !== 'undefined' ? getStatsModeFromHash(window.location.hash.replace(/^#/, '')) : 'personal',
-  );
+  const [statsMode, setStatsMode] = useState<'personal' | 'general'>(() => getStatsModeFromSearchParams(searchParams));
   const [rankingMetric, setRankingMetric] = useState<'gamesPlayed' | 'wins' | 'totalWinnings' | 'correctAnswers' | 'correctAnswerRate' | 'referrals' | 'totalWithdrawn'>('gamesPlayed');
   const [rankings, setRankings] = useState<null | {
     rankings: { rank: number; userId: number; displayName: string; value: number; valueFormatted: string }[];
@@ -1115,6 +1032,17 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         setShowAdminLink(!!isAdmin);
         if (data.id != null) localStorage.setItem('userId', String(data.id));
         if (data.avatarUrl) setAvatar(data.avatarUrl);
+        if (data.id != null) {
+          try {
+            const saved = localStorage.getItem(getReadNewsStorageKey(data.id));
+            if (saved) {
+              const parsed = JSON.parse(saved);
+              if (Array.isArray(parsed)) {
+                setReadNewsIds(parsed.filter((v: unknown) => typeof v === 'number'));
+              }
+            }
+          } catch {}
+        }
         const backendNick = data.nickname;
         const savedNickname = backendNick ?? (data.id != null ? localStorage.getItem(`nickname_${data.id}`) : null);
         const nickVal = savedNickname ?? '';
@@ -1135,7 +1063,11 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         if (Array.isArray(data.readNewsIds)) {
           setReadNewsIds((prev) => {
             const merged = Array.from(new Set([...prev, ...data.readNewsIds]));
-            try { localStorage.setItem('readNewsIds', JSON.stringify(merged)); } catch {}
+            try {
+              if (data.id != null) {
+                localStorage.setItem(getReadNewsStorageKey(data.id), JSON.stringify(merged));
+              }
+            } catch {}
             return merged;
           });
         }
@@ -2042,65 +1974,91 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     }
   };
 
+  const bracketRequestIdRef = useRef(0);
+  const activeBracketKeyRef = useRef<string | null>(null);
   const openBracket = React.useCallback(async (tournamentId: number, source?: 'active' | 'completed') => {
+    const nextKey = `${tournamentId}:${source ?? ''}`;
+    activeBracketKeyRef.current = nextKey;
     setBracketLoading(true);
     setBracketError('');
-    const base = `${window.location.pathname}${window.location.search}`;
-    const h = window.location.hash.replace(/^#/, '');
-    const baseHash = getHashBase(h);
-    const validBase = baseHash && !baseHash.startsWith('bracket=') ? baseHash : (section === 'games' ? `games${gameMode ? `-${gameMode}` : ''}` : section || 'games');
-    const sourceSuffix = source ? `&bracketSource=${source}` : '';
-    const newHash = `${validBase}&bracket=${tournamentId}${sourceSuffix}`;
-    window.history.replaceState(null, '', `${base}#${newHash}`);
+    if (searchParams.get('bracket') !== String(tournamentId) || (searchParams.get('bracketSource') ?? '') !== (source ?? '')) {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('bracket', String(tournamentId));
+        if (source) next.set('bracketSource', source);
+        else next.delete('bracketSource');
+        return next;
+      }, { replace: true });
+    }
+    const requestId = ++bracketRequestIdRef.current;
     try {
       const { data } = await axios.get(`/tournaments/${tournamentId}/bracket`, { headers: { Authorization: `Bearer ${token}` } });
+      if (bracketRequestIdRef.current !== requestId) return;
       setBracketView(data);
     } catch (e: unknown) {
+      if (bracketRequestIdRef.current !== requestId) return;
       const err = e && typeof e === 'object' && 'response' in e ? (e as { response?: { data?: { message?: string | string[] }; status?: number } }).response : undefined;
       const msg = err?.data?.message;
       const text = Array.isArray(msg) ? msg[0] : typeof msg === 'string' ? msg : (e instanceof Error ? e.message : 'Не удалось загрузить сетку');
       setBracketError(text || 'Не удалось загрузить сетку');
     } finally {
+      if (bracketRequestIdRef.current !== requestId) return;
       setBracketLoading(false);
     }
-  }, [token, section, gameMode]);
+  }, [token, searchParams, setSearchParams]);
 
-  // Восстановить сетку при обновлении страницы (bracket в URL)
-  const bracketRestoredRef = useRef(false);
   useEffect(() => {
-    if (!token || bracketRestoredRef.current) return;
-    const hash = window.location.hash.replace(/^#/, '');
-    const bracketId = getBracketIdFromHash(hash);
-    if (bracketId != null) {
-      bracketRestoredRef.current = true;
-      const source = getBracketSourceFromHash(hash);
-      openBracket(bracketId, source ?? undefined);
+    if (!token) return;
+    const bracketRaw = searchParams.get('bracket');
+    const bracketId = bracketRaw ? parseInt(bracketRaw, 10) : NaN;
+    const sourceParam = searchParams.get('bracketSource');
+    const source = sourceParam === 'active' || sourceParam === 'completed' ? sourceParam : undefined;
+    if (!bracketRaw || Number.isNaN(bracketId) || bracketId <= 0) {
+      activeBracketKeyRef.current = null;
+      setBracketView(null);
+      setBracketError('');
+      setBracketLoading(false);
+      setBracketPlayerTooltip(null);
+      return;
     }
-  }, [token, openBracket]);
+    const nextKey = `${bracketId}:${source ?? ''}`;
+    if (activeBracketKeyRef.current === nextKey) return;
+    void openBracket(bracketId, source);
+  }, [token, searchParams, openBracket]);
 
   const closeBracket = () => {
+    activeBracketKeyRef.current = null;
     setBracketView(null);
     setBracketError('');
     setBracketPlayerTooltip(null);
-    const base = `${window.location.pathname}${window.location.search}`;
-    const h = window.location.hash.replace(/^#/, '');
-    const parts = h.split('&').filter((p) => !p.startsWith('bracket=') && !p.startsWith('bracketSource='));
-    const newHash = parts.join('&') || (section === 'games' ? `games${gameMode ? `-${gameMode}` : ''}` : section);
-    window.history.replaceState(null, '', `${base}#${newHash || 'games'}`);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete('bracket');
+      next.delete('bracketSource');
+      return next;
+    }, { replace: true });
   };
 
+  const questionsRequestIdRef = useRef(0);
+  const activeQuestionsKeyRef = useRef<string | null>(null);
   const openQuestionsReview = React.useCallback(async (tournamentId: number, roundForQuestions: 'semi' | 'final') => {
+    const nextKey = `${tournamentId}:${roundForQuestions}`;
+    activeQuestionsKeyRef.current = nextKey;
     setQuestionsReviewTournamentId(tournamentId);
     setQuestionsReviewRound(roundForQuestions);
     setQuestionsReviewTabIdx(-1);
     setQuestionsReviewData(null);
     setQuestionsReviewError('');
     setQuestionsReviewLoading(true);
-    const base = `${window.location.pathname}${window.location.search}`;
-    const h = window.location.hash.replace(/^#/, '');
-    const parts = h.split('&').filter((p) => !p.startsWith('questions=') && !p.startsWith('questionsRound='));
-    parts.push(`questions=${tournamentId}`, `questionsRound=${roundForQuestions}`);
-    window.history.replaceState(null, '', `${base}#${parts.join('&')}`);
+    if (searchParams.get('questions') !== String(tournamentId) || (searchParams.get('questionsRound') ?? 'semi') !== roundForQuestions) {
+      setSearchParams((prev) => {
+        const next = new URLSearchParams(prev);
+        next.set('questions', String(tournamentId));
+        next.set('questionsRound', roundForQuestions);
+        return next;
+      }, { replace: true });
+    }
+    const requestId = ++questionsRequestIdRef.current;
     try {
       const { data } = await axios.get<{
         questionsSemi1: { id: number; question: string; options: string[]; correctAnswer: number }[];
@@ -2119,6 +2077,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         opponentAnswersByRound?: number[][];
         opponentInfoByRound?: { id: number; nickname: string; avatarUrl?: string | null }[];
       }>(`/tournaments/${tournamentId}/training-state`, { headers: { Authorization: `Bearer ${token}` } });
+      if (questionsRequestIdRef.current !== requestId) return;
       const answersChosenRaw = data.answersChosen ?? (data as { answers_chosen?: number[] }).answers_chosen;
       setQuestionsReviewData({
         questionsSemi1: data.questionsSemi1 ?? [],
@@ -2138,44 +2097,63 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
         opponentInfoByRound: data.opponentInfoByRound ?? [],
       });
     } catch (e: unknown) {
+      if (questionsRequestIdRef.current !== requestId) return;
       const msg = axios.isAxiosError(e) && e.response?.data?.message ? String(e.response.data.message) : 'Не удалось загрузить вопросы';
       setQuestionsReviewError(msg);
     } finally {
+      if (questionsRequestIdRef.current !== requestId) return;
       setQuestionsReviewLoading(false);
     }
-  }, [token]);
+  }, [token, searchParams, setSearchParams]);
 
+  const oppStatsRequestIdRef = useRef(0);
   const loadOppStats = (userId: number, avatarUrl?: string | null) => {
     if (oppTooltip.data && oppTooltip.visible) { setOppTooltip((p) => ({ ...p, visible: false })); return; }
+    const requestId = ++oppStatsRequestIdRef.current;
     setOppTooltip({ loading: true, data: null, visible: true, avatarUrl });
     axios.get<PlayerStats>(`/users/${userId}/public-stats`, { headers: { Authorization: `Bearer ${token}` } })
-      .then((res) => setOppTooltip({ loading: false, data: res.data, visible: true, avatarUrl }))
-      .catch(() => setOppTooltip({ loading: false, data: null, visible: false }));
+      .then((res) => {
+        if (oppStatsRequestIdRef.current !== requestId) return;
+        setOppTooltip({ loading: false, data: res.data, visible: true, avatarUrl });
+      })
+      .catch(() => {
+        if (oppStatsRequestIdRef.current !== requestId) return;
+        setOppTooltip({ loading: false, data: null, visible: false });
+      });
   };
 
   const closeQuestionsReview = () => {
+    activeQuestionsKeyRef.current = null;
     setQuestionsReviewTournamentId(null);
     setQuestionsReviewData(null);
     setQuestionsReviewError('');
     setOppTooltip({ loading: false, data: null, visible: false });
-    const base = `${window.location.pathname}${window.location.search}`;
-    const h = window.location.hash.replace(/^#/, '');
-    const parts = h.split('&').filter((p) => !p.startsWith('questions=') && !p.startsWith('questionsRound='));
-    const newHash = parts.join('&') || (section === 'games' ? `games${gameMode ? `-${gameMode}` : ''}` : section ?? 'games');
-    window.history.replaceState(null, '', `${base}#${newHash}`);
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.delete('questions');
+      next.delete('questionsRound');
+      return next;
+    }, { replace: true });
   };
 
-  // Восстановить модалку вопросов при обновлении страницы (questions в URL)
-  const questionsRestoredRef = useRef(false);
   useEffect(() => {
-    if (!token || questionsRestoredRef.current) return;
-    const hash = window.location.hash.replace(/^#/, '');
-    const q = getQuestionsReviewFromHash(hash);
-    if (q != null) {
-      questionsRestoredRef.current = true;
-      openQuestionsReview(q.tournamentId, q.round);
+    if (!token) return;
+    const tournamentIdRaw = searchParams.get('questions');
+    const tournamentId = tournamentIdRaw ? parseInt(tournamentIdRaw, 10) : NaN;
+    const roundRaw = searchParams.get('questionsRound');
+    const round = roundRaw === 'final' ? 'final' : 'semi';
+    if (!tournamentIdRaw || Number.isNaN(tournamentId) || tournamentId <= 0) {
+      activeQuestionsKeyRef.current = null;
+      setQuestionsReviewTournamentId(null);
+      setQuestionsReviewData(null);
+      setQuestionsReviewError('');
+      setQuestionsReviewLoading(false);
+      return;
     }
-  }, [token, openQuestionsReview]);
+    const nextKey = `${tournamentId}:${round}`;
+    if (activeQuestionsKeyRef.current === nextKey) return;
+    void openQuestionsReview(tournamentId, round);
+  }, [token, searchParams, openQuestionsReview]);
 
   const continueTournament = async (tournamentId: number) => {
     if (continueTournamentLoading !== null) return;
@@ -3007,11 +2985,11 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                 onClick={() => {
                   setStatsMode('personal');
                   localStorage.removeItem(STATS_MODE_STORAGE_KEY);
-                  const base = `${window.location.pathname}${window.location.search}`;
-                  const h = window.location.hash.replace(/^#/, '');
-                  const parts = h.split('&').filter((p) => !p.startsWith('statsMode='));
-                  const newHash = parts.join('&') || 'statistics';
-                  window.history.replaceState(null, '', `${base}#${newHash}`);
+                  setSearchParams((prev) => {
+                    const next = new URLSearchParams(prev);
+                    next.delete('statsMode');
+                    return next;
+                  }, { replace: true });
                 }}
               >
                 Личная
@@ -3022,12 +3000,11 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                 onClick={() => {
                   setStatsMode('general');
                   localStorage.setItem(STATS_MODE_STORAGE_KEY, 'general');
-                  const base = `${window.location.pathname}${window.location.search}`;
-                  const h = window.location.hash.replace(/^#/, '');
-                  const parts = h.split('&').filter((p) => !p.startsWith('statsMode='));
-                  const basePart = parts[0] || 'statistics';
-                  const newHash = [basePart, ...parts.slice(1), 'statsMode=general'].join('&');
-                  window.history.replaceState(null, '', `${base}#${newHash}`);
+                  setSearchParams((prev) => {
+                    const next = new URLSearchParams(prev);
+                    next.set('statsMode', 'general');
+                    return next;
+                  }, { replace: true });
                 }}
               >
                 Общая
@@ -3835,7 +3812,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                         <td>{(t as { leagueAmount?: number | null }).leagueAmount != null ? `${formatNum((t as { leagueAmount: number }).leagueAmount)} ${CURRENCY}` : '—'}</td>
                                         <td>{t.stage ?? 'Полуфинал'}</td>
                                         <td className="game-history-questions-col">
-                                          <button type="button" className="game-history-questions-link" onClick={() => openQuestionsReview(t.id, t.roundForQuestions ?? (t.stage === 'Финал' ? 'final' : 'semi'))} title="Посмотреть вопросы турнира">
+                                          <button type="button" className="game-history-questions-link" onClick={() => openQuestionsReview(t.id, t.roundForQuestions ?? 'semi')} title="Посмотреть вопросы турнира">
                                             {(t as any).questionsTotal ?? 10}/{(t as any).questionsAnswered ?? 0}/{(t as any).correctAnswersInRound ?? 0}
                                           </button>
                                         </td>
@@ -3880,7 +3857,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                                         <td>{(t as { leagueAmount?: number | null }).leagueAmount != null ? `${formatNum((t as { leagueAmount: number }).leagueAmount)} ${CURRENCY}` : '—'}</td>
                                         <td>{t.stage ?? 'Полуфинал'}</td>
                                         <td className="game-history-questions-col">
-                                          <button type="button" className="game-history-questions-link" onClick={() => openQuestionsReview(t.id, t.roundForQuestions ?? (t.stage === 'Финал' ? 'final' : 'semi'))} title="Посмотреть вопросы турнира">
+                                          <button type="button" className="game-history-questions-link" onClick={() => openQuestionsReview(t.id, t.roundForQuestions ?? 'semi')} title="Посмотреть вопросы турнира">
                                             {(t as any).questionsTotal ?? 10}/{(t as any).questionsAnswered ?? 0}/{(t as any).correctAnswersInRound ?? 0}
                                           </button>
                                         </td>
@@ -4909,7 +4886,10 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                     setReadNewsIds((prev) => {
                       if (prev.includes(item.id)) return prev;
                       const next = [...prev, item.id];
-                      try { localStorage.setItem('readNewsIds', JSON.stringify(next)); } catch {}
+                      try {
+                        const userId = user?.id ?? localStorage.getItem('userId');
+                        localStorage.setItem(getReadNewsStorageKey(userId), JSON.stringify(next));
+                      } catch {}
                       return next;
                     });
                     axios.post('/users/me/read-news', { newsId: item.id }, authHeaders).catch(() => {});

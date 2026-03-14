@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Query, Req, UseGuards, RawBodyRequest } from '@nestjs/common';
+import { Controller, Post, Body, Get, Query, Req, UseGuards } from '@nestjs/common';
 import { PaymentsService } from './payments.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
@@ -26,8 +26,7 @@ export class PaymentsController {
 
   /** ЮKassa webhook (notification) — вызывается серверами ЮKassa */
   @Post('webhook/yookassa')
-  async webhookYooKassa(@Req() req: RawBodyRequest<Request>, @Body() body: unknown) {
-    const raw = (req as any).rawBody as Buffer | undefined;
+  async webhookYooKassa(@Req() _req: Request, @Body() body: unknown) {
     if (body && typeof body === 'object') {
       await this.paymentsService.handleYooKassaNotification(body as any);
     }

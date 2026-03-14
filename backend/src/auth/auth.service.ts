@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -18,6 +18,13 @@ function generateVerificationCode(): string {
 
 const CODE_TTL_MINUTES = 15;
 
+type RegisterResult = {
+  success: true;
+  requiresEmailVerification: true;
+  email: string;
+  username: string;
+};
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -32,7 +39,19 @@ export class AuthService {
     email: string,
     password: string,
     referralCodeInput?: string,
-  ): Promise<User> {
+  ): Promise<RegisterResult> {
+    const normalizedUsername = String(username || '').trim();
+    const normalizedEmail = String(email || '').trim().toLowerCase();
+    const existing = await this.userRepository
+      .createQueryBuilder('u')
+      .select(['u.id'])
+      .where('LOWER(u.email) = :email', { email: normalizedEmail })
+      .orWhere('LOWER(u.username) = :username', { username: normalizedUsername.toLowerCase() })
+      .getOne();
+    if (existing) {
+      throw new ConflictException('Пользователь с таким email или username уже существует');
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
     const DEFAULT_REFERRER_ID = 1;
     let referrerId: number | null = DEFAULT_REFERRER_ID;
@@ -54,8 +73,8 @@ export class AuthService {
     const code = generateVerificationCode();
     const expiresAt = new Date(Date.now() + CODE_TTL_MINUTES * 60 * 1000);
     const user = this.userRepository.create({
-      username,
-      email,
+      username: normalizedUsername,
+      email: normalizedEmail,
       password: hashedPassword,
       referralCode: myCode,
       referrerId,
@@ -64,10 +83,15 @@ export class AuthService {
       emailVerificationExpiresAt: expiresAt,
     });
     const saved = await this.userRepository.save(user);
-    this.mailService.sendVerificationCode(email, code, username).catch((err) => {
+    this.mailService.sendVerificationCode(normalizedEmail, code, normalizedUsername).catch((err) => {
       console.error('[AuthService] Не удалось отправить код подтверждения:', err);
     });
-    return saved;
+    return {
+      success: true,
+      requiresEmailVerification: true,
+      email: saved.email,
+      username: saved.username,
+    };
   }
 
   async verifyEmail(token: string): Promise<{ success: boolean; message: string }> {
@@ -80,8 +104,12 @@ export class AuthService {
     if (!user) {
       return { success: false, message: 'Ссылка недействительна или уже использована' };
     }
+    if (user.emailVerificationExpiresAt && user.emailVerificationExpiresAt < new Date()) {
+      return { success: false, message: 'Ссылка недействительна или истекла' };
+    }
     user.emailVerified = true;
     user.emailVerificationToken = null;
+    user.emailVerificationExpiresAt = null;
     await this.userRepository.save(user);
     return { success: true, message: 'Почта подтверждена. Теперь вы можете войти.' };
   }
@@ -135,8 +163,7 @@ export class AuthService {
       return { success: false, message: 'Пользователь не найден' };
     }
     if (user.emailVerified) {
-      const token = this.jwtService.sign({ username: user.username, sub: user.id });
-      return { success: true, message: 'Почта уже подтверждена.', access_token: token };
+      return { success: false, message: 'Почта уже подтверждена. Войдите через пароль.' };
     }
     if (!user.emailVerificationToken) {
       return { success: false, message: 'Код не был отправлен. Запросите новый.' };

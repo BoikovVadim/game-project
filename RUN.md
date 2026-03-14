@@ -5,6 +5,8 @@
 В терминале из **корня проекта**:
 
 ```bash
+npm install
+cd Frontend && npm install && cd ..
 npm run dev:live
 ```
 
@@ -14,6 +16,7 @@ npm run dev:live
 
 - Фронт: порт 3000, с автообновлением при сохранении файлов.
 - Бэкенд: порт 3001, API проксируется с фронта автоматически.
+- Health-check API: `http://localhost:3001/api/health`
 
 ## Один сервер (без hot reload)
 
@@ -28,3 +31,4 @@ npm run start:simple
 1. Открывать именно **http://localhost:3000** (не 3001).
 2. Обновить страницу (F5).
 3. Открыть консоль браузера (F12 → вкладка Console) и посмотреть ошибки — их можно прислать для диагностики.
+4. Проверить API health: `http://localhost:3001/api/health` должно вернуть `{"ok":true,...}`.

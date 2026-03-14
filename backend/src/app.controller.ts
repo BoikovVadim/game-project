@@ -84,4 +84,12 @@ export class AppController {
       res.type('text/plain').send('0');
     }
   }
+
+  @Get('api/health')
+  getHealth() {
+    return {
+      ok: true,
+      timestamp: new Date().toISOString(),
+    };
+  }
 }

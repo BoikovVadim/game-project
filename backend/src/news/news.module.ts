@@ -5,12 +5,13 @@ import { News } from './news.entity';
 import { NewsService } from './news.service';
 import { NewsController } from './news.controller';
 import { UsersModule } from '../users/users.module';
+import { getRequiredEnv } from '../common/env';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([News]),
     UsersModule,
-    JwtModule.register({ secret: process.env.JWT_SECRET || 'fallback-dev-key-change-me', signOptions: { expiresIn: '6h' } }),
+    JwtModule.register({ secret: getRequiredEnv('JWT_SECRET'), signOptions: { expiresIn: '6h' } }),
   ],
   controllers: [NewsController],
   providers: [NewsService],

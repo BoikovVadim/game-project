@@ -8,13 +8,14 @@ import { AdminController } from './admin.controller';
 import { UsersModule } from '../users/users.module';
 import { TournamentsModule } from '../tournaments/tournaments.module';
 import { JwtModule } from '@nestjs/jwt';
+import { getRequiredEnv } from '../common/env';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([User, WithdrawalRequest, Transaction]),
     UsersModule,
     TournamentsModule,
-    JwtModule.register({ secret: process.env.JWT_SECRET || 'fallback-dev-key-change-me', signOptions: { expiresIn: '6h' } }),
+    JwtModule.register({ secret: getRequiredEnv('JWT_SECRET'), signOptions: { expiresIn: '6h' } }),
   ],
   controllers: [AdminController],
   providers: [AdminService],

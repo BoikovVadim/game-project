@@ -61,6 +61,11 @@ const VerifyCode: React.FC<VerifyCodeProps> = ({ onLogin }) => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!emailFromUrl) {
+      setStatus('error');
+      setMessage('В ссылке нет email. Повторите регистрацию или вход.');
+      return;
+    }
     if (code.length < CODE_LENGTH) {
       setStatus('error');
       setMessage('Введите все 6 цифр');
@@ -92,6 +97,11 @@ const VerifyCode: React.FC<VerifyCodeProps> = ({ onLogin }) => {
 
   const handleResend = async () => {
     if (resendCooldown > 0) return;
+    if (!emailFromUrl) {
+      setMessage('В ссылке нет email. Вернитесь к регистрации или входу.');
+      setStatus('error');
+      return;
+    }
     try {
       await axios.post('/auth/resend-code', { email: emailFromUrl });
       setResendCooldown(60);

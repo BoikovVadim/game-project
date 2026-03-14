@@ -1,7 +1,8 @@
-717373.42
-За сегодня (2026-03-14): 34 781,33 ₽
+723498.42
+За сегодня (2026-03-14): 40 906,33 ₽
 
 # Последние изменения (для резюме по задаче). Формат: YYYY-MM-DD HH:MM | Z ₽ | N ч M мин | описание. «За сегодня» — сумма всех Z за текущий день.
+2026-03-14 18:59 | 6 125,00 ₽ | 2 ч 48 мин | Стабилизация проекта: закрыты auth/payment/security дыры, денежные write-path и money tournament join переведены на транзакции, backend read-path и playerOrder-статистика дочищены, Profile/Admin/SupportChat переведены на URL-state без ручного hash-drifts, добавлены health endpoint, CI и smoke checklist, документация и deploy-конфиг выровнены
 2026-03-14 18:27 | 1 312,50 ₽ | 0 ч 36 мин | Турниры: финальный hard-pass по read-path — `getTournamentState` перестал удалять/создавать вопросы на GET, `getTrainingState` переведён на общие question/helper/resolver-правила для финала и тайбрейков, выполнен сценарный аудит оставшихся зон риска, backend пересобран и `dev:live` перезапущен
 2026-03-14 18:20 | 1 968,75 ₽ | 0 ч 54 мин | Турниры: три writer-пути (`completeTournament`, `tryAutoComplete`, `closeTimedOutRounds`) переведены на общий resolver/apply слой завершения турнира — убраны разъехавшиеся ветки записи победителя, устранено преждевременное завершение 1v1 как всего турнира, документация обновлена, backend пересобран, `dev:live` перезапущен
 2026-03-14 18:11 | 1 640,63 ₽ | 0 ч 45 мин | Турниры: `getMyTournaments` и `getTournamentBracket` переведены на read-only derived-state без скрытых `update/save/backfill` во время чтения — режим турнира и legacy-progress теперь нормализуются только в памяти, документация синхронизирована, `dev:live` перезапущен

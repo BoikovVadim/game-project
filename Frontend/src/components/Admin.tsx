@@ -166,7 +166,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [userSortBy, setUserSortBy] = useState<'id' | 'username' | 'email' | 'balance' | 'balanceRubles' | 'isAdmin'>('id');
   const [userSortDir, setUserSortDir] = useState<'asc' | 'desc'>('asc');
-  const [userSearch, setUserSearch] = useState('');
+  const [userSearch, setUserSearch] = useState(() => searchParams.get('userSearch') ?? '');
   const [section, setSection] = useState<'withdrawals' | 'users' | 'credit' | 'support' | 'statistics' | 'news'>(() =>
     tabFromUrl === 'users' ? 'users' : tabFromUrl === 'credit' ? 'credit' : tabFromUrl === 'support' ? 'support' : tabFromUrl === 'withdrawals' ? 'withdrawals' : tabFromUrl === 'news' ? 'news' : 'statistics'
   );
@@ -198,8 +198,12 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
 
   const [supportTickets, setSupportTickets] = useState<any[]>([]);
   const [supportUnreadCount, setSupportUnreadCount] = useState(0);
-  const [supportStatusFilter, setSupportStatusFilter] = useState<string>('open');
-  const [supportOpenTicketId, setSupportOpenTicketId] = useState<number | null>(null);
+  const [supportStatusFilter, setSupportStatusFilter] = useState<string>(() => searchParams.get('supportStatus') ?? 'open');
+  const [supportOpenTicketId, setSupportOpenTicketId] = useState<number | null>(() => {
+    const raw = searchParams.get('supportTicket');
+    const parsed = raw ? parseInt(raw, 10) : NaN;
+    return Number.isNaN(parsed) || parsed <= 0 ? null : parsed;
+  });
   const [supportMessages, setSupportMessages] = useState<any[]>([]);
   const [supportReply, setSupportReply] = useState('');
   const [supportSending, setSupportSending] = useState(false);
@@ -376,7 +380,10 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
   const [txList, setTxList] = useState<TxRow[]>([]);
   const [txLoading, setTxLoading] = useState(false);
   const txLoadedRef = React.useRef(false);
-  const [txCategoryFilter, setTxCategoryFilter] = useState<'' | 'topup' | 'withdraw' | 'win' | 'other'>('');
+  const [txCategoryFilter, setTxCategoryFilter] = useState<'' | 'topup' | 'withdraw' | 'win' | 'other'>(() => {
+    const raw = searchParams.get('txCategory');
+    return raw === 'topup' || raw === 'withdraw' || raw === 'win' || raw === 'other' ? raw : '';
+  });
   const [txSortBy, setTxSortBy] = useState<'id' | 'userId' | 'username' | 'email' | 'category' | 'amount' | 'createdAt'>('id');
   const [txSortDir, setTxSortDir] = useState<'asc' | 'desc'>('desc');
   const [projectCostData, setProjectCostData] = useState<ProjectCostDashboardData | null>(null);
@@ -406,8 +413,15 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
     else if (sTab === 'tournaments') setStatsSubTab('tournaments');
     else if (sTab === 'project-cost') setStatsSubTab('project-cost');
     else if (sTab === 'overview' || !sTab) setStatsSubTab((prev) => sTab === 'overview' ? 'overview' : prev);
+    setUserSearch(searchParams.get('userSearch') ?? '');
+    setSupportStatusFilter(searchParams.get('supportStatus') ?? 'open');
+    const supportTicketRaw = searchParams.get('supportTicket');
+    const supportTicketId = supportTicketRaw ? parseInt(supportTicketRaw, 10) : NaN;
+    setSupportOpenTicketId(!Number.isNaN(supportTicketId) && supportTicketId > 0 ? supportTicketId : null);
     const tid = searchParams.get('tournamentId');
     if (tid !== null) setTournamentIdFilter(tid ?? '');
+    const txCategory = searchParams.get('txCategory');
+    setTxCategoryFilter(txCategory === 'topup' || txCategory === 'withdraw' || txCategory === 'win' || txCategory === 'other' ? txCategory : '');
     const tournamentColsParam = searchParams.get('tournamentCols');
     const resolvedTournamentColumns = resolveTournamentColumns(tournamentColsParam);
     setTournamentColumns(resolvedTournamentColumns);
@@ -451,6 +465,37 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
       return nextParams;
     }, { replace: true });
   };
+
+  useEffect(() => {
+    if (section !== 'users') return;
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (userSearch.trim()) next.set('userSearch', userSearch.trim());
+      else next.delete('userSearch');
+      return next;
+    }, { replace: true });
+  }, [section, userSearch, setSearchParams]);
+
+  useEffect(() => {
+    if (section !== 'support') return;
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('supportStatus', supportStatusFilter || 'open');
+      if (supportOpenTicketId) next.set('supportTicket', String(supportOpenTicketId));
+      else next.delete('supportTicket');
+      return next;
+    }, { replace: true });
+  }, [section, supportStatusFilter, supportOpenTicketId, setSearchParams]);
+
+  useEffect(() => {
+    if (section !== 'statistics' || statsSubTab !== 'transactions') return;
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (txCategoryFilter) next.set('txCategory', txCategoryFilter);
+      else next.delete('txCategory');
+      return next;
+    }, { replace: true });
+  }, [section, statsSubTab, txCategoryFilter, setSearchParams]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [actionSuccessMsg, setActionSuccessMsg] = useState('');
@@ -678,24 +723,35 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
     return () => clearInterval(iv);
   }, [isAdmin, token, section, fetchSupportTickets]);
 
-  const openSupportTicket = async (ticketId: number) => {
+  const supportMessagesRequestIdRef = React.useRef(0);
+  const openSupportTicket = React.useCallback(async (ticketId: number) => {
     setSupportOpenTicketId(ticketId);
     setSupportMessages([]);
+    const requestId = ++supportMessagesRequestIdRef.current;
     try {
       const r = await axios.get(`/support/admin/tickets/${ticketId}/messages`, { headers });
+      if (supportMessagesRequestIdRef.current !== requestId) return;
       setSupportMessages(Array.isArray(r.data) ? r.data : []);
       fetchSupportTickets();
       fetchSupportUnread();
     } catch {}
-  };
+  }, [headers, fetchSupportTickets, fetchSupportUnread]);
+
+  useEffect(() => {
+    if (!isAdmin || !token || section !== 'support' || !supportOpenTicketId) return;
+    if (supportMessages.length > 0) return;
+    void openSupportTicket(supportOpenTicketId);
+  }, [isAdmin, token, section, supportOpenTicketId, supportMessages.length, openSupportTicket]);
 
   const sendSupportReply = async () => {
     if (!supportOpenTicketId || !supportReply.trim() || supportSending) return;
     setSupportSending(true);
+    const requestId = ++supportMessagesRequestIdRef.current;
     try {
       await axios.post(`/support/admin/tickets/${supportOpenTicketId}/messages`, { text: supportReply.trim() }, { headers });
       setSupportReply('');
       const r = await axios.get(`/support/admin/tickets/${supportOpenTicketId}/messages`, { headers });
+      if (supportMessagesRequestIdRef.current !== requestId) return;
       setSupportMessages(Array.isArray(r.data) ? r.data : []);
       fetchSupportTickets();
     } catch {}
@@ -708,6 +764,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
       await axios.post(`/support/admin/tickets/${supportOpenTicketId}/close`, {}, { headers });
       fetchSupportTickets();
       setSupportOpenTicketId(null);
+      setSupportMessages([]);
     } catch {}
   };
 

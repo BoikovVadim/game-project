@@ -1,6 +1,6 @@
 import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException, Logger, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, IsNull, Not } from 'typeorm';
+import { EntityManager, Repository, In, IsNull, Not } from 'typeorm';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Tournament, TournamentStatus, ROUND_DEADLINE_HOURS } from './tournament.entity';
 import { Question } from './question.entity';
@@ -327,18 +327,7 @@ export class TournamentsService implements OnModuleInit {
   }
 
   async onModuleInit(): Promise<void> {
-    await this.backfillTournamentResultCompletedAt().catch((err) => {
-      this.logger.warn('backfillTournamentResultCompletedAt failed', err?.message ?? err);
-    });
-    await this.backfillResolvedHeadToHeadResults().catch((err) => {
-      this.logger.warn('backfillResolvedHeadToHeadResults failed', err?.message ?? err);
-    });
-    await this.backfillResolvedBracketResults().catch((err) => {
-      this.logger.warn('backfillResolvedBracketResults failed', err?.message ?? err);
-    });
-    await this.backfillTimeoutRoundResolutions().catch((err) => {
-      this.logger.warn('backfillTimeoutRoundResolutions failed', err?.message ?? err);
-    });
+    this.logger.log('Tournament startup backfills are disabled by default; use explicit maintenance actions when needed.');
   }
 
   /**
@@ -1347,7 +1336,8 @@ export class TournamentsService implements OnModuleInit {
     return maxStart(myProg, oppProg);
   }
 
-  private async syncSemiPairStartOnJoin(
+  private async syncSemiPairStartOnJoinWithManager(
+    manager: EntityManager,
     tournamentId: number,
     playerOrder: number[] | null | undefined,
     playerSlot: number,
@@ -1361,8 +1351,9 @@ export class TournamentsService implements OnModuleInit {
     const opponentUserId = playerOrder[opponentSlot] ?? -1;
     if (joinedUserId <= 0 || opponentUserId <= 0) return;
 
+    const progressRepository = manager.getRepository(TournamentProgress);
     const pairUserIds = [joinedUserId, opponentUserId];
-    const existing = await this.tournamentProgressRepository.find({
+    const existing = await progressRepository.find({
       where: { tournamentId, userId: In(pairUserIds) },
     });
     const progressByUserId = new Map(existing.map((row) => [row.userId, row]));
@@ -1371,11 +1362,11 @@ export class TournamentsService implements OnModuleInit {
       const existingProgress = progressByUserId.get(pairUserId);
       if (existingProgress) {
         existingProgress.roundStartedAt = joinedAt;
-        await this.tournamentProgressRepository.save(existingProgress);
+        await progressRepository.save(existingProgress);
         continue;
       }
 
-      const progress = this.tournamentProgressRepository.create({
+      const progress = progressRepository.create({
         userId: pairUserId,
         tournamentId,
         questionsAnsweredCount: 0,
@@ -1386,8 +1377,23 @@ export class TournamentsService implements OnModuleInit {
         leftAt: null,
         timeLeftSeconds: null,
       });
-      await this.tournamentProgressRepository.save(progress);
+      await progressRepository.save(progress);
     }
+  }
+
+  private async syncSemiPairStartOnJoin(
+    tournamentId: number,
+    playerOrder: number[] | null | undefined,
+    playerSlot: number,
+    joinedAt: Date,
+  ): Promise<void> {
+    await this.syncSemiPairStartOnJoinWithManager(
+      this.tournamentProgressRepository.manager,
+      tournamentId,
+      playerOrder,
+      playerSlot,
+      joinedAt,
+    );
   }
 
   private getCurrentRoundSharedStart(
@@ -1864,21 +1870,8 @@ export class TournamentsService implements OnModuleInit {
 
     const leagueAmount = tournament.leagueAmount ?? 0;
     const prize = getLeaguePrize(leagueAmount);
-    const realPlayerCount = (tournament.playerOrder?.filter((id) => id > 0).length) ?? 0;
-    const finalQuestionCount = await this.questionRepository.count({
-      where: { tournament: { id: tournamentId }, roundIndex: 2 },
-    });
-    const canPayFinalPrize = realPlayerCount === 4 && (finalQuestionCount > 0 || winners.length === 1);
 
     if (winners.length === 1) {
-      if (!canPayFinalPrize) {
-        this.logger.warn(`[processTournamentEscrow] Skip payout for tournament ${tournamentId}: no valid final winner context`);
-        await this.tournamentEscrowRepository.query(
-          'UPDATE tournament_escrow SET status = \'held\' WHERE "tournamentId" = $1 AND status = \'processing\'',
-          [tournamentId],
-        );
-        return;
-      }
       const winnerId = winners[0]!;
       const winnerAlreadyPaid = existingWinTransactions.some((tx) => tx.userId === winnerId);
       if (prize > 0 && winnerId > 0 && !winnerAlreadyPaid) {
@@ -2384,135 +2377,114 @@ export class TournamentsService implements OnModuleInit {
       throw new BadRequestException('Недостаточно средств на балансе для вступления в игру.');
     }
 
-    const user = await this.userRepository.findOneBy({ id: userId });
-    if (!user) throw new NotFoundException('User not found');
+    return this.tournamentRepository.manager.transaction(async (manager) => {
+      const tournamentRepository = manager.getRepository(Tournament);
+      const questionRepository = manager.getRepository(Question);
+      const tournamentEntryRepository = manager.getRepository(TournamentEntry);
+      const tournamentEscrowRepository = manager.getRepository(TournamentEscrow);
+      const transactionRepository = manager.getRepository(Transaction);
 
-    const reusableTournaments = await this.tournamentRepository.find({
-      where: [
-        { status: TournamentStatus.WAITING, gameType: 'money', leagueAmount },
-        { status: TournamentStatus.ACTIVE, gameType: 'money', leagueAmount },
-      ],
-      relations: ['players'],
-      order: { id: 'ASC' },
-    });
-    const moneyWaitingIds = reusableTournaments.map((t) => t.id);
-    const moneyWaitingEntries = moneyWaitingIds.length > 0
-      ? await this.tournamentEntryRepository.find({ where: { tournament: { id: In(moneyWaitingIds) } } as any })
-      : [];
-    const moneyWaitingProgress = moneyWaitingIds.length > 0
-      ? await this.tournamentProgressRepository.find({ where: { tournamentId: In(moneyWaitingIds) } })
-      : [];
-    const moneyLastActivityByTid = new Map<number, Date>();
-    for (const e of moneyWaitingEntries) {
-      const tid = (e as any).tournamentId ?? (e.tournament as any)?.id;
-      if (!tid) continue;
-      const prev = moneyLastActivityByTid.get(tid);
-      if (!prev || e.joinedAt > prev) moneyLastActivityByTid.set(tid, e.joinedAt);
-    }
-    for (const p of moneyWaitingProgress) {
-      if (p.leftAt) {
-        const prev = moneyLastActivityByTid.get(p.tournamentId);
-        if (!prev || p.leftAt > prev) moneyLastActivityByTid.set(p.tournamentId, p.leftAt);
+      const user = await manager
+        .createQueryBuilder(User, 'user')
+        .setLock('pessimistic_write')
+        .where('user.id = :userId', { userId })
+        .getOne();
+      if (!user) throw new NotFoundException('User not found');
+      if (Number(user.balance ?? 0) < leagueAmount) {
+        throw new BadRequestException('Недостаточно средств на балансе для вступления в игру.');
       }
-    }
-    const waitingTournament = reusableTournaments.find((t) => {
-      if (t.players.some((p) => p.id === userId)) return false;
-      if (t.players.length >= 4) return false;
-      return true;
-    });
 
-    let tournament: Tournament;
-    let playerSlot: number;
-    let isCreator: boolean;
+      const reusableTournaments = await tournamentRepository
+        .createQueryBuilder('t')
+        .leftJoinAndSelect('t.players', 'player')
+        .where('t.gameType = :gameType', { gameType: 'money' })
+        .andWhere('t.leagueAmount = :leagueAmount', { leagueAmount })
+        .andWhere('t.status IN (:...statuses)', { statuses: [TournamentStatus.WAITING, TournamentStatus.ACTIVE] })
+        .orderBy('t.id', 'ASC')
+        .setLock('pessimistic_write')
+        .getMany();
 
-    const joinedAt = new Date();
-
-    if (waitingTournament) {
-      tournament = waitingTournament;
-      await this.ensureTournamentPlayer(tournament.id, user.id);
-      const newOrder = [...(tournament.playerOrder ?? []), user.id];
-      await this.tournamentRepository.update({ id: tournament.id }, { playerOrder: newOrder });
-      tournament.playerOrder = newOrder;
-      playerSlot = newOrder.length - 1;
-      isCreator = false;
-      await this.tournamentEntryRepository.save(
-        this.tournamentEntryRepository.create({ tournament, user, joinedAt }),
-      );
-      await this.syncSemiPairStartOnJoin(tournament.id, newOrder, playerSlot, joinedAt);
-    } else {
-      tournament = this.tournamentRepository.create({
-        status: TournamentStatus.WAITING,
-        players: [user],
-        gameType: 'money',
-        leagueAmount,
-        playerOrder: [user.id],
+      const waitingTournament = reusableTournaments.find((t) => {
+        if (t.players.some((p) => p.id === userId)) return false;
+        if (t.players.length >= 4) return false;
+        return true;
       });
-      await this.tournamentRepository.save(tournament);
-      playerSlot = 0;
-      isCreator = true;
-      const { semi1, semi2 } = await this.pickQuestionsForSemi();
-      for (const q of semi1) {
-        const row = this.questionRepository.create({ ...q, tournament, roundIndex: 0 });
-        await this.questionRepository.save(row);
-      }
-      for (const q of semi2) {
-        const row = this.questionRepository.create({ ...q, tournament, roundIndex: 1 });
-        await this.questionRepository.save(row);
-      }
-      await this.tournamentEntryRepository.save(
-        this.tournamentEntryRepository.create({ tournament, user, joinedAt }),
-      );
-    }
 
-    try {
-      await this.usersService.deductBalance(
-        userId,
-        leagueAmount,
-        `${getLeagueName(leagueAmount)}, ID ${tournament.id}`,
-        'loss',
-        tournament.id,
-      );
-    } catch (e) {
+      let tournament: Tournament;
+      let playerSlot: number;
+      let isCreator: boolean;
+      const joinedAt = new Date();
+
       if (waitingTournament) {
-        const conn = this.tournamentRepository.manager.connection;
-        await conn.query(
-          'DELETE FROM tournament_players_user WHERE "tournamentId" = $1 AND "userId" = $2',
-          [tournament.id, userId],
-        ).catch(() => {});
-        const newOrder = (tournament.playerOrder ?? []).filter((id) => id !== userId);
-        await this.tournamentRepository.update({ id: tournament.id }, { playerOrder: newOrder });
-        const entry = await this.tournamentEntryRepository.findOne({
-          where: { tournament: { id: tournament.id }, user: { id: userId } },
-        });
-        if (entry) await this.tournamentEntryRepository.remove(entry);
+        tournament = waitingTournament;
+        await this.ensureTournamentPlayerWithManager(manager, tournament.id, user.id);
+        const newOrder = [...(tournament.playerOrder ?? []), user.id];
+        tournament.playerOrder = newOrder;
+        await tournamentRepository.save(tournament);
+        playerSlot = newOrder.length - 1;
+        isCreator = false;
+        await tournamentEntryRepository.save(
+          tournamentEntryRepository.create({ tournament, user, joinedAt }),
+        );
+        await this.syncSemiPairStartOnJoinWithManager(manager, tournament.id, newOrder, playerSlot, joinedAt);
       } else {
-        await this.tournamentRepository.remove(tournament);
+        tournament = tournamentRepository.create({
+          status: TournamentStatus.WAITING,
+          players: [user],
+          gameType: 'money',
+          leagueAmount,
+          playerOrder: [user.id],
+        });
+        await tournamentRepository.save(tournament);
+        playerSlot = 0;
+        isCreator = true;
+        const { semi1, semi2 } = await this.pickQuestionsForSemi();
+        for (const q of semi1) {
+          const row = questionRepository.create({ ...q, tournament, roundIndex: 0 });
+          await questionRepository.save(row);
+        }
+        for (const q of semi2) {
+          const row = questionRepository.create({ ...q, tournament, roundIndex: 1 });
+          await questionRepository.save(row);
+        }
+        await tournamentEntryRepository.save(
+          tournamentEntryRepository.create({ tournament, user, joinedAt }),
+        );
       }
-      throw e;
-    }
 
-    await this.tournamentEscrowRepository.save(
-      this.tournamentEscrowRepository.create({
+      user.balance = Number(user.balance ?? 0) - leagueAmount;
+      await manager.save(user);
+      await transactionRepository.save(transactionRepository.create({
         userId,
+        amount: -leagueAmount,
+        description: `${getLeagueName(leagueAmount)}, ID ${tournament.id}`,
+        category: 'loss',
         tournamentId: tournament.id,
-        amount: leagueAmount,
-        status: 'held',
-      }),
-    );
+      }));
 
-    const semiIndex = playerSlot < 2 ? 0 : 1;
-    const positionInSemi = playerSlot % 2;
+      await tournamentEscrowRepository.save(
+        tournamentEscrowRepository.create({
+          userId,
+          tournamentId: tournament.id,
+          amount: leagueAmount,
+          status: 'held',
+        }),
+      );
 
-    return {
-      tournamentId: tournament.id,
-      playerSlot,
-      totalPlayers: (tournament.playerOrder ?? []).length || tournament.players?.length || 0,
-      semiIndex,
-      positionInSemi,
-      isCreator,
-      gameStartedAt: joinedAt.toISOString(),
-      deadline: null,
-    };
+      const semiIndex = playerSlot < 2 ? 0 : 1;
+      const positionInSemi = playerSlot % 2;
+
+      return {
+        tournamentId: tournament.id,
+        playerSlot,
+        totalPlayers: (tournament.playerOrder ?? []).length || tournament.players?.length || 0,
+        semiIndex,
+        positionInSemi,
+        isCreator,
+        gameStartedAt: joinedAt.toISOString(),
+        deadline: null,
+      };
+    });
   }
 
   /** DTO элемента списка активных/завершённых турниров. */
@@ -3713,10 +3685,9 @@ export class TournamentsService implements OnModuleInit {
   }
 
   /** Добавить пару (tournamentId, userId) в join-таблицу без перезаписи связи. Использовать вместо players.push + save(tournament). */
-  private async ensureTournamentPlayer(tournamentId: number, userId: number): Promise<void> {
-    const dataSource = this.tournamentRepository.manager.connection;
+  private async ensureTournamentPlayerWithManager(manager: EntityManager, tournamentId: number, userId: number): Promise<void> {
     try {
-      await dataSource.query(
+      await manager.query(
         `INSERT INTO tournament_players_user ("tournamentId", "userId")
          SELECT $1, $2 WHERE NOT EXISTS (
            SELECT 1 FROM tournament_players_user WHERE "tournamentId" = $1 AND "userId" = $2
@@ -3726,6 +3697,10 @@ export class TournamentsService implements OnModuleInit {
     } catch (e) {
       this.logger.warn('[ensureTournamentPlayer]', (e as Error)?.message);
     }
+  }
+
+  private async ensureTournamentPlayer(tournamentId: number, userId: number): Promise<void> {
+    await this.ensureTournamentPlayerWithManager(this.tournamentRepository.manager, tournamentId, userId);
   }
 
   /** Для админки: все участия в турнирах по всем игрокам — все поля как у игрока + userId, userNickname, phase, tournament. */
@@ -3740,7 +3715,6 @@ export class TournamentsService implements OnModuleInit {
       tournament: { id: number; name: string; type: string | null; status: string };
     }[]
   > {
-    await this.backfillTournamentPlayersFromEntry();
     const progressList = await this.tournamentProgressRepository.find({
       select: ['userId', 'tournamentId'],
     });
