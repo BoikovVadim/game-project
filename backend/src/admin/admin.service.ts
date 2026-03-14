@@ -94,16 +94,29 @@ export class AdminService {
   async getWithdrawalRequests(status?: 'pending' | 'approved' | 'rejected'): Promise<(WithdrawalRequest & { processedByAdminUsername?: string | null; processedByAdminEmail?: string | null })[]> {
     const statusCond = status ? ' WHERE w.status = $1' : '';
     const params = status ? [status] : [];
-    const tryQuery = async (adminIdCol: string) => {
+    const tryQuery = async (columns: {
+      userIdCol: 'userId' | 'user_id';
+      adminIdCol: 'processedByAdminId' | 'processed_by_admin_id';
+      createdAtCol: 'createdAt' | 'created_at';
+      processedAtCol: 'processedAt' | 'processed_at';
+    }) => {
       const sql = `
-        SELECT w.id, w.userId, w.amount, w.details, w.status, w.createdAt, w.processedAt, w.${adminIdCol} AS processedByAdminId,
+        SELECT
+          w.id,
+          w."${columns.userIdCol}" AS "userId",
+          w.amount,
+          w.details,
+          w.status,
+          w."${columns.createdAtCol}" AS "createdAt",
+          w."${columns.processedAtCol}" AS "processedAt",
+          w."${columns.adminIdCol}" AS "processedByAdminId",
           u.username AS user_username, u.email AS user_email,
           a.username AS processedByAdminUsername, a.email AS processedByAdminEmail
         FROM withdrawal_request w
-        LEFT JOIN "user" u ON u.id = w.userId
-        LEFT JOIN "user" a ON a.id = w.${adminIdCol}
+        LEFT JOIN "user" u ON u.id = w."${columns.userIdCol}"
+        LEFT JOIN "user" a ON a.id = w."${columns.adminIdCol}"
         ${statusCond}
-        ORDER BY w.createdAt DESC
+        ORDER BY w."${columns.createdAtCol}" DESC
       `;
       return this.dataSource.query(sql, params) as Promise<{
         id: number; userId: number; amount: number; details: string | null; status: string; createdAt: string; processedAt: string | null;
@@ -115,10 +128,26 @@ export class AdminService {
     try {
       let rows: Awaited<ReturnType<typeof tryQuery>>;
       try {
-        rows = await tryQuery('processedByAdminId');
+        rows = await tryQuery({
+          userIdCol: 'userId',
+          adminIdCol: 'processedByAdminId',
+          createdAtCol: 'createdAt',
+          processedAtCol: 'processedAt',
+        });
       } catch (e1: any) {
-        if (e1?.message?.includes('no such column') || e1?.message?.includes('processedByAdminId')) {
-          rows = await tryQuery('processed_by_admin_id');
+        if (
+          e1?.message?.includes('no such column')
+          || e1?.message?.includes('does not exist')
+          || e1?.message?.includes('processedByAdminId')
+          || e1?.message?.includes('userId')
+          || e1?.message?.includes('createdAt')
+        ) {
+          rows = await tryQuery({
+            userIdCol: 'user_id',
+            adminIdCol: 'processed_by_admin_id',
+            createdAtCol: 'created_at',
+            processedAtCol: 'processed_at',
+          });
         } else {
           throw e1;
         }
