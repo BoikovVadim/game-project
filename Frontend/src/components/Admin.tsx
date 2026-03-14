@@ -390,7 +390,8 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
   const [bracketBlocksEqualized, setBracketBlocksEqualized] = useState(false);
   const bracketLoadedTournamentIdRef = React.useRef<string | null>(null);
   const [questionsReviewTournamentId, setQuestionsReviewTournamentId] = useState<number | null>(null);
-  const [questionsReviewTabIdx, setQuestionsReviewTabIdx] = useState(0);
+  const [questionsReviewRound, setQuestionsReviewRound] = useState<'semi' | 'final'>('semi');
+  const [questionsReviewTabIdx, setQuestionsReviewTabIdx] = useState(-1);
   const [questionsReviewData, setQuestionsReviewData] = useState<{
     questionsSemi1: { id: number; question: string; options: string[]; correctAnswer: number }[];
     questionsSemi2: { id: number; question: string; options: string[]; correctAnswer: number }[];
@@ -949,6 +950,8 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
   }, [searchParams, token, headers, bracketView, bracketError]);
 
   const openQuestionsReview = React.useCallback((tournamentId: number, roundForQuestions: 'semi' | 'final', userId: number) => {
+    setQuestionsReviewRound(roundForQuestions);
+    setQuestionsReviewTabIdx(-1);
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       next.set('questionsModal', String(tournamentId));
@@ -978,6 +981,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
     const rawId = searchParams.get('questionsModal');
     const id = rawId && /^\d+$/.test(rawId) ? Number(rawId) : null;
     const round = searchParams.get('questionsRound') === 'final' ? 'final' : 'semi';
+    setQuestionsReviewRound(round);
     const rawUserId = searchParams.get('questionsUserId');
     const viewerUserId = rawUserId && /^\d+$/.test(rawUserId) ? Number(rawUserId) : null;
     if (!id || !token || !viewerUserId) {
@@ -995,7 +999,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
     }
     questionsLoadedTournamentRef.current = key;
     setQuestionsReviewTournamentId(id);
-    setQuestionsReviewTabIdx(0);
+    setQuestionsReviewTabIdx(-1);
     setQuestionsReviewData(null);
     setQuestionsReviewError('');
     setQuestionsReviewLoading(true);
@@ -2575,6 +2579,11 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
               const finalTBCorrects = questionsReviewData.finalTiebreakerRoundsCorrect ?? [];
               const semiTBSum = semiTBCorrects.reduce((a: number, b: number) => a + b, 0);
               const finalTBSum = finalTBCorrects.reduce((a: number, b: number) => a + b, 0);
+              const completedSemiTBCount = semiTBCorrects.length;
+              const hasFinalStarted = finalQuestions.length > 0 && n > 10 + completedSemiTBCount * 10;
+              const visibleSemiTBCount = hasFinalStarted
+                ? Math.min(semiTBAll.length, completedSemiTBCount)
+                : Math.min(semiTBAll.length, Math.max(completedSemiTBCount, Math.ceil(Math.max(0, n - 10) / 10)));
 
               type ReviewTab = { label: string; questions: typeof semiQuestions; startIdx: number; correctCount: number; oppRoundIdx: number };
               const tabs: ReviewTab[] = [];
@@ -2583,7 +2592,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
               tabs.push({ label: userSemiIdx === 0 ? 'Полуфинал 1' : 'Полуфинал 2', questions: semiQuestions, startIdx: 0, correctCount: semiCorrect, oppRoundIdx: oppIdx++ });
 
               let cursor = 10;
-              for (let r = 0; r < semiTBAll.length; r++) {
+              for (let r = 0; r < visibleSemiTBCount; r++) {
                 if (n <= cursor) break;
                 tabs.push({ label: semiTBAll.length === 1 ? 'Доп. раунд (ПФ)' : `Доп. раунд ${r + 1} (ПФ)`, questions: semiTBAll[r], startIdx: cursor, correctCount: semiTBCorrects[r] ?? 0, oppRoundIdx: oppIdx++ });
                 cursor += 10;
@@ -2593,15 +2602,25 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                 const finalBaseCorrect = Math.max(0, questionsReviewData.correctAnswersCount - semiCorrect - semiTBSum - finalTBSum);
                 tabs.push({ label: 'Финал', questions: finalQuestions, startIdx: cursor, correctCount: finalBaseCorrect, oppRoundIdx: oppIdx++ });
                 cursor += 10;
+                const visibleFinalTBCount = Math.min(
+                  finalTBAll.length,
+                  Math.max(finalTBCorrects.length, Math.ceil(Math.max(0, n - cursor) / 10)),
+                );
 
-                for (let r = 0; r < finalTBAll.length; r++) {
+                for (let r = 0; r < visibleFinalTBCount; r++) {
                   if (n <= cursor) break;
                   tabs.push({ label: finalTBAll.length === 1 ? 'Доп. раунд (Ф)' : `Доп. раунд ${r + 1} (Ф)`, questions: finalTBAll[r], startIdx: cursor, correctCount: finalTBCorrects[r] ?? 0, oppRoundIdx: oppIdx++ });
                   cursor += 10;
                 }
               }
 
-              const activeTab = tabs[questionsReviewTabIdx] ?? tabs[0];
+              const preferredTabIdx = questionsReviewRound === 'final'
+                ? Math.max(0, tabs.findIndex((tab) => tab.label === 'Финал' || tab.label.includes('(Ф)')))
+                : 0;
+              const resolvedTabIdx = questionsReviewTabIdx >= 0 && questionsReviewTabIdx < tabs.length
+                ? questionsReviewTabIdx
+                : preferredTabIdx;
+              const activeTab = tabs[resolvedTabIdx] ?? tabs[0];
               if (!activeTab) return null;
               const answeredInRound = Math.min(activeTab.questions.length, Math.max(0, n - activeTab.startIdx));
               const questionsToShow = activeTab.questions.slice(0, answeredInRound);
@@ -2619,7 +2638,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                   {tabs.length > 1 && (
                     <div className="questions-review-tabs">
                       {tabs.map((tab, ti) => (
-                        <button key={ti} type="button" className={`questions-review-tab ${ti === questionsReviewTabIdx ? 'active' : ''}`} onClick={() => setQuestionsReviewTabIdx(ti)}>{tab.label}</button>
+                        <button key={ti} type="button" className={`questions-review-tab ${ti === resolvedTabIdx ? 'active' : ''}`} onClick={() => setQuestionsReviewTabIdx(ti)}>{tab.label}</button>
                       ))}
                     </div>
                   )}
