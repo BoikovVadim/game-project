@@ -2991,6 +2991,7 @@ export class TournamentsService implements OnModuleInit {
       questionsAnswered: number; questionsTotal: number; correctAnswersInRound: number;
       completedAt?: string | null; roundFinished?: boolean; roundStartedAt?: string | null;
       userId: number; userNickname: string; phase: 'active' | 'history';
+      gameType?: 'training' | 'money' | null;
       tournament: { id: number; name: string; type: string | null; status: string };
     }[]
   > {
@@ -3013,6 +3014,7 @@ export class TournamentsService implements OnModuleInit {
       questionsAnswered: number; questionsTotal: number; correctAnswersInRound: number;
       completedAt?: string | null; roundFinished?: boolean; roundStartedAt?: string | null;
       userId: number; userNickname: string; phase: 'active' | 'history';
+      gameType?: 'training' | 'money' | null;
       tournament: { id: number; name: string; type: string | null; status: string };
     }[] = [];
     for (const userId of userIds) {
@@ -3045,6 +3047,7 @@ export class TournamentsService implements OnModuleInit {
             userId,
             userNickname: nickname,
             phase: 'active',
+            gameType: (item.tournament?.type as 'training' | 'money' | null | undefined) ?? null,
             tournament: item.tournament,
           });
         }
@@ -3071,6 +3074,7 @@ export class TournamentsService implements OnModuleInit {
             userId,
             userNickname: nickname,
             phase: 'history',
+            gameType: (item.tournament?.type as 'training' | 'money' | null | undefined) ?? null,
           });
         }
       } catch (e) {

@@ -129,6 +129,7 @@ type TournamentColumnKey =
   | 'createdAt'
   | 'playersCount'
   | 'leagueAmount'
+  | 'gameType'
   | 'resultLabel'
   | 'correctAnswersInRound'
   | 'completedAt';
@@ -147,6 +148,7 @@ const DEFAULT_TOURNAMENT_COLUMNS: TournamentColumnKey[] = [
   'createdAt',
   'playersCount',
   'leagueAmount',
+  'gameType',
   'resultLabel',
   'correctAnswersInRound',
   'completedAt',
@@ -166,6 +168,7 @@ const TOURNAMENT_COLUMN_LABELS: Record<TournamentColumnKey, string> = {
   createdAt: 'Создан',
   playersCount: 'Игроков',
   leagueAmount: 'Ставка лиги',
+  gameType: 'Режим',
   resultLabel: 'Статус',
   correctAnswersInRound: 'Верных в раунде',
   completedAt: 'Завершён',
@@ -178,8 +181,10 @@ const parseTournamentColumns = (raw: string | null): TournamentColumnKey[] => {
     .map((item) => item.trim())
     .filter((item): item is TournamentColumnKey => DEFAULT_TOURNAMENT_COLUMNS.includes(item as TournamentColumnKey));
   const unique = Array.from(new Set(parsed));
-  if (unique.length !== DEFAULT_TOURNAMENT_COLUMNS.length) return DEFAULT_TOURNAMENT_COLUMNS;
-  return unique;
+  return [
+    ...unique,
+    ...DEFAULT_TOURNAMENT_COLUMNS.filter((item) => !unique.includes(item)),
+  ];
 };
 
 const TOURNAMENT_COLS_STORAGE_KEY = 'adminTournamentCols';
@@ -344,6 +349,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
     questionsAnswered: number; questionsTotal: number; correctAnswersInRound: number;
     completedAt?: string | null; roundFinished?: boolean; roundStartedAt?: string | null;
     userId: number; userNickname: string; phase: 'active' | 'history';
+    gameType?: 'training' | 'money' | null;
   };
   type BracketPlayer = {
     id: number;
@@ -1104,6 +1110,8 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
         return <td style={{ textAlign: 'center' }}>{row.playersCount}</td>;
       case 'leagueAmount':
         return <td style={{ textAlign: 'center' }}>{row.leagueAmount != null ? row.leagueAmount : '—'}</td>;
+      case 'gameType':
+        return <td style={{ textAlign: 'center' }}>{row.gameType === 'money' ? 'Противостояние' : row.gameType === 'training' ? 'Тренировка' : '—'}</td>;
       case 'resultLabel':
         return <td style={{ textAlign: 'center' }}>{row.resultLabel ?? '—'}</td>;
       case 'correctAnswersInRound':
