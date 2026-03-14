@@ -2747,7 +2747,10 @@ export class TournamentsService implements OnModuleInit {
         if (answered < QUESTIONS_PER_ROUND) return formatTimeoutDefeatLabel();
         const semiRes4 = getMoneySemiResult(t);
         if (semiRes4.result === 'lost') return formatScoreLabel('Поражение', getSemiScore(t));
-        if (semiRes4.result === 'won') return formatScoreLabel('Победа', getSemiScore(t));
+        // Старые турниры на 2 игроков показываем как выигранный полуфинал:
+        // итоговая "Победа" по этапу попадёт в историю отдельной записью,
+        // а сам турнир остаётся активным с ожиданием соперника по финалу.
+        if (semiRes4.result === 'won') return 'Ожидание соперника';
         return 'Ожидание соперника';
       }
 
