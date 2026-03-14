@@ -29,8 +29,8 @@ cd ..
 pm2 restart "$REMOTE_PM2_APP"
 sleep 8
 http_code=\$(curl -s -o /dev/null -w "%{http_code}" "$REMOTE_HEALTHCHECK_URL")
-printf "__DEPLOY_HTTP__%s\n" "$http_code"
-test "$http_code" = "200"'
+printf "__DEPLOY_HTTP__%s\n" "\$http_code"
+test "\$http_code" = "200"'
 EOF
 )
     ;;
@@ -45,8 +45,8 @@ cd ..
 pm2 restart "$REMOTE_PM2_APP"
 sleep 8
 http_code=\$(curl -s -o /dev/null -w "%{http_code}" "$REMOTE_HEALTHCHECK_URL")
-printf "__DEPLOY_HTTP__%s\n" "$http_code"
-test "$http_code" = "200"'
+printf "__DEPLOY_HTTP__%s\n" "\$http_code"
+test "\$http_code" = "200"'
 EOF
 )
     ;;
