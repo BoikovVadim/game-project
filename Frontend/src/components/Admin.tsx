@@ -345,78 +345,44 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
 
   // Восстановить вкладку и фильтр статуса из URL при загрузке/обновлении
   useEffect(() => {
-    const tab = searchParams.get('tab');
-    const status = searchParams.get('status');
-    const groupBy = searchParams.get('statsGroupBy');
-    if (tab === 'users') setSection('users');
-    else if (tab === 'credit') setSection('credit');
-    else if (tab === 'support') setSection('support');
-    else if (tab === 'statistics') setSection('statistics');
-    else if (tab === 'withdrawals') setSection('withdrawals');
-    else if (tab === 'news') setSection('news');
-    if (status === 'pending' || status === 'approved' || status === 'rejected' || status === '') {
-      setWithdrawalStatusFilter(status);
+    setSection(adminQueryState.section);
+    setWithdrawalStatusFilter(adminQueryState.withdrawalStatus);
+    if (
+      adminQueryState.statsGroupBy === 'day'
+      || adminQueryState.statsGroupBy === 'week'
+      || adminQueryState.statsGroupBy === 'month'
+      || adminQueryState.statsGroupBy === 'all'
+    ) {
+      setStatsGroupBy(adminQueryState.statsGroupBy);
     }
-    if (groupBy === 'day' || groupBy === 'week' || groupBy === 'month' || groupBy === 'all') {
-      setStatsGroupBy(groupBy);
-    }
-    const sTab = searchParams.get('statsTab');
-    if (sTab === 'transactions') setStatsSubTab('transactions');
-    else if (sTab === 'questions') setStatsSubTab('questions');
-    else if (sTab === 'tournaments') setStatsSubTab('tournaments');
-    else if (sTab === 'project-cost') setStatsSubTab('project-cost');
-    else if (sTab === 'overview' || !sTab) setStatsSubTab((prev) => sTab === 'overview' ? 'overview' : prev);
-    setUserSearch(searchParams.get('userSearch') ?? '');
-    setSupportStatusFilter(searchParams.get('supportStatus') ?? 'open');
-    const supportTicketRaw = searchParams.get('supportTicket');
-    const supportTicketId = supportTicketRaw ? parseInt(supportTicketRaw, 10) : NaN;
-    setSupportOpenTicketId(!Number.isNaN(supportTicketId) && supportTicketId > 0 ? supportTicketId : null);
-    const tid = searchParams.get('tournamentId');
-    if (tid !== null) setTournamentIdFilter(tid ?? '');
-    const txCategory = searchParams.get('txCategory');
-    setTxCategoryFilter(txCategory === 'topup' || txCategory === 'withdraw' || txCategory === 'win' || txCategory === 'other' ? txCategory : '');
-    const tournamentColsParam = searchParams.get('tournamentCols');
-    const resolvedTournamentColumns = resolveTournamentColumns(tournamentColsParam);
+    setStatsSubTab(adminQueryState.statsTab);
+    setUserSearch(adminQueryState.userSearch);
+    setSupportStatusFilter(adminQueryState.supportStatus);
+    setSupportOpenTicketId(adminQueryState.supportTicket);
+    setTournamentIdFilter(adminQueryState.tournamentId);
+    setTxCategoryFilter(adminQueryState.txCategory);
+    const resolvedTournamentColumns = resolveTournamentColumns(adminQueryState.tournamentCols);
     setTournamentColumns(resolvedTournamentColumns);
     if (typeof window !== 'undefined') {
       window.localStorage.setItem(TOURNAMENT_COLS_STORAGE_KEY, resolvedTournamentColumns.join(','));
     }
-    if (!tournamentColsParam) {
+    if (!adminQueryState.tournamentCols) {
       setSearchParams((prev) => {
         const next = new URLSearchParams(prev);
         next.set('tournamentCols', resolvedTournamentColumns.join(','));
         return next;
       }, { replace: true });
     }
-  }, [searchParams, setSearchParams]);
+  }, [adminQueryState, setSearchParams]);
 
   const setSectionAndUrl = (next: 'withdrawals' | 'users' | 'credit' | 'support' | 'statistics' | 'news') => {
     setSection(next);
-    setSearchParams((prev) => {
-      const nextParams = new URLSearchParams(prev);
-      if (next === 'users') {
-        nextParams.set('tab', 'users');
-        nextParams.delete('status');
-      } else if (next === 'credit') {
-        nextParams.set('tab', 'credit');
-        nextParams.delete('status');
-      } else if (next === 'support') {
-        nextParams.set('tab', 'support');
-        nextParams.delete('status');
-      } else if (next === 'statistics') {
-        nextParams.set('tab', 'statistics');
-        nextParams.set('statsGroupBy', statsGroupBy);
-        nextParams.set('statsTab', statsSubTab);
-        nextParams.delete('status');
-      } else if (next === 'news') {
-        nextParams.set('tab', 'news');
-        nextParams.delete('status');
-      } else {
-        nextParams.delete('tab');
-        nextParams.set('status', withdrawalStatusFilter);
-      }
-      return nextParams;
-    }, { replace: true });
+    patchQuery({
+      tab: next === 'withdrawals' ? null : next,
+      status: next === 'withdrawals' ? withdrawalStatusFilter : null,
+      statsGroupBy: next === 'statistics' ? statsGroupBy : null,
+      statsTab: next === 'statistics' ? statsSubTab : null,
+    });
   };
 
   useEffect(() => {
@@ -672,6 +638,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
       const r = await axios.get(`/support/admin/tickets/${ticketId}/messages`, { headers });
       if (supportMessagesRequestIdRef.current !== requestId) return;
       setSupportMessages(Array.isArray(r.data) ? r.data : []);
+      await axios.post(`/support/admin/tickets/${ticketId}/read`, {}, { headers });
       fetchSupportTickets();
       fetchSupportUnread();
     } catch {}
@@ -693,6 +660,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
       const r = await axios.get(`/support/admin/tickets/${supportOpenTicketId}/messages`, { headers });
       if (supportMessagesRequestIdRef.current !== requestId) return;
       setSupportMessages(Array.isArray(r.data) ? r.data : []);
+      await axios.post(`/support/admin/tickets/${supportOpenTicketId}/read`, {}, { headers });
       fetchSupportTickets();
     } catch {}
     setSupportSending(false);
@@ -1731,11 +1699,11 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
       {section === 'statistics' && (
         <section className="admin-section">
           <div className="admin-stats-subtabs">
-            <button type="button" className={`admin-stats-subtab${statsSubTab === 'overview' ? ' active' : ''}`} onClick={() => { setStatsSubTab('overview'); setSearchParams((p) => { const n = new URLSearchParams(p); n.set('statsTab', 'overview'); return n; }, { replace: true }); }}>Обзор</button>
-            <button type="button" className={`admin-stats-subtab${statsSubTab === 'transactions' ? ' active' : ''}`} onClick={() => { setStatsSubTab('transactions'); setSearchParams((p) => { const n = new URLSearchParams(p); n.set('statsTab', 'transactions'); return n; }, { replace: true }); }}>Транзакции</button>
-            <button type="button" className={`admin-stats-subtab${statsSubTab === 'questions' ? ' active' : ''}`} onClick={() => { setStatsSubTab('questions'); setSearchParams((p) => { const n = new URLSearchParams(p); n.set('statsTab', 'questions'); return n; }, { replace: true }); }}>Вопросы</button>
-            <button type="button" className={`admin-stats-subtab${statsSubTab === 'tournaments' ? ' active' : ''}`} onClick={() => { setStatsSubTab('tournaments'); setSearchParams((p) => { const n = new URLSearchParams(p); n.set('statsTab', 'tournaments'); return n; }, { replace: true }); }}>Турниры</button>
-            <button type="button" className={`admin-stats-subtab${statsSubTab === 'project-cost' ? ' active' : ''}`} onClick={() => { setStatsSubTab('project-cost'); setSearchParams((p) => { const n = new URLSearchParams(p); n.set('statsTab', 'project-cost'); return n; }, { replace: true }); }}>Стоимость проекта</button>
+            <button type="button" className={`admin-stats-subtab${statsSubTab === 'overview' ? ' active' : ''}`} onClick={() => { setStatsSubTab('overview'); patchQuery({ statsTab: 'overview' }); }}>Обзор</button>
+            <button type="button" className={`admin-stats-subtab${statsSubTab === 'transactions' ? ' active' : ''}`} onClick={() => { setStatsSubTab('transactions'); patchQuery({ statsTab: 'transactions' }); }}>Транзакции</button>
+            <button type="button" className={`admin-stats-subtab${statsSubTab === 'questions' ? ' active' : ''}`} onClick={() => { setStatsSubTab('questions'); patchQuery({ statsTab: 'questions' }); }}>Вопросы</button>
+            <button type="button" className={`admin-stats-subtab${statsSubTab === 'tournaments' ? ' active' : ''}`} onClick={() => { setStatsSubTab('tournaments'); patchQuery({ statsTab: 'tournaments' }); }}>Турниры</button>
+            <button type="button" className={`admin-stats-subtab${statsSubTab === 'project-cost' ? ' active' : ''}`} onClick={() => { setStatsSubTab('project-cost'); patchQuery({ statsTab: 'project-cost' }); }}>Стоимость проекта</button>
           </div>
           {statsSubTab === 'overview' && (() => {
             const totals = statsData.reduce((acc, d) => ({

@@ -78,13 +78,15 @@ export default function SupportChat({ token }: { token: string }) {
       .then((r) => {
         if (messagesRequestIdRef.current !== requestId) return;
         setMessages(Array.isArray(r.data) ? r.data : []);
+        void axios.post(`/support/tickets/${openTicketId}/read`, {}, { headers }).catch(() => {});
+        fetchTickets();
       })
       .catch(() => {})
       .finally(() => {
         if (messagesRequestIdRef.current !== requestId) return;
         setMessagesLoading(false);
       });
-  }, [headers, openTicketId]);
+  }, [headers, openTicketId, fetchTickets]);
 
   useEffect(() => {
     if (openTicketId) {

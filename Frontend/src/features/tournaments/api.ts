@@ -20,6 +20,5 @@ export async function fetchTournamentBracket(token: string, tournamentId: number
 }
 
 export async function fetchTournamentQuestions(token: string, tournamentId: number, userId?: number): Promise<QuestionsReviewData> {
-  await prepareTrainingState(token, tournamentId, userId);
   return fetchTrainingState(token, tournamentId, userId);
 }

@@ -279,26 +279,7 @@ export class AdminService {
     const admin = await this.userRepository.findOne({ where: { id: adminId }, select: ['id', 'isAdmin', 'username'] });
     if (!admin?.isAdmin) throw new ForbiddenException('Требуются права администратора');
     if (!amount || amount <= 0) throw new BadRequestException('Сумма должна быть больше 0');
-    return this.dataSource.transaction(async (manager) => {
-      const target = await manager
-        .createQueryBuilder(User, 'user')
-        .setLock('pessimistic_write')
-        .where('user.id = :targetUserId', { targetUserId })
-        .getOne();
-      if (!target) throw new NotFoundException('Пользователь не найден');
-
-      target.balanceRubles = Number(target.balanceRubles ?? 0) + amount;
-      await manager.save(target);
-      await this.usersService.addTransactionWithManager(
-        manager,
-        targetUserId,
-        amount,
-        'Пополнение баланса',
-        'admin_credit',
-        adminId,
-      );
-      return { success: true as const, newBalanceRubles: target.balanceRubles };
-    });
+    return this.usersService.addManualAdminTopup(adminId, targetUserId, amount, comment);
   }
 
   /** История ручных начислений */
@@ -310,7 +291,8 @@ export class AdminService {
          FROM "transaction" t
          LEFT JOIN "user" u ON u.id = t.userId
          LEFT JOIN "user" a ON a.id = t.tournamentId
-         WHERE t.category = 'admin_credit' OR (t.category = 'topup' AND t.tournamentId IS NOT NULL)
+         WHERE t.category = 'admin_credit'
+            OR (t.category = 'topup' AND t.description LIKE 'Пополнение баланса администратором (ID %')
          ORDER BY t.createdAt DESC
          LIMIT 500`,
       );
@@ -331,17 +313,13 @@ export class AdminService {
         for (const a of admins || []) adminMap[Number(a.id)] = { username: String(a.username ?? ''), email: String(a.email ?? '') };
       }
       return (rows || []).map((r: any) => {
-        let adminName = String(r.adminUsername ?? '');
-        let adminMail = String(r.adminEmail ?? '');
-        if (!adminName && r.description) {
-          const m = String(r.description).match(/от админа (.+?) \(ID (\d+)\)/);
-          if (m) {
-            const aid = Number(m[2]);
-            const cached = adminMap[aid];
-            adminName = cached?.username || m[1];
-            adminMail = cached?.email || '';
-          }
-        }
+        const parsedTopup = UsersService.parseAdminTopupDescription(r.description);
+        const parsedAdminId = parsedTopup.adminId;
+        const fallbackAdminId = Number(r.adminId ?? 0) || null;
+        const adminId = parsedAdminId ?? fallbackAdminId;
+        const cached = adminId ? adminMap[adminId] : undefined;
+        const adminName = String(r.adminUsername ?? cached?.username ?? '');
+        const adminMail = String(r.adminEmail ?? cached?.email ?? '');
         return {
           id: Number(r.id),
           userId: Number(r.userId),

@@ -16,10 +16,22 @@ describe('AppController (e2e)', () => {
     await app.init();
   });
 
+  it('/api/health (GET)', () => {
+    return request(app.getHttpServer())
+      .get('/api/health')
+      .expect(200)
+      .expect((response) => {
+        expect(response.body.ok).toBe(true);
+        expect(typeof response.body.timestamp).toBe('string');
+      });
+  });
+
   it('/ (GET)', () => {
     return request(app.getHttpServer())
       .get('/')
       .expect(200)
-      .expect('Hello World!');
+      .expect((response) => {
+        expect(response.text).toContain('<!DOCTYPE html>');
+      });
   });
 });

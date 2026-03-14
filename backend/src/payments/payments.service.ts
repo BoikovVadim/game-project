@@ -4,8 +4,20 @@ import { DataSource, Repository } from 'typeorm';
 import { Payment } from './payment.entity';
 import { YooKassaService } from './yookassa.service';
 import { RobokassaService } from './robokassa.service';
-import { Transaction } from '../users/transaction.entity';
-import { User } from '../users/user.entity';
+import { UsersService } from '../users/users.service';
+
+export type YooKassaWebhookResult = {
+  success: boolean;
+  retryable: boolean;
+  code:
+    | 'ignored'
+    | 'processed'
+    | 'already_processed'
+    | 'payment_not_found'
+    | 'invalid_amount'
+    | 'external_mismatch'
+    | 'fetch_failed';
+};
 
 @Injectable()
 export class PaymentsService {
@@ -15,6 +27,7 @@ export class PaymentsService {
     private readonly yookassa: YooKassaService,
     private readonly robokassa: RobokassaService,
     private readonly dataSource: DataSource,
+    private readonly usersService: UsersService,
   ) {}
 
   private async finalizeTopupPayment(
@@ -33,24 +46,12 @@ export class PaymentsService {
         .getOne();
       if (!payment) return false;
 
-      const user = await manager.findOne(User, { where: { id: payment.userId } });
-      if (!user) {
-        throw new BadRequestException('User not found for payment');
-      }
-
       const amount = Number(payment.amount);
-      user.balanceRubles = Number(user.balanceRubles ?? 0) + amount;
       payment.status = 'succeeded';
       payment.externalId = externalId || payment.externalId;
 
-      await manager.save(user);
+      await this.usersService.creditRublesWithManager(manager, payment.userId, amount, description);
       await manager.save(payment);
-      await manager.save(manager.create(Transaction, {
-        userId: payment.userId,
-        amount,
-        description,
-        category: 'topup',
-      }));
 
       return true;
     });
@@ -109,25 +110,42 @@ export class PaymentsService {
   }
 
   /** Обработка успешного уведомления от ЮKassa (webhook). Идемпотентно через DB-транзакцию. */
-  async handleYooKassaNotification(payload: { object?: { id?: string; status?: string; metadata?: { orderId?: string }; amount?: { value?: string } } }): Promise<void> {
+  async handleYooKassaNotification(payload: { object?: { id?: string; status?: string; metadata?: { orderId?: string }; amount?: { value?: string } } }): Promise<YooKassaWebhookResult> {
     const obj = payload?.object;
-    if (!obj?.id) return;
+    if (!obj?.id) return { success: true, retryable: false, code: 'ignored' };
 
-    const remotePayment = await this.yookassa.getPayment(obj.id);
-    if (!remotePayment || remotePayment.status !== 'succeeded' || remotePayment.paid !== true) return;
+    let remotePayment: Awaited<ReturnType<YooKassaService['getPayment']>>;
+    try {
+      remotePayment = await this.yookassa.getPayment(obj.id);
+    } catch {
+      return { success: false, retryable: true, code: 'fetch_failed' };
+    }
+    if (!remotePayment) return { success: false, retryable: true, code: 'fetch_failed' };
+    if (remotePayment.status !== 'succeeded' || remotePayment.paid !== true) {
+      return { success: true, retryable: false, code: 'ignored' };
+    }
 
     const orderId = remotePayment.metadata?.orderId;
-    if (!orderId || !orderId.startsWith('pay-')) return;
+    if (!orderId || !orderId.startsWith('pay-')) return { success: true, retryable: false, code: 'ignored' };
     const paymentId = parseInt(orderId.replace('pay-', ''), 10);
-    if (Number.isNaN(paymentId)) return;
+    if (Number.isNaN(paymentId)) return { success: true, retryable: false, code: 'ignored' };
 
     const payment = await this.paymentRepository.findOne({ where: { id: paymentId, provider: 'yookassa' } });
-    if (!payment || payment.externalId !== obj.id) return;
+    if (!payment) return { success: true, retryable: false, code: 'payment_not_found' };
+    if (payment.status === 'succeeded') return { success: true, retryable: false, code: 'already_processed' };
+    if (payment.externalId !== obj.id) return { success: true, retryable: false, code: 'external_mismatch' };
 
     const remoteAmount = Number(remotePayment.amount?.value ?? 0);
-    if (!remoteAmount || Number(payment.amount) !== remoteAmount) return;
+    if (!remoteAmount || Number(payment.amount) !== remoteAmount) {
+      return { success: true, retryable: false, code: 'invalid_amount' };
+    }
 
-    await this.finalizeTopupPayment(paymentId, 'yookassa', obj.id, 'Пополнение через ЮKassa');
+    const finalized = await this.finalizeTopupPayment(paymentId, 'yookassa', obj.id, 'Пополнение через ЮKassa');
+    return {
+      success: true,
+      retryable: false,
+      code: finalized ? 'processed' : 'already_processed',
+    };
   }
 
   /** Обработка Result URL от Robokassa. Идемпотентно через DB-транзакцию. */

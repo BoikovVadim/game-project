@@ -16,6 +16,7 @@
     "check-user": "ts-node -r tsconfig-paths/register src/scripts/check-user.ts",
     "audit:auth-payments": "ts-node src/scripts/audit-auth-payments.ts",
     "fix:auth-payments-data": "ts-node src/scripts/audit-auth-payments.ts --fix",
+    "fix:admin-credit-ledger": "ts-node src/scripts/normalize-admin-credit-ledger.ts",
     "seed:questions": "node dist/scripts/seed-questions.js",
     "backfill:tournament-resolutions": "ts-node -r tsconfig-paths/register src/scripts/backfill-tournament-round-resolutions.ts"
   },

@@ -92,35 +92,8 @@ function getLeaguePrize(stake: number): number {
   return Math.round(3.4 * stake);
 }
 
-function isVictoryResultLabel(label?: string | null): boolean {
-  return typeof label === 'string' && label.startsWith('Победа');
-}
-
-function isDefeatResultLabel(label?: string | null): boolean {
-  return typeof label === 'string' && label.startsWith('Поражение');
-}
-
-function isTimeoutResultLabel(label?: string | null): boolean {
-  return typeof label === 'string' && label.toLowerCase().includes('время истекло');
-}
-
-function isWaitingResultLabel(label?: string | null): boolean {
-  return label === 'Ожидание соперника';
-}
-
-function getResultLabelTone(label?: string | null): string {
-  if (isVictoryResultLabel(label)) return 'victory';
-  if (isTimeoutResultLabel(label)) return 'time-expired';
-  if (isDefeatResultLabel(label)) return 'defeat';
-  if (label === 'Финал') return 'final-ready';
-  if (label === 'Доп. раунд') return 'tiebreaker';
-  if (isWaitingResultLabel(label)) return 'stage-passed';
-  return 'stage-not-passed';
-}
-
-function getTournamentResultTone(item?: Pick<TournamentListItem, 'resultTone' | 'resultLabel'> | null): string {
-  if (!item) return 'stage-not-passed';
-  return item.resultTone ?? getResultLabelTone(item.resultLabel);
+function getTournamentResultTone(item?: Pick<TournamentListItem, 'resultTone'> | null): string {
+  return item?.resultTone ?? 'stage-not-passed';
 }
 
 const GemIcon = ({ amount, className }: { amount: number; className?: string }) => {
@@ -378,9 +351,6 @@ const PartnerDetailTreeSection = React.memo(({
   </div>
 ));
 
-const SECTION_STORAGE_KEY = 'cabinetSection';
-const GAME_MODE_STORAGE_KEY = 'cabinetGameMode';
-const STATS_MODE_STORAGE_KEY = 'cabinetStatsMode';
 const SELECTED_LEAGUE_STORAGE_KEY = 'cabinetSelectedLeague';
 const VALID_SECTIONS = ['profile', 'statistics', 'games', 'finance', 'finance-topup', 'finance-withdraw', 'partner', 'partner-statistics', 'news'] as const;
 
@@ -429,14 +399,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     if (forceSection) return forceSection;
     return routeSection as CabinetSection;
   });
-  const [gameMode, setGameModeState] = useState<GameMode>(() => {
-    if (routeGameMode) return routeGameMode;
-    try {
-      const stored = typeof window !== 'undefined' ? localStorage.getItem(GAME_MODE_STORAGE_KEY) : null;
-      if (stored === 'training' || stored === 'money') return stored as GameMode;
-    } catch (_e) {}
-    return null;
-  });
+  const [gameMode, setGameModeState] = useState<GameMode>(() => routeGameMode);
 
   const sectionFromUrl = (() => {
     const fromSearch = getSectionFromSearchParams(searchParams);
@@ -503,7 +466,6 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     } else {
       newHash = s;
     }
-    localStorage.setItem(SECTION_STORAGE_KEY, sectionToSet);
     navigate(newHash ? `/profile?section=${encodeURIComponent(newHash)}` : '/profile', { replace: true });
     setSection(sectionToSet);
   };
@@ -512,12 +474,9 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     if (mode === 'training' || mode === 'money') {
       const newSection = `games-${mode}` as CabinetSection;
       setSection(newSection);
-      localStorage.setItem(GAME_MODE_STORAGE_KEY, mode);
-      localStorage.setItem(SECTION_STORAGE_KEY, newSection);
       navigate(`/profile?section=${encodeURIComponent(newSection)}`, { replace: true });
     } else {
       setSection('games');
-      localStorage.removeItem(GAME_MODE_STORAGE_KEY);
       if (section === 'games-training' || section === 'games-money') {
         navigate('/profile?section=games', { replace: true });
       }
@@ -1117,10 +1076,7 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
     if (mode === 'money') setGameHistoryMoney(null);
     const params = new URLSearchParams({ mode });
     if (currentTournamentId) params.set('currentTournamentId', String(currentTournamentId));
-    axios.get<{
-      active: { id: number; status: string; createdAt: string; playersCount: number; deadline?: string; userStatus?: 'passed' | 'not_passed'; stage?: string; resultLabel?: string; roundForQuestions?: 'semi' | 'final'; roundFinished?: boolean; roundStartedAt?: string | null }[];
-      completed: { id: number; status: string; createdAt: string; playersCount: number; userStatus?: 'passed' | 'not_passed'; stage?: string; resultLabel?: string; roundForQuestions?: 'semi' | 'final'; roundStartedAt?: string | null }[];
-    }>(`/tournaments/my?${params}`, { headers: { Authorization: `Bearer ${token}` } })
+    axios.get<TournamentHistoryResponse>(`/tournaments/my?${params}`, { headers: { Authorization: `Bearer ${token}` } })
       .then((res) => setData(res.data))
       .catch(() => setData({ active: [], completed: [] }));
   }, [token]);
@@ -2415,10 +2371,8 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
             saveTrainingProgress();
             clearTrainingState();
             setGameModeState(null);
-            localStorage.removeItem(GAME_MODE_STORAGE_KEY);
             navigate('/profile?section=games', { replace: true });
             setSection('games');
-            localStorage.setItem(SECTION_STORAGE_KEY, 'games');
           }}
           disabled={isQuestionActive}
           aria-label="Игры"
@@ -2909,7 +2863,6 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                 className={`cabinet-statistics-tab ${statsMode === 'personal' ? 'cabinet-statistics-tab--active' : ''}`}
                 onClick={() => {
                   setStatsMode('personal');
-                  localStorage.removeItem(STATS_MODE_STORAGE_KEY);
                   setSearchParams((prev) => {
                     const next = new URLSearchParams(prev);
                     next.delete('statsMode');
@@ -2924,7 +2877,6 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
                 className={`cabinet-statistics-tab ${statsMode === 'general' ? 'cabinet-statistics-tab--active' : ''}`}
                 onClick={() => {
                   setStatsMode('general');
-                  localStorage.setItem(STATS_MODE_STORAGE_KEY, 'general');
                   setSearchParams((prev) => {
                     const next = new URLSearchParams(prev);
                     next.set('statsMode', 'general');
@@ -3913,7 +3865,6 @@ const Profile: React.FC<ProfileProps> = ({ token, onLogout, forceSection: forceS
             const h = sub === 'main' ? 'finance' : sub === 'topup' ? 'finance-topup' : 'finance-withdraw';
             const newSection: CabinetSection = sub === 'main' ? 'finance' : sub === 'topup' ? 'finance-topup' : 'finance-withdraw';
             navigate(`/profile?section=${encodeURIComponent(h)}`, { replace: true });
-            localStorage.setItem(SECTION_STORAGE_KEY, newSection);
             setSection(newSection);
             setHashVersion((v) => v + 1);
           };

@@ -3,6 +3,16 @@ import { UsersService } from './users.service';
 import { User } from './user.entity';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminGuard } from '../auth/admin.guard';
+import {
+  AddBalanceDto,
+  ConvertCurrencyDto,
+  MarkNewsReadDto,
+  UpdateAvatarDto,
+  UpdateBalanceDto,
+  UpdateNicknameDto,
+  UpdatePersonalDto,
+  WithdrawalRequestDto,
+} from './dto/users-write.dto';
 
 @Controller('users')
 export class UsersController {
@@ -34,26 +44,26 @@ export class UsersController {
 
   @UseGuards(JwtAuthGuard)
   @Post('me/read-news')
-  markNewsAsRead(@Body() body: { newsId: number }, @Request() req: any) {
+  markNewsAsRead(@Body() body: MarkNewsReadDto, @Request() req: any) {
     return this.usersService.markNewsAsRead(req.user.id, Number(body.newsId));
   }
 
   @UseGuards(JwtAuthGuard)
   @Post('profile/nickname')
-  updateNickname(@Body() body: { nickname: string | null }, @Request() req: any) {
+  updateNickname(@Body() body: UpdateNicknameDto, @Request() req: any) {
     return this.usersService.updateNickname(req.user.id, body.nickname ?? null);
   }
 
   @UseGuards(JwtAuthGuard)
   @Post('profile/avatar')
-  updateAvatar(@Body() body: { avatarUrl: string | null }, @Request() req: any) {
+  updateAvatar(@Body() body: UpdateAvatarDto, @Request() req: any) {
     return this.usersService.updateAvatar(req.user.id, body.avatarUrl ?? null);
   }
 
   @UseGuards(JwtAuthGuard)
   @Post('profile/personal')
   updatePersonal(
-    @Body() body: { gender?: string | null; birthDate?: string | null },
+    @Body() body: UpdatePersonalDto,
     @Request() req: any,
   ) {
     return this.usersService.updatePersonal(req.user.id, body.gender, body.birthDate);
@@ -207,27 +217,27 @@ export class UsersController {
 
   @UseGuards(JwtAuthGuard, AdminGuard)
   @Post('update-balance')
-  updateBalance(@Body() body: { userId: number; newBalance: number }, @Request() req: any) {
+  updateBalance(@Body() body: UpdateBalanceDto, @Request() req: any) {
     return this.usersService.updateBalance(body.userId, body.newBalance);
   }
 
   @UseGuards(JwtAuthGuard, AdminGuard)
   @Post('add-balance')
-  addBalance(@Body() body: { amount: number; userId?: number }, @Request() req: any) {
+  addBalance(@Body() body: AddBalanceDto, @Request() req: any) {
     const userId = body.userId ?? req.user.id;
     return this.usersService.addToBalance(userId, body.amount);
   }
 
   @UseGuards(JwtAuthGuard)
   @Post('convert-currency')
-  convertCurrency(@Body() body: { amount: number; direction: 'rubles_to_l' | 'l_to_rubles' }, @Request() req: any) {
+  convertCurrency(@Body() body: ConvertCurrencyDto, @Request() req: any) {
     return this.usersService.convertCurrency(req.user.id, Number(body.amount) || 0, body.direction);
   }
 
   @UseGuards(JwtAuthGuard)
   @Post('withdrawal-request')
   @HttpCode(HttpStatus.CREATED)
-  async createWithdrawalRequest(@Body() body: { amount: number; details?: string }, @Request() req: { user: { id: number } }) {
+  async createWithdrawalRequest(@Body() body: WithdrawalRequestDto, @Request() req: { user: { id: number } }) {
     const userId = req.user.id;
     const amount = Number(body.amount) || 0;
     const details = body.details?.trim() || '';

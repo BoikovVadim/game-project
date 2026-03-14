@@ -20,6 +20,8 @@ import {
 
 @Injectable()
 export class UsersService implements OnModuleInit {
+  private static readonly ADMIN_TOPUP_PREFIX = 'Пополнение баланса администратором';
+
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
@@ -89,13 +91,13 @@ export class UsersService implements OnModuleInit {
 
   /**
    * Итоговый рублёвый баланс: учитываются только транзакции, связанные с рублями (₽), не с L.
-   * Учитываются: topup (пополнение), withdraw (вывод), convert (₽↔L), refund только по рублям.
+   * Учитываются: topup (пополнение), legacy admin_credit, withdraw (вывод), convert (₽↔L), refund только по рублям.
    * Не учитываются: возврат по отклонённой заявке на вывод; любые refund, связанные с турнирами/L (взносы, возврат за турнир).
    */
   async getBalanceRublesFromTransactions(userId: number): Promise<number> {
     const rows = await this.dataSource.query(
       `SELECT category, amount, description, "tournamentId" FROM "transaction"
-       WHERE "userId" = $1 AND category IN ('topup','withdraw','refund','convert')`,
+       WHERE "userId" = $1 AND category IN ('topup','admin_credit','withdraw','refund','convert')`,
       [userId],
     ) as { category: string; amount: number; description: string | null; tournamentId: number | null }[];
     const list = Array.isArray(rows) ? rows : [];
@@ -474,6 +476,103 @@ export class UsersService implements OnModuleInit {
     return manager.save(transaction);
   }
 
+  static buildAdminTopupDescription(adminId: number, comment?: string | null): string {
+    const safeComment = String(comment ?? '').trim();
+    return safeComment
+      ? `${UsersService.ADMIN_TOPUP_PREFIX} (ID ${adminId}): ${safeComment}`
+      : `${UsersService.ADMIN_TOPUP_PREFIX} (ID ${adminId})`;
+  }
+
+  static parseAdminTopupDescription(description: string | null | undefined): { adminId: number | null; comment: string | null } {
+    const text = String(description ?? '').trim();
+    const match = text.match(/^Пополнение баланса администратором \(ID (\d+)\)(?::\s*(.*))?$/);
+    if (!match) return { adminId: null, comment: null };
+    const adminId = Number.parseInt(match[1] ?? '', 10);
+    const comment = (match[2] ?? '').trim();
+    return {
+      adminId: Number.isFinite(adminId) ? adminId : null,
+      comment: comment || null,
+    };
+  }
+
+  async creditRublesWithManager(
+    manager: EntityManager,
+    userId: number,
+    amount: number,
+    description: string,
+  ): Promise<User> {
+    if (amount <= 0) throw new BadRequestException('Сумма должна быть положительной');
+    const user = await manager
+      .createQueryBuilder(User, 'user')
+      .setLock('pessimistic_write')
+      .where('user.id = :userId', { userId })
+      .getOne();
+    if (!user) throw new NotFoundException('User not found');
+    user.balanceRubles = Number(user.balanceRubles ?? 0) + amount;
+    await manager.save(user);
+    await this.addTransactionWithManager(manager, userId, amount, description, 'topup');
+    return user;
+  }
+
+  async addManualAdminTopup(
+    adminId: number,
+    targetUserId: number,
+    amount: number,
+    comment?: string | null,
+  ): Promise<{ success: true; newBalanceRubles: number }> {
+    return this.dataSource.transaction(async (manager) => {
+      const user = await this.creditRublesWithManager(
+        manager,
+        targetUserId,
+        amount,
+        UsersService.buildAdminTopupDescription(adminId, comment),
+      );
+      return { success: true as const, newBalanceRubles: Number(user.balanceRubles ?? 0) };
+    });
+  }
+
+  async normalizeLegacyAdminCreditTransactions(): Promise<{ updatedCount: number; affectedUserIds: number[] }> {
+    const legacyRows = await this.dataSource.query(
+      `SELECT id, "userId", description, "tournamentId"
+       FROM "transaction"
+       WHERE category = 'admin_credit'
+       ORDER BY id ASC`,
+    ) as { id: number; userId: number; description: string | null; tournamentId: number | null }[];
+
+    if (legacyRows.length === 0) {
+      return { updatedCount: 0, affectedUserIds: [] };
+    }
+
+    const affectedUserIds = new Set<number>();
+    await this.dataSource.transaction(async (manager) => {
+      for (const row of legacyRows) {
+        const adminId = row.tournamentId != null ? Number(row.tournamentId) : null;
+        const parsed = UsersService.parseAdminTopupDescription(row.description);
+        const legacyComment = (row.description?.trim() || '') === 'Пополнение баланса'
+          ? null
+          : row.description ?? null;
+        const normalizedDescription = adminId && adminId > 0
+          ? UsersService.buildAdminTopupDescription(adminId, parsed.comment ?? legacyComment)
+          : (row.description?.trim() || 'Пополнение баланса');
+        await manager.query(
+          `UPDATE "transaction"
+           SET category = 'topup',
+               description = $1,
+               "tournamentId" = NULL
+           WHERE id = $2`,
+          [normalizedDescription, row.id],
+        );
+        affectedUserIds.add(Number(row.userId));
+      }
+    });
+
+    for (const userId of affectedUserIds) {
+      await this.reconcileBalanceRubles(userId);
+    }
+
+    return { updatedCount: legacyRows.length, affectedUserIds: Array.from(affectedUserIds) };
+  }
+
   /** Добавляет сумму на баланс L (для игр) и создаёт транзакцию. Атомарно через DB-транзакцию. */
   async addToBalanceL(userId: number, amount: number, description: string, category: 'win' | 'other' | 'referral' | 'refund' = 'win', tournamentId?: number): Promise<User> {
     if (amount <= 0) throw new BadRequestException('Сумма должна быть положительной');
@@ -491,15 +590,9 @@ export class UsersService implements OnModuleInit {
   /** Добавляет сумму на баланс в рублях (пополнение) и создаёт транзакцию. Атомарно через DB-транзакцию. */
   async addToBalance(userId: number, amount: number, description: string = 'Пополнение баланса'): Promise<User> {
     if (amount <= 0) throw new BadRequestException('Сумма должна быть положительной');
-    return this.dataSource.transaction(async (manager) => {
-      const user = await manager.findOne(User, { where: { id: userId } });
-      if (!user) throw new NotFoundException('User not found');
-      user.balanceRubles = Number(user.balanceRubles ?? 0) + amount;
-      await manager.save(user);
-      const tx = manager.create(Transaction, { userId, amount, description, category: 'topup' });
-      await manager.save(tx);
-      return user;
-    });
+    return this.dataSource.transaction((manager) =>
+      this.creditRublesWithManager(manager, userId, amount, description),
+    );
   }
 
   /** Конвертирует рубли в L или L в рубли. Атомарно через DB-транзакцию. */

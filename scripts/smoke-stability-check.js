@@ -13,7 +13,37 @@ function assertIncludes(contents, snippet, label) {
   }
 }
 
-function main() {
+async function fetchText(url) {
+  const response = await fetch(url);
+  const text = await response.text();
+  return { response, text };
+}
+
+async function runRuntimeSmoke(baseUrl) {
+  const trimmedBaseUrl = String(baseUrl || '').replace(/\/$/, '');
+  if (!trimmedBaseUrl) {
+    throw new Error('Runtime smoke requires SMOKE_RUNTIME_URL');
+  }
+
+  const health = await fetchText(`${trimmedBaseUrl}/api/health`);
+  if (!health.response.ok) {
+    throw new Error(`Runtime smoke failed: /api/health returned ${health.response.status}`);
+  }
+  const healthJson = JSON.parse(health.text);
+  if (!healthJson || healthJson.ok !== true) {
+    throw new Error('Runtime smoke failed: /api/health payload is invalid');
+  }
+
+  const root = await fetchText(`${trimmedBaseUrl}/`);
+  if (!root.response.ok) {
+    throw new Error(`Runtime smoke failed: / returned ${root.response.status}`);
+  }
+  if (!root.text.includes('<!DOCTYPE html>') && !root.text.includes('<html')) {
+    throw new Error('Runtime smoke failed: root route did not return HTML');
+  }
+}
+
+async function main() {
   const ecosystem = read('ecosystem.config.js');
   const nginx = read('deploy/nginx.conf');
   const mainTs = read('backend/src/main.ts');
@@ -46,11 +76,18 @@ function main() {
   assertIncludes(support, "const returnTo = searchParams.get('returnTo');", 'SupportChat reads returnTo param');
   assertIncludes(support, "navigate('/profile?section=news');", 'SupportChat falls back to news section');
 
+  if (process.env.SMOKE_RUNTIME_URL) {
+    await runRuntimeSmoke(process.env.SMOKE_RUNTIME_URL);
+  }
+
   console.log('smoke-stability-check: OK');
 }
 
 try {
-  main();
+  main().catch((error) => {
+    console.error(`smoke-stability-check: FAIL\n${error.message}`);
+    process.exit(1);
+  });
 } catch (error) {
   console.error(`smoke-stability-check: FAIL\n${error.message}`);
   process.exit(1);

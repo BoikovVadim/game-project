@@ -2,6 +2,7 @@ import { Controller, Get, Post, Body, Param, Query, UseGuards, Request, ParseInt
 import { AdminService } from './admin.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminGuard } from '../auth/admin.guard';
+import { CreditBalanceDto, ImpersonateDto, SetUserAdminDto, WithdrawalDecisionDto } from './dto/admin-write.dto';
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard, AdminGuard)
@@ -16,7 +17,7 @@ export class AdminController {
   @Post('withdrawal-requests/:id/approve')
   approveWithdrawal(
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: { comment?: string },
+    @Body() body: WithdrawalDecisionDto,
     @Request() req: { user: { id: number } },
   ) {
     return this.adminService.approveWithdrawal(id, req.user.id, body.comment);
@@ -25,7 +26,7 @@ export class AdminController {
   @Post('withdrawal-requests/:id/reject')
   rejectWithdrawal(
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: { comment?: string },
+    @Body() body: WithdrawalDecisionDto,
     @Request() req: { user: { id: number } },
   ) {
     return this.adminService.rejectWithdrawal(id, req.user.id, body.comment);
@@ -38,13 +39,13 @@ export class AdminController {
 
   /** Получить JWT для входа «под пользователем» */
   @Post('impersonate')
-  impersonate(@Body() body: { userId: number }, @Request() req: { user: { id: number } }) {
+  impersonate(@Body() body: ImpersonateDto, @Request() req: { user: { id: number } }) {
     return this.adminService.getImpersonationToken(req.user.id, body.userId);
   }
 
   @Post('credit-balance')
   creditBalance(
-    @Body() body: { userId: number; amount: number; comment?: string },
+    @Body() body: CreditBalanceDto,
     @Request() req: { user: { id: number } },
   ) {
     return this.adminService.creditBalance(req.user.id, body.userId, body.amount, body.comment);
@@ -83,7 +84,7 @@ export class AdminController {
   @Post('users/:id/set-admin')
   setUserAdmin(
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: { isAdmin: boolean },
+    @Body() body: SetUserAdminDto,
     @Request() req: { user: { id: number } },
   ) {
     return this.adminService.setUserAdmin(id, req.user.id, body.isAdmin === true);

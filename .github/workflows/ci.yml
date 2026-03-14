@@ -9,6 +9,20 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     steps:
       - name: Checkout
@@ -50,5 +64,26 @@ jobs:
         run: CI= npm run build
         working-directory: Frontend
 
-      - name: Smoke config stability
+      - name: Start backend for runtime smoke
+        working-directory: backend
+        env:
+          JWT_SECRET: ci-test-secret
+          DB_HOST: 127.0.0.1
+          DB_PORT: "5432"
+          DB_USER: ci
+          DB_PASS: ci
+          DB_NAME: ci
+          PORT: "3100"
+        run: node dist/main.js > /tmp/game-backend.log 2>&1 &
+
+      - name: Wait for backend health
+        run: npx wait-on http://127.0.0.1:3100/api/health
+
+      - name: Smoke config and runtime stability
+        env:
+          SMOKE_RUNTIME_URL: http://127.0.0.1:3100
         run: npm run smoke:stability
+
+      - name: Print backend log on failure
+        if: failure()
+        run: cat /tmp/game-backend.log

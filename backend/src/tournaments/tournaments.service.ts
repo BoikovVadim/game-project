@@ -198,6 +198,100 @@ export class TournamentsService implements OnModuleInit {
     return null;
   }
 
+  private normalizeProgressSnapshot(
+    progress: TournamentProgress | null | undefined,
+    applyCurrentIndexFixes = false,
+  ): {
+    q: number;
+    semiCorrect: number | null;
+    totalCorrect: number;
+    currentIndex: number;
+    tiebreakerRounds: number[];
+    finalTiebreakerRounds: number[];
+    roundStartedAt: Date | null;
+    leftAt: Date | null;
+    timeLeftSeconds: number | null;
+    answersChosen: number[];
+    lockedAnswerCount: number;
+  } {
+    if (!progress) {
+      return {
+        q: 0,
+        semiCorrect: null,
+        totalCorrect: 0,
+        currentIndex: 0,
+        tiebreakerRounds: [],
+        finalTiebreakerRounds: [],
+        roundStartedAt: null,
+        leftAt: null,
+        timeLeftSeconds: null,
+        answersChosen: [],
+        lockedAnswerCount: 0,
+      };
+    }
+
+    let adjustedQ = progress.questionsAnsweredCount ?? 0;
+    let adjustedSemiCorrect = progress.semiFinalCorrectCount ?? null;
+
+    if (applyCurrentIndexFixes) {
+      if (adjustedQ === QUESTIONS_PER_ROUND - 1 && progress.currentQuestionIndex === QUESTIONS_PER_ROUND - 1) {
+        adjustedQ = QUESTIONS_PER_ROUND;
+      } else if (
+        adjustedQ === 2 * QUESTIONS_PER_ROUND - 1
+        && progress.currentQuestionIndex === 2 * QUESTIONS_PER_ROUND - 1
+      ) {
+        adjustedQ = 2 * QUESTIONS_PER_ROUND;
+      } else if (progress.currentQuestionIndex >= QUESTIONS_PER_ROUND - 1 && adjustedQ < QUESTIONS_PER_ROUND) {
+        adjustedQ = QUESTIONS_PER_ROUND;
+      } else if (progress.currentQuestionIndex >= 2 * QUESTIONS_PER_ROUND - 1 && adjustedQ < 2 * QUESTIONS_PER_ROUND) {
+        adjustedQ = 2 * QUESTIONS_PER_ROUND;
+      }
+
+      if (progress.currentQuestionIndex > 0) {
+        adjustedQ = Math.max(adjustedQ, progress.currentQuestionIndex);
+      }
+
+      if (
+        progress.semiFinalCorrectCount != null
+        && adjustedQ < QUESTIONS_PER_ROUND
+        && (progress.questionsAnsweredCount ?? 0) >= QUESTIONS_PER_ROUND - 2
+      ) {
+        adjustedQ = Math.max(adjustedQ, QUESTIONS_PER_ROUND);
+      }
+    }
+
+    if (
+      adjustedSemiCorrect == null
+      && adjustedQ >= QUESTIONS_PER_ROUND
+      && progress.correctAnswersCount != null
+    ) {
+      adjustedSemiCorrect = Math.min(QUESTIONS_PER_ROUND, progress.correctAnswersCount);
+    }
+
+    if (
+      adjustedQ === QUESTIONS_PER_ROUND + 1
+      && (progress.currentQuestionIndex ?? 0) >= QUESTIONS_PER_ROUND
+      && adjustedSemiCorrect != null
+      && (progress.lockedAnswerCount ?? 0) <= QUESTIONS_PER_ROUND
+    ) {
+      adjustedQ = QUESTIONS_PER_ROUND;
+    }
+
+    return {
+      q: adjustedQ,
+      semiCorrect: adjustedSemiCorrect,
+      totalCorrect: progress.correctAnswersCount ?? 0,
+      currentIndex: progress.currentQuestionIndex ?? 0,
+      tiebreakerRounds: Array.isArray(progress.tiebreakerRoundsCorrect) ? progress.tiebreakerRoundsCorrect : [],
+      finalTiebreakerRounds: Array.isArray((progress as any).finalTiebreakerRoundsCorrect) ? (progress as any).finalTiebreakerRoundsCorrect : [],
+      roundStartedAt: progress.roundStartedAt ?? null,
+      leftAt: progress.leftAt ?? null,
+      timeLeftSeconds: progress.timeLeftSeconds ?? null,
+      answersChosen: this.normalizeAnswersChosen(progress.answersChosen),
+      lockedAnswerCount: progress.lockedAnswerCount ?? 0,
+    };
+  }
+
   private async upsertTimeoutResolution(params: {
     tournamentId: number;
     stage: TournamentResolutionStage;
@@ -3760,11 +3854,12 @@ export class TournamentsService implements OnModuleInit {
     if (tournament.status !== TournamentStatus.WAITING && tournament.status !== TournamentStatus.ACTIVE) {
       if (tournament.status === TournamentStatus.FINISHED) {
         const progressState = await this.tournamentProgressRepository.findOne({ where: { userId, tournamentId } });
+        const normalizedProgressState = this.normalizeProgressSnapshot(progressState, true);
         const wonSemi = progressState && await this.didUserWinSemiFinal(tournament, userId);
         const mySemiTotalState = progressState
-          ? 10 + (progressState.tiebreakerRoundsCorrect?.length ?? 0) * 10
+          ? 10 + normalizedProgressState.tiebreakerRounds.length * 10
           : 10;
-        if (wonSemi && (progressState?.questionsAnsweredCount ?? 0) < mySemiTotalState + 10) {
+        if (wonSemi && normalizedProgressState.q < mySemiTotalState + 10) {
           // Доступ к финалу сохранён — не бросаем.
         } else {
           throw new BadRequestException('Tournament is not active');
@@ -3781,6 +3876,7 @@ export class TournamentsService implements OnModuleInit {
     const isCreator = playerSlot === 0;
 
     const progress = await this.tournamentProgressRepository.findOne({ where: { userId, tournamentId } });
+    const normalizedProgress = this.normalizeProgressSnapshot(progress, true);
     const opponentSlot = playerSlot % 2 === 0 ? playerSlot + 1 : playerSlot - 1;
     const oppIdState = opponentSlot >= 0 && opponentSlot < order.length ? order[opponentSlot] : -1;
     const opponent = oppIdState > 0 ? (tournament.players?.find((p) => p.id === oppIdState) ?? null) : null;
@@ -3794,17 +3890,18 @@ export class TournamentsService implements OnModuleInit {
       const oppProgress = await this.tournamentProgressRepository.findOne({
         where: { userId: opponent.id, tournamentId },
       });
+      const normalizedOppProgress = this.normalizeProgressSnapshot(oppProgress, false);
       const sharedStart = this.getCurrentRoundSharedStart(tournament, userId, progress, allProgress, timeoutResolutionMap);
       deadline = sharedStart ? this.getRoundDeadline(sharedStart) : null;
-      const myQ = progress.questionsAnsweredCount ?? 0;
-      const oppQ = oppProgress?.questionsAnsweredCount ?? 0;
+      const myQ = normalizedProgress.q;
+      const oppQ = normalizedOppProgress.q;
       const semiState = this.getSemiHeadToHeadState(
         myQ,
-        progress.semiFinalCorrectCount,
-        progress.tiebreakerRoundsCorrect,
+        normalizedProgress.semiCorrect,
+        normalizedProgress.tiebreakerRounds,
         oppQ,
-        oppProgress?.semiFinalCorrectCount,
-        oppProgress?.tiebreakerRoundsCorrect,
+        normalizedOppProgress.semiCorrect,
+        normalizedOppProgress.tiebreakerRounds,
       );
 
       if (semiState.result === 'tie') {
@@ -3955,6 +4052,7 @@ export class TournamentsService implements OnModuleInit {
     const progress = await this.tournamentProgressRepository.findOne({
       where: { userId, tournamentId },
     });
+    const normalizedProgress = this.normalizeProgressSnapshot(progress, true);
     let allProgress = await this.tournamentProgressRepository.find({ where: { tournamentId } });
     const timeoutResolutionMap = await this.getTournamentTimeoutResolutionMap(tournamentId);
     let sharedStart = this.getCurrentRoundSharedStart(tournament, userId, progress, allProgress, timeoutResolutionMap);
@@ -3999,17 +4097,17 @@ export class TournamentsService implements OnModuleInit {
       }
     }
     const deadline: string | null = sharedStart ? this.getRoundDeadline(sharedStart) : null;
-    const questionsAnsweredCount = progress?.questionsAnsweredCount ?? 0;
-    const currentQuestionIndex = progress?.currentQuestionIndex ?? 0;
-    const timeLeftSeconds = progress?.timeLeftSeconds ?? null;
-    const leftAt = progress?.leftAt ?? null;
-    const correctAnswersCount = progress?.correctAnswersCount ?? 0;
-    const semiFinalCorrectCount = progress?.semiFinalCorrectCount ?? null;
+    const questionsAnsweredCount = normalizedProgress.q;
+    const currentQuestionIndex = normalizedProgress.currentIndex;
+    const timeLeftSeconds = normalizedProgress.timeLeftSeconds;
+    const leftAt = normalizedProgress.leftAt;
+    const correctAnswersCount = normalizedProgress.totalCorrect;
+    const semiFinalCorrectCount = normalizedProgress.semiCorrect;
     const playerSlotForSemi = (tournament.playerOrder ?? []).indexOf(userId);
     const userSemiIndex = playerSlotForSemi >= 0 ? (playerSlotForSemi < 2 ? 0 : 1) : 0;
 
     // answersChosen — массив выбранных вариантов по вопросам (0–9 полуфинал). Нужен для бейджей «Мой ответ» в просмотре.
-    let answersChosen = this.normalizeAnswersChosen(progress?.answersChosen);
+    let answersChosen = normalizedProgress.answersChosen;
     if (progress?.id != null && questionsAnsweredCount > 0) {
       const rawRows = await this.tournamentProgressRepository.query(
         'SELECT "answersChosen" FROM tournament_progress WHERE id = $1',
@@ -4035,15 +4133,16 @@ export class TournamentsService implements OnModuleInit {
       const oppProgress = oppIdTB > 0
         ? await this.tournamentProgressRepository.findOne({ where: { userId: oppIdTB, tournamentId } })
         : null;
+      const normalizedOppProgress = this.normalizeProgressSnapshot(oppProgress, false);
       const myQ = questionsAnsweredCount;
-      const oppQ = oppProgress?.questionsAnsweredCount ?? 0;
+      const oppQ = normalizedOppProgress.q;
       const semiState = this.getSemiHeadToHeadState(
         myQ,
-        progress.semiFinalCorrectCount,
-        progress.tiebreakerRoundsCorrect,
+        normalizedProgress.semiCorrect,
+        normalizedProgress.tiebreakerRounds,
         oppQ,
-        oppProgress?.semiFinalCorrectCount,
-        oppProgress?.tiebreakerRoundsCorrect,
+        normalizedOppProgress.semiCorrect,
+        normalizedOppProgress.tiebreakerRounds,
       );
 
       tiebreakerRound = semiState.tiebreakerRound ?? 1;
@@ -4068,7 +4167,7 @@ export class TournamentsService implements OnModuleInit {
     }
 
     if (semiResult === 'won' && progress) {
-      const myTBCount = progress.tiebreakerRoundsCorrect?.length ?? 0;
+      const myTBCount = normalizedProgress.tiebreakerRounds.length;
       const mySemiTotal = this.QUESTIONS_PER_ROUND + myTBCount * this.TIEBREAKER_QUESTIONS;
       if (questionsAnsweredCount >= mySemiTotal + this.QUESTIONS_PER_ROUND) {
         const fOrder = tournament.playerOrder ?? [];
@@ -4217,14 +4316,14 @@ export class TournamentsService implements OnModuleInit {
       leftAt: leftAt ? (leftAt instanceof Date ? leftAt.toISOString() : String(leftAt)) : null,
       correctAnswersCount,
       semiFinalCorrectCount,
-      semiTiebreakerCorrectSum: (progress?.tiebreakerRoundsCorrect ?? []).reduce((a: number, b: number) => a + b, 0),
+      semiTiebreakerCorrectSum: normalizedProgress.tiebreakerRounds.reduce((a: number, b: number) => a + b, 0),
       answersChosen,
       userSemiIndex,
       semiResult,
       semiTiebreakerAllQuestions,
-      semiTiebreakerRoundsCorrect: progress?.tiebreakerRoundsCorrect ?? [],
+      semiTiebreakerRoundsCorrect: normalizedProgress.tiebreakerRounds,
       finalTiebreakerAllQuestions,
-      finalTiebreakerRoundsCorrect: progress?.finalTiebreakerRoundsCorrect ?? [],
+      finalTiebreakerRoundsCorrect: normalizedProgress.finalTiebreakerRounds,
       opponentAnswersByRound,
       opponentInfoByRound,
     };
@@ -4581,7 +4680,11 @@ export class TournamentsService implements OnModuleInit {
     });
     if (!tournament) throw new NotFoundException('Tournament not found');
     this.sortPlayersByOrder(tournament);
-    const isPlayer = tournament.players?.some((p) => p.id === userId);
+    const effectivePlayerOrder = Array.isArray(tournament.playerOrder) && tournament.playerOrder.length > 0
+      ? tournament.playerOrder
+      : (tournament.players?.map((player) => player.id) ?? []);
+    const playerSlot = effectivePlayerOrder.indexOf(userId);
+    const isPlayer = playerSlot >= 0;
     if (!isPlayer) throw new BadRequestException('You are not in this tournament');
     let safeCount = Math.max(0, Math.floor(count));
     let safeCurrent = currentIndex !== undefined ? Math.max(0, Math.min(259, Math.floor(currentIndex))) : safeCount;
@@ -4611,7 +4714,6 @@ export class TournamentsService implements OnModuleInit {
       }
     }
 
-    const playerSlot = tournament.players?.findIndex((p) => p.id === userId) ?? 0;
     const semiRoundIndex = playerSlot < 2 ? 0 : 1;
     const { total: computedCorrect, semi: computedSemi } = await this.computeCorrectFromAnswers(tournamentId, chosenToSave, semiRoundIndex);
 
@@ -4642,11 +4744,13 @@ export class TournamentsService implements OnModuleInit {
         const semiTBRounds = progress.tiebreakerRoundsCorrect ?? [];
 
         const oppSlotForTB = playerSlot % 2 === 0 ? playerSlot + 1 : playerSlot - 1;
-        const oppPlayerForTB = tournament.players?.[oppSlotForTB];
+        const oppPlayerIdForTB = oppSlotForTB >= 0 && oppSlotForTB < effectivePlayerOrder.length
+          ? effectivePlayerOrder[oppSlotForTB]
+          : null;
         let isSemiTied = false;
-        if (oppPlayerForTB) {
+        if (oppPlayerIdForTB != null && oppPlayerIdForTB > 0) {
           const oppProg = await this.tournamentProgressRepository.findOne({
-            where: { userId: oppPlayerForTB.id, tournamentId },
+            where: { userId: oppPlayerIdForTB, tournamentId },
           });
           isSemiTied = oppProg?.semiFinalCorrectCount != null
             && oppProg.semiFinalCorrectCount === progress.semiFinalCorrectCount;
