@@ -155,27 +155,60 @@ export class TournamentsService implements OnModuleInit {
       tournamentIds.length > 0
         ? await manager.getRepository(TournamentProgress).find({
             where: { tournamentId: In(tournamentIds) },
-            select: ['tournamentId'],
+            select: ['tournamentId', 'userId'],
           })
         : [];
+    const entryRows =
+      tournamentIds.length > 0
+        ? (await manager.query(
+            `SELECT te."tournamentId" AS "tournamentId", te."userId" AS "userId"
+             FROM tournament_entry te
+             WHERE te."tournamentId" = ANY($1)`,
+            [tournamentIds],
+          )) as Array<{ tournamentId: number; userId: number }>
+        : [];
     const progressCountByTournamentId = new Map<number, number>();
+    const participantIdsByTournamentId = new Map<number, Set<number>>();
+    const ensureParticipantSet = (tournamentId: number): Set<number> => {
+      let ids = participantIdsByTournamentId.get(tournamentId);
+      if (!ids) {
+        ids = new Set<number>();
+        participantIdsByTournamentId.set(tournamentId, ids);
+      }
+      return ids;
+    };
+    for (const tournament of tournaments) {
+      const participantIds = ensureParticipantSet(tournament.id);
+      for (const participantId of this.getTournamentParticipantIds(tournament)) {
+        if (participantId > 0) participantIds.add(participantId);
+      }
+    }
+    for (const row of entryRows) {
+      if (row.userId > 0) {
+        ensureParticipantSet(row.tournamentId).add(row.userId);
+      }
+    }
     for (const row of progressRows) {
+      if (row.userId > 0) {
+        ensureParticipantSet(row.tournamentId).add(row.userId);
+      }
       progressCountByTournamentId.set(
         row.tournamentId,
         (progressCountByTournamentId.get(row.tournamentId) ?? 0) + 1,
       );
     }
 
-    return tournaments.map((tournament) => ({
-      id: tournament.id,
-      playerCount: this.getTournamentPlayerCount(tournament),
-      hasCurrentUser:
-        args.userId != null
-          ? tournament.players.some((player) => player.id === args.userId)
-          : false,
-      progressCount: progressCountByTournamentId.get(tournament.id) ?? 0,
-      tournament,
-    }));
+    return tournaments.map((tournament) => {
+      const participantIds = participantIdsByTournamentId.get(tournament.id);
+      return {
+        id: tournament.id,
+        playerCount: participantIds?.size ?? 0,
+        hasCurrentUser:
+          args.userId != null ? participantIds?.has(args.userId) ?? false : false,
+        progressCount: progressCountByTournamentId.get(tournament.id) ?? 0,
+        tournament,
+      };
+    });
   }
 
   private pickReusableTournamentEntry(
@@ -1043,12 +1076,14 @@ export class TournamentsService implements OnModuleInit {
 
   async repairTournamentConsistency(): Promise<{
     backfilledTimeoutResolutionRows: number;
+    backfilledParticipantRows: number;
     activatedWaitingTournamentIds: number[];
     reactivatedFinishedTournamentIds: number[];
     deletedResultRows: number;
     convertedLegacyMoneyTournamentIds: number[];
   }> {
     const timeoutBackfill = await this.backfillTimeoutRoundResolutions();
+    const participantBackfill = await this.backfillTournamentPlayersFromEntry();
     const waitingResult = await this.backfillWaitingTournamentsToActive();
     const finishedResult =
       await this.reactivateStructurallyUnfinishedFinishedTournaments();
@@ -1056,6 +1091,7 @@ export class TournamentsService implements OnModuleInit {
       await this.convertLegacyMoneyTournamentsWithoutLeagueToTraining();
     return {
       backfilledTimeoutResolutionRows: timeoutBackfill.inserted,
+      backfilledParticipantRows: participantBackfill.inserted,
       activatedWaitingTournamentIds: waitingResult.updatedTournamentIds,
       reactivatedFinishedTournamentIds: finishedResult.reactivatedTournamentIds,
       deletedResultRows: finishedResult.deletedResultRows,

@@ -111,6 +111,61 @@ async function main() {
       pushIssue(deterministicIssues, 'finished_underfilled_tournaments', row);
     }
 
+    const missingPlayersJoinRows = (await dataSource.query(
+      `SELECT src."tournamentId", src."userId"
+       FROM (
+         SELECT te."tournamentId", te."userId"
+         FROM tournament_entry te
+         UNION
+         SELECT p."tournamentId", p."userId"
+         FROM tournament_progress p
+         UNION
+         SELECT t.id AS "tournamentId", (ord.value)::int AS "userId"
+         FROM tournament t
+         CROSS JOIN LATERAL json_array_elements_text(
+           CASE
+             WHEN t."playerOrder" IS NULL OR t."playerOrder" IN ('', 'null') THEN '[]'::json
+             ELSE t."playerOrder"::json
+           END
+         ) AS ord(value)
+         WHERE (ord.value)::int > 0
+       ) src
+       LEFT JOIN tournament_players_user tpu
+         ON tpu."tournamentId" = src."tournamentId"
+        AND tpu."userId" = src."userId"
+       WHERE tpu."userId" IS NULL
+       ORDER BY src."tournamentId" ASC, src."userId" ASC`,
+    )) as Array<{
+      tournamentId: number;
+      userId: number;
+    }>;
+    for (const row of missingPlayersJoinRows) {
+      pushIssue(deterministicIssues, 'missing_players_join_rows', row);
+    }
+
+    const missingEntryRows = (await dataSource.query(
+      `SELECT t.id AS "tournamentId", (ord.value)::int AS "userId"
+       FROM tournament t
+       CROSS JOIN LATERAL json_array_elements_text(
+         CASE
+           WHEN t."playerOrder" IS NULL OR t."playerOrder" IN ('', 'null') THEN '[]'::json
+           ELSE t."playerOrder"::json
+         END
+       ) AS ord(value)
+       LEFT JOIN tournament_entry te
+         ON te."tournamentId" = t.id
+        AND te."userId" = (ord.value)::int
+       WHERE (ord.value)::int > 0
+         AND te.id IS NULL
+       ORDER BY t.id ASC, (ord.value)::int ASC`,
+    )) as Array<{
+      tournamentId: number;
+      userId: number;
+    }>;
+    for (const row of missingEntryRows) {
+      pushIssue(deterministicIssues, 'missing_entry_rows_for_player_order', row);
+    }
+
     const moneyTournamentRows = (await dataSource.query(
       `SELECT t.id AS "tournamentId",
               t.status AS status,

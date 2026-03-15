@@ -18,6 +18,7 @@ async function main() {
         {
           backfilledTimeoutResolutionRows:
             result.backfilledTimeoutResolutionRows,
+          backfilledParticipantRows: result.backfilledParticipantRows,
           activatedWaitingCount: result.activatedWaitingTournamentIds.length,
           activatedWaitingTournamentIds: result.activatedWaitingTournamentIds,
           reactivatedFinishedCount:
