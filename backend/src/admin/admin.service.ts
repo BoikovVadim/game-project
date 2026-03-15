@@ -15,6 +15,7 @@ import { User } from '../users/user.entity';
 import { WithdrawalRequest } from '../users/withdrawal-request.entity';
 import { Transaction } from '../users/transaction.entity';
 import { UsersService } from '../users/users.service';
+import { parsePaymentTopupDescription } from '../users/ruble-ledger-descriptions';
 import { TournamentsService } from '../tournaments/tournaments.service';
 import { JwtService } from '@nestjs/jwt';
 import { type ImpersonationAuditScope } from '../auth/auth-session.types';
@@ -515,6 +516,7 @@ export class AdminService {
            u.username,
            u.email AS "userEmail",
            t.amount,
+           t.category,
            t.description,
            t."createdAt" AS "createdAt",
            t."tournamentId" AS "adminId",
@@ -549,27 +551,51 @@ export class AdminService {
             email: String(a.email ?? ''),
           };
       }
-      return (rows || []).map((r: any) => {
-        const parsedTopup = UsersService.parseAdminTopupDescription(
-          r.description,
-        );
-        const parsedAdminId = parsedTopup.adminId;
-        const fallbackAdminId = Number(r.adminId ?? 0) || null;
-        const adminId = parsedAdminId ?? fallbackAdminId;
-        const cached = adminId ? adminMap[adminId] : undefined;
-        const adminName = String(r.adminUsername ?? cached?.username ?? '');
-        const adminMail = String(r.adminEmail ?? cached?.email ?? '');
-        return {
-          id: Number(r.id),
-          userId: Number(r.userId),
-          username: String(r.username ?? ''),
-          userEmail: String(r.userEmail ?? ''),
-          amount: Number(r.amount),
-          adminUsername: adminName,
-          adminEmail: adminMail,
-          createdAt: toISOUtc(r.createdAt) ?? '',
-        };
-      });
+      return (rows || [])
+        .map((r: any) => {
+          const description = String(r.description ?? '').trim();
+          const category = String(r.category ?? '');
+          const parsedTopup = UsersService.parseAdminTopupDescription(
+            description,
+          );
+          const parsedPaymentTopup = parsePaymentTopupDescription(description);
+          const isLegacyManualTopup =
+            (category === 'topup' || category === 'other') &&
+            (description === 'Пополнение баланса' ||
+              description === 'Пополнение баланса (скрипт)');
+          const isManualAdminCredit =
+            category === 'admin_credit' ||
+            parsedTopup.adminId != null ||
+            (isLegacyManualTopup && parsedPaymentTopup.paymentId == null);
+          if (!isManualAdminCredit) return null;
+
+          const parsedAdminId = parsedTopup.adminId;
+          const fallbackAdminId = Number(r.adminId ?? 0) || null;
+          const adminId = parsedAdminId ?? fallbackAdminId;
+          const cached = adminId ? adminMap[adminId] : undefined;
+          const adminName = String(r.adminUsername ?? cached?.username ?? '');
+          const adminMail = String(r.adminEmail ?? cached?.email ?? '');
+          return {
+            id: Number(r.id),
+            userId: Number(r.userId),
+            username: String(r.username ?? ''),
+            userEmail: String(r.userEmail ?? ''),
+            amount: Number(r.amount),
+            adminUsername: adminName,
+            adminEmail: adminMail,
+            createdAt: toISOUtc(r.createdAt) ?? '',
+          };
+        })
+        .filter(Boolean) as {
+        id: number;
+        userId: number;
+        username: string;
+        userEmail: string;
+        amount: number;
+        adminUsername: string;
+        adminEmail: string;
+        createdAt: string;
+      }[];
     } catch (e) {
       console.error('[AdminService.getCreditHistory]', e);
       return [];
