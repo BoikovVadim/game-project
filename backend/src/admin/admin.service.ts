@@ -525,10 +525,9 @@ export class AdminService {
          FROM "transaction" t
          LEFT JOIN "user" u ON u.id = t."userId"
          LEFT JOIN "user" a ON a.id = t."tournamentId"
-         WHERE t.category = 'admin_credit'
-            OR (t.category = 'topup' AND t.description LIKE 'Пополнение баланса администратором (ID %')
+         WHERE t.category IN ('admin_credit', 'topup', 'other')
          ORDER BY t."createdAt" DESC
-         LIMIT 500`,
+         LIMIT 2000`,
       );
       const missingAdminIds = new Set<number>();
       for (const r of rows || []) {
