@@ -190,7 +190,6 @@ function buildContinuousPeriods(
 async function readProjectCostTrackingFile(): Promise<{
   content: string;
   filePath: string;
-  mtime: Date;
 } | null> {
   const candidates = [
     path.resolve(process.cwd(), '.cursor', 'project-cost-tracking.md'),
@@ -202,8 +201,7 @@ async function readProjectCostTrackingFile(): Promise<{
   for (const candidate of candidates) {
     if (!existsSync(candidate)) continue;
     const content = await fs.readFile(candidate, 'utf8');
-    const stat = await fs.stat(candidate);
-    return { content, filePath: candidate, mtime: stat.mtime };
+    return { content, filePath: candidate };
   }
 
   return null;
@@ -862,6 +860,8 @@ export class AdminService {
   }> {
     try {
       type RawProjectCostEntry = {
+        sourceIndex: number;
+        sortTimestamp: string;
         timestamp: string | null;
         date: string;
         time: string | null;
@@ -890,7 +890,7 @@ export class AdminService {
       const currentTotal = roundMoney(Number(lines[0] ?? 0));
       const todayTotal = parseRubles(lines[1]?.match(/:\s*(.+)$/)?.[1] ?? '0');
       const rawHistory: RawProjectCostEntry[] = [];
-      for (const line of lines) {
+      for (const [sourceIndex, line] of lines.entries()) {
         if (
           !/^\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2})?)?\s+\|/.test(line)
         )
@@ -907,10 +907,13 @@ export class AdminService {
 
         const date = dateTimeMatch[1];
         const time = dateTimeMatch[2] ?? null;
+        const sortTimestamp = new Date(
+          `${date}T${time ?? '00:00'}:00+03:00`,
+        ).toISOString();
         rawHistory.push({
-          timestamp: time
-            ? new Date(`${date}T${time}:00+03:00`).toISOString()
-            : null,
+          sourceIndex,
+          sortTimestamp,
+          timestamp: time ? sortTimestamp : null,
           date,
           time,
           amountChange: roundMoney(parseRubles(amountPart)),
@@ -929,22 +932,37 @@ export class AdminService {
         (sum, entry) => sum + parseDurationToMinutes(entry.duration),
         0,
       );
+      const sortedHistory = [...rawHistory].sort((a, b) => {
+        if (a.sortTimestamp !== b.sortTimestamp) {
+          return a.sortTimestamp.localeCompare(b.sortTimestamp);
+        }
+        return a.sourceIndex - b.sourceIndex;
+      });
       let runningTotal = roundMoney(currentTotal - totalChanges);
-      const historyAscending = [...rawHistory].reverse().map((entry) => {
+      const historyAscending = sortedHistory.map((entry) => {
         runningTotal = roundMoney(runningTotal + entry.amountChange);
+        const {
+          sourceIndex: _sourceIndex,
+          sortTimestamp,
+          ...historyEntry
+        } = entry;
         return {
-          ...entry,
+          ...historyEntry,
           afterAmount: runningTotal,
+          sortTimestamp,
         };
       });
+      const latestEntry = historyAscending[historyAscending.length - 1] ?? null;
 
       return {
         currentTotal,
         todayTotal: roundMoney(todayTotal),
-        updatedAt: file.mtime ? file.mtime.toISOString() : null,
+        updatedAt: latestEntry?.sortTimestamp ?? null,
         totalDurationMinutes,
         totalDurationLabel: formatDurationLabel(totalDurationMinutes),
-        history: historyAscending.reverse(),
+        history: historyAscending
+          .reverse()
+          .map(({ sortTimestamp: _sortTimestamp, ...entry }) => entry),
       };
     } catch (e) {
       console.error('[AdminService.getProjectCostDashboard]', e);

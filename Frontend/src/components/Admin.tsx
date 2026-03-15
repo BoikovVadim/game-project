@@ -3264,7 +3264,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                         </div>
 
                         <div className="admin-cost-updated-inline">
-                          Обновлено автоматически:{" "}
+                          Последняя запись в истории:{" "}
                           {dashboard.updatedAt
                             ? formatMoscowDateTimeFull(dashboard.updatedAt)
                             : "—"}
