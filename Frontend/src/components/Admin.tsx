@@ -877,8 +877,10 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
 
   useEffect(() => {
     if (!isAdmin || !token || section !== "credit") return;
-    if (!creditHistoryLoaded) fetchCreditHistory();
-  }, [isAdmin, token, section, creditHistoryLoaded, fetchCreditHistory]);
+    fetchCreditHistory();
+    const iv = setInterval(fetchCreditHistory, 5000);
+    return () => clearInterval(iv);
+  }, [isAdmin, token, section, fetchCreditHistory]);
 
   const fetchSupportTickets = React.useCallback(() => {
     if (!token) return;
