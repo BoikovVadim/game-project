@@ -166,7 +166,7 @@ export class UsersService implements OnModuleInit {
   async getBalanceRublesFromTransactions(userId: number): Promise<number> {
     const rows = (await this.dataSource.query(
       `SELECT category, amount, description, "tournamentId" FROM "transaction"
-       WHERE "userId" = $1 AND category IN ('topup','admin_credit','withdraw','refund','convert')`,
+       WHERE "userId" = $1 AND category IN ('topup','admin_credit','withdraw','refund','convert','other')`,
       [userId],
     )) as {
       category: string;
@@ -177,6 +177,12 @@ export class UsersService implements OnModuleInit {
     const list = Array.isArray(rows) ? rows : [];
     let total = 0;
     for (const r of list) {
+      const parsedAdminTopup = UsersService.parseAdminTopupDescription(
+        r.description,
+      );
+      const isLegacyRublesOtherAdminTopup =
+        r.category === 'other' && parsedAdminTopup.adminId != null;
+      if (r.category === 'other' && !isLegacyRublesOtherAdminTopup) continue;
       if (UsersService.isRejectedWithdrawalRefund(r.description, r.category))
         continue;
       if (
@@ -212,6 +218,10 @@ export class UsersService implements OnModuleInit {
     const list = Array.isArray(rows) ? rows : [];
     let total = 0;
     for (const r of list) {
+      const parsedAdminTopup = UsersService.parseAdminTopupDescription(
+        r.description,
+      );
+      if (r.category === 'other' && parsedAdminTopup.adminId != null) continue;
       if (UsersService.isRejectedWithdrawalRefund(r.description, r.category))
         continue;
       if (

@@ -1,5 +1,8 @@
 import { DataSource } from 'typeorm';
-import { buildAdminTopupDescription } from '../users/ruble-ledger-descriptions';
+import {
+  buildAdminTopupDescription,
+  parseAdminTopupDescription,
+} from '../users/ruble-ledger-descriptions';
 
 type LegacyManualTopupFix = {
   transactionId: number;
@@ -13,8 +16,9 @@ const FIXES: LegacyManualTopupFix[] = [
   {
     transactionId: 1,
     adminId: 1,
-    targetCategory: 'other',
-    reason: 'user-verified: all legacy credits for current user 1 were issued by admin 1',
+    targetCategory: 'topup',
+    reason:
+      'transaction audit confirmed tx #1 is a ruble admin topup and must contribute to ruble balance',
   },
   {
     transactionId: 13,
@@ -64,6 +68,47 @@ const FIXES: LegacyManualTopupFix[] = [
   },
 ];
 
+function isRejectedWithdrawalRefund(
+  description: string | null,
+  category: string,
+): boolean {
+  if (category !== 'refund' || !description) return false;
+  const d = description.toLowerCase().replace(/ё/g, 'е');
+  return (
+    (d.includes('отклонен') && (d.includes('заявк') || d.includes('вывод'))) ||
+    d.includes('возврат по отклонен') ||
+    (d.includes('возврат') &&
+      d.includes('заявк') &&
+      (d.includes('вывод') || d.includes('отклонен')))
+  );
+}
+
+function isNonRublesRefund(
+  description: string | null,
+  category: string,
+  tournamentId?: number | null,
+): boolean {
+  if (category !== 'refund') return false;
+  if (tournamentId != null) return true;
+  if (!description) return false;
+  const d = description.toLowerCase().replace(/ё/g, 'е');
+  return (
+    d.includes('турнир') ||
+    d.includes('возврат за турнир') ||
+    d.includes('возврат взноса') ||
+    d.includes('лига')
+  );
+}
+
+function isLegacyRublesOtherAdminTopup(
+  category: string,
+  description: string | null,
+): boolean {
+  return (
+    category === 'other' && parseAdminTopupDescription(description).adminId != null
+  );
+}
+
 async function main() {
   const ds = new DataSource({
     type: 'postgres',
@@ -104,6 +149,9 @@ async function main() {
         throw new Error(`Transaction ${fix.transactionId} not found`);
       }
     }
+    const affectedUserIds = Array.from(
+      new Set(before.map((row) => Number(row.userId))),
+    );
 
     await ds.transaction(async (manager) => {
       for (const fix of FIXES) {
@@ -120,6 +168,84 @@ async function main() {
           `[backfill-legacy-manual-topup-admins] updated tx=${fix.transactionId} admin=${fix.adminId} category=${fix.targetCategory} reason=${fix.reason}`,
         );
       }
+
+      for (const userId of affectedUserIds) {
+        const txRows = (await manager.query(
+          `SELECT category, amount, description, "tournamentId"
+           FROM "transaction"
+           WHERE "userId" = $1
+             AND category IN ('topup','admin_credit','withdraw','refund','convert','other','win','loss','referral')`,
+          [userId],
+        )) as Array<{
+          category: string;
+          amount: string;
+          description: string | null;
+          tournamentId: number | null;
+        }>;
+
+        let rubles = 0;
+        let balanceL = 0;
+        for (const row of txRows) {
+          const amount = Number(row.amount);
+          if (
+            ['topup', 'admin_credit', 'withdraw', 'refund', 'convert', 'other'].includes(
+              row.category,
+            )
+          ) {
+            if (row.category === 'other' && !isLegacyRublesOtherAdminTopup(row.category, row.description)) {
+              // Skip non-ruble "other" rows in ruble balance.
+            } else if (!isRejectedWithdrawalRefund(row.description, row.category)) {
+              if (
+                !isNonRublesRefund(
+                  row.description,
+                  row.category,
+                  row.tournamentId,
+                )
+              ) {
+                rubles += row.category === 'convert' ? -amount : amount;
+              }
+            }
+          }
+
+          if (['win', 'loss', 'referral', 'other', 'convert', 'refund'].includes(row.category)) {
+            if (row.category === 'other' && isLegacyRublesOtherAdminTopup(row.category, row.description)) {
+              continue;
+            }
+            if (isRejectedWithdrawalRefund(row.description, row.category)) continue;
+            if (
+              row.category === 'refund' &&
+              !isNonRublesRefund(
+                row.description,
+                row.category,
+                row.tournamentId,
+              )
+            ) {
+              continue;
+            }
+            balanceL += amount;
+          }
+        }
+
+        const pendingRows = await manager.query(
+          `SELECT COALESCE(SUM(amount), 0) AS total
+           FROM withdrawal_request
+           WHERE "userId" = $1 AND status = 'pending'`,
+          [userId],
+        );
+        const pending = Number(pendingRows?.[0]?.total ?? 0);
+        const nextRubles = Math.max(0, rubles - pending);
+        const nextBalanceL = Math.max(0, balanceL);
+        await manager.query(
+          `UPDATE "user"
+           SET "balanceRubles" = $1,
+               balance = $2
+           WHERE id = $3`,
+          [nextRubles, nextBalanceL, userId],
+        );
+        console.log(
+          `[backfill-legacy-manual-topup-admins] reconciled user=${userId} rubles=${nextRubles} balance=${nextBalanceL}`,
+        );
+      }
     });
 
     const after = await ds.query(
@@ -132,6 +258,15 @@ async function main() {
 
     console.log('[backfill-legacy-manual-topup-admins] after rows:', after.length);
     console.log(JSON.stringify(after, null, 2));
+    const usersAfter = await ds.query(
+      `SELECT id, balance, "balanceRubles"
+       FROM "user"
+       WHERE id = ANY($1::int[])
+       ORDER BY id ASC`,
+      [affectedUserIds],
+    );
+    console.log('[backfill-legacy-manual-topup-admins] affected users after:');
+    console.log(JSON.stringify(usersAfter, null, 2));
   } finally {
     await ds.destroy();
   }
