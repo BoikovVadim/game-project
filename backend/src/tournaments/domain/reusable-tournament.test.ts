@@ -39,32 +39,32 @@ test('promotes fresh single-player waiting tournaments to active', () => {
   );
 });
 
-test('prefers active tournaments with more players for reuse', () => {
+test('prefers the smallest tournament id for reuse', () => {
   const candidates = [
     {
-      id: 20,
-      status: 'waiting',
-      playerCount: 1,
-      progressCount: 1,
+      id: 45,
+      status: 'active',
+      playerCount: 3,
+      progressCount: 3,
     },
     {
-      id: 11,
+      id: 3,
       status: 'active',
       playerCount: 2,
       progressCount: 2,
     },
     {
-      id: 10,
-      status: 'active',
-      playerCount: 3,
-      progressCount: 3,
+      id: 11,
+      status: 'waiting',
+      playerCount: 1,
+      progressCount: 1,
     },
   ];
 
   candidates.sort(compareReusableTournamentCandidates);
   assert.deepEqual(
     candidates.map((candidate) => candidate.id),
-    [10, 11, 20],
+    [3, 11, 45],
   );
 });
 

@@ -28,6 +28,7 @@
 - завершённый money tournament не оставляет escrow в `held/processing`
 - незавершённый money tournament не содержит settled escrow (`paid_to_winner` / `forfeited`)
 - статистика полуфинальной пары считается по `playerOrder`, а не по сортировке `userId`
+- новый игрок попадает в открытый tournament с минимальным `ID`, а не в более заполненный
 - `POST /tournaments/:id/training-state/prepare` создаёт вопросы/таймеры, а `GET /tournaments/:id/training-state` остаётся read-only
 - `npm run verify:tournaments` проходит без ошибок
 - `npm run repair:tournaments` после drift возвращает `audit:tournaments` к `0`
