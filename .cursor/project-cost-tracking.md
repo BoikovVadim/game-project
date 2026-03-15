@@ -1,7 +1,24 @@
-893225.82
-За сегодня (2026-03-15): 119 368,57 ₽
+895159.15
+За сегодня (2026-03-15): 121 301,90 ₽
 
 # Последние изменения. Формат записи: YYYY-MM-DD HH:MM | Z ₽ | оплачиваемое время | описание. Если у задачи есть клиентская разбивка, она идёт отдельным списком ниже. Внутренние расчёты и ретроспектива на сайт не выводятся.
+2026-03-15 17:58 | 1 933,33 ₽ | 58 мин | Турниры/backend+global-review-audit+correct-count-fix+deploy: после полного production-аудита review-модалок нашлись ещё два остаточных кейса. Первый: `турнир 10 / игрок 5`, где `reviewRounds.final-main.correctCount` расходился с фактическими `answersChosen`, потому что review-слой опирался на старый aggregate `correctAnswersCount`; теперь `getTrainingState` пересчитывает `correctCount` прямо из сохранённых ответов и текущего набора вопросов. Второй: `турнир 68 / игрок 3`, где active money-турнир остался без semifinal questions; во время проверки данные были восстановлены каноническим `prepareTrainingState`, а read-path перестал отдавать пустые review-раунды без вопросов. Дополнительно подтверждён отдельный production-аудит `resultLabel/resultKind/resultTone/timeout` без инцидентов. После правки выполнены `build backend`, `verify:tournaments`, commit/push/deploy и повторный глобальный production-аудит всех участников.
+
+Разбивка:
+- Погружение: 12 мин.
+- Проектирование: 6 мин.
+- Реализация: 8 мин.
+- Cleanup: 3 мин.
+- Проверка: 15 мин.
+- Delivery: 6 мин.
+
+Ретроспектива:
+- Базовое время: 50 мин.
+- Коэффициент: 1.15
+- Оплачиваемое время: 58 мин.
+- Ставка: 2000 ₽ / час.
+- Формула: 58 мин × 2000 ₽ / 60 мин = 1 933,33 ₽.
+
 2026-03-15 17:41 | 1 333,33 ₽ | 40 мин | Турниры/backend+global-audit+final-placeholder-fix+deploy: после массового production-аудита всех `174` пар `tournament/user` нашёлся второй класс рассинхрона review-модалки — у части игроков `reviewRounds` уже содержал `final-main`, но opposite finalist ещё не определялся как полноценный opponent-object, поэтому `getTrainingState` не добавлял даже placeholder-слот в `opponentAnswersByRound/opponentInfoByRound`, и длины массивов расходились. Backend read-path дополнен обязательным placeholder для всех видимых финальных review-раундов без соперника, после чего локально подтверждены `build backend` и `verify:tournaments`, затем выполнены commit/push/deploy и повторный production-audit всех участников.
 
 Разбивка:

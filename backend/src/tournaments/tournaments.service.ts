@@ -6071,7 +6071,7 @@ export class TournamentsService implements OnModuleInit {
       if (qs.length === 0) break;
       finalTiebreakerAllQuestions.push(qs);
     }
-    const reviewRounds = buildTrainingReviewRounds({
+    const baseReviewRounds = buildTrainingReviewRounds({
       questionsPerRound: this.QUESTIONS_PER_ROUND,
       tiebreakerQuestions: this.TIEBREAKER_QUESTIONS,
       userSemiIndex,
@@ -6086,6 +6086,32 @@ export class TournamentsService implements OnModuleInit {
       finalTiebreakerAllQuestions,
       finalTiebreakerRoundsCorrect: normalizedProgress.finalTiebreakerRounds,
     });
+    const reviewRounds = baseReviewRounds
+      .filter((round) => (round.questions?.length ?? 0) > 0)
+      .map((round, index) => {
+        const questionList = round.questions ?? [];
+        const roundAnswers = answersChosen.slice(
+          round.startIdx,
+          round.startIdx + questionList.length,
+        );
+        while (roundAnswers.length < questionList.length) roundAnswers.push(-1);
+        const correctCount = questionList.reduce(
+          (sum, question, questionIndex) =>
+            sum +
+            (roundAnswers[questionIndex] === Number(question.correctAnswer)
+              ? 1
+              : 0),
+          0,
+        );
+        return {
+          ...round,
+          correctCount,
+          opponentRoundIndex: index,
+        };
+      });
+    const hasVisibleSemiMain = reviewRounds.some(
+      (round) => round.stageKind === 'semi' && !round.isTiebreaker,
+    );
     const visibleSemiTiebreakerRoundCount = reviewRounds.filter(
       (round) => round.stageKind === 'semi' && round.isTiebreaker,
     ).length;
@@ -6152,13 +6178,15 @@ export class TournamentsService implements OnModuleInit {
           avatarUrl: semiOppUser.avatarUrl ?? null,
         }
       : { id: 0, nickname: '—', avatarUrl: null };
-    opponentAnswersByRound.push(semiOppAC.slice(0, QPR));
-    opponentInfoByRound.push(semiOppInfo);
-    for (let r = 0; r < visibleSemiTiebreakerRoundCount; r++) {
-      opponentAnswersByRound.push(
-        semiOppAC.slice(QPR + r * TBQ, QPR + (r + 1) * TBQ),
-      );
+    if (hasVisibleSemiMain) {
+      opponentAnswersByRound.push(semiOppAC.slice(0, QPR));
       opponentInfoByRound.push(semiOppInfo);
+      for (let r = 0; r < visibleSemiTiebreakerRoundCount; r++) {
+        opponentAnswersByRound.push(
+          semiOppAC.slice(QPR + r * TBQ, QPR + (r + 1) * TBQ),
+        );
+        opponentInfoByRound.push(semiOppInfo);
+      }
     }
 
     // Final opponent (winner of the other semi pair)
