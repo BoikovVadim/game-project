@@ -25,6 +25,10 @@ async function main() {
           reactivatedFinishedTournamentIds:
             result.reactivatedFinishedTournamentIds,
           deletedResultRows: result.deletedResultRows,
+          convertedLegacyMoneyCount:
+            result.convertedLegacyMoneyTournamentIds.length,
+          convertedLegacyMoneyTournamentIds:
+            result.convertedLegacyMoneyTournamentIds,
         },
         null,
         2,

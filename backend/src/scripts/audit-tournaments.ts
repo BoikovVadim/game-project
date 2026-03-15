@@ -114,6 +114,7 @@ async function main() {
     const moneyTournamentRows = (await dataSource.query(
       `SELECT t.id AS "tournamentId",
               t.status AS status,
+              t."leagueAmount" AS "leagueAmount",
               COUNT(DISTINCT e.id) AS "escrowCount",
               COUNT(DISTINCT e.id) FILTER (WHERE e.status IN ('held', 'processing')) AS "pendingEscrowCount",
               COUNT(DISTINCT e.id) FILTER (WHERE e.status IN ('paid_to_winner', 'forfeited')) AS "settledEscrowCount"
@@ -125,6 +126,7 @@ async function main() {
     )) as Array<{
       tournamentId: number;
       status: string;
+      leagueAmount: number | null;
       escrowCount: number;
       pendingEscrowCount: number;
       settledEscrowCount: number;
@@ -136,6 +138,15 @@ async function main() {
         await tournamentsService.getMoneyTournamentSettlementResolution(
           row.tournamentId,
         );
+      if (row.leagueAmount == null) {
+        pushIssue(deterministicIssues, 'money_missing_league_amount', {
+          ...row,
+          pendingEscrowCount,
+          settledEscrowCount,
+          settlementType: settlement.settlementType,
+          winnerId: settlement.winnerId,
+        });
+      }
       if (
         row.status === 'finished' &&
         settlement.settlementType !== 'unresolved' &&

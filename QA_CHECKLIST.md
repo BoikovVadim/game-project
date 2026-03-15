@@ -27,6 +27,7 @@
 - при входе в money tournament атомарно создаются `entry`, `playerOrder`, loss transaction и escrow
 - завершённый money tournament не оставляет escrow в `held/processing`
 - незавершённый money tournament не содержит settled escrow (`paid_to_winner` / `forfeited`)
+- `money` tournament не существует с `leagueAmount = null`; legacy кейсы без финансовых артефактов repair переводит в `training`
 - статистика полуфинальной пары считается по `playerOrder`, а не по сортировке `userId`
 - новый игрок попадает в открытый tournament с минимальным `ID`, а не в более заполненный
 - кнопка `Продолжить игру` использует backend `resumeTournamentId`, а не локальную сортировку списка

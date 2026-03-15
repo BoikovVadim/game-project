@@ -958,16 +958,21 @@ export class TournamentsService implements OnModuleInit {
     activatedWaitingTournamentIds: number[];
     reactivatedFinishedTournamentIds: number[];
     deletedResultRows: number;
+    convertedLegacyMoneyTournamentIds: number[];
   }> {
     const timeoutBackfill = await this.backfillTimeoutRoundResolutions();
     const waitingResult = await this.backfillWaitingTournamentsToActive();
     const finishedResult =
       await this.reactivateStructurallyUnfinishedFinishedTournaments();
+    const legacyMoneyResult =
+      await this.convertLegacyMoneyTournamentsWithoutLeagueToTraining();
     return {
       backfilledTimeoutResolutionRows: timeoutBackfill.inserted,
       activatedWaitingTournamentIds: waitingResult.updatedTournamentIds,
       reactivatedFinishedTournamentIds: finishedResult.reactivatedTournamentIds,
       deletedResultRows: finishedResult.deletedResultRows,
+      convertedLegacyMoneyTournamentIds:
+        legacyMoneyResult.convertedTournamentIds,
     };
   }
 
@@ -1167,6 +1172,65 @@ export class TournamentsService implements OnModuleInit {
       reactivatedTournamentIds: affectedIds,
       deletedResultRows: deleteResult.affected ?? 0,
     };
+  }
+
+  async convertLegacyMoneyTournamentsWithoutLeagueToTraining(): Promise<{
+    convertedTournamentIds: number[];
+  }> {
+    const legacyMoneyTournaments = await this.tournamentRepository.find({
+      where: {
+        gameType: 'money',
+        leagueAmount: IsNull(),
+      },
+      relations: ['players'],
+      order: { id: 'ASC' },
+    });
+
+    if (legacyMoneyTournaments.length === 0) {
+      return { convertedTournamentIds: [] };
+    }
+
+    const tournamentIds = legacyMoneyTournaments.map((tournament) => tournament.id);
+    const escrowRows = await this.tournamentEscrowRepository.find({
+      where: { tournamentId: In(tournamentIds) },
+      select: ['tournamentId'],
+    });
+    const transactionRows = await this.transactionRepository.find({
+      where: { tournamentId: In(tournamentIds) },
+      select: ['tournamentId'],
+    });
+
+    const escrowTournamentIds = new Set(
+      escrowRows.map((row) => Number(row.tournamentId)).filter((id) => id > 0),
+    );
+    const transactionTournamentIds = new Set(
+      transactionRows
+        .map((row) => Number(row.tournamentId))
+        .filter((id) => id > 0),
+    );
+
+    const convertibleIds = legacyMoneyTournaments
+      .filter((tournament) => {
+        if (escrowTournamentIds.has(tournament.id)) return false;
+        if (transactionTournamentIds.has(tournament.id)) return false;
+        return true;
+      })
+      .map((tournament) => tournament.id);
+
+    if (convertibleIds.length === 0) {
+      return { convertedTournamentIds: [] };
+    }
+
+    await this.tournamentRepository.update(
+      { id: In(convertibleIds) },
+      { gameType: 'training' },
+    );
+
+    this.logger.log(
+      `convertLegacyMoneyTournamentsWithoutLeagueToTraining: converted ${convertibleIds.length} tournaments (${convertibleIds.join(', ')})`,
+    );
+
+    return { convertedTournamentIds: convertibleIds };
   }
 
   private getRoundDeadline(from: Date): string {
