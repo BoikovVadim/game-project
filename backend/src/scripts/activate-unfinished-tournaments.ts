@@ -12,12 +12,18 @@ async function main() {
 
   try {
     const tournamentsService = app.get(TournamentsService);
-    const result = await tournamentsService.backfillWaitingTournamentsToActive();
+    const waitingResult = await tournamentsService.backfillWaitingTournamentsToActive();
+    const finishedResult =
+      await tournamentsService.reactivateStructurallyUnfinishedFinishedTournaments();
     console.log(
       JSON.stringify(
         {
-          updatedCount: result.updatedTournamentIds.length,
-          updatedTournamentIds: result.updatedTournamentIds,
+          activatedWaitingCount: waitingResult.updatedTournamentIds.length,
+          activatedWaitingTournamentIds: waitingResult.updatedTournamentIds,
+          reactivatedFinishedCount: finishedResult.reactivatedTournamentIds.length,
+          reactivatedFinishedTournamentIds:
+            finishedResult.reactivatedTournamentIds,
+          deletedResultRows: finishedResult.deletedResultRows,
         },
         null,
         2,

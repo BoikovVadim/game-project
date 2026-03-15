@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   compareReusableTournamentCandidates,
+  isTournamentStructurallyFinishable,
   shouldTournamentBeActive,
 } from './reusable-tournament';
 
@@ -65,4 +66,10 @@ test('prefers active tournaments with more players for reuse', () => {
     candidates.map((candidate) => candidate.id),
     [10, 11, 20],
   );
+});
+
+test('only 4-player tournaments are structurally finishable', () => {
+  assert.equal(isTournamentStructurallyFinishable(2), false);
+  assert.equal(isTournamentStructurallyFinishable(3), false);
+  assert.equal(isTournamentStructurallyFinishable(4), true);
 });

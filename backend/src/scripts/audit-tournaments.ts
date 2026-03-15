@@ -83,6 +83,34 @@ async function main() {
       pushIssue(deterministicIssues, 'waiting_not_active', row);
     }
 
+    const finishedUnderfilled = (await dataSource.query(
+      `SELECT t.id AS "tournamentId",
+              t.status AS status,
+              t."gameType" AS "gameType",
+              t."leagueAmount" AS "leagueAmount",
+              COALESCE(json_array_length(COALESCE(t."playerOrder"::json, '[]'::json)), 0) AS "playerOrderCount",
+              COUNT(DISTINCT p.id) AS "progressCount",
+              COUNT(DISTINCT r.id) AS "resultCount"
+       FROM tournament t
+       LEFT JOIN tournament_progress p ON p."tournamentId" = t.id
+       LEFT JOIN tournament_result r ON r."tournamentId" = t.id
+       WHERE t.status = 'finished'
+       GROUP BY t.id, t.status, t."gameType", t."leagueAmount", t."playerOrder"
+       HAVING COALESCE(json_array_length(COALESCE(t."playerOrder"::json, '[]'::json)), 0) < 4
+       ORDER BY t.id ASC`,
+    )) as Array<{
+      tournamentId: number;
+      status: string;
+      gameType: string | null;
+      leagueAmount: number | null;
+      playerOrderCount: number;
+      progressCount: number;
+      resultCount: number;
+    }>;
+    for (const row of finishedUnderfilled) {
+      pushIssue(deterministicIssues, 'finished_underfilled_tournaments', row);
+    }
+
     const userRows = (await dataSource.query(
       `SELECT DISTINCT "userId" AS id
        FROM tournament_progress

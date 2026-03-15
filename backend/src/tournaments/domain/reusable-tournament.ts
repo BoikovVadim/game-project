@@ -7,6 +7,10 @@ export interface ReusableTournamentCandidate {
   progressCount: number;
 }
 
+export function isTournamentStructurallyFinishable(playerCount: number): boolean {
+  return playerCount >= 4;
+}
+
 export function shouldTournamentBeActive(args: {
   status: ReusableTournamentStatus;
   playerCount: number;

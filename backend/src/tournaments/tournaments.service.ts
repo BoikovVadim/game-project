@@ -55,6 +55,7 @@ import {
 } from './domain/view-model';
 import {
   compareReusableTournamentCandidates,
+  isTournamentStructurallyFinishable,
   shouldTournamentBeActive,
 } from './domain/reusable-tournament';
 import { buildTrainingReviewRounds } from './domain/training-review';
@@ -586,99 +587,12 @@ export class TournamentsService implements OnModuleInit {
     updatedResults: number;
     updatedStatuses: number;
   }> {
-    const rows = await this.tournamentRepository.manager.query(
-      `SELECT id FROM tournament WHERE json_array_length("playerOrder"::json) = 2`,
-    );
-    const tournamentIds = rows
-      .map((row: { id?: number | string }) => Number(row.id))
-      .filter((id: number) => Number.isFinite(id) && id > 0);
-    if (tournamentIds.length === 0) {
-      return { updatedResults: 0, updatedStatuses: 0 };
-    }
-
-    const tournaments = await this.tournamentRepository.find({
-      where: { id: In(tournamentIds) },
-      relations: ['players'],
-    });
-
-    let updatedResults = 0;
-    let updatedStatuses = 0;
-    const touchedTournamentIds = new Set<number>();
-
-    for (const tournament of tournaments) {
-      if (tournament.gameType === 'money') continue;
-      this.sortPlayersByOrder(tournament);
-      const order = (tournament.playerOrder ?? []).filter((id) => id > 0);
-      if (order.length !== 2) continue;
-
-      const [userId1, userId2] = order;
-      const progress1 = await this.tournamentProgressRepository.findOne({
-        where: { tournamentId: tournament.id, userId: userId1 },
-      });
-      const progress2 = await this.tournamentProgressRepository.findOne({
-        where: { tournamentId: tournament.id, userId: userId2 },
-      });
-
-      const winner = this.findSemiWinner(progress1, progress2);
-      if (!winner) continue;
-
-      const winnerId = winner.userId;
-      const loserId = winnerId === userId1 ? userId2 : userId1;
-      const now = new Date();
-
-      const upsertResult = async (
-        userId: number,
-        passed: boolean,
-      ): Promise<void> => {
-        const passedValue = passed ? 1 : 0;
-        let row = await this.tournamentResultRepository.findOne({
-          where: { userId, tournamentId: tournament.id },
-        });
-        if (row) {
-          const shouldSave = row.passed !== passedValue || !row.completedAt;
-          if (!shouldSave) return;
-          row.passed = passedValue;
-          if (!row.completedAt) row.completedAt = now;
-          await this.tournamentResultRepository.save(row);
-          updatedResults += 1;
-          touchedTournamentIds.add(tournament.id);
-          return;
-        }
-
-        row = this.tournamentResultRepository.create({
-          userId,
-          tournamentId: tournament.id,
-          passed: passedValue,
-          completedAt: now,
-        });
-        await this.tournamentResultRepository.save(row);
-        updatedResults += 1;
-        touchedTournamentIds.add(tournament.id);
-      };
-
-      await upsertResult(winnerId, true);
-      await upsertResult(loserId, false);
-
-      if (tournament.status !== TournamentStatus.FINISHED) {
-        await this.tournamentRepository.update(
-          { id: tournament.id },
-          { status: TournamentStatus.FINISHED },
-        );
-        updatedStatuses += 1;
-        touchedTournamentIds.add(tournament.id);
-      }
-    }
-
-    if (touchedTournamentIds.size > 0) {
-      await this.backfillTournamentResultCompletedAt([
-        ...touchedTournamentIds,
-      ]).catch(() => {});
-      this.logger.log(
-        `backfillResolvedHeadToHeadResults: updated ${updatedResults} result rows and ${updatedStatuses} tournament statuses`,
-      );
-    }
-
-    return { updatedResults, updatedStatuses };
+    const repaired =
+      await this.reactivateStructurallyUnfinishedFinishedTournaments();
+    return {
+      updatedResults: repaired.deletedResultRows,
+      updatedStatuses: repaired.reactivatedTournamentIds.length,
+    };
   }
 
   async backfillTimeoutRoundResolutions(
@@ -1076,6 +990,53 @@ export class TournamentsService implements OnModuleInit {
     }
 
     return { updatedResults, updatedStatuses };
+  }
+
+  async reactivateStructurallyUnfinishedFinishedTournaments(): Promise<{
+    reactivatedTournamentIds: number[];
+    deletedResultRows: number;
+  }> {
+    const finishedTournaments = await this.tournamentRepository.find({
+      where: { status: TournamentStatus.FINISHED },
+      relations: ['players'],
+      order: { id: 'ASC' },
+    });
+
+    const affectedTournaments = finishedTournaments.filter(
+      (tournament) => !this.isTournamentStructurallyFinishable(tournament),
+    );
+    const affectedIds = affectedTournaments.map((tournament) => tournament.id);
+    if (affectedIds.length === 0) {
+      return {
+        reactivatedTournamentIds: [],
+        deletedResultRows: 0,
+      };
+    }
+
+    const moneyIds = affectedTournaments
+      .filter((tournament) => tournament.gameType === 'money')
+      .map((tournament) => tournament.id);
+    if (moneyIds.length > 0) {
+      throw new BadRequestException(
+        `Cannot auto-reactivate underfilled finished money tournaments without explicit finance rollback: ${moneyIds.join(', ')}`,
+      );
+    }
+
+    const deleteResult = await this.tournamentResultRepository.delete({
+      tournamentId: In(affectedIds),
+    });
+    await this.tournamentRepository.update(
+      { id: In(affectedIds) },
+      { status: TournamentStatus.ACTIVE },
+    );
+
+    this.logger.log(
+      `reactivateStructurallyUnfinishedFinishedTournaments: reactivated ${affectedIds.length} tournaments and deleted ${deleteResult.affected ?? 0} stale result rows`,
+    );
+    return {
+      reactivatedTournamentIds: affectedIds,
+      deletedResultRows: deleteResult.affected ?? 0,
+    };
   }
 
   private getRoundDeadline(from: Date): string {
@@ -1633,10 +1594,7 @@ export class TournamentsService implements OnModuleInit {
     allowDerivedTimeout = false,
   ): { finished: boolean; winnerId: number | null } {
     this.sortPlayersByOrder(tournament);
-    const participantIds = (tournament.playerOrder ?? []).filter(
-      (id): id is number => id > 0,
-    );
-    if (participantIds.length < 4) {
+    if (!this.isTournamentStructurallyFinishable(tournament)) {
       return { finished: false, winnerId: null };
     }
 
@@ -2105,6 +2063,14 @@ export class TournamentsService implements OnModuleInit {
     const orderCount = (tournament.playerOrder ?? []).filter((id) => id > 0).length;
     const playersCount = (tournament.players ?? []).length;
     return Math.max(orderCount, playersCount);
+  }
+
+  private isTournamentStructurallyFinishable(
+    tournament: Pick<Tournament, 'playerOrder' | 'players'>,
+  ): boolean {
+    return isTournamentStructurallyFinishable(
+      this.getTournamentPlayerCount(tournament),
+    );
   }
 
   private async syncTournamentActiveStatusWithManager(
@@ -5347,7 +5313,7 @@ export class TournamentsService implements OnModuleInit {
       throw new BadRequestException('You are not in this tournament');
 
     const now = new Date();
-    if (!passed) {
+    if (!passed && this.isTournamentStructurallyFinishable(tournament)) {
       await this.upsertTournamentResultRow(tournamentId, userId, false, now);
     }
 
