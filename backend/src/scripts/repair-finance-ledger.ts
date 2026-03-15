@@ -5,6 +5,7 @@ import { NestFactory } from '@nestjs/core';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../app.module';
 import { UsersService } from '../users/users.service';
+import { TournamentsService } from '../tournaments/tournaments.service';
 import { getLeagueName, getLeaguePrize } from '../tournaments/domain/constants';
 import { parseAnyWithdrawalDescription } from '../users/ruble-ledger-descriptions';
 
@@ -39,6 +40,10 @@ type FinishedTournamentSettlementRow = {
   settlementType: 'paid_to_winner' | 'refunded';
 };
 
+type FinishedMoneyTournamentRow = {
+  id: number;
+};
+
 async function main() {
   const app = await NestFactory.createApplicationContext(AppModule, {
     logger: false,
@@ -47,6 +52,7 @@ async function main() {
   try {
     const dataSource = app.get(DataSource);
     const usersService = app.get(UsersService);
+    const tournamentsService = app.get(TournamentsService);
 
     await usersService.normalizeRefundDescriptions();
     const adminCreditResult =
@@ -91,7 +97,27 @@ async function main() {
         }));
     });
 
-    const refundedEscrowsWithoutTx = (await dataSource.query(
+    const finishedMoneyTournaments = (await dataSource.query(
+      `SELECT id
+       FROM tournament
+       WHERE status = 'finished'
+         AND "gameType" = 'money'
+       ORDER BY id ASC`,
+    )) as FinishedMoneyTournamentRow[];
+    const settlementByTournamentId = new Map<
+      number,
+      Awaited<ReturnType<TournamentsService['getMoneyTournamentSettlementResolution']>>
+    >();
+    for (const tournament of finishedMoneyTournaments) {
+      settlementByTournamentId.set(
+        Number(tournament.id),
+        await tournamentsService.getMoneyTournamentSettlementResolution(
+          Number(tournament.id),
+        ),
+      );
+    }
+
+    const refundedEscrowsWithoutTx = ((await dataSource.query(
       `SELECT e.id, e."userId", e."tournamentId", e.amount, t."leagueAmount"
        FROM tournament_escrow e
        INNER JOIN tournament t ON t.id = e."tournamentId"
@@ -102,9 +128,13 @@ async function main() {
        WHERE e.status = 'refunded'
          AND tx.id IS NULL
        ORDER BY e.id ASC`,
-    )) as RefundedEscrowRow[];
+    )) as RefundedEscrowRow[]).filter(
+      (row) =>
+        settlementByTournamentId.get(Number(row.tournamentId))?.settlementType ===
+        'refunded',
+    );
 
-    const missingWins = (await dataSource.query(
+    const missingWins = ((await dataSource.query(
       `SELECT r."tournamentId" AS "tournamentId",
               r."userId" AS "userId",
               t."leagueAmount" AS "leagueAmount"
@@ -127,7 +157,21 @@ async function main() {
            WHERE r2."tournamentId" = r."tournamentId" AND r2.passed = 1
          )
        ORDER BY r."tournamentId" ASC`,
-    )) as MissingWinRow[];
+    )) as MissingWinRow[]).filter((row) => {
+      const settlement = settlementByTournamentId.get(Number(row.tournamentId));
+      return (
+        settlement?.settlementType === 'paid_to_winner' &&
+        Number(settlement.winnerId) === Number(row.userId)
+      );
+    });
+
+    const unresolvedFinishedTournaments = finishedMoneyTournaments
+      .map((row) => Number(row.id))
+      .filter(
+        (tournamentId) =>
+          settlementByTournamentId.get(tournamentId)?.settlementType ===
+          'unresolved',
+      );
 
     const affectedUserIds = new Set<number>([
       ...adminCreditResult.affectedUserIds,
@@ -137,6 +181,10 @@ async function main() {
     const normalizedWithdrawalTxIds: number[] = [];
     const insertedRefundTxRefs: Array<{ userId: number; tournamentId: number }> = [];
     const insertedWinTxRefs: Array<{ userId: number; tournamentId: number }> = [];
+    const reopenedTournamentIds: number[] = [];
+    const restoredEscrowTournamentIds: number[] = [];
+    const deletedSettlementTxIds: number[] = [];
+    const deletedWinnerResultIds: number[] = [];
 
     await dataSource.transaction(async (manager) => {
       for (const tx of legacyWithdrawalTxToNormalize) {
@@ -193,6 +241,55 @@ async function main() {
           tournamentId: Number(winner.tournamentId),
         });
         affectedUserIds.add(Number(winner.userId));
+      }
+
+      for (const tournamentId of unresolvedFinishedTournaments) {
+        const deletedTxRows = (await manager.query(
+          `DELETE FROM "transaction"
+           WHERE "tournamentId" = $1
+             AND category IN ('refund', 'win')
+           RETURNING id, "userId"`,
+          [tournamentId],
+        )) as Array<{ id: number; userId: number }>;
+        for (const row of deletedTxRows) {
+          deletedSettlementTxIds.push(Number(row.id));
+          affectedUserIds.add(Number(row.userId));
+        }
+
+        const restoredEscrows = (await manager.query(
+          `UPDATE tournament_escrow
+           SET status = 'held'
+           WHERE "tournamentId" = $1
+             AND status IN ('refunded', 'paid_to_winner', 'processing')
+           RETURNING id`,
+          [tournamentId],
+        )) as Array<{ id: number }>;
+        if (restoredEscrows.length > 0) {
+          restoredEscrowTournamentIds.push(tournamentId);
+        }
+
+        const deletedWinnerRows = (await manager.query(
+          `DELETE FROM tournament_result
+           WHERE "tournamentId" = $1
+             AND passed = 1
+           RETURNING id`,
+          [tournamentId],
+        )) as Array<{ id: number }>;
+        for (const row of deletedWinnerRows) {
+          deletedWinnerResultIds.push(Number(row.id));
+        }
+
+        const reopened = (await manager.query(
+          `UPDATE tournament
+           SET status = 'active'
+           WHERE id = $1
+             AND status = 'finished'
+           RETURNING id`,
+          [tournamentId],
+        )) as Array<{ id: number }>;
+        if (reopened.length > 0) {
+          reopenedTournamentIds.push(tournamentId);
+        }
       }
     });
 
@@ -291,6 +388,22 @@ async function main() {
     console.log(
       '[repair-finance-ledger] inserted missing win tx:',
       insertedWinTxRefs.length,
+    );
+    console.log(
+      '[repair-finance-ledger] reopened unresolved tournaments:',
+      reopenedTournamentIds.length,
+    );
+    console.log(
+      '[repair-finance-ledger] restored escrow rows for unresolved tournaments:',
+      restoredEscrowTournamentIds.length,
+    );
+    console.log(
+      '[repair-finance-ledger] deleted erroneous settlement tx:',
+      deletedSettlementTxIds.length,
+    );
+    console.log(
+      '[repair-finance-ledger] deleted premature winner rows:',
+      deletedWinnerResultIds.length,
     );
     console.log(
       '[repair-finance-ledger] updated finished escrow rows:',

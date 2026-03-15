@@ -68,6 +68,12 @@ interface TournamentListResultState {
   kind: TournamentResultKind;
 }
 
+export type MoneyTournamentSettlementResolution = {
+  settlementType: 'unresolved' | 'paid_to_winner' | 'refunded';
+  winnerId: number | null;
+  participantCount: number;
+};
+
 @Injectable()
 export class TournamentsService implements OnModuleInit {
   constructor(
@@ -391,6 +397,54 @@ export class TournamentsService implements OnModuleInit {
     return this.buildLatestResolutionMap(rows);
   }
 
+  async getMoneyTournamentSettlementResolution(
+    tournamentId: number,
+    now: Date = new Date(),
+  ): Promise<MoneyTournamentSettlementResolution> {
+    const tournament = await this.tournamentRepository.findOne({
+      where: { id: tournamentId },
+      relations: ['players'],
+    });
+    if (!tournament || tournament.gameType !== 'money') {
+      return {
+        settlementType: 'unresolved',
+        winnerId: null,
+        participantCount: 0,
+      };
+    }
+
+    this.sortPlayersByOrder(tournament);
+    const participantIds = (tournament.playerOrder ?? []).filter(
+      (id): id is number => id > 0,
+    );
+    const allProgress = await this.tournamentProgressRepository.find({
+      where: { tournamentId },
+    });
+    const timeoutResolutionMap =
+      await this.getTournamentTimeoutResolutionMap(tournamentId);
+    const resolved = this.resolveTournamentOutcome(
+      tournament,
+      allProgress,
+      timeoutResolutionMap,
+      now,
+      true,
+    );
+
+    if (!resolved.finished) {
+      return {
+        settlementType: 'unresolved',
+        winnerId: null,
+        participantCount: participantIds.length,
+      };
+    }
+
+    return {
+      settlementType: resolved.winnerId ? 'paid_to_winner' : 'refunded',
+      winnerId: resolved.winnerId,
+      participantCount: participantIds.length,
+    };
+  }
+
   private getOwnSemiTimeoutResolutionFromMap(
     tournament: Tournament,
     userId: number,
@@ -547,6 +601,7 @@ export class TournamentsService implements OnModuleInit {
     const touchedTournamentIds = new Set<number>();
 
     for (const tournament of tournaments) {
+      if (tournament.gameType === 'money') continue;
       this.sortPlayersByOrder(tournament);
       const order = (tournament.playerOrder ?? []).filter((id) => id > 0);
       if (order.length !== 2) continue;
@@ -1829,8 +1884,14 @@ export class TournamentsService implements OnModuleInit {
     for (const pairUserId of pairUserIds) {
       const existingProgress = progressByUserId.get(pairUserId);
       if (existingProgress) {
-        existingProgress.roundStartedAt = joinedAt;
-        await progressRepository.save(existingProgress);
+        const hasStartedCurrentRound =
+          (existingProgress.questionsAnsweredCount ?? 0) > 0 ||
+          (existingProgress.lockedAnswerCount ?? 0) > 0 ||
+          existingProgress.leftAt instanceof Date;
+        if (!hasStartedCurrentRound) {
+          existingProgress.roundStartedAt = joinedAt;
+          await progressRepository.save(existingProgress);
+        }
         continue;
       }
 
@@ -2487,10 +2548,20 @@ export class TournamentsService implements OnModuleInit {
       return;
     }
 
-    const results = await this.tournamentResultRepository.find({
-      where: { tournamentId },
-    });
-    const winners = results.filter((r) => r.passed === 1).map((r) => r.userId);
+    const settlement = await this.getMoneyTournamentSettlementResolution(
+      tournamentId,
+    );
+    if (settlement.settlementType === 'unresolved') {
+      this.logger.warn(
+        `[processTournamentEscrow] Skip unresolved settlement for tournament ${tournamentId} (participants=${settlement.participantCount})`,
+      );
+      await this.tournamentEscrowRepository.query(
+        "UPDATE tournament_escrow SET status = 'held' WHERE \"tournamentId\" = $1 AND status = 'processing'",
+        [tournamentId],
+      );
+      return;
+    }
+
     const existingWinTransactions = await this.transactionRepository.find({
       where: { tournamentId, category: 'win' },
     });
@@ -2504,8 +2575,8 @@ export class TournamentsService implements OnModuleInit {
     const leagueAmount = tournament.leagueAmount ?? 0;
     const prize = getLeaguePrize(leagueAmount);
 
-    if (winners.length === 1) {
-      const winnerId = winners[0]!;
+    if (settlement.settlementType === 'paid_to_winner') {
+      const winnerId = settlement.winnerId!;
       const winnerAlreadyPaid = existingWinTransactions.some(
         (tx) => tx.userId === winnerId,
       );

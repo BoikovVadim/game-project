@@ -6,6 +6,7 @@ import { NestFactory } from '@nestjs/core';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../app.module';
 import { UsersService } from '../users/users.service';
+import { TournamentsService } from '../tournaments/tournaments.service';
 import {
   parseAdminTopupDescription,
   parseAnyWithdrawalDescription,
@@ -185,6 +186,7 @@ async function main() {
   try {
     const dataSource = app.get(DataSource);
     const usersService = app.get(UsersService);
+    const tournamentsService = app.get(TournamentsService);
 
     const users = (await dataSource.query(
       `SELECT id, username, email, balance, "balanceRubles", "createdAt"
@@ -457,21 +459,6 @@ async function main() {
       }
     }
 
-    for (const escrow of escrowRows) {
-      if (escrow.status === 'refunded') {
-        const key = `${escrow.userId}:${escrow.tournamentId}`;
-        if ((refundTxByUserTournament.get(key) ?? []).length === 0) {
-          pushIssue(deterministicIssues, 'refunded_escrow_without_refund_tx', {
-            escrowId: Number(escrow.id),
-            userId: Number(escrow.userId),
-            tournamentId: Number(escrow.tournamentId),
-            amount: Number(escrow.amount),
-            createdAt: toIso(escrow.createdAt),
-          });
-        }
-      }
-    }
-
     const resultsByTournament = new Map<number, ResultRow[]>();
     for (const row of resultRows) {
       const list = resultsByTournament.get(Number(row.tournamentId)) ?? [];
@@ -484,15 +471,85 @@ async function main() {
       list.push(row);
       escrowByTournament.set(Number(row.tournamentId), list);
     }
+    const txByTournament = new Map<number, TxRow[]>();
+    for (const row of txRows) {
+      if (row.tournamentId == null) continue;
+      const tournamentId = Number(row.tournamentId);
+      const list = txByTournament.get(tournamentId) ?? [];
+      list.push(row);
+      txByTournament.set(tournamentId, list);
+    }
+    const settlementByTournamentId = new Map<
+      number,
+      Awaited<ReturnType<TournamentsService['getMoneyTournamentSettlementResolution']>>
+    >();
+    for (const tournament of tournamentRows) {
+      if (tournament.gameType !== 'money') continue;
+      settlementByTournamentId.set(
+        Number(tournament.id),
+        await tournamentsService.getMoneyTournamentSettlementResolution(
+          Number(tournament.id),
+        ),
+      );
+    }
+
+    for (const escrow of escrowRows) {
+      if (escrow.status === 'refunded') {
+        const key = `${escrow.userId}:${escrow.tournamentId}`;
+        const settlement = settlementByTournamentId.get(Number(escrow.tournamentId));
+        if (
+          settlement?.settlementType === 'refunded' &&
+          (refundTxByUserTournament.get(key) ?? []).length === 0
+        ) {
+          pushIssue(deterministicIssues, 'refunded_escrow_without_refund_tx', {
+            escrowId: Number(escrow.id),
+            userId: Number(escrow.userId),
+            tournamentId: Number(escrow.tournamentId),
+            amount: Number(escrow.amount),
+            createdAt: toIso(escrow.createdAt),
+          });
+        }
+      }
+    }
 
     for (const tournament of tournamentRows) {
       if (tournament.gameType !== 'money' || tournament.status !== 'finished') {
         continue;
       }
       const tournamentId = Number(tournament.id);
+      const settlement = settlementByTournamentId.get(tournamentId);
       const tournamentResults = resultsByTournament.get(tournamentId) ?? [];
       const winners = tournamentResults.filter((row) => Number(row.passed) === 1);
-      if (winners.length === 1) {
+      if (settlement?.settlementType === 'unresolved') {
+        const settlementTx = (txByTournament.get(tournamentId) ?? []).filter((row) =>
+          ['refund', 'win'].includes(row.category),
+        );
+        const settledEscrows = (escrowByTournament.get(tournamentId) ?? []).filter(
+          (row) => row.status !== 'held',
+        );
+        if (
+          winners.length > 0 ||
+          settlementTx.length > 0 ||
+          settledEscrows.length > 0
+        ) {
+          pushIssue(
+            deterministicIssues,
+            'unresolved_tournament_with_settlement_artifacts',
+            {
+              tournamentId,
+              participantCount: settlement.participantCount,
+              winnerUserIds: winners.map((row) => Number(row.userId)),
+              settlementTxIds: settlementTx.map((row) => Number(row.id)),
+              escrowStatuses: settledEscrows.map((row) => ({
+                escrowId: Number(row.id),
+                userId: Number(row.userId),
+                status: row.status,
+              })),
+            },
+          );
+        }
+      }
+      if (settlement?.settlementType === 'paid_to_winner' && winners.length === 1) {
         const winner = winners[0]!;
         const winKey = `${winner.userId}:${tournamentId}`;
         if ((winTxByTournamentUser.get(winKey) ?? []).length === 0) {
