@@ -6,14 +6,14 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
-    <link rel="icon" type="image/png" sizes="32x32" href="%PUBLIC_URL%/favicon-32.png" />
-    <link rel="icon" type="image/png" sizes="192x192" href="%PUBLIC_URL%/favicon-192.png" />
-    <link rel="apple-touch-icon" sizes="180x180" href="%PUBLIC_URL%/apple-touch-icon.png" />
-    <link rel="preload" as="image" href="%PUBLIC_URL%/leagues/league-amber.jpg" />
-    <link rel="preload" as="image" href="%PUBLIC_URL%/leagues/league-coral.jpg" />
-    <link rel="preload" as="image" href="%PUBLIC_URL%/leagues/league-jade.jpg" />
-    <link rel="preload" as="image" href="%PUBLIC_URL%/leagues/league-agate.jpg" />
-    <link rel="preload" as="image" href="%PUBLIC_URL%/leagues/league-amethyst.jpg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/favicon-192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="preload" as="image" href="/leagues/league-amber.jpg" />
+    <link rel="preload" as="image" href="/leagues/league-coral.jpg" />
+    <link rel="preload" as="image" href="/leagues/league-jade.jpg" />
+    <link rel="preload" as="image" href="/leagues/league-agate.jpg" />
+    <link rel="preload" as="image" href="/leagues/league-amethyst.jpg" />
     <title>Legend Games</title>
     <style>
       html, body { margin: 0; background: #f0f0f0; color: #222; font-family: system-ui, sans-serif; -webkit-tap-highlight-color: transparent; }
@@ -23,7 +23,6 @@
   </head>
   <body>
     <script>if (!window.location.hash || window.location.hash === '#') { window.location.hash = '#/'; }</script>
-    <!-- Экран загрузки: sidebar адаптируется к ширине экрана, совпадая с реальным sidebar профиля -->
     <div id="loading-screen" style="position:fixed;top:0;left:0;right:0;bottom:0;z-index:99999;background:#f0f0f0;display:flex;transition:opacity .18s ease-out;">
       <div id="ls-sidebar" style="width:70px;min-height:100vh;background:#000;flex-shrink:0;border-right:1px solid #333;"></div>
       <div style="flex:1;display:flex;align-items:center;justify-content:center;">
@@ -51,5 +50,6 @@
         }, 2000);
       })();
     </script>
+    <script type="module" src="/src/index.tsx"></script>
   </body>
 </html>
