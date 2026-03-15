@@ -561,6 +561,21 @@ async function main() {
           );
         }
       }
+      if (tournament.status !== 'finished') {
+        const tournamentId = Number(tournament.id);
+        const tournamentResults = resultsByTournament.get(tournamentId) ?? [];
+        if (tournamentResults.length > 0) {
+          pushIssue(
+            deterministicIssues,
+            'unfinished_tournament_with_result_rows',
+            {
+              tournamentId,
+              status: tournament.status,
+              resultIds: tournamentResults.map((row) => Number(row.id)),
+            },
+          );
+        }
+      }
       if (tournament.gameType !== 'money' || tournament.status !== 'finished') {
         continue;
       }

@@ -48,6 +48,10 @@ type WaitingSinglePlayerArtifactRow = {
   tournamentId: number;
 };
 
+type UnfinishedTournamentWithResultRow = {
+  tournamentId: number;
+};
+
 async function main() {
   const app = await NestFactory.createApplicationContext(AppModule, {
     logger: false,
@@ -195,6 +199,15 @@ async function main() {
          ORDER BY t.id ASC`,
       )
     ) as WaitingSinglePlayerArtifactRow[];
+    const unfinishedTournamentsWithResultRows = (
+      await dataSource.query(
+        `SELECT DISTINCT t.id AS "tournamentId"
+         FROM tournament t
+         INNER JOIN tournament_result r ON r."tournamentId" = t.id
+         WHERE t.status <> 'finished'
+         ORDER BY t.id ASC`,
+      )
+    ) as UnfinishedTournamentWithResultRow[];
 
     const affectedUserIds = new Set<number>([
       ...adminCreditResult.affectedUserIds,
@@ -210,6 +223,7 @@ async function main() {
     const deletedWinnerResultIds: number[] = [];
     const restoredWaitingTournamentIds: number[] = [];
     const deletedWaitingResultIds: number[] = [];
+    const cleanedUnfinishedResultTournamentIds: number[] = [];
 
     await dataSource.transaction(async (manager) => {
       for (const tx of legacyWithdrawalTxToNormalize) {
@@ -356,6 +370,22 @@ async function main() {
           deletedWaitingResultIds.push(Number(deletedRow.id));
         }
       }
+
+      for (const row of unfinishedTournamentsWithResultRows) {
+        const tournamentId = Number(row.tournamentId);
+        const deletedResultRows = (await manager.query(
+          `DELETE FROM tournament_result
+           WHERE "tournamentId" = $1
+           RETURNING id`,
+          [tournamentId],
+        )) as Array<{ id: number }>;
+        if (deletedResultRows.length > 0) {
+          cleanedUnfinishedResultTournamentIds.push(tournamentId);
+          for (const deletedRow of deletedResultRows) {
+            deletedWaitingResultIds.push(Number(deletedRow.id));
+          }
+        }
+      }
     });
 
     const settlementRows = (await dataSource.query(
@@ -477,6 +507,10 @@ async function main() {
     console.log(
       '[repair-finance-ledger] deleted waiting tournament result rows:',
       deletedWaitingResultIds.length,
+    );
+    console.log(
+      '[repair-finance-ledger] cleaned unfinished tournaments with result rows:',
+      cleanedUnfinishedResultTournamentIds.length,
     );
     console.log(
       '[repair-finance-ledger] updated finished escrow rows:',
