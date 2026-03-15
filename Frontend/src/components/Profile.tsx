@@ -19,6 +19,10 @@ import type {
   TrainingQuestion,
   TrainingRound,
 } from "../features/tournaments/contracts.ts";
+import {
+  resolveQuestionAttempt,
+  type ResolvedQuestion,
+} from "../features/tournaments/answer-resolution.ts";
 import { buildTournamentSessionViewModel } from "../features/tournaments/session.ts";
 import {
   useTournamentBracketModalState,
@@ -1063,10 +1067,7 @@ const Profile: React.FC<ProfileProps> = ({
   const [timerKey, setTimerKey] = useState(0);
   const timerStartRef = useRef<number>(Date.now());
   const timerPaused = answerForCurrentQuestion !== null;
-  const resolvedCurrentQuestionRef = useRef<{
-    globalIdx: number;
-    value: number;
-  } | null>(null);
+  const resolvedCurrentQuestionRef = useRef<ResolvedQuestion | null>(null);
   const [questionCooldown, setQuestionCooldown] = useState(false);
   const questionCooldownRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -2149,11 +2150,10 @@ const Profile: React.FC<ProfileProps> = ({
         return null;
       }
       const globalIdx = getTrainingAnswerBase() + trainingQuestionIndex;
-      const existing = resolvedCurrentQuestionRef.current;
-      if (existing && existing.globalIdx === globalIdx) {
-        return existing;
-      }
-      const resolved = { globalIdx, value };
+      const resolved = resolveQuestionAttempt(
+        resolvedCurrentQuestionRef.current,
+        { globalIdx, value },
+      );
       resolvedCurrentQuestionRef.current = resolved;
       return resolved;
     },
