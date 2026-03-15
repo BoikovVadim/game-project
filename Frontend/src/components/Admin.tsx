@@ -2241,18 +2241,6 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                           <td>{u.balanceRubles} ₽</td>
                           <td className="admin-table-actions">
                             <div className="admin-table-actions-inner">
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setImpersonateConfirm({
-                                    userId: u.id,
-                                    username: u.username,
-                                    source: "users",
-                                  })
-                                }
-                              >
-                                Войти как пользователь
-                              </button>
                               {u.id !== 1 && !u.isAdmin && (
                                 <button
                                   type="button"
