@@ -2107,6 +2107,7 @@ export class TournamentsService implements OnModuleInit {
     playerOrder: number[] | null | undefined,
     playerSlot: number,
     joinedAt: Date,
+    tournamentCreatedAt?: Date | null,
   ): Promise<void> {
     if (!playerOrder || playerSlot < 0 || playerSlot >= playerOrder.length)
       return;
@@ -2123,6 +2124,12 @@ export class TournamentsService implements OnModuleInit {
       where: { tournamentId, userId: In(pairUserIds) },
     });
     const progressByUserId = new Map(existing.map((row) => [row.userId, row]));
+    const effectiveRoundStartedAt =
+      tournamentCreatedAt instanceof Date &&
+      !Number.isNaN(tournamentCreatedAt.getTime()) &&
+      tournamentCreatedAt.getTime() > joinedAt.getTime()
+        ? tournamentCreatedAt
+        : joinedAt;
 
     for (const pairUserId of pairUserIds) {
       const existingProgress = progressByUserId.get(pairUserId);
@@ -2132,7 +2139,7 @@ export class TournamentsService implements OnModuleInit {
           (existingProgress.lockedAnswerCount ?? 0) > 0 ||
           existingProgress.leftAt instanceof Date;
         if (!hasStartedCurrentRound) {
-          existingProgress.roundStartedAt = joinedAt;
+          existingProgress.roundStartedAt = effectiveRoundStartedAt;
           await progressRepository.save(existingProgress);
         }
         continue;
@@ -2145,7 +2152,7 @@ export class TournamentsService implements OnModuleInit {
         correctAnswersCount: 0,
         currentQuestionIndex: 0,
         lockedAnswerCount: 0,
-        roundStartedAt: joinedAt,
+        roundStartedAt: effectiveRoundStartedAt,
         leftAt: null,
         timeLeftSeconds: null,
       });
@@ -2158,6 +2165,7 @@ export class TournamentsService implements OnModuleInit {
     playerOrder: number[] | null | undefined,
     playerSlot: number,
     joinedAt: Date,
+    tournamentCreatedAt?: Date | null,
   ): Promise<void> {
     await this.syncSemiPairStartOnJoinWithManager(
       this.tournamentProgressRepository.manager,
@@ -2165,6 +2173,7 @@ export class TournamentsService implements OnModuleInit {
       playerOrder,
       playerSlot,
       joinedAt,
+      tournamentCreatedAt,
     );
   }
 
@@ -3085,6 +3094,7 @@ export class TournamentsService implements OnModuleInit {
           newOrder,
           playerSlot,
           joinedAt,
+          tournament.createdAt ?? null,
         );
         await this.syncTournamentActiveStatusWithManager(manager, tournament.id);
       } else {
@@ -3477,6 +3487,7 @@ export class TournamentsService implements OnModuleInit {
           newOrder,
           playerSlot,
           joinedAt,
+          tournament.createdAt ?? null,
         );
         await this.syncTournamentActiveStatusWithManager(manager, tournament.id);
       } else {
