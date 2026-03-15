@@ -3,6 +3,11 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { useCabinetRouteState } from './useCabinetRouteState';
 
+const routerFuture = {
+  v7_startTransition: true,
+  v7_relativeSplatPath: true,
+} as const;
+
 function Probe() {
   const {
     section,
@@ -25,7 +30,10 @@ function Probe() {
 
 test('restores stats mode and selected league from URL', () => {
   render(
-    <MemoryRouter initialEntries={['/profile?section=statistics&statsMode=general&league=20']}>
+    <MemoryRouter
+      initialEntries={['/profile?section=statistics&statsMode=general&league=20']}
+      future={routerFuture}
+    >
       <Probe />
     </MemoryRouter>,
   );
@@ -37,7 +45,10 @@ test('restores stats mode and selected league from URL', () => {
 
 test('updates search-param-backed state through hook setters', () => {
   render(
-    <MemoryRouter initialEntries={['/profile?section=statistics&statsMode=general&league=20']}>
+    <MemoryRouter
+      initialEntries={['/profile?section=statistics&statsMode=general&league=20']}
+      future={routerFuture}
+    >
       <Probe />
     </MemoryRouter>,
   );

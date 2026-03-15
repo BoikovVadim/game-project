@@ -3,6 +3,11 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { useAdminQueryState } from './useAdminQueryState';
 
+const routerFuture = {
+  v7_startTransition: true,
+  v7_relativeSplatPath: true,
+} as const;
+
 function Probe() {
   const { state, patchQuery } = useAdminQueryState();
 
@@ -63,7 +68,10 @@ function WithdrawalSyncProbe() {
 
 test('restores admin query state from URL', () => {
   render(
-    <MemoryRouter initialEntries={['/admin?tab=support&status=approved&supportTicket=17&statsTab=project-cost']}>
+    <MemoryRouter
+      initialEntries={['/admin?tab=support&status=approved&supportTicket=17&statsTab=project-cost']}
+      future={routerFuture}
+    >
       <Probe />
     </MemoryRouter>,
   );
@@ -76,7 +84,10 @@ test('restores admin query state from URL', () => {
 
 test('restores withdrawals section from explicit tab in URL', () => {
   render(
-    <MemoryRouter initialEntries={['/admin?tab=withdrawals&status=rejected']}>
+    <MemoryRouter
+      initialEntries={['/admin?tab=withdrawals&status=rejected']}
+      future={routerFuture}
+    >
       <Probe />
     </MemoryRouter>,
   );
@@ -87,7 +98,10 @@ test('restores withdrawals section from explicit tab in URL', () => {
 
 test('keeps legacy withdrawal URLs on withdrawals section', () => {
   render(
-    <MemoryRouter initialEntries={['/admin?status=approved']}>
+    <MemoryRouter
+      initialEntries={['/admin?status=approved']}
+      future={routerFuture}
+    >
       <Probe />
     </MemoryRouter>,
   );
@@ -98,7 +112,10 @@ test('keeps legacy withdrawal URLs on withdrawals section', () => {
 
 test('patchQuery keeps search-param state canonical', () => {
   render(
-    <MemoryRouter initialEntries={['/admin?tab=statistics&status=pending']}>
+    <MemoryRouter
+      initialEntries={['/admin?tab=statistics&status=pending']}
+      future={routerFuture}
+    >
       <Probe />
     </MemoryRouter>,
   );
@@ -113,7 +130,10 @@ test('patchQuery keeps search-param state canonical', () => {
 
 test('changing withdrawal status keeps withdrawals section in URL state', () => {
   render(
-    <MemoryRouter initialEntries={['/admin?tab=withdrawals&status=pending']}>
+    <MemoryRouter
+      initialEntries={['/admin?tab=withdrawals&status=pending']}
+      future={routerFuture}
+    >
       <WithdrawalSyncProbe />
     </MemoryRouter>,
   );
