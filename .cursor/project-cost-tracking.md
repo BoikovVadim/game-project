@@ -1,7 +1,24 @@
-900159.15
-За сегодня (2026-03-15): 126 301,90 ₽
+901692.48
+За сегодня (2026-03-15): 127 835,23 ₽
 
 # Последние изменения. Формат записи: YYYY-MM-DD HH:MM | Z ₽ | оплачиваемое время | описание. Если у задачи есть клиентская разбивка, она идёт отдельным списком ниже. Внутренние расчёты и ретроспектива на сайт не выводятся.
+2026-03-15 18:36 | 1 533,33 ₽ | 46 мин | Турниры/frontend+timeout-click-race-fix+deploy: устранена гонка между кликом по ответу и таймерным timeout на текущем вопросе — `Profile` теперь синхронно резолвит активный вопрос через ref до `setState` и `POST /progress`, поэтому timeout больше не может в тот же тик перетереть уже выбранный игроком ответ на `-1`, а если первым успел timeout, античит-фиксация `answerFinal` сохраняется как и раньше. Локально подтверждены `Frontend build`, `dev:live`, `http://localhost:3000 = 200`, `http://localhost:3001/api/health = 200`; затем выполнены commit/push/deploy и production health-check `https://legendgames.space/api/health = 200`.
+
+Разбивка:
+- Погружение: 10 мин.
+- Проектирование: 5 мин.
+- Реализация: 7 мин.
+- Cleanup: 2 мин.
+- Проверка: 8 мин.
+- Delivery: 8 мин.
+
+Ретроспектива:
+- Базовое время: 40 мин.
+- Коэффициент: 1.15
+- Оплачиваемое время: 46 мин.
+- Ставка: 2000 ₽ / час.
+- Формула: 46 мин × 2000 ₽ / 60 мин = 1 533,33 ₽.
+
 2026-03-15 18:20 | 2 833,33 ₽ | 1 ч 25 мин | Турниры/backend+global-participant-drift-audit+repair+deploy: выполнен полный повторный аудит турниров на тот же класс багов, который всплыл на `T11`. Найден системный legacy drift: reusable-selector всё ещё зависел от relation `players` для `hasCurrentUser`, а production-хвост содержал отсутствующие строки в `tournament_players_user` и `tournament_entry`, из-за чего open-slot join/resume мог расходиться с фактическими `playerOrder/progress`. Selector переведён на объединённый состав из `playerOrder + players + entry + progress`, `audit:tournaments` дополнен детекторами `missing_players_join_rows` и `missing_entry_rows_for_player_order`, а `repair:tournaments` теперь автоматически запускает participant backfill. Локально подтверждены `build backend`, `repair -> audit = 0`, `verify:tournaments`; на production после выката выполнены `repair:tournaments`, новый `audit:tournaments = 0`, прямой SQL-check `missingPlayersJoin=0`, `missingEntryRows=0`, а public health-check вернул `200`.
 
 Разбивка:
