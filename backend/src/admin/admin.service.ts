@@ -65,6 +65,127 @@ function formatDurationLabel(totalMinutes: number): string {
   return `${minutes} мин`;
 }
 
+function pad2(value: number): string {
+  return String(value).padStart(2, '0');
+}
+
+function formatUtcDay(date: Date): string {
+  return `${date.getUTCFullYear()}-${pad2(date.getUTCMonth() + 1)}-${pad2(
+    date.getUTCDate(),
+  )}`;
+}
+
+function formatUtcMonth(date: Date): string {
+  return `${date.getUTCFullYear()}-${pad2(date.getUTCMonth() + 1)}`;
+}
+
+function getUtcIsoWeek(date: Date): string {
+  const normalized = new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
+  );
+  const day = normalized.getUTCDay() || 7;
+  normalized.setUTCDate(normalized.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(normalized.getUTCFullYear(), 0, 1));
+  const week = Math.ceil(
+    ((normalized.getTime() - yearStart.getTime()) / 86400000 + 1) / 7,
+  );
+  return `${normalized.getUTCFullYear()}-${pad2(week)}`;
+}
+
+function parseDayPeriod(value: string): Date | null {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  return date;
+}
+
+function parseMonthPeriod(value: string): Date | null {
+  const match = value.match(/^(\d{4})-(\d{2})$/);
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const date = new Date(Date.UTC(year, month - 1, 1));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1) {
+    return null;
+  }
+  return date;
+}
+
+function parseWeekPeriod(value: string): Date | null {
+  const match = value.match(/^(\d{4})-(\d{2})$/);
+  if (!match) return null;
+  const isoYear = Number(match[1]);
+  const isoWeek = Number(match[2]);
+  if (isoWeek < 1 || isoWeek > 53) return null;
+  const jan4 = new Date(Date.UTC(isoYear, 0, 4));
+  const jan4Day = jan4.getUTCDay() || 7;
+  const monday = new Date(jan4);
+  monday.setUTCDate(jan4.getUTCDate() - jan4Day + 1 + (isoWeek - 1) * 7);
+  return monday;
+}
+
+function buildContinuousPeriods(
+  periods: string[],
+  groupBy: 'day' | 'week' | 'month' | 'all',
+): string[] {
+  if (groupBy === 'all') return periods.length > 0 ? ['all'] : ['all'];
+
+  const now = new Date();
+  const uniquePeriods = [...new Set(periods)].sort();
+
+  if (groupBy === 'day') {
+    const start = parseDayPeriod(uniquePeriods[0] ?? '') ?? new Date();
+    const end = parseDayPeriod(uniquePeriods[uniquePeriods.length - 1] ?? '') ?? new Date();
+    const current = parseDayPeriod(formatUtcDay(now)) ?? now;
+    const cursor = new Date(start > current ? current : start);
+    const limit = end > current ? end : current;
+    const filled: string[] = [];
+    while (cursor <= limit) {
+      filled.push(formatUtcDay(cursor));
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
+    return filled;
+  }
+
+  if (groupBy === 'week') {
+    const start = parseWeekPeriod(uniquePeriods[0] ?? '') ?? new Date();
+    const end = parseWeekPeriod(uniquePeriods[uniquePeriods.length - 1] ?? '') ?? new Date();
+    const current = parseWeekPeriod(getUtcIsoWeek(now)) ?? now;
+    const cursor = new Date(start > current ? current : start);
+    const limit = end > current ? end : current;
+    const filled: string[] = [];
+    while (cursor <= limit) {
+      filled.push(getUtcIsoWeek(cursor));
+      cursor.setUTCDate(cursor.getUTCDate() + 7);
+    }
+    return filled;
+  }
+
+  const start = parseMonthPeriod(uniquePeriods[0] ?? '') ?? new Date();
+  const end = parseMonthPeriod(uniquePeriods[uniquePeriods.length - 1] ?? '') ?? new Date();
+  const current = parseMonthPeriod(formatUtcMonth(now)) ?? now;
+  const cursor = new Date(start > current ? current : start);
+  cursor.setUTCDate(1);
+  const limit = new Date(end > current ? end : current);
+  limit.setUTCDate(1);
+  const filled: string[] = [];
+  while (cursor <= limit) {
+    filled.push(formatUtcMonth(cursor));
+    cursor.setUTCMonth(cursor.getUTCMonth() + 1, 1);
+  }
+  return filled;
+}
+
 async function readProjectCostTrackingFile(): Promise<{
   content: string;
   filePath: string;
@@ -551,7 +672,7 @@ export class AdminService {
         ]),
       );
 
-      const sorted = [...periods].sort();
+      const sorted = buildContinuousPeriods([...periods], groupBy);
       const data: {
         period: string;
         registrations: number;
