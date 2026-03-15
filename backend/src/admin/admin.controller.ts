@@ -1,8 +1,23 @@
-import { Controller, Get, Post, Body, Param, Query, UseGuards, Request, ParseIntPipe } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+  Request,
+  ParseIntPipe,
+} from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { AdminGuard } from '../auth/admin.guard';
-import { CreditBalanceDto, ImpersonateDto, SetUserAdminDto, WithdrawalDecisionDto } from './dto/admin-write.dto';
+import {
+  CreditBalanceDto,
+  ImpersonateDto,
+  SetUserAdminDto,
+  WithdrawalDecisionDto,
+} from './dto/admin-write.dto';
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard, AdminGuard)
@@ -10,7 +25,9 @@ export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
   @Get('withdrawal-requests')
-  getWithdrawalRequests(@Query('status') status?: 'pending' | 'approved' | 'rejected') {
+  getWithdrawalRequests(
+    @Query('status') status?: 'pending' | 'approved' | 'rejected',
+  ): ReturnType<AdminService['getWithdrawalRequests']> {
     return this.adminService.getWithdrawalRequests(status);
   }
 
@@ -33,13 +50,22 @@ export class AdminController {
   }
 
   @Get('users')
-  getUsers(@Query('search') search?: string, @Query('limit') limit?: string) {
-    return this.adminService.getUsers(search, limit ? parseInt(limit, 10) : 500);
+  getUsers(
+    @Query('search') search?: string,
+    @Query('limit') limit?: string,
+  ): ReturnType<AdminService['getUsers']> {
+    return this.adminService.getUsers(
+      search,
+      limit ? parseInt(limit, 10) : 500,
+    );
   }
 
   /** Получить JWT для входа «под пользователем» */
   @Post('impersonate')
-  impersonate(@Body() body: ImpersonateDto, @Request() req: { user: { id: number } }) {
+  impersonate(
+    @Body() body: ImpersonateDto,
+    @Request() req: { user: { id: number } },
+  ) {
     return this.adminService.getImpersonationToken(req.user.id, body.userId);
   }
 
@@ -48,7 +74,12 @@ export class AdminController {
     @Body() body: CreditBalanceDto,
     @Request() req: { user: { id: number } },
   ) {
-    return this.adminService.creditBalance(req.user.id, body.userId, body.amount, body.comment);
+    return this.adminService.creditBalance(
+      req.user.id,
+      body.userId,
+      body.amount,
+      body.comment,
+    );
   }
 
   @Get('credit-history')
@@ -87,6 +118,10 @@ export class AdminController {
     @Body() body: SetUserAdminDto,
     @Request() req: { user: { id: number } },
   ) {
-    return this.adminService.setUserAdmin(id, req.user.id, body.isAdmin === true);
+    return this.adminService.setUserAdmin(
+      id,
+      req.user.id,
+      body.isAdmin === true,
+    );
   }
 }

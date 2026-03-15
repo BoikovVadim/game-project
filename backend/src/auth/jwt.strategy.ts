@@ -5,6 +5,10 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../users/user.entity';
 import { getRequiredEnv } from '../common/env';
+import {
+  type AuthJwtPayload,
+  type AuthenticatedRequestUser,
+} from './auth-session.types';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -19,7 +23,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  async validate(payload: { sub: number; username?: string }): Promise<{ id: number; username: string; isAdmin: boolean }> {
+  async validate(payload: AuthJwtPayload): Promise<AuthenticatedRequestUser> {
     const user = await this.userRepository.findOne({
       where: { id: payload.sub },
       select: ['id', 'username', 'isAdmin'],
@@ -27,6 +31,30 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!user) {
       throw new UnauthorizedException('User not found');
     }
-    return { id: user.id, username: user.username, isAdmin: !!user.isAdmin };
+
+    const impersonation = payload.impersonation ?? null;
+    if (impersonation) {
+      const actor = await this.userRepository.findOne({
+        where: { id: impersonation.actorId },
+        select: ['id', 'username', 'isAdmin'],
+      });
+      if (!actor?.isAdmin) {
+        throw new UnauthorizedException('Impersonation actor is invalid');
+      }
+      if (
+        actor.username !== impersonation.actorUsername ||
+        user.id !== impersonation.targetUserId
+      ) {
+        throw new UnauthorizedException('Impersonation scope is invalid');
+      }
+    }
+
+    return {
+      id: user.id,
+      username: user.username,
+      isAdmin: !!user.isAdmin,
+      isImpersonating: !!impersonation,
+      impersonation,
+    };
   }
 }

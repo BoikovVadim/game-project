@@ -1,10 +1,11 @@
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
-import { Payment } from './payment.entity';
+import { Payment, type PaymentProvider } from './payment.entity';
 import { YooKassaService } from './yookassa.service';
 import { RobokassaService } from './robokassa.service';
 import { UsersService } from '../users/users.service';
+import { type AvailablePaymentProvidersDto } from './dto/payments-read.dto';
 
 export type YooKassaWebhookResult = {
   success: boolean;
@@ -32,7 +33,7 @@ export class PaymentsService {
 
   private async finalizeTopupPayment(
     paymentId: number,
-    provider: 'yookassa' | 'robokassa',
+    provider: PaymentProvider,
     externalId: string,
   ): Promise<boolean> {
     return this.dataSource.transaction(async (manager) => {
@@ -53,7 +54,11 @@ export class PaymentsService {
         manager,
         payment.userId,
         amount,
-        UsersService.buildPaymentTopupDescription(provider, payment.id, externalId),
+        UsersService.buildPaymentTopupDescription(
+          provider,
+          payment.id,
+          externalId,
+        ),
       );
       await manager.save(payment);
 
@@ -62,7 +67,11 @@ export class PaymentsService {
   }
 
   /** Создаёт платёж и возвращает URL для редиректа */
-  async createPayment(userId: number, amount: number, provider: 'yookassa' | 'robokassa'): Promise<{ paymentUrl: string; paymentId: number }> {
+  async createPayment(
+    userId: number,
+    amount: number,
+    provider: PaymentProvider,
+  ): Promise<{ paymentUrl: string; paymentId: number }> {
     const amountNum = Number(amount);
     if (!amountNum || amountNum < 1 || amountNum > 500000) {
       throw new BadRequestException('Сумма от 1 до 500 000 ₽');
@@ -83,7 +92,10 @@ export class PaymentsService {
     });
     const saved = await this.paymentRepository.save(payment);
 
-    const appUrl = (process.env.APP_URL || 'http://localhost:3000').replace(/\/$/, '');
+    const appUrl = (process.env.APP_URL || 'http://localhost:3000').replace(
+      /\/$/,
+      '',
+    );
     const returnUrl = `${appUrl}/#/profile?section=finance-topup&payment=success`;
     const cancelUrl = `${appUrl}/#/profile?section=finance-topup&payment=cancelled`;
 
@@ -95,7 +107,8 @@ export class PaymentsService {
         returnUrl,
         description: `Пополнение баланса`,
       });
-      if (!result) throw new BadRequestException('Не удалось создать платёж ЮKassa');
+      if (!result)
+        throw new BadRequestException('Не удалось создать платёж ЮKassa');
       saved.externalId = result.paymentId;
       await this.paymentRepository.save(saved);
       return { paymentUrl: result.confirmationUrl, paymentId: saved.id };
@@ -107,14 +120,22 @@ export class PaymentsService {
       invId: saved.id,
       description: 'Пополнение баланса',
     });
-    if (!paymentUrl) throw new BadRequestException('Не удалось создать платёж Robokassa');
+    if (!paymentUrl)
+      throw new BadRequestException('Не удалось создать платёж Robokassa');
     saved.externalId = String(saved.id);
     await this.paymentRepository.save(saved);
     return { paymentUrl, paymentId: saved.id };
   }
 
   /** Обработка успешного уведомления от ЮKassa (webhook). Идемпотентно через DB-транзакцию. */
-  async handleYooKassaNotification(payload: { object?: { id?: string; status?: string; metadata?: { orderId?: string }; amount?: { value?: string } } }): Promise<YooKassaWebhookResult> {
+  async handleYooKassaNotification(payload: {
+    object?: {
+      id?: string;
+      status?: string;
+      metadata?: { orderId?: string };
+      amount?: { value?: string };
+    };
+  }): Promise<YooKassaWebhookResult> {
     const obj = payload?.object;
     if (!obj?.id) return { success: true, retryable: false, code: 'ignored' };
 
@@ -124,27 +145,39 @@ export class PaymentsService {
     } catch {
       return { success: false, retryable: true, code: 'fetch_failed' };
     }
-    if (!remotePayment) return { success: false, retryable: true, code: 'fetch_failed' };
+    if (!remotePayment)
+      return { success: false, retryable: true, code: 'fetch_failed' };
     if (remotePayment.status !== 'succeeded' || remotePayment.paid !== true) {
       return { success: true, retryable: false, code: 'ignored' };
     }
 
     const orderId = remotePayment.metadata?.orderId;
-    if (!orderId || !orderId.startsWith('pay-')) return { success: true, retryable: false, code: 'ignored' };
+    if (!orderId || !orderId.startsWith('pay-'))
+      return { success: true, retryable: false, code: 'ignored' };
     const paymentId = parseInt(orderId.replace('pay-', ''), 10);
-    if (Number.isNaN(paymentId)) return { success: true, retryable: false, code: 'ignored' };
+    if (Number.isNaN(paymentId))
+      return { success: true, retryable: false, code: 'ignored' };
 
-    const payment = await this.paymentRepository.findOne({ where: { id: paymentId, provider: 'yookassa' } });
-    if (!payment) return { success: true, retryable: false, code: 'payment_not_found' };
-    if (payment.status === 'succeeded') return { success: true, retryable: false, code: 'already_processed' };
-    if (payment.externalId !== obj.id) return { success: true, retryable: false, code: 'external_mismatch' };
+    const payment = await this.paymentRepository.findOne({
+      where: { id: paymentId, provider: 'yookassa' },
+    });
+    if (!payment)
+      return { success: true, retryable: false, code: 'payment_not_found' };
+    if (payment.status === 'succeeded')
+      return { success: true, retryable: false, code: 'already_processed' };
+    if (payment.externalId !== obj.id)
+      return { success: true, retryable: false, code: 'external_mismatch' };
 
     const remoteAmount = Number(remotePayment.amount?.value ?? 0);
     if (!remoteAmount || Number(payment.amount) !== remoteAmount) {
       return { success: true, retryable: false, code: 'invalid_amount' };
     }
 
-    const finalized = await this.finalizeTopupPayment(paymentId, 'yookassa', obj.id);
+    const finalized = await this.finalizeTopupPayment(
+      paymentId,
+      'yookassa',
+      obj.id,
+    );
     return {
       success: true,
       retryable: false,
@@ -153,11 +186,18 @@ export class PaymentsService {
   }
 
   /** Обработка Result URL от Robokassa. Идемпотентно через DB-транзакцию. */
-  async handleRobokassaResult(outSum: string, invId: string, signatureValue: string): Promise<boolean> {
-    if (!this.robokassa.verifyResultSignature(outSum, invId, signatureValue)) return false;
+  async handleRobokassaResult(
+    outSum: string,
+    invId: string,
+    signatureValue: string,
+  ): Promise<boolean> {
+    if (!this.robokassa.verifyResultSignature(outSum, invId, signatureValue))
+      return false;
     const paymentId = parseInt(invId, 10);
     if (Number.isNaN(paymentId)) return false;
-    const payment = await this.paymentRepository.findOne({ where: { id: paymentId, provider: 'robokassa' } });
+    const payment = await this.paymentRepository.findOne({
+      where: { id: paymentId, provider: 'robokassa' },
+    });
     if (!payment) return false;
 
     const remoteAmount = parseFloat(outSum);
@@ -168,7 +208,7 @@ export class PaymentsService {
   }
 
   /** Список доступных провайдеров */
-  getAvailableProviders(): { yookassa: boolean; robokassa: boolean } {
+  getAvailableProviders(): AvailablePaymentProvidersDto {
     return {
       yookassa: this.yookassa.isEnabled(),
       robokassa: this.robokassa.isEnabled(),

@@ -45,9 +45,14 @@ jobs:
         run: npm ci
         working-directory: Frontend
 
+      - name: Lint backend
+        run: npm run lint:backend
+
+      - name: Lint frontend
+        run: npm run lint:frontend
+
       - name: Build backend
-        run: npm run build
-        working-directory: backend
+        run: npm run build:backend
         env:
           JWT_SECRET: ci-test-secret
           DB_HOST: localhost
@@ -57,16 +62,20 @@ jobs:
           DB_NAME: ci
 
       - name: Test backend
-        run: npm test
-        working-directory: backend
+        run: npm run test:backend
+        env:
+          JWT_SECRET: ci-test-secret
+          DB_HOST: localhost
+          DB_PORT: "5432"
+          DB_USER: ci
+          DB_PASS: ci
+          DB_NAME: ci
 
       - name: Test frontend
-        run: CI=1 npm test -- --watch=false --runInBand
-        working-directory: Frontend
+        run: npm run test:frontend
 
       - name: Build frontend
-        run: CI= npm run build
-        working-directory: Frontend
+        run: npm run build:frontend
 
       - name: Start backend for runtime smoke
         working-directory: backend

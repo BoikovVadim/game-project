@@ -1,23 +1,23 @@
 export type TournamentResultKind =
-  | 'victory'
-  | 'defeat'
-  | 'timeout_defeat'
-  | 'waiting_opponent'
-  | 'final_ready'
-  | 'tiebreaker'
-  | 'in_progress';
+  | "victory"
+  | "defeat"
+  | "timeout_defeat"
+  | "waiting_opponent"
+  | "final_ready"
+  | "tiebreaker"
+  | "in_progress";
 
 export type TournamentResultTone =
-  | 'victory'
-  | 'defeat'
-  | 'time-expired'
-  | 'stage-passed'
-  | 'final-ready'
-  | 'tiebreaker'
-  | 'stage-not-passed';
+  | "victory"
+  | "defeat"
+  | "time-expired"
+  | "stage-passed"
+  | "final-ready"
+  | "tiebreaker"
+  | "stage-not-passed";
 
-export type TournamentStageKind = 'semi' | 'final';
-export type TournamentListBucket = 'active' | 'completed';
+export type TournamentStageKind = "semi" | "final";
+export type TournamentListBucket = "active" | "completed";
 
 export type TournamentListItem = {
   id: number;
@@ -26,7 +26,7 @@ export type TournamentListItem = {
   playersCount: number;
   leagueAmount?: number | null;
   deadline?: string | null;
-  userStatus?: 'passed' | 'not_passed';
+  userStatus?: "passed" | "not_passed";
   stage?: string;
   stageKind: TournamentStageKind;
   resultLabel?: string;
@@ -36,7 +36,7 @@ export type TournamentListItem = {
   canContinue: boolean;
   isWaitingOpponent: boolean;
   isTimeoutResult: boolean;
-  roundForQuestions?: 'semi' | 'final';
+  roundForQuestions?: "semi" | "final";
   roundFinished?: boolean;
   roundStartedAt?: string | null;
   questionsAnswered?: number;
@@ -57,7 +57,12 @@ export type TournamentHistoryResponse = {
   completed: TournamentListItem[];
 };
 
-export type TrainingQuestion = { id: number; question: string; options: string[]; correctAnswer: number };
+export type TrainingQuestion = {
+  id: number;
+  question: string;
+  options: string[];
+  correctAnswer: number;
+};
 
 export type TrainingStateResponse = {
   tournamentId: number;
@@ -68,7 +73,7 @@ export type TrainingStateResponse = {
   questionsTiebreaker: TrainingQuestion[];
   tiebreakerRound: number;
   tiebreakerBase: number;
-  tiebreakerPhase: 'semi' | 'final' | null;
+  tiebreakerPhase: "semi" | "final" | null;
   questionsAnsweredCount: number;
   currentQuestionIndex: number;
   lockedAnswerCount: number;
@@ -79,13 +84,17 @@ export type TrainingStateResponse = {
   semiTiebreakerCorrectSum: number;
   answersChosen: number[];
   userSemiIndex: number;
-  semiResult: 'playing' | 'won' | 'lost' | 'tie' | 'waiting';
+  semiResult: "playing" | "won" | "lost" | "tie" | "waiting";
   semiTiebreakerAllQuestions: TrainingQuestion[][];
   semiTiebreakerRoundsCorrect: number[];
   finalTiebreakerAllQuestions: TrainingQuestion[][];
   finalTiebreakerRoundsCorrect: number[];
   opponentAnswersByRound: number[][];
-  opponentInfoByRound: { id: number; nickname: string; avatarUrl: string | null }[];
+  opponentInfoByRound: {
+    id: number;
+    nickname: string;
+    avatarUrl: string | null;
+  }[];
 };
 
 export type BracketPlayerData = {
@@ -104,7 +113,7 @@ export type BracketPlayerData = {
 
 export type BracketViewData = {
   tournamentId: number;
-  gameType?: 'training' | 'money' | string | null;
+  gameType?: "training" | "money" | string | null;
   semi1: { players: BracketPlayerData[] };
   semi2: { players: BracketPlayerData[] } | null;
   final: { players: BracketPlayerData[] };
@@ -129,5 +138,24 @@ export type QuestionsReviewData = {
   finalTiebreakerAllQuestions?: TrainingQuestion[][];
   finalTiebreakerRoundsCorrect?: number[];
   opponentAnswersByRound?: number[][];
-  opponentInfoByRound?: { id: number; nickname: string; avatarUrl?: string | null }[];
+  opponentInfoByRound?: {
+    id: number;
+    nickname: string;
+    avatarUrl?: string | null;
+  }[];
+};
+
+export type BracketPlayerTooltipData = {
+  playerId: number;
+  displayName: string;
+  avatarUrl: string | null;
+  stats: import("../users/contracts.ts").PlayerStats;
+  rect: DOMRect;
+};
+
+export type OppTooltipState = {
+  loading: boolean;
+  data: null | import("../users/contracts.ts").PlayerStats;
+  visible: boolean;
+  avatarUrl?: string | null;
 };

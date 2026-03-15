@@ -84,12 +84,19 @@ npm run deploy:prod:frontend
 
 ## Проверка изменений
 
-Минимум перед push/deploy:
+Канонический локальный прогон перед push/deploy:
 
 ```bash
-cd backend && npm run build
-cd ../Frontend && CI= npm run build
+npm run verify:ci
 ```
+
+Что входит в `verify:ci`:
+
+- contract-layer lint для backend и frontend
+- backend unit + runtime e2e
+- frontend tests
+- smoke stability check
+- production build backend/frontend
 
 Дополнительный ручной чек-лист описан в `QA_CHECKLIST.md`.
 

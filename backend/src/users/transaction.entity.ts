@@ -1,5 +1,26 @@
-import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn, Index } from 'typeorm';
+import {
+  Entity,
+  PrimaryGeneratedColumn,
+  Column,
+  ManyToOne,
+  JoinColumn,
+  CreateDateColumn,
+  Index,
+} from 'typeorm';
 import { User } from './user.entity';
+
+export const TRANSACTION_CATEGORIES = [
+  'topup',
+  'admin_credit',
+  'withdraw',
+  'refund',
+  'convert',
+  'win',
+  'loss',
+  'referral',
+  'other',
+] as const;
+export type TransactionCategory = (typeof TRANSACTION_CATEGORIES)[number];
 
 @Entity()
 @Index('IDX_transaction_userId', ['userId'])
@@ -29,7 +50,7 @@ export class Transaction {
 
   /** topup | loss | win | withdraw | refund | other */
   @Column({ type: 'varchar', length: 20, default: 'other' })
-  category!: string;
+  category!: TransactionCategory;
 
   @CreateDateColumn()
   createdAt!: Date;

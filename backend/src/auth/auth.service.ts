@@ -1,4 +1,8 @@
-import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -7,6 +11,11 @@ import * as crypto from 'crypto';
 import { generateReferralCode } from '../common/referral';
 import { User } from '../users/user.entity';
 import { MailService } from '../mail/mail.service';
+import {
+  type AuthJwtPayload,
+  type AuthenticatedRequestUser,
+  type ImpersonationAuditScope,
+} from './auth-session.types';
 
 function generateVerificationToken(): string {
   return crypto.randomBytes(32).toString('hex');
@@ -43,15 +52,21 @@ export class AuthService {
     referralCodeInput?: string,
   ): Promise<RegisterResult> {
     const normalizedUsername = String(username || '').trim();
-    const normalizedEmail = String(email || '').trim().toLowerCase();
+    const normalizedEmail = String(email || '')
+      .trim()
+      .toLowerCase();
     const existing = await this.userRepository
       .createQueryBuilder('u')
       .select(['u.id'])
       .where('LOWER(u.email) = :email', { email: normalizedEmail })
-      .orWhere('LOWER(u.username) = :username', { username: normalizedUsername.toLowerCase() })
+      .orWhere('LOWER(u.username) = :username', {
+        username: normalizedUsername.toLowerCase(),
+      })
       .getOne();
     if (existing) {
-      throw new ConflictException('Пользователь с таким email или username уже существует');
+      throw new ConflictException(
+        'Пользователь с таким email или username уже существует',
+      );
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -87,11 +102,18 @@ export class AuthService {
     const saved = await this.userRepository.save(user);
     let deliveryFailed = false;
     try {
-      const sent = await this.mailService.sendVerificationCode(normalizedEmail, code, normalizedUsername);
+      const sent = await this.mailService.sendVerificationCode(
+        normalizedEmail,
+        code,
+        normalizedUsername,
+      );
       deliveryFailed = !sent;
     } catch (err) {
       deliveryFailed = true;
-      console.error('[AuthService] Не удалось отправить код подтверждения:', err);
+      console.error(
+        '[AuthService] Не удалось отправить код подтверждения:',
+        err,
+      );
     }
     return {
       success: true,
@@ -105,7 +127,9 @@ export class AuthService {
     };
   }
 
-  async verifyEmail(token: string): Promise<{ success: boolean; message: string }> {
+  async verifyEmail(
+    token: string,
+  ): Promise<{ success: boolean; message: string }> {
     if (!token || typeof token !== 'string') {
       return { success: false, message: 'Неверная ссылка' };
     }
@@ -113,20 +137,37 @@ export class AuthService {
       where: { emailVerificationToken: token.trim() },
     });
     if (!user) {
-      return { success: false, message: 'Ссылка недействительна или уже использована' };
+      return {
+        success: false,
+        message: 'Ссылка недействительна или уже использована',
+      };
     }
-    if (user.emailVerificationExpiresAt && user.emailVerificationExpiresAt < new Date()) {
+    if (
+      user.emailVerificationExpiresAt &&
+      user.emailVerificationExpiresAt < new Date()
+    ) {
       return { success: false, message: 'Ссылка недействительна или истекла' };
     }
     user.emailVerified = true;
     user.emailVerificationToken = null;
     user.emailVerificationExpiresAt = null;
     await this.userRepository.save(user);
-    return { success: true, message: 'Почта подтверждена. Теперь вы можете войти.' };
+    return {
+      success: true,
+      message: 'Почта подтверждена. Теперь вы можете войти.',
+    };
   }
 
-  async login(email: string, password: string): Promise<{ access_token: string }> {
-    if (!email || !password || typeof email !== 'string' || typeof password !== 'string') {
+  async login(
+    email: string,
+    password: string,
+  ): Promise<{ access_token: string }> {
+    if (
+      !email ||
+      !password ||
+      typeof email !== 'string' ||
+      typeof password !== 'string'
+    ) {
       throw new UnauthorizedException('Invalid credentials');
     }
     const input = String(email).trim().toLowerCase();
@@ -144,13 +185,24 @@ export class AuthService {
     } else {
       qb.where('LOWER(u.username) = :input', { input });
     }
-    const row = await qb.getRawOne<{ id: number; username: string; email: string; password: string; emailVerified: number; emailVerificationToken: string | null }>();
+    const row = await qb.getRawOne<{
+      id: number;
+      username: string;
+      email: string;
+      password: string;
+      emailVerified: number;
+      emailVerificationToken: string | null;
+    }>();
     if (!row || row.password == null || row.password === undefined) {
       throw new UnauthorizedException('Invalid credentials');
     }
-    const needsVerification = row.emailVerificationToken != null && !row.emailVerified;
+    const needsVerification =
+      row.emailVerificationToken != null && !row.emailVerified;
     if (needsVerification) {
-      throw new UnauthorizedException({ message: 'EMAIL_NOT_VERIFIED', email: row.email });
+      throw new UnauthorizedException({
+        message: 'EMAIL_NOT_VERIFIED',
+        email: row.email,
+      });
     }
     const passwordStr = String(row.password);
     const match = await bcrypt.compare(password, passwordStr);
@@ -164,22 +216,36 @@ export class AuthService {
     };
   }
 
-  async verifyCode(email: string, code: string): Promise<{ success: boolean; message: string; access_token?: string }> {
+  async verifyCode(
+    email: string,
+    code: string,
+  ): Promise<{ success: boolean; message: string; access_token?: string }> {
     if (!email || !code) {
       return { success: false, message: 'Укажите email и код' };
     }
     const emailNorm = email.trim().toLowerCase();
-    const user = await this.userRepository.findOne({ where: { email: emailNorm } });
+    const user = await this.userRepository.findOne({
+      where: { email: emailNorm },
+    });
     if (!user) {
       return { success: false, message: 'Пользователь не найден' };
     }
     if (user.emailVerified) {
-      return { success: false, message: 'Почта уже подтверждена. Войдите через пароль.' };
+      return {
+        success: false,
+        message: 'Почта уже подтверждена. Войдите через пароль.',
+      };
     }
     if (!user.emailVerificationToken) {
-      return { success: false, message: 'Код не был отправлен. Запросите новый.' };
+      return {
+        success: false,
+        message: 'Код не был отправлен. Запросите новый.',
+      };
     }
-    if (user.emailVerificationExpiresAt && user.emailVerificationExpiresAt < new Date()) {
+    if (
+      user.emailVerificationExpiresAt &&
+      user.emailVerificationExpiresAt < new Date()
+    ) {
       return { success: false, message: 'Код истёк. Запросите новый.' };
     }
     if (user.emailVerificationToken !== code.trim()) {
@@ -189,18 +255,32 @@ export class AuthService {
     user.emailVerificationToken = null;
     user.emailVerificationExpiresAt = null;
     await this.userRepository.save(user);
-    const token = this.jwtService.sign({ username: user.username, sub: user.id });
-    return { success: true, message: 'Почта подтверждена!', access_token: token };
+    const token = this.jwtService.sign({
+      username: user.username,
+      sub: user.id,
+    });
+    return {
+      success: true,
+      message: 'Почта подтверждена!',
+      access_token: token,
+    };
   }
 
-  async resendCode(email: string): Promise<{ success: boolean; message: string }> {
+  async resendCode(
+    email: string,
+  ): Promise<{ success: boolean; message: string }> {
     if (!email) {
       return { success: false, message: 'Укажите email' };
     }
     const emailNorm = email.trim().toLowerCase();
-    const user = await this.userRepository.findOne({ where: { email: emailNorm } });
+    const user = await this.userRepository.findOne({
+      where: { email: emailNorm },
+    });
     if (!user) {
-      return { success: true, message: 'Если аккаунт существует, код отправлен.' };
+      return {
+        success: true,
+        message: 'Если аккаунт существует, код отправлен.',
+      };
     }
     if (user.emailVerified) {
       return { success: true, message: 'Почта уже подтверждена.' };
@@ -211,31 +291,55 @@ export class AuthService {
     user.emailVerificationExpiresAt = expiresAt;
     await this.userRepository.save(user);
     try {
-      const sent = await this.mailService.sendVerificationCode(user.email, code, user.username);
+      const sent = await this.mailService.sendVerificationCode(
+        user.email,
+        code,
+        user.username,
+      );
       if (!sent) {
-        return { success: false, message: 'Не удалось отправить код. Попробуйте позже или повторите попытку.' };
+        return {
+          success: false,
+          message:
+            'Не удалось отправить код. Попробуйте позже или повторите попытку.',
+        };
       }
     } catch (err) {
       console.error('[AuthService] Не удалось отправить код:', err);
-      return { success: false, message: 'Не удалось отправить код. Попробуйте позже или повторите попытку.' };
+      return {
+        success: false,
+        message:
+          'Не удалось отправить код. Попробуйте позже или повторите попытку.',
+      };
     }
     return { success: true, message: 'Новый код отправлен на почту.' };
   }
 
-  async refresh(userId: number): Promise<{ access_token: string }> {
-    const user = await this.userRepository.findOneBy({ id: userId });
+  async refresh(
+    sessionUser: Pick<AuthenticatedRequestUser, 'id' | 'impersonation'>,
+  ): Promise<{ access_token: string }> {
+    const user = await this.userRepository.findOneBy({ id: sessionUser.id });
     if (!user) throw new UnauthorizedException('User not found');
-    return this.issueToken(user);
+    return this.issueToken(user, sessionUser.impersonation);
   }
 
-  private issueToken(user: User): { access_token: string } {
-    const payload = { username: user.username, sub: user.id };
+  private issueToken(
+    user: User,
+    impersonation: ImpersonationAuditScope | null = null,
+  ): { access_token: string } {
+    const payload: AuthJwtPayload = { username: user.username, sub: user.id };
+    if (impersonation) {
+      payload.impersonation = impersonation;
+    }
     return {
       access_token: this.jwtService.sign(payload),
     };
   }
 
-  async changePassword(userId: number, oldPassword: string, newPassword: string): Promise<{ message: string }> {
+  async changePassword(
+    userId: number,
+    oldPassword: string,
+    newPassword: string,
+  ): Promise<{ message: string }> {
     const user = await this.userRepository.findOneBy({ id: userId });
     if (!user || !(await bcrypt.compare(oldPassword, user.password))) {
       throw new UnauthorizedException('Invalid current password');
@@ -250,32 +354,54 @@ export class AuthService {
   async forgotPassword(email: string): Promise<{ message: string }> {
     const normalized = (email || '').trim().toLowerCase();
     if (!normalized) {
-      return { message: 'Если аккаунт с такой почтой существует, на неё отправлена инструкция.' };
+      return {
+        message:
+          'Если аккаунт с такой почтой существует, на неё отправлена инструкция.',
+      };
     }
-    const user = await this.userRepository.findOne({ where: { email: normalized } });
+    const user = await this.userRepository.findOne({
+      where: { email: normalized },
+    });
     if (user) {
       const token = generateVerificationToken();
       const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 час
       user.passwordResetToken = token;
       user.passwordResetExpiresAt = expiresAt;
       await this.userRepository.save(user);
-      this.mailService.sendPasswordResetEmail(user.email, token, user.username).catch((err) => {
-        console.error('[AuthService] Не удалось отправить письмо сброса пароля:', err);
-      });
+      this.mailService
+        .sendPasswordResetEmail(user.email, token, user.username)
+        .catch((err) => {
+          console.error(
+            '[AuthService] Не удалось отправить письмо сброса пароля:',
+            err,
+          );
+        });
     }
-    return { message: 'Если аккаунт с такой почтой существует, на неё отправлена инструкция.' };
+    return {
+      message:
+        'Если аккаунт с такой почтой существует, на неё отправлена инструкция.',
+    };
   }
 
   /** Установка нового пароля по токену из письма */
-  async resetPassword(token: string, newPassword: string): Promise<{ message: string }> {
+  async resetPassword(
+    token: string,
+    newPassword: string,
+  ): Promise<{ message: string }> {
     const t = (token || '').trim();
     if (!t || !newPassword || newPassword.length < 6) {
-      throw new UnauthorizedException('Неверная ссылка или слишком короткий пароль');
+      throw new UnauthorizedException(
+        'Неверная ссылка или слишком короткий пароль',
+      );
     }
     const user = await this.userRepository.findOne({
       where: { passwordResetToken: t },
     });
-    if (!user || !user.passwordResetExpiresAt || user.passwordResetExpiresAt < new Date()) {
+    if (
+      !user ||
+      !user.passwordResetExpiresAt ||
+      user.passwordResetExpiresAt < new Date()
+    ) {
       throw new UnauthorizedException('Ссылка недействительна или истекла');
     }
     user.password = await bcrypt.hash(newPassword, 10);

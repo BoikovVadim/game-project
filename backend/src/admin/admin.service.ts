@@ -1,4 +1,10 @@
-import { Injectable, ForbiddenException, NotFoundException, BadRequestException, Inject } from '@nestjs/common';
+import {
+  Injectable,
+  ForbiddenException,
+  NotFoundException,
+  BadRequestException,
+  Inject,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
@@ -11,6 +17,7 @@ import { Transaction } from '../users/transaction.entity';
 import { UsersService } from '../users/users.service';
 import { TournamentsService } from '../tournaments/tournaments.service';
 import { JwtService } from '@nestjs/jwt';
+import { type ImpersonationAuditScope } from '../auth/auth-session.types';
 
 /** Нормализация дат в ISO-строку для фронтенда. */
 function toISOUtc(v: string | Date | null | undefined): string | null {
@@ -58,7 +65,11 @@ function formatDurationLabel(totalMinutes: number): string {
   return `${minutes} мин`;
 }
 
-async function readProjectCostTrackingFile(): Promise<{ content: string; filePath: string; mtime: Date } | null> {
+async function readProjectCostTrackingFile(): Promise<{
+  content: string;
+  filePath: string;
+  mtime: Date;
+} | null> {
   const candidates = [
     path.resolve(process.cwd(), '.cursor', 'project-cost-tracking.md'),
     path.resolve(process.cwd(), '..', '.cursor', 'project-cost-tracking.md'),
@@ -91,7 +102,14 @@ export class AdminService {
   ) {}
 
   /** Список заявок на вывод. Явный SQL с джойном на админа, чтобы гарантированно отдавать логин и почту того, кто принял решение. */
-  async getWithdrawalRequests(status?: 'pending' | 'approved' | 'rejected'): Promise<(WithdrawalRequest & { processedByAdminUsername?: string | null; processedByAdminEmail?: string | null })[]> {
+  async getWithdrawalRequests(
+    status?: 'pending' | 'approved' | 'rejected',
+  ): Promise<
+    (WithdrawalRequest & {
+      processedByAdminUsername?: string | null;
+      processedByAdminEmail?: string | null;
+    })[]
+  > {
     const statusCond = status ? ' WHERE w.status = $1' : '';
     const params = status ? [status] : [];
     const tryQuery = async (columns: {
@@ -118,12 +136,22 @@ export class AdminService {
         ${statusCond}
         ORDER BY w."${columns.createdAtCol}" DESC
       `;
-      return this.dataSource.query(sql, params) as Promise<{
-        id: number; userId: number; amount: number; details: string | null; status: string; createdAt: string; processedAt: string | null;
-        processedByAdminId: number | null;
-        user_username: string; user_email: string;
-        processedByAdminUsername: string | null; processedByAdminEmail: string | null;
-      }[]>;
+      return this.dataSource.query(sql, params) as Promise<
+        {
+          id: number;
+          userId: number;
+          amount: number;
+          details: string | null;
+          status: string;
+          createdAt: string;
+          processedAt: string | null;
+          processedByAdminId: number | null;
+          user_username: string;
+          user_email: string;
+          processedByAdminUsername: string | null;
+          processedByAdminEmail: string | null;
+        }[]
+      >;
     };
     try {
       let rows: Awaited<ReturnType<typeof tryQuery>>;
@@ -136,11 +164,11 @@ export class AdminService {
         });
       } catch (e1: any) {
         if (
-          e1?.message?.includes('no such column')
-          || e1?.message?.includes('does not exist')
-          || e1?.message?.includes('processedByAdminId')
-          || e1?.message?.includes('userId')
-          || e1?.message?.includes('createdAt')
+          e1?.message?.includes('no such column') ||
+          e1?.message?.includes('does not exist') ||
+          e1?.message?.includes('processedByAdminId') ||
+          e1?.message?.includes('userId') ||
+          e1?.message?.includes('createdAt')
         ) {
           rows = await tryQuery({
             userIdCol: 'user_id',
@@ -163,8 +191,15 @@ export class AdminService {
         processedByAdminId: r.processedByAdminId ?? null,
         processedByAdminUsername: r.processedByAdminUsername ?? null,
         processedByAdminEmail: r.processedByAdminEmail ?? null,
-        user: { id: r.userId, username: r.user_username || '', email: r.user_email || '' },
-      })) as unknown as (WithdrawalRequest & { processedByAdminUsername?: string | null; processedByAdminEmail?: string | null })[];
+        user: {
+          id: r.userId,
+          username: r.user_username || '',
+          email: r.user_email || '',
+        },
+      })) as unknown as (WithdrawalRequest & {
+        processedByAdminUsername?: string | null;
+        processedByAdminEmail?: string | null;
+      })[];
     } catch (e) {
       console.error('[AdminService.getWithdrawalRequests]', e);
       return [];
@@ -172,7 +207,11 @@ export class AdminService {
   }
 
   /** Одобрить заявку: сумма уже снята при подаче — только записать транзакцию и отметить заявку. */
-  async approveWithdrawal(requestId: number, adminId: number, comment?: string): Promise<WithdrawalRequest> {
+  async approveWithdrawal(
+    requestId: number,
+    adminId: number,
+    comment?: string,
+  ): Promise<WithdrawalRequest> {
     return this.dataSource.transaction(async (manager) => {
       const req = await manager
         .createQueryBuilder(WithdrawalRequest, 'wr')
@@ -180,7 +219,8 @@ export class AdminService {
         .where('wr.id = :requestId', { requestId })
         .getOne();
       if (!req) throw new NotFoundException('Заявка не найдена');
-      if (req.status !== 'pending') throw new BadRequestException('Заявка уже обработана');
+      if (req.status !== 'pending')
+        throw new BadRequestException('Заявка уже обработана');
 
       const amount = Number(req.amount);
       await this.usersService.addTransactionWithManager(
@@ -200,7 +240,11 @@ export class AdminService {
   }
 
   /** Отклонить заявку: вернуть сумму на баланс (без записи транзакции — деньги формально оставались у игрока, только были заблокированы). */
-  async rejectWithdrawal(requestId: number, adminId: number, comment?: string): Promise<WithdrawalRequest> {
+  async rejectWithdrawal(
+    requestId: number,
+    adminId: number,
+    comment?: string,
+  ): Promise<WithdrawalRequest> {
     return this.dataSource.transaction(async (manager) => {
       const req = await manager
         .createQueryBuilder(WithdrawalRequest, 'wr')
@@ -208,7 +252,8 @@ export class AdminService {
         .where('wr.id = :requestId', { requestId })
         .getOne();
       if (!req) throw new NotFoundException('Заявка не найдена');
-      if (req.status !== 'pending') throw new BadRequestException('Заявка уже обработана');
+      if (req.status !== 'pending')
+        throw new BadRequestException('Заявка уже обработана');
 
       const user = await manager
         .createQueryBuilder(User, 'user')
@@ -230,7 +275,19 @@ export class AdminService {
   }
 
   /** Список пользователей (кратко) — через то же подключение TypeORM, что и всё приложение */
-  async getUsers(search?: string, limit = 500): Promise<{ id: number; username: string; email: string; balance: number; balanceRubles: number; isAdmin: boolean }[]> {
+  async getUsers(
+    search?: string,
+    limit = 500,
+  ): Promise<
+    {
+      id: number;
+      username: string;
+      email: string;
+      balance: number;
+      balanceRubles: number;
+      isAdmin: boolean;
+    }[]
+  > {
     const safeLimit = Math.min(Math.max(1, Number(limit) || 500), 1000);
     const q = search?.trim();
     let raw: any[];
@@ -269,11 +326,24 @@ export class AdminService {
   }
 
   /** Назначить или снять флаг администратора с пользователя */
-  async setUserAdmin(targetUserId: number, adminId: number, isAdmin: boolean): Promise<{ isAdmin: boolean }> {
-    if (targetUserId === 1) throw new ForbiddenException('Нельзя изменять права главного администратора');
-    const admin = await this.userRepository.findOne({ where: { id: adminId }, select: ['id', 'isAdmin'] });
-    if (!admin?.isAdmin) throw new ForbiddenException('Требуются права администратора');
-    const target = await this.userRepository.findOne({ where: { id: targetUserId } });
+  async setUserAdmin(
+    targetUserId: number,
+    adminId: number,
+    isAdmin: boolean,
+  ): Promise<{ isAdmin: boolean }> {
+    if (targetUserId === 1)
+      throw new ForbiddenException(
+        'Нельзя изменять права главного администратора',
+      );
+    const admin = await this.userRepository.findOne({
+      where: { id: adminId },
+      select: ['id', 'isAdmin'],
+    });
+    if (!admin?.isAdmin)
+      throw new ForbiddenException('Требуются права администратора');
+    const target = await this.userRepository.findOne({
+      where: { id: targetUserId },
+    });
     if (!target) throw new NotFoundException('Пользователь не найден');
     target.isAdmin = !!isAdmin;
     await this.userRepository.save(target);
@@ -281,15 +351,41 @@ export class AdminService {
   }
 
   /** Начислить баланс пользователю вручную (в рублях) */
-  async creditBalance(adminId: number, targetUserId: number, amount: number, comment?: string): Promise<{ success: true; newBalanceRubles: number }> {
-    const admin = await this.userRepository.findOne({ where: { id: adminId }, select: ['id', 'isAdmin', 'username'] });
-    if (!admin?.isAdmin) throw new ForbiddenException('Требуются права администратора');
-    if (!amount || amount <= 0) throw new BadRequestException('Сумма должна быть больше 0');
-    return this.usersService.addManualAdminTopup(adminId, targetUserId, amount, comment);
+  async creditBalance(
+    adminId: number,
+    targetUserId: number,
+    amount: number,
+    comment?: string,
+  ): Promise<{ success: true; newBalanceRubles: number }> {
+    const admin = await this.userRepository.findOne({
+      where: { id: adminId },
+      select: ['id', 'isAdmin', 'username'],
+    });
+    if (!admin?.isAdmin)
+      throw new ForbiddenException('Требуются права администратора');
+    if (!amount || amount <= 0)
+      throw new BadRequestException('Сумма должна быть больше 0');
+    return this.usersService.addManualAdminTopup(
+      adminId,
+      targetUserId,
+      amount,
+      comment,
+    );
   }
 
   /** История ручных начислений */
-  async getCreditHistory(): Promise<{ id: number; userId: number; username: string; userEmail: string; amount: number; adminUsername: string; adminEmail: string; createdAt: string }[]> {
+  async getCreditHistory(): Promise<
+    {
+      id: number;
+      userId: number;
+      username: string;
+      userEmail: string;
+      amount: number;
+      adminUsername: string;
+      adminEmail: string;
+      createdAt: string;
+    }[]
+  > {
     try {
       const rows = await this.dataSource.query(
         `SELECT t.id, t.userId, u.username, u.email AS userEmail, t.amount, t.description, t.createdAt,
@@ -314,12 +410,19 @@ export class AdminService {
         const ids = Array.from(missingAdminIds);
         const placeholders = ids.map((_, i) => `$${i + 1}`).join(',');
         const admins = await this.dataSource.query(
-          `SELECT id, username, email FROM "user" WHERE id IN (${placeholders})`, ids,
+          `SELECT id, username, email FROM "user" WHERE id IN (${placeholders})`,
+          ids,
         );
-        for (const a of admins || []) adminMap[Number(a.id)] = { username: String(a.username ?? ''), email: String(a.email ?? '') };
+        for (const a of admins || [])
+          adminMap[Number(a.id)] = {
+            username: String(a.username ?? ''),
+            email: String(a.email ?? ''),
+          };
       }
       return (rows || []).map((r: any) => {
-        const parsedTopup = UsersService.parseAdminTopupDescription(r.description);
+        const parsedTopup = UsersService.parseAdminTopupDescription(
+          r.description,
+        );
         const parsedAdminId = parsedTopup.adminId;
         const fallbackAdminId = Number(r.adminId ?? 0) || null;
         const adminId = parsedAdminId ?? fallbackAdminId;
@@ -345,38 +448,49 @@ export class AdminService {
 
   /** Статистика для админки: регистрации, выводы, пополнения, доход игры. groupBy: day|week|month|all */
   async getStats(groupBy: 'day' | 'week' | 'month' | 'all' = 'day'): Promise<{
-    data: { period: string; registrations: number; withdrawals: number; topups: number; gameIncome: number }[];
+    data: {
+      period: string;
+      registrations: number;
+      withdrawals: number;
+      topups: number;
+      gameIncome: number;
+    }[];
   }> {
     const cacheKey = `admin:stats:${groupBy}`;
     const cached = await this.cache.get<{ data: any[] }>(cacheKey);
     if (cached) return cached;
 
-    const dateExpr = groupBy === 'day'
-      ? `u."createdAt"::date::text`
-      : groupBy === 'week'
-        ? `TO_CHAR(u."createdAt", 'IYYY-IW')`
-        : groupBy === 'month'
-          ? `TO_CHAR(u."createdAt", 'YYYY-MM')`
-          : `'all'`;
-    const dateExprW = groupBy === 'day'
-      ? `w."processedAt"::date::text`
-      : groupBy === 'week'
-        ? `TO_CHAR(w."processedAt", 'IYYY-IW')`
-        : groupBy === 'month'
-          ? `TO_CHAR(w."processedAt", 'YYYY-MM')`
-          : `'all'`;
-    const dateExprT = groupBy === 'day'
-      ? `t."createdAt"::date::text`
-      : groupBy === 'week'
-        ? `TO_CHAR(t."createdAt", 'IYYY-IW')`
-        : groupBy === 'month'
-          ? `TO_CHAR(t."createdAt", 'YYYY-MM')`
-          : `'all'`;
+    const dateExpr =
+      groupBy === 'day'
+        ? `u."createdAt"::date::text`
+        : groupBy === 'week'
+          ? `TO_CHAR(u."createdAt", 'IYYY-IW')`
+          : groupBy === 'month'
+            ? `TO_CHAR(u."createdAt", 'YYYY-MM')`
+            : `'all'`;
+    const dateExprW =
+      groupBy === 'day'
+        ? `w."processedAt"::date::text`
+        : groupBy === 'week'
+          ? `TO_CHAR(w."processedAt", 'IYYY-IW')`
+          : groupBy === 'month'
+            ? `TO_CHAR(w."processedAt", 'YYYY-MM')`
+            : `'all'`;
+    const dateExprT =
+      groupBy === 'day'
+        ? `t."createdAt"::date::text`
+        : groupBy === 'week'
+          ? `TO_CHAR(t."createdAt", 'IYYY-IW')`
+          : groupBy === 'month'
+            ? `TO_CHAR(t."createdAt", 'YYYY-MM')`
+            : `'all'`;
 
     try {
-      const hasUserCreatedAt = await this.dataSource.query(
-        `SELECT 1 FROM information_schema.columns WHERE table_name='user' AND column_name='createdAt'`,
-      ).then((r: any[]) => r.length > 0);
+      const hasUserCreatedAt = await this.dataSource
+        .query(
+          `SELECT 1 FROM information_schema.columns WHERE table_name='user' AND column_name='createdAt'`,
+        )
+        .then((r: any[]) => r.length > 0);
 
       let regRows: { period: string; cnt: number }[] = [];
       if (hasUserCreatedAt) {
@@ -396,7 +510,14 @@ export class AdminService {
          GROUP BY ${dateExprT} ORDER BY period`,
       );
 
-      const gamePeriodExpr = groupBy === 'day' ? 'tr."createdAt"::date::text' : groupBy === 'week' ? `TO_CHAR(tr."createdAt", 'IYYY-IW')` : groupBy === 'month' ? `TO_CHAR(tr."createdAt", 'YYYY-MM')` : `'all'`;
+      const gamePeriodExpr =
+        groupBy === 'day'
+          ? 'tr."createdAt"::date::text'
+          : groupBy === 'week'
+            ? `TO_CHAR(tr."createdAt", 'IYYY-IW')`
+            : groupBy === 'month'
+              ? `TO_CHAR(tr."createdAt", 'YYYY-MM')`
+              : `'all'`;
       const gameIncomeRows = await this.dataSource.query(
         `SELECT period, SUM(income) AS income FROM (
           SELECT ${gamePeriodExpr} AS period,
@@ -414,13 +535,30 @@ export class AdminService {
       for (const r of topupRows || []) periods.add(String(r.period));
       for (const r of gameIncomeRows || []) periods.add(String(r.period));
 
-      const regMap = new Map((regRows || []).map((r: any) => [String(r.period), Number(r.cnt)]));
-      const wMap = new Map((wRows || []).map((r: any) => [String(r.period), Number(r.amt)]));
-      const topupMap = new Map((topupRows || []).map((r: any) => [String(r.period), Number(r.amt)]));
-      const gameMap = new Map((gameIncomeRows || []).map((r: any) => [String(r.period), Number(r.income)]));
+      const regMap = new Map(
+        (regRows || []).map((r: any) => [String(r.period), Number(r.cnt)]),
+      );
+      const wMap = new Map(
+        (wRows || []).map((r: any) => [String(r.period), Number(r.amt)]),
+      );
+      const topupMap = new Map(
+        (topupRows || []).map((r: any) => [String(r.period), Number(r.amt)]),
+      );
+      const gameMap = new Map(
+        (gameIncomeRows || []).map((r: any) => [
+          String(r.period),
+          Number(r.income),
+        ]),
+      );
 
       const sorted = [...periods].sort();
-      const data: { period: string; registrations: number; withdrawals: number; topups: number; gameIncome: number }[] = sorted.map((p) => ({
+      const data: {
+        period: string;
+        registrations: number;
+        withdrawals: number;
+        topups: number;
+        gameIncome: number;
+      }[] = sorted.map((p) => ({
         period: p,
         registrations: Number(regMap.get(p) ?? 0),
         withdrawals: Number(wMap.get(p) ?? 0),
@@ -438,20 +576,50 @@ export class AdminService {
   }
 
   /** Выдать JWT от имени пользователя (вход «под пользователем») */
-  async getImpersonationToken(adminId: number, targetUserId: number): Promise<{ access_token: string }> {
-    const admin = await this.userRepository.findOne({ where: { id: adminId }, select: ['id', 'isAdmin'] });
-    if (!admin?.isAdmin) throw new ForbiddenException('Требуются права администратора');
-    const target = await this.userRepository.findOne({ where: { id: targetUserId }, select: ['id', 'username'] });
+  async getImpersonationToken(
+    adminId: number,
+    targetUserId: number,
+  ): Promise<{ access_token: string; impersonation: ImpersonationAuditScope }> {
+    const admin = await this.userRepository.findOne({
+      where: { id: adminId },
+      select: ['id', 'username', 'isAdmin'],
+    });
+    if (!admin?.isAdmin)
+      throw new ForbiddenException('Требуются права администратора');
+    const target = await this.userRepository.findOne({
+      where: { id: targetUserId },
+      select: ['id', 'username'],
+    });
     if (!target) throw new NotFoundException('Пользователь не найден');
-    const token = this.jwtService.sign({ username: target.username, sub: target.id });
-    return { access_token: token };
+    const impersonation: ImpersonationAuditScope = {
+      active: true,
+      actorId: admin.id,
+      actorUsername: admin.username,
+      targetUserId: target.id,
+      targetUsername: target.username,
+      startedAt: new Date().toISOString(),
+    };
+    const token = this.jwtService.sign({
+      username: target.username,
+      sub: target.id,
+      impersonation,
+    });
+    return { access_token: token, impersonation };
   }
 
   /** Все транзакции (пополнения, выводы, выигрыши) для админки */
-  async getTransactions(category?: string): Promise<{
-    id: number; userId: number; username: string; email: string;
-    amount: number; description: string; category: string; createdAt: string;
-  }[]> {
+  async getTransactions(category?: string): Promise<
+    {
+      id: number;
+      userId: number;
+      username: string;
+      email: string;
+      amount: number;
+      description: string;
+      category: string;
+      createdAt: string;
+    }[]
+  > {
     const allowed = ['topup', 'withdraw', 'win', 'other'];
     const filterCat = category && allowed.includes(category) ? category : null;
     try {
@@ -486,9 +654,10 @@ export class AdminService {
 
   async getQuestionStats(): Promise<{ topic: string; count: number }[]> {
     try {
-      const rows: { topic: string; count: string }[] = await this.dataSource.query(
-        `SELECT topic, COUNT(*)::text AS count FROM question_pool GROUP BY topic ORDER BY COUNT(*) DESC`,
-      );
+      const rows: { topic: string; count: string }[] =
+        await this.dataSource.query(
+          `SELECT topic, COUNT(*)::text AS count FROM question_pool GROUP BY topic ORDER BY COUNT(*) DESC`,
+        );
       return rows.map((r) => ({ topic: r.topic, count: Number(r.count) }));
     } catch (e) {
       console.error('[AdminService.getQuestionStats]', e);
@@ -529,7 +698,14 @@ export class AdminService {
 
       const file = await readProjectCostTrackingFile();
       if (!file) {
-        return { currentTotal: 0, todayTotal: 0, updatedAt: null, totalDurationMinutes: 0, totalDurationLabel: '0 мин', history: [] };
+        return {
+          currentTotal: 0,
+          todayTotal: 0,
+          updatedAt: null,
+          totalDurationMinutes: 0,
+          totalDurationLabel: '0 мин',
+          history: [],
+        };
       }
 
       const lines = file.content
@@ -541,28 +717,44 @@ export class AdminService {
       const todayTotal = parseRubles(lines[1]?.match(/:\s*(.+)$/)?.[1] ?? '0');
       const rawHistory: RawProjectCostEntry[] = [];
       for (const line of lines) {
-        if (!/^\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2})?)?\s+\|/.test(line)) continue;
+        if (
+          !/^\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2})?)?\s+\|/.test(line)
+        )
+          continue;
         const parts = line.split('|').map((part) => part.trim());
         if (parts.length < 4) continue;
 
-        const [dateTimePart, amountPart, durationPart, ...descriptionParts] = parts;
-        const dateTimeMatch = dateTimePart.match(/^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}:\d{2})(?::\d{2})?)?$/);
+        const [dateTimePart, amountPart, durationPart, ...descriptionParts] =
+          parts;
+        const dateTimeMatch = dateTimePart.match(
+          /^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}:\d{2})(?::\d{2})?)?$/,
+        );
         if (!dateTimeMatch) continue;
 
         const date = dateTimeMatch[1];
         const time = dateTimeMatch[2] ?? null;
         rawHistory.push({
-          timestamp: time ? new Date(`${date}T${time}:00+03:00`).toISOString() : null,
+          timestamp: time
+            ? new Date(`${date}T${time}:00+03:00`).toISOString()
+            : null,
           date,
           time,
           amountChange: roundMoney(parseRubles(amountPart)),
           duration: durationPart,
-          description: sanitizeProjectCostDescription(descriptionParts.join(' | ')),
+          description: sanitizeProjectCostDescription(
+            descriptionParts.join(' | '),
+          ),
         });
       }
 
-      const totalChanges = rawHistory.reduce((sum, entry) => sum + entry.amountChange, 0);
-      const totalDurationMinutes = rawHistory.reduce((sum, entry) => sum + parseDurationToMinutes(entry.duration), 0);
+      const totalChanges = rawHistory.reduce(
+        (sum, entry) => sum + entry.amountChange,
+        0,
+      );
+      const totalDurationMinutes = rawHistory.reduce(
+        (sum, entry) => sum + parseDurationToMinutes(entry.duration),
+        0,
+      );
       let runningTotal = roundMoney(currentTotal - totalChanges);
       const historyAscending = [...rawHistory].reverse().map((entry) => {
         runningTotal = roundMoney(runningTotal + entry.amountChange);
@@ -582,7 +774,14 @@ export class AdminService {
       };
     } catch (e) {
       console.error('[AdminService.getProjectCostDashboard]', e);
-      return { currentTotal: 0, todayTotal: 0, updatedAt: null, totalDurationMinutes: 0, totalDurationLabel: '0 мин', history: [] };
+      return {
+        currentTotal: 0,
+        todayTotal: 0,
+        updatedAt: null,
+        totalDurationMinutes: 0,
+        totalDurationLabel: '0 мин',
+        history: [],
+      };
     }
   }
 }

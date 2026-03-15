@@ -7,25 +7,9 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import { buildEmptyUserStatsDto } from '../users/dto/users-read.dto';
 
-const EMPTY_STATS = {
-  gamesPlayed: 0,
-  gamesPlayedTraining: 0,
-  gamesPlayedMoney: 0,
-  completedMatches: 0,
-  completedMatchesTraining: 0,
-  completedMatchesMoney: 0,
-  wins: 0,
-  winRatePercent: null,
-  correctAnswers: 0,
-  totalQuestions: 0,
-  correctAnswersTraining: 0,
-  totalQuestionsTraining: 0,
-  correctAnswersMoney: 0,
-  totalQuestionsMoney: 0,
-  maxLeague: null,
-  maxLeagueName: null,
-};
+const EMPTY_STATS = buildEmptyUserStatsDto();
 
 @Catch()
 export class StatsExceptionFilter implements ExceptionFilter {
@@ -48,14 +32,21 @@ export class StatsExceptionFilter implements ExceptionFilter {
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
       const body = exception.getResponse();
-      response.status(status).json(
-        typeof body === 'string' ? { statusCode: status, message: body } : body,
-      );
+      response
+        .status(status)
+        .json(
+          typeof body === 'string'
+            ? { statusCode: status, message: body }
+            : body,
+        );
       return;
     }
 
-    const stack = exception instanceof Error ? exception.stack : String(exception);
-    this.logger.error(`Unhandled exception on ${request.method} ${request.url}: ${stack}`);
+    const stack =
+      exception instanceof Error ? exception.stack : String(exception);
+    this.logger.error(
+      `Unhandled exception on ${request.method} ${request.url}: ${stack}`,
+    );
     response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
       statusCode: 500,
       message: 'Internal server error',

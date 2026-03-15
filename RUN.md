@@ -38,12 +38,13 @@ npm run start:simple
 Перед production deploy полезно прогонять:
 
 ```bash
-npm run smoke:stability
+npm run verify:ci
 cd backend && npm run audit:auth-payments
 ```
 
 Что проверяется:
 
+- локальный CI-equivalent сценарий (`lint`, backend unit/runtime e2e, frontend tests, builds)
 - auth/session bootstrap и возврат в intended route не дрейфуют
 - payment return URL остаётся совместимым с `HashRouter`
 - repo runtime contract (`PM2`, `nginx`, `.env` load order) не расходится с production

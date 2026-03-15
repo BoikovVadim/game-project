@@ -1,7 +1,27 @@
-import { Controller, Post, Body, Get, Query, Req, UseGuards, ServiceUnavailableException } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  Get,
+  Query,
+  Req,
+  UseGuards,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { PaymentsService } from './payments.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CreatePaymentDto } from './dto/payments-write.dto';
+import { type AvailablePaymentProvidersDto } from './dto/payments-read.dto';
+
+type YooKassaNotificationPayload = Parameters<
+  PaymentsService['handleYooKassaNotification']
+>[0];
+
+function isYooKassaNotificationPayload(
+  body: unknown,
+): body is YooKassaNotificationPayload {
+  return !!body && typeof body === 'object';
+}
 
 @Controller('payments')
 export class PaymentsController {
@@ -21,17 +41,20 @@ export class PaymentsController {
   }
 
   @Get('providers')
-  getProviders() {
+  getProviders(): AvailablePaymentProvidersDto {
     return this.paymentsService.getAvailableProviders();
   }
 
   /** ЮKassa webhook (notification) — вызывается серверами ЮKassa */
   @Post('webhook/yookassa')
   async webhookYooKassa(@Req() _req: Request, @Body() body: unknown) {
-    if (body && typeof body === 'object') {
-      const result = await this.paymentsService.handleYooKassaNotification(body as any);
+    if (isYooKassaNotificationPayload(body)) {
+      const result =
+        await this.paymentsService.handleYooKassaNotification(body);
       if (result.retryable) {
-        throw new ServiceUnavailableException('Temporary YooKassa webhook processing failure');
+        throw new ServiceUnavailableException(
+          'Temporary YooKassa webhook processing failure',
+        );
       }
       return { success: result.success, code: result.code };
     }

@@ -4,8 +4,11 @@
   "type": "commonjs",
   "main": "src/main.ts",
   "scripts": {
-    "build": "node node_modules/typescript/bin/tsc",
+    "build": "tsc -p tsconfig.json",
+    "lint": "eslint \"src/common/stats-exception.filter.ts\" \"src/users/users.controller.ts\" \"src/users/dto/**/*.ts\" \"src/admin/admin.controller.ts\" \"src/payments/payments.controller.ts\" \"src/payments/dto/**/*.ts\" \"src/tournaments/tournaments.controller.ts\"",
     "test": "tsx --test src/tournaments/domain/*.test.ts src/tournaments/question-generators/*.test.ts src/users/*.test.ts",
+    "test:e2e": "npm run build && node dist/scripts/e2e-health-check.js",
+    "test:all": "npm run test && npm run test:e2e",
     "start": "node dist/main.js",
     "start:dev": "ts-node-dev --respawn src/main.ts",
     "seed:referral": "node dist/scripts/seed-referral-once.js",
@@ -52,6 +55,7 @@
     "typeorm": "^0.3.17"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@nestjs/testing": "^10.4.22",
     "@types/better-sqlite3": "^7.6.13",
     "@types/compression": "^1.8.1",
@@ -59,8 +63,14 @@
     "@types/nodemailer": "^7.0.11",
     "@types/pg": "^8.18.0",
     "better-sqlite3": "^12.6.2",
+    "eslint": "^10.0.3",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.5",
+    "globals": "^17.4.0",
+    "prettier": "^3.8.1",
     "ts-node-dev": "^2.0.0",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.57.0"
   }
 }

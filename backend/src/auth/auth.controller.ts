@@ -1,4 +1,14 @@
-import { Controller, Get, Post, Body, Query, UseGuards, Request, UnauthorizedException, InternalServerErrorException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Query,
+  UseGuards,
+  Request,
+  UnauthorizedException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { AuthService } from './auth.service';
 import { JwtAuthGuard } from './jwt-auth.guard';
@@ -7,6 +17,7 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ForgotPasswordDto, ResetPasswordDto } from './dto/reset-password.dto';
+import { type AuthenticatedRequestUser } from './auth-session.types';
 
 @Controller('auth')
 export class AuthController {
@@ -14,8 +25,8 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard)
   @Get('refresh')
-  async refresh(@Request() req: { user: { id: number } }) {
-    return this.authService.refresh(req.user.id);
+  async refresh(@Request() req: { user: AuthenticatedRequestUser }) {
+    return this.authService.refresh(req.user);
   }
 
   @Throttle({ short: { ttl: 60000, limit: 5 } })
@@ -54,7 +65,10 @@ export class AuthController {
 
   @Post('reset-password')
   async resetPassword(@Body() body: ResetPasswordDto) {
-    return this.authService.resetPassword(body?.token ?? '', body?.newPassword ?? '');
+    return this.authService.resetPassword(
+      body?.token ?? '',
+      body?.newPassword ?? '',
+    );
   }
 
   @Throttle({ short: { ttl: 60000, limit: 10 } })
@@ -75,8 +89,12 @@ export class AuthController {
   @Post('change-password')
   async changePassword(
     @Body() body: ChangePasswordDto,
-    @Request() req: { user: { id: number } }
+    @Request() req: { user: AuthenticatedRequestUser },
   ) {
-    return this.authService.changePassword(req.user.id, body.oldPassword, body.newPassword);
+    return this.authService.changePassword(
+      req.user.id,
+      body.oldPassword,
+      body.newPassword,
+    );
   }
 }

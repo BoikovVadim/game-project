@@ -29,7 +29,15 @@ export interface TournamentViewMeta {
   isDefeat: boolean;
 }
 
-export interface TournamentViewSeed {
+export interface TournamentMachineViewSeed {
+  stageKind: TournamentStageKind;
+  resultKind: TournamentResultKind;
+  userStatus?: 'passed' | 'not_passed';
+  deadline?: string | null;
+  roundFinished?: boolean;
+}
+
+export interface TournamentLegacyViewSeed {
   resultLabel?: string | null;
   stage?: string | null;
   userStatus?: 'passed' | 'not_passed';
@@ -37,29 +45,23 @@ export interface TournamentViewSeed {
   roundFinished?: boolean;
 }
 
-export function deriveTournamentViewMeta(seed: TournamentViewSeed, bucket: TournamentListBucket): TournamentViewMeta {
-  const label = seed.resultLabel ?? '';
-  const stageKind: TournamentStageKind = seed.stage === 'Финал' ? 'final' : 'semi';
-  const isVictory = label.startsWith('Победа');
-  const isTimeoutResult = label.toLowerCase().includes('время истекло');
-  const isDefeat = label.startsWith('Поражение') || label === 'Время истекло' || isTimeoutResult;
-  const isWaitingOpponent = label === 'Ожидание соперника';
-
-  let resultKind: TournamentResultKind = 'in_progress';
-  if (isVictory) resultKind = 'victory';
-  else if (isTimeoutResult) resultKind = 'timeout_defeat';
-  else if (isDefeat) resultKind = 'defeat';
-  else if (label === 'Финал') resultKind = 'final_ready';
-  else if (label === 'Доп. раунд') resultKind = 'tiebreaker';
-  else if (isWaitingOpponent) resultKind = 'waiting_opponent';
+export function buildTournamentViewMeta(
+  seed: TournamentMachineViewSeed,
+  bucket: TournamentListBucket,
+): TournamentViewMeta {
+  const isVictory = seed.resultKind === 'victory';
+  const isTimeoutResult = seed.resultKind === 'timeout_defeat';
+  const isDefeat =
+    seed.resultKind === 'defeat' || seed.resultKind === 'timeout_defeat';
+  const isWaitingOpponent = seed.resultKind === 'waiting_opponent';
 
   let resultTone: TournamentResultTone = 'stage-not-passed';
-  if (resultKind === 'victory') resultTone = 'victory';
-  else if (resultKind === 'timeout_defeat') resultTone = 'time-expired';
-  else if (resultKind === 'defeat') resultTone = 'defeat';
-  else if (resultKind === 'final_ready') resultTone = 'final-ready';
-  else if (resultKind === 'tiebreaker') resultTone = 'tiebreaker';
-  else if (resultKind === 'waiting_opponent') resultTone = 'stage-passed';
+  if (seed.resultKind === 'victory') resultTone = 'victory';
+  else if (seed.resultKind === 'timeout_defeat') resultTone = 'time-expired';
+  else if (seed.resultKind === 'defeat') resultTone = 'defeat';
+  else if (seed.resultKind === 'final_ready') resultTone = 'final-ready';
+  else if (seed.resultKind === 'tiebreaker') resultTone = 'tiebreaker';
+  else if (seed.resultKind === 'waiting_opponent') resultTone = 'stage-passed';
 
   const deadlineOpen = !!seed.deadline && new Date(seed.deadline) > new Date();
   const canContinue =
@@ -72,8 +74,8 @@ export function deriveTournamentViewMeta(seed: TournamentViewSeed, bucket: Tourn
     !seed.roundFinished;
 
   return {
-    stageKind,
-    resultKind,
+    stageKind: seed.stageKind,
+    resultKind: seed.resultKind,
     resultTone,
     listBucket: bucket,
     canContinue,
@@ -82,4 +84,31 @@ export function deriveTournamentViewMeta(seed: TournamentViewSeed, bucket: Tourn
     isVictory,
     isDefeat,
   };
+}
+
+export function deriveTournamentViewMeta(
+  seed: TournamentLegacyViewSeed,
+  bucket: TournamentListBucket,
+): TournamentViewMeta {
+  const label = seed.resultLabel ?? '';
+  let resultKind: TournamentResultKind = 'in_progress';
+  if (label.startsWith('Победа')) resultKind = 'victory';
+  else if (label.toLowerCase().includes('время истекло'))
+    resultKind = 'timeout_defeat';
+  else if (label.startsWith('Поражение') || label === 'Время истекло')
+    resultKind = 'defeat';
+  else if (label === 'Финал') resultKind = 'final_ready';
+  else if (label === 'Доп. раунд') resultKind = 'tiebreaker';
+  else if (label === 'Ожидание соперника') resultKind = 'waiting_opponent';
+
+  return buildTournamentViewMeta(
+    {
+      stageKind: seed.stage === 'Финал' ? 'final' : 'semi',
+      resultKind,
+      userStatus: seed.userStatus,
+      deadline: seed.deadline,
+      roundFinished: seed.roundFinished,
+    },
+    bucket,
+  );
 }
