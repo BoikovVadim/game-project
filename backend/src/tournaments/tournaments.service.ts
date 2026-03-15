@@ -6572,8 +6572,6 @@ export class TournamentsService implements OnModuleInit {
     userId: number,
   ): Promise<boolean> {
     const order = tournament.playerOrder ?? [];
-    const realPlayerCount = order.filter((id) => id > 0).length;
-    if (tournament.gameType === 'money' && realPlayerCount < 4) return false;
     const playerSlot = order.indexOf(userId);
     if (playerSlot < 0) return false;
     const opponentSlot = playerSlot % 2 === 0 ? playerSlot + 1 : playerSlot - 1;
@@ -6585,6 +6583,10 @@ export class TournamentsService implements OnModuleInit {
     if (oppId == null || oppId <= 0) {
       return false;
     }
+
+    // Победитель своей полуфинальной пары может открыть финальные вопросы
+    // даже в недобранном money-турнире: отсутствие opposite finalist'а
+    // не должно блокировать сам вход в финальный этап.
 
     const timeoutResolutionMap = await this.getTournamentTimeoutResolutionMap(
       tournament.id,
