@@ -1,7 +1,24 @@
-895159.15
-За сегодня (2026-03-15): 121 301,90 ₽
+897325.82
+За сегодня (2026-03-15): 123 468,57 ₽
 
 # Последние изменения. Формат записи: YYYY-MM-DD HH:MM | Z ₽ | оплачиваемое время | описание. Если у задачи есть клиентская разбивка, она идёт отдельным списком ниже. Внутренние расчёты и ретроспектива на сайт не выводятся.
+2026-03-15 17:59 | 2 166,67 ₽ | 1 ч 5 мин | Турниры/backend+prod-retrofix+t11-final-access+deploy: по кейсу `турнир 11` закрыт split source of truth между списком турниров и live prepare-path. В `didUserWinSemiFinal()` убран legacy-запрет, из-за которого semifinal winner в недобранном money-турнире видел `final_ready/canContinue`, но `prepareTrainingState` не открывал ему финальные вопросы. Дополнительно на production восстановлена relation-связь участников `tournament_players_user` для `T11`, чтобы она снова совпадала с `entry/progress`. После правки подтверждены `build backend`, `verify:tournaments`, commit/push/deploy, production `prepare(user 6, T11) -> questionsFinal=10`, reusable preview `user 2 / 5L -> candidateTournamentId=11` и public health-check `200`.
+
+Разбивка:
+- Погружение: 10 мин.
+- Проектирование: 5 мин.
+- Реализация: 6 мин.
+- Cleanup: 2 мин.
+- Проверка: 14 мин.
+- Delivery: 13 мин.
+
+Ретроспектива:
+- Базовое время: 50 мин.
+- Коэффициент: 1.30
+- Оплачиваемое время: 1 ч 5 мин.
+- Ставка: 2000 ₽ / час.
+- Формула: 65 мин × 2000 ₽ / 60 мин = 2 166,67 ₽.
+
 2026-03-15 17:58 | 1 933,33 ₽ | 58 мин | Турниры/backend+global-review-audit+correct-count-fix+deploy: после полного production-аудита review-модалок нашлись ещё два остаточных кейса. Первый: `турнир 10 / игрок 5`, где `reviewRounds.final-main.correctCount` расходился с фактическими `answersChosen`, потому что review-слой опирался на старый aggregate `correctAnswersCount`; теперь `getTrainingState` пересчитывает `correctCount` прямо из сохранённых ответов и текущего набора вопросов. Второй: `турнир 68 / игрок 3`, где active money-турнир остался без semifinal questions; во время проверки данные были восстановлены каноническим `prepareTrainingState`, а read-path перестал отдавать пустые review-раунды без вопросов. Дополнительно подтверждён отдельный production-аудит `resultLabel/resultKind/resultTone/timeout` без инцидентов. После правки выполнены `build backend`, `verify:tournaments`, commit/push/deploy и повторный глобальный production-аудит всех участников.
 
 Разбивка:
