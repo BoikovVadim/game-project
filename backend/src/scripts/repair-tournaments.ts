@@ -23,6 +23,8 @@ async function main() {
             result.backfilledResolvedResultRows,
           finalizedTournamentStatuses:
             result.finalizedTournamentStatuses,
+          deletedUnfinishedResultRows:
+            result.deletedUnfinishedResultRows,
           activatedWaitingCount: result.activatedWaitingTournamentIds.length,
           activatedWaitingTournamentIds: result.activatedWaitingTournamentIds,
           reactivatedFinishedCount:

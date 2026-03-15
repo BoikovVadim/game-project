@@ -1080,6 +1080,7 @@ export class TournamentsService implements OnModuleInit {
     backfilledParticipantRows: number;
     backfilledResolvedResultRows: number;
     finalizedTournamentStatuses: number;
+    deletedUnfinishedResultRows: number;
     activatedWaitingTournamentIds: number[];
     reactivatedFinishedTournamentIds: number[];
     deletedResultRows: number;
@@ -1089,6 +1090,8 @@ export class TournamentsService implements OnModuleInit {
     const participantBackfill = await this.backfillTournamentPlayersFromEntry();
     const waitingResult = await this.backfillWaitingTournamentsToActive();
     const resolvedBracketResult = await this.backfillResolvedBracketResults();
+    const unfinishedResultCleanup =
+      await this.deleteResultsFromUnfinishedTournaments();
     const finishedResult =
       await this.reactivateStructurallyUnfinishedFinishedTournaments();
     const legacyMoneyResult =
@@ -1098,6 +1101,7 @@ export class TournamentsService implements OnModuleInit {
       backfilledParticipantRows: participantBackfill.inserted,
       backfilledResolvedResultRows: resolvedBracketResult.updatedResults,
       finalizedTournamentStatuses: resolvedBracketResult.updatedStatuses,
+      deletedUnfinishedResultRows: unfinishedResultCleanup.deletedResultRows,
       activatedWaitingTournamentIds: waitingResult.updatedTournamentIds,
       reactivatedFinishedTournamentIds: finishedResult.reactivatedTournamentIds,
       deletedResultRows: finishedResult.deletedResultRows,
@@ -1306,6 +1310,38 @@ export class TournamentsService implements OnModuleInit {
     );
     return {
       reactivatedTournamentIds: affectedIds,
+      deletedResultRows: deleteResult.affected ?? 0,
+    };
+  }
+
+  async deleteResultsFromUnfinishedTournaments(): Promise<{
+    tournamentIds: number[];
+    deletedResultRows: number;
+  }> {
+    const rows = (await this.tournamentRepository.query(
+      `SELECT DISTINCT t.id AS "tournamentId"
+       FROM tournament t
+       INNER JOIN tournament_result r ON r."tournamentId" = t.id
+       WHERE t.status <> $1
+       ORDER BY t.id ASC`,
+      [TournamentStatus.FINISHED],
+    )) as Array<{ tournamentId: number }>;
+
+    const tournamentIds = rows
+      .map((row) => Number(row.tournamentId))
+      .filter((id) => Number.isFinite(id) && id > 0);
+    if (tournamentIds.length === 0) {
+      return { tournamentIds: [], deletedResultRows: 0 };
+    }
+
+    const deleteResult = await this.tournamentResultRepository.delete({
+      tournamentId: In(tournamentIds),
+    });
+    this.logger.log(
+      `deleteResultsFromUnfinishedTournaments: deleted ${deleteResult.affected ?? 0} stale result rows for ${tournamentIds.length} tournaments`,
+    );
+    return {
+      tournamentIds,
       deletedResultRows: deleteResult.affected ?? 0,
     };
   }
