@@ -1151,9 +1151,21 @@
   white-space: pre-line;
 }
 
+.admin-cost-breakdown {
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.admin-cost-breakdown-title {
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
 .admin-cost-breakdown-list {
-  margin: 10px 0 0;
-  padding-left: 20px;
+  margin: 0;
+  padding-left: 22px;
+  list-style: disc;
 }
 
 .admin-cost-breakdown-list li + li {

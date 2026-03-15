@@ -120,6 +120,17 @@ function parseProjectCostDisplayContent(lines: string[]): {
   };
 }
 
+function parseProjectCostBaseAmount(lines: string[]): number {
+  for (const line of lines) {
+    const match = line.match(
+      /^Начальная стоимость проекта \(не выводить в историю\):\s*(.+)$/i,
+    );
+    if (!match) continue;
+    return roundMoney(parseRubles(match[1]));
+  }
+  return 0;
+}
+
 function parseDurationToMinutes(value: string | null | undefined): number {
   const text = String(value ?? '').trim();
   if (!text) return 0;
@@ -962,7 +973,7 @@ export class AdminService {
         .map((line) => line.trim())
         .filter(Boolean);
 
-      const currentTotal = roundMoney(Number(metadataLines[0] ?? 0));
+      const baseProjectCost = parseProjectCostBaseAmount(sourceLines);
       const todayTotal = parseRubles(
         metadataLines[1]?.match(/:\s*(.+)$/)?.[1] ?? '0',
       );
@@ -1035,7 +1046,8 @@ export class AdminService {
         }
         return a.sourceIndex - b.sourceIndex;
       });
-      let runningTotal = roundMoney(currentTotal - totalChanges);
+      const currentTotal = roundMoney(baseProjectCost + totalChanges);
+      let runningTotal = roundMoney(baseProjectCost);
       const historyAscending = sortedHistory.map((entry) => {
         runningTotal = roundMoney(runningTotal + entry.amountChange);
         const {

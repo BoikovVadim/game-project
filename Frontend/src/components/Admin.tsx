@@ -3197,15 +3197,22 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                                         {row.description}
                                       </div>
                                       {row.breakdown.length > 0 && (
-                                        <ul className="admin-cost-breakdown-list">
-                                          {row.breakdown.map((item, itemIndex) => (
-                                            <li
-                                              key={`${row.date}-${row.time ?? "na"}-${idx}-${itemIndex}`}
-                                            >
-                                              {item}
-                                            </li>
-                                          ))}
-                                        </ul>
+                                        <div className="admin-cost-breakdown">
+                                          <div className="admin-cost-breakdown-title">
+                                            Разбивка:
+                                          </div>
+                                          <ul className="admin-cost-breakdown-list">
+                                            {row.breakdown.map(
+                                              (item, itemIndex) => (
+                                                <li
+                                                  key={`${row.date}-${row.time ?? "na"}-${idx}-${itemIndex}`}
+                                                >
+                                                  {item}
+                                                </li>
+                                              ),
+                                            )}
+                                          </ul>
+                                        </div>
                                       )}
                                     </td>
                                   </tr>
