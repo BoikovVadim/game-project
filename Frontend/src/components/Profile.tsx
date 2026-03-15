@@ -1063,6 +1063,10 @@ const Profile: React.FC<ProfileProps> = ({
   const [timerKey, setTimerKey] = useState(0);
   const timerStartRef = useRef<number>(Date.now());
   const timerPaused = answerForCurrentQuestion !== null;
+  const resolvedCurrentQuestionRef = useRef<{
+    globalIdx: number;
+    value: number;
+  } | null>(null);
   const [questionCooldown, setQuestionCooldown] = useState(false);
   const questionCooldownRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -2139,6 +2143,28 @@ const Profile: React.FC<ProfileProps> = ({
     if (trainingRound === 3) return tiebreakerBase;
     return trainingRound !== null && trainingRound >= 2 ? semiPhaseTotal : 0;
   }, [semiPhaseTotal, tiebreakerBase, trainingRound]);
+  const resolveCurrentQuestion = React.useCallback(
+    (value: number) => {
+      if (trainingRound === null || !currentQuestion || trainingRoundComplete) {
+        return null;
+      }
+      const globalIdx = getTrainingAnswerBase() + trainingQuestionIndex;
+      const existing = resolvedCurrentQuestionRef.current;
+      if (existing && existing.globalIdx === globalIdx) {
+        return existing;
+      }
+      const resolved = { globalIdx, value };
+      resolvedCurrentQuestionRef.current = resolved;
+      return resolved;
+    },
+    [
+      currentQuestion,
+      getTrainingAnswerBase,
+      trainingQuestionIndex,
+      trainingRound,
+      trainingRoundComplete,
+    ],
+  );
   const getPersistedAnswersSnapshot = React.useCallback(() => {
     const answers = [...fullAnswersChosenRef.current];
     if (
@@ -2179,6 +2205,9 @@ const Profile: React.FC<ProfileProps> = ({
     trainingQuestionIndex,
     trainingRoundComplete,
   ]);
+  useEffect(() => {
+    resolvedCurrentQuestionRef.current = null;
+  }, [currentQuestion, trainingQuestionIndex, trainingRound, trainingRoundComplete]);
 
   useEffect(() => {
     if (!currentQuestion || trainingRound === null) return;
@@ -2198,15 +2227,20 @@ const Profile: React.FC<ProfileProps> = ({
       const remaining = Math.max(0, QUESTION_TIMER_SEC - elapsed);
       setTimeLeft(remaining);
       if (remaining <= 0) {
+        const resolved = resolveCurrentQuestion(-1);
+        if (!resolved || resolved.value !== -1) return;
         if (trainingTimerRef.current) clearInterval(trainingTimerRef.current);
         trainingTimerRef.current = null;
         setAnswerForCurrentQuestion(-1);
-        setTrainingAnswers((prev) => [...prev, -1]);
+        setTrainingAnswers((prev) => {
+          const next = [...prev];
+          while (next.length <= trainingQuestionIndex) next.push(-1);
+          next[trainingQuestionIndex] = -1;
+          return next;
+        });
         setFullAnswersChosen((prev) => {
           const arr = [...prev];
-          const timerBase =
-            trainingRound !== null && trainingRound >= 2 ? semiPhaseTotal : 0;
-          const gIdx = timerBase + trainingQuestionIndex;
+          const gIdx = resolved.globalIdx;
           while (arr.length <= gIdx) arr.push(-1);
           arr[gIdx] = -1;
           return arr;
@@ -2215,10 +2249,9 @@ const Profile: React.FC<ProfileProps> = ({
         // Немедленно фиксируем timeout на сервере (answerFinal) — перезаписать будет нельзя
         if (trainingData?.tournamentId && token) {
           const toBase = getTrainingAnswerBase();
-          const toGIdx = toBase + trainingQuestionIndex;
           const toAnswers = mergeAnswerAtIndex(
             fullAnswersChosenRef.current,
-            toGIdx,
+            resolved.globalIdx,
             -1,
           );
           axios
@@ -2267,11 +2300,23 @@ const Profile: React.FC<ProfileProps> = ({
       trainingTimerRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [trainingRound, trainingQuestionIndex, answerForCurrentQuestion]);
+  }, [
+    answerForCurrentQuestion,
+    getTrainingAnswerBase,
+    mergeAnswerAtIndex,
+    resolveCurrentQuestion,
+    token,
+    trainingCorrectCount,
+    trainingData?.tournamentId,
+    trainingQuestionIndex,
+    trainingRound,
+  ]);
 
   const chooseTrainingAnswer = (answerIndex: number) => {
     if (answerForCurrentQuestion !== null) return;
     if (questionCooldown) return;
+    const resolved = resolveCurrentQuestion(answerIndex);
+    if (!resolved || resolved.value !== answerIndex) return;
     if (trainingTimerRef.current) {
       clearInterval(trainingTimerRef.current);
       trainingTimerRef.current = null;
@@ -2286,7 +2331,7 @@ const Profile: React.FC<ProfileProps> = ({
     const newRoundAnswers = [...trainingAnswers, answerIndex];
     setTrainingAnswers(newRoundAnswers);
     const base = getTrainingAnswerBase();
-    const globalIdx = base + trainingQuestionIndex;
+    const globalIdx = resolved.globalIdx;
     const cumulative = mergeAnswerAtIndex(
       fullAnswersChosenRef.current,
       globalIdx,
@@ -2366,6 +2411,7 @@ const Profile: React.FC<ProfileProps> = ({
     saveTrainingProgress();
     if (trainingTimerRef.current) clearInterval(trainingTimerRef.current);
     trainingTimerRef.current = null;
+    resolvedCurrentQuestionRef.current = null;
     const tid = trainingData?.tournamentId;
     if (tid && token) {
       try {
@@ -2529,6 +2575,7 @@ const Profile: React.FC<ProfileProps> = ({
       setTrainingRoundScores(session.trainingRoundScores);
       setTrainingRoundComplete(session.trainingRoundComplete);
       setAnswerForCurrentQuestion(null);
+      resolvedCurrentQuestionRef.current = null;
       setTrainingCorrectCount(session.trainingCorrectCount);
       timeLeftRef.current = session.timeLeft;
       setTimeLeft(session.timeLeft);
