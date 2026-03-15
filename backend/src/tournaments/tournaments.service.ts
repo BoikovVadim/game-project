@@ -146,7 +146,7 @@ export class TournamentsService implements OnModuleInit {
       });
     }
     if (args.lockRows) {
-      query.setLock('pessimistic_write');
+      query.setLock('pessimistic_write', undefined, ['t']);
     }
 
     const tournaments = await query.getMany();
