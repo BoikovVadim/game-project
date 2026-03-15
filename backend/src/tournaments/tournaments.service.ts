@@ -1078,6 +1078,8 @@ export class TournamentsService implements OnModuleInit {
   async repairTournamentConsistency(): Promise<{
     backfilledTimeoutResolutionRows: number;
     backfilledParticipantRows: number;
+    backfilledResolvedResultRows: number;
+    finalizedTournamentStatuses: number;
     activatedWaitingTournamentIds: number[];
     reactivatedFinishedTournamentIds: number[];
     deletedResultRows: number;
@@ -1086,6 +1088,7 @@ export class TournamentsService implements OnModuleInit {
     const timeoutBackfill = await this.backfillTimeoutRoundResolutions();
     const participantBackfill = await this.backfillTournamentPlayersFromEntry();
     const waitingResult = await this.backfillWaitingTournamentsToActive();
+    const resolvedBracketResult = await this.backfillResolvedBracketResults();
     const finishedResult =
       await this.reactivateStructurallyUnfinishedFinishedTournaments();
     const legacyMoneyResult =
@@ -1093,6 +1096,8 @@ export class TournamentsService implements OnModuleInit {
     return {
       backfilledTimeoutResolutionRows: timeoutBackfill.inserted,
       backfilledParticipantRows: participantBackfill.inserted,
+      backfilledResolvedResultRows: resolvedBracketResult.updatedResults,
+      finalizedTournamentStatuses: resolvedBracketResult.updatedStatuses,
       activatedWaitingTournamentIds: waitingResult.updatedTournamentIds,
       reactivatedFinishedTournamentIds: finishedResult.reactivatedTournamentIds,
       deletedResultRows: finishedResult.deletedResultRows,
@@ -1106,7 +1111,13 @@ export class TournamentsService implements OnModuleInit {
     updatedStatuses: number;
   }> {
     const tournaments = await this.tournamentRepository.find({
-      where: { status: TournamentStatus.FINISHED },
+      where: {
+        status: In([
+          TournamentStatus.WAITING,
+          TournamentStatus.ACTIVE,
+          TournamentStatus.FINISHED,
+        ]),
+      },
       relations: ['players'],
     });
 
