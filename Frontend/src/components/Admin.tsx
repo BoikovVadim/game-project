@@ -69,6 +69,7 @@ type ProjectCostHistoryRow = {
   afterAmount: number;
   duration: string;
   description: string;
+  breakdown: string[];
 };
 
 type ProjectCostDashboardData = {
@@ -3192,7 +3193,20 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                                     </td>
                                     <td>{row.duration}</td>
                                     <td className="admin-td-left admin-cost-description">
-                                      {row.description}
+                                      <div className="admin-cost-description-text">
+                                        {row.description}
+                                      </div>
+                                      {row.breakdown.length > 0 && (
+                                        <ul className="admin-cost-breakdown-list">
+                                          {row.breakdown.map((item, itemIndex) => (
+                                            <li
+                                              key={`${row.date}-${row.time ?? "na"}-${idx}-${itemIndex}`}
+                                            >
+                                              {item}
+                                            </li>
+                                          ))}
+                                        </ul>
+                                      )}
                                     </td>
                                   </tr>
                                 ))}

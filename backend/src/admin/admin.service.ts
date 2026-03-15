@@ -64,6 +64,62 @@ function normalizeProjectCostDescriptionBlock(lines: string[]): string {
     .trim();
 }
 
+function parseProjectCostDisplayContent(lines: string[]): {
+  description: string;
+  breakdown: string[];
+} {
+  const descriptionLines: string[] = [];
+  const breakdown: string[] = [];
+  let section: 'description' | 'breakdown' | 'hidden' = 'description';
+
+  for (const rawLine of lines) {
+    const line = rawLine.trimEnd();
+    const trimmed = line.trim();
+    if (!trimmed) {
+      const lastDescriptionLine =
+        descriptionLines.length > 0
+          ? descriptionLines[descriptionLines.length - 1]
+          : null;
+      if (section === 'description' && lastDescriptionLine !== '') {
+        descriptionLines.push('');
+      }
+      continue;
+    }
+    if (trimmed === 'Разбивка:') {
+      section = 'breakdown';
+      continue;
+    }
+    if (trimmed === 'Ретроспектива:') {
+      section = 'hidden';
+      continue;
+    }
+    if (section === 'description') {
+      descriptionLines.push(line);
+      continue;
+    }
+    if (section === 'breakdown') {
+      if (/^-+\s*/.test(trimmed)) {
+        breakdown.push(trimmed.replace(/^-+\s*/, '').trim());
+      } else {
+        breakdown.push(trimmed);
+      }
+    }
+  }
+
+  const description = normalizeProjectCostDescriptionBlock(descriptionLines).trim();
+  const filteredBreakdown = breakdown.filter(
+    (item) =>
+      item &&
+      !/^Поэтапная детализация/i.test(item) &&
+      !/^Базовое время по записи:/i.test(item),
+  );
+
+  return {
+    description,
+    breakdown: filteredBreakdown,
+  };
+}
+
 function parseDurationToMinutes(value: string | null | undefined): number {
   const text = String(value ?? '').trim();
   if (!text) return 0;
@@ -873,6 +929,7 @@ export class AdminService {
       afterAmount: number;
       duration: string;
       description: string;
+      breakdown: string[];
     }[];
   }> {
     try {
@@ -885,6 +942,7 @@ export class AdminService {
         amountChange: number;
         duration: string;
         description: string;
+        breakdown: string[];
       };
 
       const file = await readProjectCostTrackingFile();
@@ -946,6 +1004,10 @@ export class AdminService {
         const sortTimestamp = new Date(
           `${date}T${time ?? '00:00'}:00+03:00`,
         ).toISOString();
+        const content = parseProjectCostDisplayContent([
+          descriptionParts.join(' | '),
+          ...bodyLines,
+        ]);
         rawHistory.push({
           sourceIndex: block.sourceIndex,
           sortTimestamp,
@@ -954,16 +1016,8 @@ export class AdminService {
           time,
           amountChange: roundMoney(parseRubles(amountPart)),
           duration: durationPart,
-          description: normalizeProjectCostDescriptionBlock(
-            [descriptionParts.join(' | '), ...bodyLines].filter(
-              (line, index, allLines) => {
-                if (line.trim()) return true;
-                const prev = allLines[index - 1]?.trim() ?? '';
-                const next = allLines[index + 1]?.trim() ?? '';
-                return Boolean(prev && next);
-              },
-            ),
-          ),
+          description: content.description,
+          breakdown: content.breakdown,
         });
       }
 

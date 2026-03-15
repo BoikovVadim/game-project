@@ -1143,8 +1143,21 @@
 
 .admin-table--project-cost td.admin-cost-description {
   max-width: 720px;
-  white-space: pre-line;
+  white-space: normal;
   line-height: 1.4;
+}
+
+.admin-cost-description-text {
+  white-space: pre-line;
+}
+
+.admin-cost-breakdown-list {
+  margin: 10px 0 0;
+  padding-left: 20px;
+}
+
+.admin-cost-breakdown-list li + li {
+  margin-top: 4px;
 }
 
 .admin-tournament-th-inner {

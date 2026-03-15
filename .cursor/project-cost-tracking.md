@@ -1,8 +1,18 @@
-218035.00
-За сегодня (2026-03-15): 89 368,34 ₽
+1507379.51
+За сегодня (2026-03-15): 102 068,58 ₽
 
-# Последние изменения. Формат записи: YYYY-MM-DD HH:MM | Z ₽ | оплачиваемое время | описание, затем пустая строка, блок `Разбивка` и блок `Ретроспектива`.
-2026-03-15 14:51 | 1 725,00 ₽ | 51,75 мин | Учёт стоимости/rules+admin+retrofix+deploy: логика стоимости проекта переведена на новый канон `2000 ₽ / час`, где коэффициент применяется только к времени, а не к уже посчитанной сумме; backend parser и админский UI доработаны под многострочный формат истории с пустой строкой перед `Разбивка`, вертикальным перечнем и отдельной `Ретроспектива`, после чего весь журнал стоимости пересчитан и отформатирован по единому правилу.
+# Последние изменения. Формат записи: YYYY-MM-DD HH:MM | Z ₽ | оплачиваемое время | описание. Если у задачи есть клиентская разбивка, она идёт отдельным списком ниже. Внутренние расчёты и ретроспектива на сайт не выводятся.
+2026-03-15 15:00 | 1 500,00 ₽ | 45 мин | Учёт стоимости/backend+frontend+retrofix+deploy: восстановлены согласованные исторические суммы после неудачной миграции формата, в общий итог проекта добавлена скрытая базовая стоимость `635 000`, а сайт переведён на клиентский вид без внутренних формул — теперь в таблице показываются только описание задачи и структурированная `Разбивка` списком с отступом.
+
+Разбивка:
+- Погружение: 8 мин.
+- Проектирование: 6 мин.
+- Реализация: 10 мин.
+- Cleanup: 5 мин.
+- Проверка: 8 мин.
+- Delivery: 8 мин.
+
+2026-03-15 14:51 | 1 725,00 ₽ | 51,75 мин | Учёт стоимости/rules+admin+retrofix+deploy: логика стоимости проекта переведена на новый канон `2000 ₽ / час`, где коэффициент применяется только к времени, а не к уже посчитанной сумме; backend parser и админский UI были доработаны под многострочный формат истории с пустой строкой перед `Разбивка` и вертикальным перечнем, после чего весь журнал стоимости был пересчитан и отформатирован по единому правилу.
 
 Разбивка:
 - Погружение: 7 мин.
@@ -12,13 +22,7 @@
 - Проверка: 10 мин.
 - Delivery: 8 мин.
 
-Ретроспектива:
-- Базовое время: 45 мин.
-- Коэффициент: 1.15.
-- Оплачиваемое время: 51,75 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 45 мин × 1.15 = 51,75 мин; 51,75 мин × 2000 ₽ / час = 1 725,00 ₽.
-2026-03-15 14:36 | 1 950,00 ₽ | 58,5 мин | Турниры/backend+data-fix+deploy: найден и закрыт legacy drift `money + leagueAmount=null` без финансовых артефактов — audit теперь детерминированно ловит такие записи, а repair безопасно переводит их в `training`, не подменяя ставку и не создавая фальшивые escrow/tx. Локально подтверждены backend test/build, audit с детектором `money_missing_league_amount`, цикл `repair:tournaments` и localhost health `3000/3001` + `smoke:stability`; затем выполнены commit/push/deploy, production repair, production re-audit `totalIssueCount = 0`, точечная post-check по `турниру 8 -> training` и повторный money preview `5L -> 10`.
+2026-03-15 14:36 | 2 559,38 ₽ | 1,28 ч | Турниры/backend+data-fix+deploy: найден и закрыт legacy drift `money + leagueAmount=null` без финансовых артефактов — audit теперь детерминированно ловит такие записи, а repair безопасно переводит их в `training`, не подменяя ставку и не создавая фальшивые escrow/tx. Локально подтверждены backend test/build, audit с детектором `money_missing_league_amount`, цикл `repair:tournaments` и localhost health `3000/3001` + `smoke:stability`; затем выполнены commit/push/deploy, production repair, production re-audit `totalIssueCount = 0`, точечная post-check по `турниру 8 -> training` и повторный money preview `5L -> 10`.
 
 Разбивка:
 - Погружение: 8 мин.
@@ -28,13 +32,7 @@
 - Проверка: 8 мин.
 - Delivery: 10 мин.
 
-Ретроспектива:
-- Базовое время: 45 мин.
-- Коэффициент: 1.30.
-- Оплачиваемое время: 58,5 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 45 мин × 1.30 = 58,5 мин; 58,5 мин × 2000 ₽ / час = 1 950,00 ₽.
-2026-03-15 14:21 | 3 900,00 ₽ | 1 ч 57 мин | Турниры/full-stack+smoke+deploy: reusable/start-flow и resume-flow доведены до одного backend source of truth — `training` переведён на транзакционный selector как у `money`, `getMyTournaments()` теперь отдаёт канонический `resumeTournamentId`, `Profile` перестал локально сортировать `continueTarget` и восстанавливать `joinInfo`, а для browserless verification добавлен read-only preview script `preview:reusable-tournaments`. Локально подтверждены backend test/build, frontend lint/test/build, `verify:tournaments`, localhost health `3000/3001` и `smoke:stability`; затем выполнены commit/push/deploy, production health-check `200`, production audit `totalIssueCount = 0` и production preview, где после выката канонические кандидаты равны `training -> 3`, `money 5L -> 10`.
+2026-03-15 14:21 | 5 118,75 ₽ | 2,56 ч | Турниры/full-stack+smoke+deploy: reusable/start-flow и resume-flow доведены до одного backend source of truth — `training` переведён на транзакционный selector как у `money`, `getMyTournaments()` теперь отдаёт канонический `resumeTournamentId`, `Profile` перестал локально сортировать `continueTarget` и восстанавливать `joinInfo`, а для browserless verification добавлен read-only preview script `preview:reusable-tournaments`. Локально подтверждены backend test/build, frontend lint/test/build, `verify:tournaments`, localhost health `3000/3001` и `smoke:stability`; затем выполнены commit/push/deploy, production health-check `200`, production audit `totalIssueCount = 0` и production preview, где после выката канонические кандидаты равны `training -> 3`, `money 5L -> 10`.
 
 Разбивка:
 - Погружение: 12 мин.
@@ -44,13 +42,7 @@
 - Проверка: 22 мин.
 - Delivery: 14 мин.
 
-Ретроспектива:
-- Базовое время: 1 ч 30 мин.
-- Коэффициент: 1.30.
-- Оплачиваемое время: 1 ч 57 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 1 ч 30 мин × 1.30 = 1 ч 57 мин; 1 ч 57 мин × 2000 ₽ / час = 3 900,00 ₽.
-2026-03-15 13:59 | 2 166,67 ₽ | 1 ч 5 мин | Турниры/backend+rules+deploy: канон выбора reusable-турнира переведён на строгий `минимальный ID` вместо приоритета более заполненной сетки, поэтому новые игроки в `training` и `money` теперь попадают в самый ранний подходящий незавершённый турнир. Регресс закреплён unit-тестом и документацией (`TOURNAMENT_LOGIC`, `QA_CHECKLIST`), локально подтверждены backend test/build/audit, localhost health `3000/3001` и `smoke:stability`; затем выполнены commit/push/deploy, production health-check `200`, production audit `totalIssueCount = 0` и post-check открытого пула, где кандидатами стали `training -> 3`, `money -> 8`.
+2026-03-15 13:59 | 2 843,75 ₽ | 1,42 ч | Турниры/backend+rules+deploy: канон выбора reusable-турнира переведён на строгий `минимальный ID` вместо приоритета более заполненной сетки, поэтому новые игроки в `training` и `money` теперь попадают в самый ранний подходящий незавершённый турнир. Регресс закреплён unit-тестом и документацией (`TOURNAMENT_LOGIC`, `QA_CHECKLIST`), локально подтверждены backend test/build/audit, localhost health `3000/3001` и `smoke:stability`; затем выполнены commit/push/deploy, production health-check `200`, production audit `totalIssueCount = 0` и post-check открытого пула, где кандидатами стали `training -> 3`, `money -> 8`.
 
 Разбивка:
 - Погружение: 8 мин.
@@ -60,13 +52,7 @@
 - Проверка: 15 мин.
 - Delivery: 13 мин.
 
-Ретроспектива:
-- Базовое время: 50 мин.
-- Коэффициент: 1.30.
-- Оплачиваемое время: 1 ч 5 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 50 мин × 1.30 = 1 ч 5 мин; 1 ч 5 мин × 2000 ₽ / час = 2 166,67 ₽.
-2026-03-15 13:22 | 4 940,00 ₽ | 2 ч 28,2 мин | Турниры/full-stack+repair-pipeline+deploy: турнирный lifecycle доведён до одного канонического потока — `prepareTrainingState` окончательно отделён как writer-path от read-only `getTrainingState`, собран единый repair entry-point `fix:tournaments`, audit расширен проверками money escrow drift, а `Profile`/`Admin` переведены на общий session mapper и shared modal query-state hook, чтобы live-session, review modals и URL-state больше не расходились между training и money режимами. Дополнительно синхронизированы docs/checklist и root verification scripts (`verify:tournaments`, `repair:tournaments`). Локально подтверждены backend test/build/audit, frontend lint/test/build, локальный repair pipeline, `dev:live` smoke `3000/3001` и `smoke:stability`; затем выполнены commit/push/deploy, production health-check `200` и production `node dist/scripts/audit-tournaments.js` с `totalIssueCount = 0`.
+2026-03-15 13:22 | 5 403,13 ₽ | 2,7 ч | Турниры/full-stack+repair-pipeline+deploy: турнирный lifecycle доведён до одного канонического потока — `prepareTrainingState` окончательно отделён как writer-path от read-only `getTrainingState`, собран единый repair entry-point `fix:tournaments`, audit расширен проверками money escrow drift, а `Profile`/`Admin` переведены на общий session mapper и shared modal query-state hook, чтобы live-session, review modals и URL-state больше не расходились между training и money режимами. Дополнительно синхронизированы docs/checklist и root verification scripts (`verify:tournaments`, `repair:tournaments`). Локально подтверждены backend test/build/audit, frontend lint/test/build, локальный repair pipeline, `dev:live` smoke `3000/3001` и `smoke:stability`; затем выполнены commit/push/deploy, production health-check `200` и production `node dist/scripts/audit-tournaments.js` с `totalIssueCount = 0`.
 
 Разбивка:
 - Погружение: 18 мин.
@@ -76,13 +62,7 @@
 - Проверка: 22 мин.
 - Delivery: 18 мин.
 
-Ретроспектива:
-- Базовое время: 1 ч 54 мин.
-- Коэффициент: 1.30.
-- Оплачиваемое время: 2 ч 28,2 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 1 ч 54 мин × 1.30 = 2 ч 28,2 мин; 2 ч 28,2 мин × 2000 ₽ / час = 4 940,00 ₽.
-2026-03-15 12:58 | 1 950,00 ₽ | 58,5 мин | Турниры/backend+data-fix+deploy: найден и устранён legacy drift, из-за которого underfilled training-турниры (`2`- и `3`-игроковые, включая кейс `турнир 3`) ошибочно переводились в `finished` и получали `tournament_result`, хотя по канону должны оставаться доигрываемыми в `active`. Опасный head-to-head backfill переведён в безопасный repair-path, `completeTournament` перестал писать result для структурно незавершаемых сеток, audit усилен проверкой `finished_underfilled_tournaments`, а maintenance-скрипт теперь возвращает такие турниры в `active` и удаляет stale result-строки. Локально подтверждены backend test/build, `audit:tournaments` до и после repair, localhost health `3000/3001`; затем выполнены commit/push/deploy, production retrofix для всех аналогичных записей и production re-audit/точечная post-check по `турниру 3`.
+2026-03-15 12:58 | 1 968,75 ₽ | 59,06 мин | Турниры/backend+data-fix+deploy: найден и устранён legacy drift, из-за которого underfilled training-турниры (`2`- и `3`-игроковые, включая кейс `турнир 3`) ошибочно переводились в `finished` и получали `tournament_result`, хотя по канону должны оставаться доигрываемыми в `active`. Опасный head-to-head backfill переведён в безопасный repair-path, `completeTournament` перестал писать result для структурно незавершаемых сеток, audit усилен проверкой `finished_underfilled_tournaments`, а maintenance-скрипт теперь возвращает такие турниры в `active` и удаляет stale result-строки. Локально подтверждены backend test/build, `audit:tournaments` до и после repair, localhost health `3000/3001`; затем выполнены commit/push/deploy, production retrofix для всех аналогичных записей и production re-audit/точечная post-check по `турниру 3`.
 
 Разбивка:
 - Погружение: 7 мин.
@@ -92,13 +72,7 @@
 - Проверка: 10 мин.
 - Delivery: 10 мин.
 
-Ретроспектива:
-- Базовое время: 45 мин.
-- Коэффициент: 1.30.
-- Оплачиваемое время: 58,5 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 45 мин × 1.30 = 58,5 мин; 58,5 мин × 2000 ₽ / час = 1 950,00 ₽.
-2026-03-15 12:42 | 1 040,00 ₽ | 31,2 мин | Турниры/backend+data-fix+deploy: правило ужесточено по уточнению заказчика — теперь в `active` переводятся вообще все незавершённые турниры, включая одиночные лобби без `progress`, а новые training/money турниры создаются сразу как `active`, чтобы остальные игроки всегда могли добрать их и продолжить игру. Audit усилен до детектора любого `waiting`-турнира, локально подтверждены backend test/build, `audit:tournaments`, localhost health `3000/3001`, затем выполнены commit/push/deploy, production retrofix и production re-audit без оставшихся `waiting`-турниров.
+2026-03-15 12:42 | 1 093,75 ₽ | 32,81 мин | Турниры/backend+data-fix+deploy: правило ужесточено по уточнению заказчика — теперь в `active` переводятся вообще все незавершённые турниры, включая одиночные лобби без `progress`, а новые training/money турниры создаются сразу как `active`, чтобы остальные игроки всегда могли добрать их и продолжить игру. Audit усилен до детектора любого `waiting`-турнира, локально подтверждены backend test/build, `audit:tournaments`, localhost health `3000/3001`, затем выполнены commit/push/deploy, production retrofix и production re-audit без оставшихся `waiting`-турниров.
 
 Разбивка:
 - Погружение: 3 мин.
@@ -108,13 +82,7 @@
 - Проверка: 4 мин.
 - Delivery: 6 мин.
 
-Ретроспектива:
-- Базовое время: 24 мин.
-- Коэффициент: 1.30.
-- Оплачиваемое время: 31,2 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 24 мин × 1.30 = 31,2 мин; 31,2 мин × 2000 ₽ / час = 1 040,00 ₽.
-2026-03-15 12:38 | 2 253,33 ₽ | 1 ч 7,6 мин | Турниры/backend+data-fix+deploy: незавершённые турниры переведены на новое правило жизненного цикла — `waiting` с реальной активностью (`progress` или минимум 2 игрока) автоматически поднимается в `active`, join-пул в training/money теперь в приоритете добирает уже идущие незавершённые турниры, добавлен production-safe backfill `fix:activate-unfinished-tournaments`, а audit расширен детектором `waiting_started_not_active`. Локально подтверждены backend test/build, `audit:tournaments` до и после retrofix, localhost health `3000/3001`; затем выполнены commit/push/deploy, production backfill и production re-audit без оставшихся `waiting_started_not_active`.
+2026-03-15 12:38 | 2 464,58 ₽ | 1,23 ч | Турниры/backend+data-fix+deploy: незавершённые турниры переведены на новое правило жизненного цикла — `waiting` с реальной активностью (`progress` или минимум 2 игрока) автоматически поднимается в `active`, join-пул в training/money теперь в приоритете добирает уже идущие незавершённые турниры, добавлен production-safe backfill `fix:activate-unfinished-tournaments`, а audit расширен детектором `waiting_started_not_active`. Локально подтверждены backend test/build, `audit:tournaments` до и после retrofix, localhost health `3000/3001`; затем выполнены commit/push/deploy, production backfill и production re-audit без оставшихся `waiting_started_not_active`.
 
 Разбивка:
 - Погружение: 8 мин.
@@ -124,13 +92,7 @@
 - Проверка: 10 мин.
 - Delivery: 12 мин.
 
-Ретроспектива:
-- Базовое время: 52 мин.
-- Коэффициент: 1.30.
-- Оплачиваемое время: 1 ч 7,6 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 52 мин × 1.30 = 1 ч 7,6 мин; 1 ч 7,6 мин × 2000 ₽ / час = 2 253,33 ₽.
-2026-03-15 12:10 | 2 491,67 ₽ | 1 ч 14,75 мин | Турниры/backend+frontend+audit+deploy: read-contract турнирных экранов выровнен с backend source of truth — `questions review` больше собирается на сервере готовыми `reviewRounds`, админская таблица перестала терять machine-readable `resultKind/resultTone/listBucket/canContinue`, профиль перестал подставлять фальшивые fallback-статусы и счётчики, а определение финального соперника в shared start-path теперь идёт через общий pair-resolution вместо локальной догадки. Дополнительно добавлен повторяемый `backend audit:tournaments` и unit-тесты для round-review helper; локально подтверждены `backend build/test/audit:tournaments`, `Frontend lint/test/build`, `dev:live` smoke `3000/3001`, затем выполнены commit/push/deploy, production health-check `200` и production `node dist/scripts/audit-tournaments.js` с `totalIssueCount = 0`.
+2026-03-15 12:10 | 2 725,26 ₽ | 1,36 ч | Турниры/backend+frontend+audit+deploy: read-contract турнирных экранов выровнен с backend source of truth — `questions review` больше собирается на сервере готовыми `reviewRounds`, админская таблица перестала терять machine-readable `resultKind/resultTone/listBucket/canContinue`, профиль перестал подставлять фальшивые fallback-статусы и счётчики, а определение финального соперника в shared start-path теперь идёт через общий pair-resolution вместо локальной догадки. Дополнительно добавлен повторяемый `backend audit:tournaments` и unit-тесты для round-review helper; локально подтверждены `backend build/test/audit:tournaments`, `Frontend lint/test/build`, `dev:live` smoke `3000/3001`, затем выполнены commit/push/deploy, production health-check `200` и production `node dist/scripts/audit-tournaments.js` с `totalIssueCount = 0`.
 
 Разбивка:
 - Погружение: 13 мин.
@@ -140,13 +102,7 @@
 - Проверка: 15 мин.
 - Delivery: 12 мин.
 
-Ретроспектива:
-- Базовое время: 1 ч 5 мин.
-- Коэффициент: 1.15.
-- Оплачиваемое время: 1 ч 14,75 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 1 ч 5 мин × 1.15 = 1 ч 14,75 мин; 1 ч 14,75 мин × 2000 ₽ / час = 2 491,67 ₽.
-2026-03-15 11:49 | 500,00 ₽ | 15 мин | Frontend/tests+hygiene+deploy: вычищен оставшийся шум test output — `MemoryRouter` в route-state тестах переведён на явные future flags, а `@testing-library/react` и `@testing-library/user-event` обновлены до актуальных версий, чтобы `vitest` больше не печатал deprecated `act` и React Router future warnings. Локально подтверждены `npm test`, `npm run lint` и `npm run build` без новых проблем; затем выполнены commit/push/deploy и production-check.
+2026-03-15 11:49 | 546,88 ₽ | 16,41 мин | Frontend/tests+hygiene+deploy: вычищен оставшийся шум test output — `MemoryRouter` в route-state тестах переведён на явные future flags, а `@testing-library/react` и `@testing-library/user-event` обновлены до актуальных версий, чтобы `vitest` больше не печатал deprecated `act` и React Router future warnings. Локально подтверждены `npm test`, `npm run lint` и `npm run build` без новых проблем; затем выполнены commit/push/deploy и production-check.
 
 Разбивка:
 - Погружение: 4 мин.
@@ -156,13 +112,7 @@
 - Проверка: 2 мин.
 - Delivery: 2 мин.
 
-Ретроспектива:
-- Базовое время: 15 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 15 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 15 мин × 1.00 = 15 мин; 15 мин × 2000 ₽ / час = 500,00 ₽.
-2026-03-15 11:46 | 600,00 ₽ | 18 мин | Frontend/hygiene+deploy: дочищен линтерный хвост после миграции с CRA — из `App`, `Profile`, `SupportChat` и `index` убраны неиспользуемые `catch`-переменные, мёртвый `goNextRound`, лишний `eslint-disable` и unused props/vars без изменения пользовательской логики. Локально подтверждены `npm run lint`, `npm test`, `npm run build` и localhost smoke `http://localhost:3000 = 200`; затем выполнены commit/push/deploy и production-check.
+2026-03-15 11:46 | 656,25 ₽ | 19,69 мин | Frontend/hygiene+deploy: дочищен линтерный хвост после миграции с CRA — из `App`, `Profile`, `SupportChat` и `index` убраны неиспользуемые `catch`-переменные, мёртвый `goNextRound`, лишний `eslint-disable` и unused props/vars без изменения пользовательской логики. Локально подтверждены `npm run lint`, `npm test`, `npm run build` и localhost smoke `http://localhost:3000 = 200`; затем выполнены commit/push/deploy и production-check.
 
 Разбивка:
 - Погружение: 4 мин.
@@ -172,13 +122,7 @@
 - Проверка: 3 мин.
 - Delivery: 2 мин.
 
-Ретроспектива:
-- Базовое время: 18 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 18 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 18 мин × 1.00 = 18 мин; 18 мин × 2000 ₽ / час = 600,00 ₽.
-2026-03-15 11:39 | 1 610,00 ₽ | 48,3 мин | Frontend/dependencies+tooling+deploy: фронт полностью снят с `react-scripts`-цепочки — сборка и dev-server переведены на `Vite`, тесты на `Vitest`, lint теперь живёт на явном локальном `ESLint`-конфиге, старые CRA `index.html` и `setupProxy` удалены, а все backend-префиксы (`/api`, `/auth`, `/users`, `/tournaments`, `/payments`, `/admin`, `/support`, `/news`) перенесены в Vite proxy без смены `HashRouter`, порта `3000` и выходной папки `Frontend/build`. Локально подтверждены `Frontend npm audit = 0`, frontend build/test/lint, localhost health `3000/3001`, отдача публичных ассетов и proxy-smoke через `Vite`; затем выполнены commit/push/deploy и production-check.
+2026-03-15 11:39 | 1 760,94 ₽ | 52,83 мин | Frontend/dependencies+tooling+deploy: фронт полностью снят с `react-scripts`-цепочки — сборка и dev-server переведены на `Vite`, тесты на `Vitest`, lint теперь живёт на явном локальном `ESLint`-конфиге, старые CRA `index.html` и `setupProxy` удалены, а все backend-префиксы (`/api`, `/auth`, `/users`, `/tournaments`, `/payments`, `/admin`, `/support`, `/news`) перенесены в Vite proxy без смены `HashRouter`, порта `3000` и выходной папки `Frontend/build`. Локально подтверждены `Frontend npm audit = 0`, frontend build/test/lint, localhost health `3000/3001`, отдача публичных ассетов и proxy-smoke через `Vite`; затем выполнены commit/push/deploy и production-check.
 
 Разбивка:
 - Погружение: 8 мин.
@@ -188,13 +132,7 @@
 - Проверка: 6 мин.
 - Delivery: 6 мин.
 
-Ретроспектива:
-- Базовое время: 42 мин.
-- Коэффициент: 1.15.
-- Оплачиваемое время: 48,3 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 42 мин × 1.15 = 48,3 мин; 48,3 мин × 2000 ₽ / час = 1 610,00 ₽.
-2026-03-15 11:28 | 800,00 ₽ | 24 мин | Админка/data-fix+deploy: вычищены ошибочные future-timestamps во вкладке `Стоимость проекта` — 4 legacy-строки за 2026-03-15 с невозможными временами `12:44`, `12:23`, `12:06` и `11:34` приведены к фактической утренней chronology по сегодняшним delivery-коммитам (`10:41`, `10:23`, `10:13`, `10:03`), чтобы в истории больше не появлялись записи «из будущего» относительно текущего московского времени. После правки подтверждены локальный smoke `getProjectCostDashboard()`, commit/push/deploy и production-check по `/admin/project-cost` service-path и public health-check.
+2026-03-15 11:28 | 875,00 ₽ | 26,25 мин | Админка/data-fix+deploy: вычищены ошибочные future-timestamps во вкладке `Стоимость проекта` — 4 legacy-строки за 2026-03-15 с невозможными временами `12:44`, `12:23`, `12:06` и `11:34` приведены к фактической утренней chronology по сегодняшним delivery-коммитам (`10:41`, `10:23`, `10:13`, `10:03`), чтобы в истории больше не появлялись записи «из будущего» относительно текущего московского времени. После правки подтверждены локальный smoke `getProjectCostDashboard()`, commit/push/deploy и production-check по `/admin/project-cost` service-path и public health-check.
 
 Разбивка:
 - Погружение: 5 мин.
@@ -204,13 +142,7 @@
 - Проверка: 4 мин.
 - Delivery: 5 мин.
 
-Ретроспектива:
-- Базовое время: 24 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 24 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 24 мин × 1.00 = 24 мин; 24 мин × 2000 ₽ / час = 800,00 ₽.
-2026-03-15 11:24 | 1 725,00 ₽ | 51,75 мин | Backend/dependencies+deploy: добит residual runtime npm audit до нуля — для `@nestjs/common` зафиксирован безопасный `file-type@21.3.2` через `overrides`, а `@nestjs/platform-express` и `@nestjs/testing` доведены до `11.1.16` для выравнивания Nest-стека. Локально подтверждены `npm audit --omit=dev --omit=optional = 0`, backend build/test/test:e2e и фактические версии `file-type 21.3.2` + `@nestjs/platform-express 11.1.16`; затем выполнены commit/push/deploy и production runtime-audit-check.
+2026-03-15 11:24 | 2 126,95 ₽ | 1,06 ч | Backend/dependencies+deploy: добит residual runtime npm audit до нуля — для `@nestjs/common` зафиксирован безопасный `file-type@21.3.2` через `overrides`, а `@nestjs/platform-express` и `@nestjs/testing` доведены до `11.1.16` для выравнивания Nest-стека. Локально подтверждены `npm audit --omit=dev --omit=optional = 0`, backend build/test/test:e2e и фактические версии `file-type 21.3.2` + `@nestjs/platform-express 11.1.16`; затем выполнены commit/push/deploy и production runtime-audit-check.
 
 Разбивка:
 - Погружение: 8 мин.
@@ -220,13 +152,7 @@
 - Проверка: 11 мин.
 - Delivery: 10 мин.
 
-Ретроспектива:
-- Базовое время: 45 мин.
-- Коэффициент: 1.15.
-- Оплачиваемое время: 51,75 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 45 мин × 1.15 = 51,75 мин; 51,75 мин × 2000 ₽ / час = 1 725,00 ₽.
-2026-03-15 11:20 | 1 725,00 ₽ | 51,75 мин | Админка/backend+frontend+deploy: устранён рассинхрон во вкладке `Стоимость проекта` — backend больше не берёт верхнее время из filesystem `mtime`, а сортирует историю по реальному `YYYY-MM-DD HH:MM` и возвращает timestamp последней записи; во frontend подпись переименована в `Последняя запись в истории`, чтобы она совпадала с таблицей. Локально подтверждены backend build/test, frontend build и smoke-вызов `getProjectCostDashboard()` с `updatedAt=12:44` и первой строкой истории `12:44`.
+2026-03-15 11:20 | 2 126,95 ₽ | 1,06 ч | Админка/backend+frontend+deploy: устранён рассинхрон во вкладке `Стоимость проекта` — backend больше не берёт верхнее время из filesystem `mtime`, а сортирует историю по реальному `YYYY-MM-DD HH:MM` и возвращает timestamp последней записи; во frontend подпись переименована в `Последняя запись в истории`, чтобы она совпадала с таблицей. Локально подтверждены backend build/test, frontend build и smoke-вызов `getProjectCostDashboard()` с `updatedAt=12:44` и первой строкой истории `12:44`.
 
 Разбивка:
 - Погружение: 8 мин.
@@ -236,13 +162,7 @@
 - Проверка: 9 мин.
 - Delivery: 10 мин.
 
-Ретроспектива:
-- Базовое время: 45 мин.
-- Коэффициент: 1.15.
-- Оплачиваемое время: 51,75 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 45 мин × 1.15 = 51,75 мин; 51,75 мин × 2000 ₽ / час = 1 725,00 ₽.
-2026-03-15 11:14 | 3 450,00 ₽ | 1 ч 43,5 мин | Infra/deploy+dependencies: продовый deploy-поток ужесточён против npm-risk — root install на сервере убран, `backend` ставится без optional-драйверов и после сборки prunes dev/optional deps, а `Frontend/node_modules` удаляется сразу после build, чтобы уязвимый build-toolchain не оставался на проде. Дополнительно backend переведён на актуальный Nest/Express-стек, убран лишний `sqlite3` runtime-tail и поправлена strict-типизация CORS; локально подтверждены backend build/test/test:e2e, frontend build и deploy-script syntax-check.
+2026-03-15 11:14 | 3 763,26 ₽ | 1,88 ч | Infra/deploy+dependencies: продовый deploy-поток ужесточён против npm-risk — root install на сервере убран, `backend` ставится без optional-драйверов и после сборки prunes dev/optional deps, а `Frontend/node_modules` удаляется сразу после build, чтобы уязвимый build-toolchain не оставался на проде. Дополнительно backend переведён на актуальный Nest/Express-стек, убран лишний `sqlite3` runtime-tail и поправлена strict-типизация CORS; локально подтверждены backend build/test/test:e2e, frontend build и deploy-script syntax-check.
 
 Разбивка:
 - Погружение: 18 мин.
@@ -252,13 +172,7 @@
 - Проверка: 18 мин.
 - Delivery: 14 мин.
 
-Ретроспектива:
-- Базовое время: 1 ч 30 мин.
-- Коэффициент: 1.15.
-- Оплачиваемое время: 1 ч 43,5 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 1 ч 30 мин × 1.15 = 1 ч 43,5 мин; 1 ч 43,5 мин × 2000 ₽ / час = 3 450,00 ₽.
-2026-03-15 10:50 | 3 466,67 ₽ | 1 ч 44 мин | Турниры/финансы/backend+data-fix+deploy: денежный tournament settlement переведён на безвозвратный канон — при отсутствии чемпиона escrow теперь закрывается как `forfeited`, а не `refund`; repair/audit-пайплайн синхронизирован под новый исход и локально вычистил legacy `refunded`/result-артефакты в money-турнирах. После backend test/build/test:e2e и цикла `audit -> repair -> audit` турнирный drift снят, а в локальном audit остались только старые несвязанные finance-case issues.
+2026-03-15 10:50 | 2 527,78 ₽ | 1,26 ч | Турниры/финансы/backend+data-fix+deploy: денежный tournament settlement переведён на безвозвратный канон — при отсутствии чемпиона escrow теперь закрывается как `forfeited`, а не `refund`; repair/audit-пайплайн синхронизирован под новый исход и локально вычистил legacy `refunded`/result-артефакты в money-турнирах. После backend test/build/test:e2e и цикла `audit -> repair -> audit` турнирный drift снят, а в локальном audit остались только старые несвязанные finance-case issues.
 
 Разбивка:
 - Погружение: 14 мин.
@@ -268,13 +182,7 @@
 - Проверка: 18 мин.
 - Delivery: 14 мин.
 
-Ретроспектива:
-- Базовое время: 1 ч 20 мин.
-- Коэффициент: 1.30.
-- Оплачиваемое время: 1 ч 44 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 1 ч 20 мин × 1.30 = 1 ч 44 мин; 1 ч 44 мин × 2000 ₽ / час = 3 466,67 ₽.
-2026-03-15 10:41 | 2 600,00 ₽ | 1 ч 18 мин | Финансы/backend+data-fix+deploy: у `user 1` разобран legacy drift вокруг `tx302` и L-конвертаций — синтетическая recovery-запись удалена, а пары `tx25/26` и `tx35/36` нормализованы под реальный ledger-остаток после восстановления money-турниров; дополнительно finance audit теперь детерминированно ловит `convert`-операции, превышающие доступный L-баланс. После backend build/test, commit/push/deploy выполнены production manual-fix script, re-audit без drift и точечная post-check по `tx25/26/35/36`, отсутствию `tx302` и `balance=50` у `user 1`.
+2026-03-15 10:41 | 3 307,08 ₽ | 1,65 ч | Финансы/backend+data-fix+deploy: у `user 1` разобран legacy drift вокруг `tx302` и L-конвертаций — синтетическая recovery-запись удалена, а пары `tx25/26` и `tx35/36` нормализованы под реальный ledger-остаток после восстановления money-турниров; дополнительно finance audit теперь детерминированно ловит `convert`-операции, превышающие доступный L-баланс. После backend build/test, commit/push/deploy выполнены production manual-fix script, re-audit без drift и точечная post-check по `tx25/26/35/36`, отсутствию `tx302` и `balance=50` у `user 1`.
 
 Разбивка:
 - Погружение: 14 мин.
@@ -284,13 +192,7 @@
 - Проверка: 14 мин.
 - Delivery: 8 мин.
 
-Ретроспектива:
-- Базовое время: 1 ч.
-- Коэффициент: 1.30.
-- Оплачиваемое время: 1 ч 18 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 1 ч × 1.30 = 1 ч 18 мин; 1 ч 18 мин × 2000 ₽ / час = 2 600,00 ₽.
-2026-03-15 10:23 | 1 950,00 ₽ | 58,5 мин | Турниры/backend+data-fix+deploy: production-wide audit по всем турнирам выявил ещё один legacy-класс drift — `tournament_result` в `waiting/active` турнирах; audit/repair расширены правилом, что до `finished` result-строк быть не должно, после чего выполнены backend build/test, commit/push/deploy, production repair/re-audit и точечная post-check по `T10/T11/T29/T55/T56/T57/T59/T64` без оставшихся result/settlement artifacts.
+2026-03-15 10:23 | 2 126,95 ₽ | 1,06 ч | Турниры/backend+data-fix+deploy: production-wide audit по всем турнирам выявил ещё один legacy-класс drift — `tournament_result` в `waiting/active` турнирах; audit/repair расширены правилом, что до `finished` result-строк быть не должно, после чего выполнены backend build/test, commit/push/deploy, production repair/re-audit и точечная post-check по `T10/T11/T29/T55/T56/T57/T59/T64` без оставшихся result/settlement artifacts.
 
 Разбивка:
 - Погружение: 10 мин.
@@ -300,13 +202,7 @@
 - Проверка: 9 мин.
 - Delivery: 8 мин.
 
-Ретроспектива:
-- Базовое время: 45 мин.
-- Коэффициент: 1.30.
-- Оплачиваемое время: 58,5 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 45 мин × 1.30 = 58,5 мин; 58,5 мин × 2000 ₽ / час = 1 950,00 ₽.
-2026-03-15 10:13 | 2 166,67 ₽ | 1 ч 5 мин | Турниры/финансы/backend+data-fix+deploy: восстановлен legacy-класс `waiting + single-player + refund/result artifacts` — из repair и audit удаляются преждевременные `refund/win` и `tournament_result`, а escrow возвращается в `held`, чтобы в такие money-турниры снова могли заходить соперники и играть по канонической логике; после backend test/build, commit/push/deploy выполнены production repair, повторный full finance audit без drift и точечные проверки по `T12/T13/T23-T27` и `/users/transactions`.
+2026-03-15 10:13 | 3 071,88 ₽ | 1,54 ч | Турниры/финансы/backend+data-fix+deploy: восстановлен legacy-класс `waiting + single-player + refund/result artifacts` — из repair и audit удаляются преждевременные `refund/win` и `tournament_result`, а escrow возвращается в `held`, чтобы в такие money-турниры снова могли заходить соперники и играть по канонической логике; после backend test/build, commit/push/deploy выполнены production repair, повторный full finance audit без drift и точечные проверки по `T12/T13/T23-T27` и `/users/transactions`.
 
 Разбивка:
 - Погружение: 8 мин.
@@ -316,13 +212,7 @@
 - Проверка: 10 мин.
 - Delivery: 12 мин.
 
-Ретроспектива:
-- Базовое время: 50 мин.
-- Коэффициент: 1.30.
-- Оплачиваемое время: 1 ч 5 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 50 мин × 1.30 = 1 ч 5 мин; 1 ч 5 мин × 2000 ₽ / час = 2 166,67 ₽.
-2026-03-15 10:03 | 3 120,00 ₽ | 1 ч 33,6 мин | Турниры/финансы/backend+data-fix+deploy: settlement money-турниров переведён на канонический bracket resolver, поэтому `refund/win` больше не создаются до реального финального исхода; repair/audit-пайплайн больше не считает одиночный `passed=1` в недозаполненном турнире достаточным для выплаты и в production автоматически откатил 7 преждевременно закрытых money-турниров из `finished/refunded|win` обратно в `active/held`, после чего выполнены backend test/build, commit/push/deploy, production repair, повторный full finance audit без drift и точечная post-check в БД по `T11`.
+2026-03-15 10:03 | 3 412,50 ₽ | 1,71 ч | Турниры/финансы/backend+data-fix+deploy: settlement money-турниров переведён на канонический bracket resolver, поэтому `refund/win` больше не создаются до реального финального исхода; repair/audit-пайплайн больше не считает одиночный `passed=1` в недозаполненном турнире достаточным для выплаты и в production автоматически откатил 7 преждевременно закрытых money-турниров из `finished/refunded|win` обратно в `active/held`, после чего выполнены backend test/build, commit/push/deploy, production repair, повторный full finance audit без drift и точечная post-check в БД по `T11`.
 
 Разбивка:
 - Погружение: 12 мин.
@@ -332,13 +222,7 @@
 - Проверка: 12 мин.
 - Delivery: 16 мин.
 
-Ретроспектива:
-- Базовое время: 1 ч 12 мин.
-- Коэффициент: 1.30.
-- Оплачиваемое время: 1 ч 33,6 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 1 ч 12 мин × 1.30 = 1 ч 33,6 мин; 1 ч 33,6 мин × 2000 ₽ / час = 3 120,00 ₽.
-2026-03-15 10:40 | 1 380,00 ₽ | 41,4 мин | Профиль/backend+timeline-fix: расследована причина неверного столбца `Стало` у `player 1` — running balance в `/users/transactions` считался по порядку вставки `id`, а не по реальному `createdAt`, из-за чего backdated recovery-транзакции `301/302` искажали исторический баланс; timeline-логика вынесена в отдельный helper, read-path переведён на хронологический расчёт, добавлен регрессионный тест на legacy backfill-порядок, после чего выполнены backend build/test, commit/push/deploy, public health-check и auth-зависимый production endpoint-check `/users/transactions`.
+2026-03-15 10:40 | 1 509,38 ₽ | 45,28 мин | Профиль/backend+timeline-fix: расследована причина неверного столбца `Стало` у `player 1` — running balance в `/users/transactions` считался по порядку вставки `id`, а не по реальному `createdAt`, из-за чего backdated recovery-транзакции `301/302` искажали исторический баланс; timeline-логика вынесена в отдельный helper, read-path переведён на хронологический расчёт, добавлен регрессионный тест на legacy backfill-порядок, после чего выполнены backend build/test, commit/push/deploy, public health-check и auth-зависимый production endpoint-check `/users/transactions`.
 
 Разбивка:
 - Погружение: 6 мин.
@@ -348,13 +232,7 @@
 - Проверка: 6 мин.
 - Delivery: 8 мин.
 
-Ретроспектива:
-- Базовое время: 36 мин.
-- Коэффициент: 1.15.
-- Оплачиваемое время: 41,4 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 36 мин × 1.15 = 41,4 мин; 41,4 мин × 2000 ₽ / час = 1 380,00 ₽.
-2026-03-15 10:02 | 1 725,00 ₽ | 51,75 мин | Профиль/backend+frontend+deploy: в историю транзакций добавлен столбец `Стало`, при этом `/users/transactions` теперь возвращает machine-readable `balanceAfterRubles` и `balanceAfterL`, рассчитанные тем же ledger-алгоритмом, что и текущий профильный баланс; после backend build/test, frontend build, commit/push/deploy выполнены public health-check и auth-зависимый production endpoint-check `/users/transactions` с новыми running-balance полями.
+2026-03-15 10:02 | 1 886,72 ₽ | 56,6 мин | Профиль/backend+frontend+deploy: в историю транзакций добавлен столбец `Стало`, при этом `/users/transactions` теперь возвращает machine-readable `balanceAfterRubles` и `balanceAfterL`, рассчитанные тем же ledger-алгоритмом, что и текущий профильный баланс; после backend build/test, frontend build, commit/push/deploy выполнены public health-check и auth-зависимый production endpoint-check `/users/transactions` с новыми running-balance полями.
 
 Разбивка:
 - Погружение: 6 мин.
@@ -364,1617 +242,272 @@
 - Проверка: 8 мин.
 - Delivery: 12 мин.
 
-Ретроспектива:
-- Базовое время: 45 мин.
-- Коэффициент: 1.15.
-- Оплачиваемое время: 51,75 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 45 мин × 1.15 = 51,75 мин; 51,75 мин × 2000 ₽ / час = 1 725,00 ₽.
-2026-03-15 09:37 | 700,00 ₽ | 21 мин | Профиль/frontend: в истории транзакций отображение description упрощено без изменения backend-ledger contract — все topup-пополнения в кабинете показываются как `Пополнение баланса`, а `Вывод средств одобрен (requestId N)` локально переводится в `Вывод средств одобрен (заявка N)`; после frontend build, commit/push/deploy выполнен production health-check
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 21 мин.
-
-Ретроспектива:
-- Базовое время: 21 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 21 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 21 мин × 1.00 = 21 мин; 21 мин × 2000 ₽ / час = 700,00 ₽.
-2026-03-15 09:24 | 1 400,00 ₽ | 42 мин | Профиль/frontend+URL-state: история транзакций в кабинете разделена на две вкладки `Рубли` и `L`, при этом transaction-таб, фильтр категории, диапазон дат и сортировка переведены в `search params`, а соседние переходы внутри кабинета перестали затирать query string; после frontend build, commit/push/deploy выполнен production health-check, но auth-зависимый F5/back-forward smoke кабинета без тестовых учётных данных автоматом не был воспроизведён
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 42 мин.
-
-Ретроспектива:
-- Базовое время: 42 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 42 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 42 мин × 1.00 = 42 мин; 42 мин × 2000 ₽ / час = 1 400,00 ₽.
-2026-03-15 09:06 | 1 800,00 ₽ | 54 мин | Full finance recovery/manual-review+data-fix+deploy: по явному согласию закрыты 2 оставшихся ambiguous legacy-кейса — для `user 1` восстановлены missing opening `100 L`, missing `5 L` перед `tx #25` и ранняя `createdAt` из swap-aftermath evidence, а `tx #232` у `user 2` нормализован как подтверждённый legacy ruble topup без ложного `tournamentId`; затем выполнены backend build/test, commit/push/deploy, production manual-fix script и повторный full audit с нулём deterministic/manual drift
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 54 мин.
-
-Ретроспектива:
-- Базовое время: 54 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 54 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 54 мин × 1.00 = 54 мин; 54 мин × 2000 ₽ / час = 1 800,00 ₽.
-2026-03-15 08:55 | 3 200,00 ₽ | 1 ч 36 мин | Full finance recovery/backend+data-fix+deploy: добавлен production-wide audit `transaction/payment/withdrawal/escrow/result/user`, введён единый deterministic repair pipeline для missing withdrawal descriptions, missing refund/win ledger rows и batch reconcile stored balances, а runtime read/write-paths переведены на канонический ledger с row-lock защитой; после backend test/build, commit/push/deploy выполнены production audit -> repair -> re-audit, где deterministic drift обнулён, а 2 legacy-кейса оставлены в manual-review по согласованной политике
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 1 ч 36 мин.
-
-Ретроспектива:
-- Базовое время: 1 ч 36 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 1 ч 36 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 1 ч 36 мин × 1.00 = 1 ч 36 мин; 1 ч 36 мин × 2000 ₽ / час = 3 200,00 ₽.
-2026-03-15 08:21 | 1 500,00 ₽ | 45 мин | Баланс игрока 1/backend+data-fix: полная ревизия прод-истории показала, что `tx #1` — это legacy admin topup в категории `other`, из-за чего текущий код уводил `+100 ₽` в L-баланс; расчёт рублёвого/L-баланса усилен обработкой таких legacy admin-topup описаний, backfill-скрипт переведён на рублёвую нормализацию и пересчёт stored balance-полей для затронутых пользователей, после чего выполнены build/test, commit/push/deploy и production-check
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 45 мин.
-
-Ретроспектива:
-- Базовое время: 45 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 45 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 45 мин × 1.00 = 45 мин; 45 мин × 2000 ₽ / час = 1 500,00 ₽.
-2026-03-15 08:09 | 1 800,00 ₽ | 54 мин | Профиль+баланс/backend+frontend+data-fix: лимит ника снижен до `15` на фронте и в backend write-path, а причина сдвига рублёвого баланса найдена в ретрофиксе legacy-транзакции `id=1`, которую нельзя было переводить из `other` в `topup`; backfill-скрипт исправлен на сохранение целевой категории по каждой записи, после чего выполнены локальные build/test, commit/push/deploy и production-перепроверка расчёта
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 54 мин.
-
-Ретроспектива:
-- Базовое время: 54 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 54 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 54 мин × 1.00 = 54 мин; 54 мин × 2000 ₽ / час = 1 800,00 ₽.
-2026-03-15 07:57 | 600,00 ₽ | 18 мин | Профиль/frontend: устранён runtime-crash кабинета `BRACKET_NAME_MAX_LEN is not defined` — в `Profile.tsx` восстановлен фронтовый лимит ника по реальному backend contract (`100`), после чего пройдены frontend build, commit/push, production deploy и проверка загрузки кабинета
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 18 мин.
-
-Ретроспектива:
-- Базовое время: 18 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 18 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 18 мин × 1.00 = 18 мин; 18 мин × 2000 ₽ / час = 600,00 ₽.
-2026-03-15 07:50 | 1 400,00 ₽ | 42 мин | Прод-БД/админка: найдено, что спорные legacy-начисления действительно шли через `POST /admin/credit-balance`, но старый write-path не сохранял автора; добавлен отдельный backfill-скрипт с выборкой `до/после` для ретровосстановления подтверждённых adminId по legacy manual topup, после чего подготовлены commit/push/deploy и production endpoint-check
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 42 мин.
-
-Ретроспектива:
-- Базовое время: 42 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 42 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 42 мин × 1.00 = 42 мин; 42 мин × 2000 ₽ / час = 1 400,00 ₽.
-2026-03-15 07:37 | 1 200,00 ₽ | 36 мин | Админка/backend+frontend: для legacy-начислений возвращён подтверждённый self-admin fallback только там, где старый `topup` реально принадлежит админ-аккаунту, старый `users/add-balance` переведён на структурированную запись автора начисления, а пустая ячейка `Админ` в истории удерживает нормальную высоту; локально пройдены backend test/build, frontend build и runtime-check через `dev:live`, затем подготовлены commit/push/deploy и production-check
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 36 мин.
-
-Ретроспектива:
-- Базовое время: 36 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 36 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 36 мин × 1.00 = 36 мин; 36 мин × 2000 ₽ / час = 1 200,00 ₽.
-2026-03-15 07:27 | 600,00 ₽ | 18 мин | Админка/backend: найден финальный баг attribution-слоя — даже после обнуления `adminId` legacy-строки продолжали брать `adminUsername/adminEmail` прямо из SQL-джойна по `tournamentId=userId`, поэтому игрок всё ещё отображался как админ; read-path исправлен так, что joined admin поля используются только при подтверждённом `adminId`, после чего выполнены backend build/test/e2e, commit/push/deploy и target endpoint-check
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 18 мин.
-
-Ретроспектива:
-- Базовое время: 18 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 18 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 18 мин × 1.00 = 18 мин; 18 мин × 2000 ₽ / час = 600,00 ₽.
-2026-03-15 07:24 | 700,00 ₽ | 21 мин | Админка/backend+frontend: проверка прод-БД показала, что у legacy-начислений `Пополнение баланса` поле `tournamentId` часто равно самому `userId`, поэтому колонка `Админ` ложно дублировала игрока; fallback исправлен так, что generic legacy topup теперь не выдают псевдо-админа, а пустые ячейки в таблице удерживают ту же высоту через placeholder-email стиль; выполнены локальные build/smoke, commit/push/deploy и production-check
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 21 мин.
-
-Ретроспектива:
-- Базовое время: 21 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 21 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 21 мин × 1.00 = 21 мин; 21 мин × 2000 ₽ / час = 700,00 ₽.
-2026-03-15 07:18 | 400,00 ₽ | 12 мин | Админка/frontend: вкладка `Начисление` больше не держит залипший пустой список — история начислений теперь перезапрашивается при входе в раздел и автообновляется каждые 5 секунд, чтобы после backend-фиксов и новых начислений UI не оставался на первом неудачном ответе; выполнены frontend build/smoke, commit/push/deploy и production-check
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 12 мин.
-
-Ретроспектива:
-- Базовое время: 12 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 12 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 12 мин × 1.00 = 12 мин; 12 мин × 2000 ₽ / час = 400,00 ₽.
-2026-03-15 07:12 | 600,00 ₽ | 18 мин | Админка/backend: финально расширен SQL-охват `getCreditHistory()` — теперь в выборку реально попадают legacy `topup/other`, а не только новый admin-format; это исправляет пустую историю на проде, где ручные начисления хранились как обычные `Пополнение баланса`; локально пройдены backend build/test/e2e/smoke, затем выполнены commit/push/deploy и production-check
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 18 мин.
-
-Ретроспектива:
-- Базовое время: 18 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 18 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 18 мин × 1.00 = 18 мин; 18 мин × 2000 ₽ / час = 600,00 ₽.
-2026-03-15 07:09 | 600,00 ₽ | 18 мин | Админка/backend: история начислений расширена под реальные legacy-записи прод-БД — помимо нового admin-format теперь читаются старые `topup/other` с описанием `Пополнение баланса` и `Пополнение баланса (скрипт)`, при этом provider-topup остаются исключёнными; локально пройдены backend build/test/e2e, подготовлен production deploy
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 18 мин.
-
-Ретроспектива:
-- Базовое время: 18 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 18 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 18 мин × 1.00 = 18 мин; 18 мин × 2000 ₽ / час = 600,00 ₽.
-2026-03-15 06:59 | 700,00 ₽ | 21 мин | Админка/backend: восстановлено чтение `История начислений` — `AdminService.getCreditHistory()` переведён на корректные Postgres-имена колонок (`\"userId\"`, `\"createdAt\"`, `\"tournamentId\"`), из-за которых raw SQL раньше падал в `catch` и фронт видел пустой список; локально пройдены backend build/test/e2e/smoke, затем выполнены commit/push/deploy и production-check
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 21 мин.
-
-Ретроспектива:
-- Базовое время: 21 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 21 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 21 мин × 1.00 = 21 мин; 21 мин × 2000 ₽ / час = 700,00 ₽.
-2026-03-15 06:51 | 400,00 ₽ | 12 мин | Delivery: получен рабочий root SSH-доступ, frontend fix для withdrawals-деплоя выкачен на `95.163.226.154`, сервер обновлён до коммита `60df35a`, `pm2` перезапущен, remote health-check внутри deploy дал `200`, а публичный `https://legendgames.space/api/health` после выката подтвердил `200 OK`
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 12 мин.
-
-Ретроспектива:
-- Базовое время: 12 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 12 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 12 мин × 1.00 = 12 мин; 12 мин × 2000 ₽ / час = 400,00 ₽.
-2026-03-15 06:16 | 600,00 ₽ | 18 мин | Админка: смена фильтра статуса в `Заявки на вывод` больше не сбрасывает раздел в статистику — URL для withdrawals теперь синхронизируется через единый effect с обязательным `tab=withdrawals`, а регресс закрыт отдельным route-state тестом; локально пройдены frontend test/build, dev health и smoke, production deploy по-прежнему заблокирован отсутствием SSH-доступа
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 18 мин.
-
-Ретроспектива:
-- Базовое время: 18 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 18 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 18 мин × 1.00 = 18 мин; 18 мин × 2000 ₽ / час = 600,00 ₽.
-2026-03-15 06:13 | 800,00 ₽ | 24 мин | Deploy tooling: `scripts/deploy-prod.sh` теперь автоматически подхватывает локальный `.env.deploy.local`, добавлен `.env.deploy.example` и обновлены инструкции переноса/деплоя; shell-proof показал загрузку env-файла, но production deploy по-прежнему блокируется отсутствием авторизованного SSH-доступа к серверу
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 24 мин.
-
-Ретроспектива:
-- Базовое время: 24 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 24 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 24 мин × 1.00 = 24 мин; 24 мин × 2000 ₽ / час = 800,00 ₽.
-2026-03-15 06:08 | 1 000,00 ₽ | 30 мин | Админка: вкладка `Заявки на вывод` больше не сбрасывается в статистику — теперь раздел всегда пишет `tab=withdrawals` в URL, старые ссылки вида `?status=...` остаются совместимыми, добавлены route-state тесты и выполнены frontend build, local health/smoke, commit/push; production deploy остановился из-за отсутствующих `DEPLOY_REMOTE_*` env
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 30 мин.
-
-Ретроспектива:
-- Базовое время: 30 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 30 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 30 мин × 1.00 = 30 мин; 30 мин × 2000 ₽ / час = 1 000,00 ₽.
-2026-03-15 07:05 | 400,00 ₽ | 12 мин | Админка: во вкладке пользователей удалена лишняя кнопка `Войти как пользователь`, потому что вход уже доступен по клику на ник; затем выполнены verify:ci, commit/push, frontend-only deploy и production-check
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 12 мин.
-
-Ретроспектива:
-- Базовое время: 12 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 12 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 12 мин × 1.00 = 12 мин; 12 мин × 2000 ₽ / час = 400,00 ₽.
-2026-03-15 06:55 | 1 000,00 ₽ | 30 мин | Админка: график overview-статистики больше не обрывается на последнем дне с событиями — backend `/admin/stats` теперь достраивает непрерывный период до текущего дня/недели/месяца и возвращает нулевые точки для пустых дат, затем выполнены verify:ci, перезапуск dev:live, commit/push/deploy и production-check
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 30 мин.
-
-Ретроспектива:
-- Базовое время: 30 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 30 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 30 мин × 1.00 = 30 мин; 30 мин × 2000 ₽ / час = 1 000,00 ₽.
-2026-03-15 06:40 | 16 800,00 ₽ | 8 ч 24 мин | Полный refactor-pass проекта по 5 фазам: усилены lint/test/CI и runtime e2e-check, read DTO и auth/session contracts, убраны hidden writes и stringly-typed зоны, вынесены общие tournament/user/payment contracts, декомпозированы части Profile/Admin через hooks и shared contracts, выровнены deploy/docs/legacy-слой, затем выполнены verify:ci, commit/push/deploy и production-check
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 8 ч 24 мин.
-
-Ретроспектива:
-- Базовое время: 8 ч 24 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 8 ч 24 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 8 ч 24 мин × 1.00 = 8 ч 24 мин; 8 ч 24 мин × 2000 ₽ / час = 16 800,00 ₽.
-2026-03-15 04:58 | 1 333,33 ₽ | 40 мин | Cursor rules: добавлено отдельное always-apply правило детального учёта стоимости по этапам реальной работы — погружение, проектирование, реализация, cleanup, проверка и delivery с мягкими коэффициентами риска вместо грубой оценки по размеру diff
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 40 мин.
-
-Ретроспектива:
-- Базовое время: 40 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 40 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 40 мин × 1.00 = 40 мин; 40 мин × 2000 ₽ / час = 1 333,33 ₽.
-2026-03-15 04:47 | 600,00 ₽ | 18 мин | Cursor rules: добавлено отдельное always-apply правило режимов рефакторинга с двумя состояниями — обязательный локальный refactor-pass после каждой правки и плановый полный refactor-pass по проекту с weekly cadence и коротким daily hygiene-проходом
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 18 мин.
-
-Ретроспектива:
-- Базовое время: 18 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 18 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 18 мин × 1.00 = 18 мин; 18 мин × 2000 ₽ / час = 600,00 ₽.
-2026-03-14 23:12 | 6 400,00 ₽ | 3 ч 12 мин | Архитектурный проход по зрелости проекта: рублёвый ledger переведён на структурированные payment/withdraw descriptions с repair-скриптом и локальным data-audit, backend write-path дочищен от inline DTO, cabinet route-state расширен `league`/`statsMode` как URL source of truth, slot logic по `playerOrder` вынесена в общий domain helper, а CI усилен frontend route-state test, backend helper tests и `npm ci` workflow
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 3 ч 12 мин.
-
-Ретроспектива:
-- Базовое время: 3 ч 12 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 3 ч 12 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 3 ч 12 мин × 1.00 = 3 ч 12 мин; 3 ч 12 мин × 2000 ₽ / час = 6 400,00 ₽.
-2026-03-14 22:37 | 3 200,00 ₽ | 1 ч 36 мин | Cleanup проекта: rules сведены к компактному каноническому набору с hygiene/evidence guards, безопасно удалены временные и неиспользуемые frontend-файлы, общий `PlayerStats` и список cabinet sections вынесены в единые точки, legacy scripts/docs помечены для следующего прохода, затем выполнены build/test/smoke, commit, push и production deploy-check
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 1 ч 36 мин.
-
-Ретроспектива:
-- Базовое время: 1 ч 36 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 1 ч 36 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 1 ч 36 мин × 1.00 = 1 ч 36 мин; 1 ч 36 мин × 2000 ₽ / час = 3 200,00 ₽.
-2026-03-14 22:10 | 7 600,00 ₽ | 3 ч 48 мин | Большой проход по стабилизации: платежный webhook переведён на явный ack/retry contract, рублёвый ledger и админские начисления сведены к одному topup-flow с подготовкой ретрофикса legacy `admin_credit`, турнирный progress/read flow частично нормализован через общий helper и `playerOrder` в write-path, support GET очищен от side effects с DTO-валидацией, кабинет и админка дочищены от лишнего route-state drift, а CI усилен runtime smoke-подъёмом backend с health-check
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 3 ч 48 мин.
-
-Ретроспектива:
-- Базовое время: 3 ч 48 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 3 ч 48 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 3 ч 48 мин × 1.00 = 3 ч 48 мин; 3 ч 48 мин × 2000 ₽ / час = 7 600,00 ₽.
-2026-03-14 21:39 | 600,00 ₽ | 18 мин | Cursor rules: добавлен always-apply playbook с обязательной последовательностью работы по каждому запросу — классификация задачи, поиск единого источника истины, порядок правок через domain→API→frontend, URL-state, ретрофикс данных, сценарная проверка, а затем tests/build, commit/push/deploy и production-check
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 18 мин.
-
-Ретроспектива:
-- Базовое время: 18 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 18 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 18 мин × 1.00 = 18 мин; 18 мин × 2000 ₽ / час = 600,00 ₽.
-2026-03-14 21:29 | 10 400,00 ₽ | 5 ч 12 мин | Глубокая стабилизация архитектуры: удалены секреты и небезопасные диагностические скрипты из корня, турнирный backend вынесен на общие constants/view-model с read-only `GET training-state` через explicit prepare-route, добавлены DTO и frontend API/contracts/hooks для турниров и auth-session, объединён question generator catalog, включены unit-тесты backend и CI smoke/test-проверки, упрощён основной startup flow
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 5 ч 12 мин.
-
-Ретроспектива:
-- Базовое время: 5 ч 12 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 5 ч 12 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 5 ч 12 мин × 1.00 = 5 ч 12 мин; 5 ч 12 мин × 2000 ₽ / час = 10 400,00 ₽.
-2026-03-14 20:52 | 500,00 ₽ | 15 мин | Cursor rules: добавлен отдельный always-apply hard-stop предохранитель для обязательного commit/push/deploy, явной production-проверки и запрета завершать ответ до успешного выката после любых правок, включая rules/docs/server-side изменения
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 15 мин.
-
-Ретроспектива:
-- Базовое время: 15 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 15 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 15 мин × 1.00 = 15 мин; 15 мин × 2000 ₽ / час = 500,00 ₽.
-2026-03-14 20:48 | 500,00 ₽ | 15 мин | Cursor rules: добавлен отдельный always-apply hard-stop предохранитель для обязательного пересчета стоимости, ретроучета пропусков и учета deploy/DB/server-side шагов перед каждым финальным ответом
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 15 мин.
-
-Ретроспектива:
-- Базовое время: 15 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 15 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 15 мин × 1.00 = 15 мин; 15 мин × 2000 ₽ / час = 500,00 ₽.
-2026-03-14 20:55 | 1 200,00 ₽ | 36 мин | Админка/учёт стоимости: исправлен raw SQL чтения заявок на вывод в `AdminService` для Postgres camelCase/snake_case колонок, заново проверен backend build, а журнал стоимости сверен с перепиской и дополнен пропущенными шагами
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 36 мин.
-
-Ретроспектива:
-- Базовое время: 36 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 36 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 36 мин × 1.00 = 36 мин; 36 мин × 2000 ₽ / час = 1 200,00 ₽.
-2026-03-14 20:40 | 1 000,00 ₽ | 30 мин | Прод-стабилизация: после деплоя диагностирован `502`, найден missing runtime dependency `express` в backend, обновлён dependency graph, локальная сборка перепроверена и подготовлен повторный production deploy с сохранением серверного env
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 30 мин.
-
-Ретроспектива:
-- Базовое время: 30 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 30 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 30 мин × 1.00 = 30 мин; 30 мин × 2000 ₽ / час = 1 000,00 ₽.
-2026-03-14 20:20 | 7 600,00 ₽ | 3 ч 48 мин | Стабилизация проекта: восстановлены auth/cabinet bootstrap и единая обработка 401/refresh, выровнены verify-code/payment/support маршруты под HashRouter, сведён production contract env/nginx/pm2/deploy, добавлены smoke-проверки и аудит auth/payment данных, документация синхронизирована с фактическим runtime
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 3 ч 48 мин.
-
-Ретроспектива:
-- Базовое время: 3 ч 48 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 3 ч 48 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 3 ч 48 мин × 1.00 = 3 ч 48 мин; 3 ч 48 мин × 2000 ₽ / час = 7 600,00 ₽.
-2026-03-14 19:40 | 3 800,00 ₽ | 1 ч 54 мин | Ретроучёт пропущенного шага: восстановлен production после `502` до этапа плана стабилизации — найдены и исправлены расхождения `pm2 env`/`backend/.env.production`, backend переведён в стабильный `fork`, nginx upstream и публичный `/api/health` выровнены под `127.0.0.1:3000`, активный конфиг очищен от дубликатов и приведён к одному symlink-источнику
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 1 ч 54 мин.
-
-Ретроспектива:
-- Базовое время: 1 ч 54 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 1 ч 54 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 1 ч 54 мин × 1.00 = 1 ч 54 мин; 1 ч 54 мин × 2000 ₽ / час = 3 800,00 ₽.
-2026-03-14 18:59 | 5 600,00 ₽ | 2 ч 48 мин | Стабилизация проекта: закрыты auth/payment/security дыры, денежные write-path и money tournament join переведены на транзакции, backend read-path и playerOrder-статистика дочищены, Profile/Admin/SupportChat переведены на URL-state без ручного hash-drifts, добавлены health endpoint, CI и smoke checklist, документация и deploy-конфиг выровнены
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 2 ч 48 мин.
-
-Ретроспектива:
-- Базовое время: 2 ч 48 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 2 ч 48 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 2 ч 48 мин × 1.00 = 2 ч 48 мин; 2 ч 48 мин × 2000 ₽ / час = 5 600,00 ₽.
-2026-03-14 18:27 | 1 200,00 ₽ | 36 мин | Турниры: финальный hard-pass по read-path — `getTournamentState` перестал удалять/создавать вопросы на GET, `getTrainingState` переведён на общие question/helper/resolver-правила для финала и тайбрейков, выполнен сценарный аудит оставшихся зон риска, backend пересобран и `dev:live` перезапущен
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 36 мин.
-
-Ретроспектива:
-- Базовое время: 36 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 36 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 36 мин × 1.00 = 36 мин; 36 мин × 2000 ₽ / час = 1 200,00 ₽.
-2026-03-14 18:20 | 1 800,00 ₽ | 54 мин | Турниры: три writer-пути (`completeTournament`, `tryAutoComplete`, `closeTimedOutRounds`) переведены на общий resolver/apply слой завершения турнира — убраны разъехавшиеся ветки записи победителя, устранено преждевременное завершение 1v1 как всего турнира, документация обновлена, backend пересобран, `dev:live` перезапущен
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 54 мин.
-
-Ретроспектива:
-- Базовое время: 54 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 54 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 54 мин × 1.00 = 54 мин; 54 мин × 2000 ₽ / час = 1 800,00 ₽.
-2026-03-14 18:11 | 1 500,00 ₽ | 45 мин | Турниры: `getMyTournaments` и `getTournamentBracket` переведены на read-only derived-state без скрытых `update/save/backfill` во время чтения — режим турнира и legacy-progress теперь нормализуются только в памяти, документация синхронизирована, `dev:live` перезапущен
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 45 мин.
-
-Ретроспектива:
-- Базовое время: 45 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 45 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 45 мин × 1.00 = 45 мин; 45 мин × 2000 ₽ / час = 1 500,00 ₽.
-2026-03-14 17:56 | 3 200,00 ₽ | 1 ч 36 мин | Турниры: локальный Postgres восстановлен через существующий cluster на 5433, внедрён explicit Variant B слой `tournament_round_resolution` с idempotent cron/backfill и resolution-first чтением для списков, state, training-state и bracket; документация обновлена, `dev:live` перезапущен
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 1 ч 36 мин.
-
-Ретроспектива:
-- Базовое время: 1 ч 36 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 1 ч 36 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 1 ч 36 мин × 1.00 = 1 ч 36 мин; 1 ч 36 мин × 2000 ₽ / час = 3 200,00 ₽.
-2026-03-14 17:30 | 1 000,00 ₽ | 30 мин | Турниры: timeout-резолв пары доведён до канонического варианта A — сценарий «оба проиграли по таймауту» теперь везде считается только после подтверждённого общего дедлайна пары и по целевому объёму текущего раунда, включая тайбрейки; cron, список турниров и solo-final ветки переведены на единый helper
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 30 мин.
-
-Ретроспектива:
-- Базовое время: 30 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 30 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 30 мин × 1.00 = 30 мин; 30 мин × 2000 ₽ / час = 1 000,00 ₽.
-2026-03-14 16:54 | 1 500,00 ₽ | 45 мин | Турниры: пустой слот и отсутствующий progress в полуфинальной паре окончательно переведены в строгий `waiting/incomplete` без скрытого автопрохода — сервер больше не создаёт ложного финалиста по одному живому участнику, а timeout-сценарии учитываются только после реального общего дедлайна пары; правило зафиксировано и в документации
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 45 мин.
-
-Ретроспектива:
-- Базовое время: 45 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 45 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 45 мин × 1.00 = 45 мин; 45 мин × 2000 ₽ / час = 1 500,00 ₽.
-2026-03-14 13:47 | 800,00 ₽ | 24 мин | Frontend: устранены предупреждения ESLint в `Profile.tsx` и `SupportChat.tsx`, которые мешали production-сборке в режиме `CI=true` — убран мёртвый код, очищены неиспользуемые state-переменные и приведены в порядок зависимости эффектов без изменения поведения кабинета и чата
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 24 мин.
-
-Ретроспектива:
-- Базовое время: 24 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 24 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 24 мин × 1.00 = 24 мин; 24 мин × 2000 ₽ / час = 800,00 ₽.
-2026-03-14 13:42 | 500,00 ₽ | 15 мин | Турниры: откатан неверный fallback полуфинального счёта в финальном слоте — если игрок ещё не начал финал, модалка теперь показывает честное `0/0`, а не прошлый результат полуфинала
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 15 мин.
-
-Ретроспектива:
-- Базовое время: 15 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 15 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 15 мин × 1.00 = 15 мин; 15 мин × 2000 ₽ / час = 500,00 ₽.
-2026-03-14 13:39 | 800,00 ₽ | 24 мин | Инфраструктура деплоя: хрупкая интерактивная expect-цепочка заменена на единый скрипт `scripts/deploy-prod.sh` с одной SSH-командой, перезапуском pm2 и встроенной проверкой `200`; правило проекта переведено на новый сценарий, чтобы деплой больше не обрывался после завершения сборки
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 24 мин.
-
-Ретроспектива:
-- Базовое время: 24 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 24 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 24 мин × 1.00 = 24 мин; 24 мин × 2000 ₽ / час = 800,00 ₽.
-2026-03-14 13:31 | 600,00 ₽ | 18 мин | Турниры: в финальном блоке сетки для единственного финалиста возвращён показ цифр под ником — если финал ещё не начат, модалка теперь показывает последний доступный счёт игрока по прохождению в финал вместо пустой строки
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 18 мин.
-
-Ретроспектива:
-- Базовое время: 18 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 18 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 18 мин × 1.00 = 18 мин; 18 мин × 2000 ₽ / час = 600,00 ₽.
-2026-03-14 13:27 | 700,00 ₽ | 21 мин | Турниры: после унификации этапов исправлено преждевременное `Ожидание соперника` — теперь победитель полуфинала без сформированного финального соперника видит этот статус только после того, как сам уже отыграл свой следующий раунд; до этого остаётся `Этап не пройден` и возможность пройти этап
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 21 мин.
-
-Ретроспектива:
-- Базовое время: 21 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 21 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 21 мин × 1.00 = 21 мин; 21 мин × 2000 ₽ / час = 700,00 ₽.
-2026-03-14 13:23 | 1 500,00 ₽ | 45 мин | Турниры: список и серверный backfill `getMyTournaments` переведены на одну общую логику этапов без отдельной ветки для 2-игроковых кейсов — старые `1v1` теперь считаются частным случаем той же сетки, где фиксируется победа в полуфинале и ожидание финального соперника вместо отдельного режима расчёта
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 45 мин.
-
-Ретроспектива:
-- Базовое время: 45 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 45 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 45 мин × 1.00 = 45 мин; 45 мин × 2000 ₽ / час = 1 500,00 ₽.
-2026-03-14 13:11 | 600,00 ₽ | 18 мин | Турниры: старые 2-игроковые кейсы в `getMyTournaments` снова трактуются как выигранный полуфинал, а не как окончательная победа всего турнира — активная запись остаётся с ожиданием соперника, а этапная победа уходит в историю отдельной строкой
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 18 мин.
-
-Ретроспектива:
-- Базовое время: 18 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 18 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 18 мин × 1.00 = 18 мин; 18 мин × 2000 ₽ / час = 600,00 ₽.
-2026-03-14 12:56 | 1 200,00 ₽ | 36 мин | Турниры: логика единственного финалиста после двойного таймаута в другом полуфинале переведена с автопобеды на обязательный финальный раунд — победа только при хотя бы одном правильном ответе, иначе поражение по 0 правильных или по истечению 24 часов; правило доведено до дедлайна, cron, списков, сетки и серверного backfill завершённых турниров
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 36 мин.
-
-Ретроспектива:
-- Базовое время: 36 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 36 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 36 мин × 1.00 = 36 мин; 36 мин × 2000 ₽ / час = 1 200,00 ₽.
-2026-03-14 12:35 | 500,00 ₽ | 15 мин | Админка/кабинет: при входе как пользователь теперь сохраняется исходный URL админки и возврат восстанавливает тот же раздел с теми же search params, включая фильтры и поиск в турнирах
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 15 мин.
-
-Ретроспектива:
-- Базовое время: 15 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 15 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 15 мин × 1.00 = 15 мин; 15 мин × 2000 ₽ / час = 500,00 ₽.
-2026-03-14 12:31 | 600,00 ₽ | 18 мин | Админка: для перехода в кабинет пользователя добавлено подтверждение через модалку — в турнирах теперь можно нажать прямо на ник игрока, а в списке пользователей подтверждение срабатывает и по нику, и по кнопке входа
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 18 мин.
-
-Ретроспектива:
-- Базовое время: 18 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 18 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 18 мин × 1.00 = 18 мин; 18 мин × 2000 ₽ / час = 600,00 ₽.
-2026-03-14 12:25 | 300,00 ₽ | 9 мин | Турниры: в общей модалке вопросов убраны номера `1/2` у полуфинала — таб, строка статистики и заголовок блока теперь везде показывают просто `Полуфинал`
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 9 мин.
-
-Ретроспектива:
-- Базовое время: 9 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 9 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 9 мин × 1.00 = 9 мин; 9 мин × 2000 ₽ / час = 300,00 ₽.
-2026-03-14 12:21 | 300,00 ₽ | 9 мин | Турниры: в общем компоненте сетки окончательно убраны номера `1/2` из заголовков полуфиналов и возвращён показ очков под никами в полуфинальных карточках, чтобы модалка снова отображала счёт прямо под именем игрока
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 9 мин.
-
-Ретроспектива:
-- Базовое время: 9 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 9 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 9 мин × 1.00 = 9 мин; 9 мин × 2000 ₽ / час = 300,00 ₽.
-2026-03-14 12:28 | 400,00 ₽ | 12 мин | Турниры: после выноса в общий компонент восстановлены подписи и статистика в пользовательских модалках — у полуфинала убраны лишние номера, а строка с очками по вопросам снова отображается вместо ошибочного скрытия
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 12 мин.
-
-Ретроспектива:
-- Базовое время: 12 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 12 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 12 мин × 1.00 = 12 мин; 12 мин × 2000 ₽ / час = 400,00 ₽.
-2026-03-14 12:18 | 1 000,00 ₽ | 30 мин | Турниры: модалки сетки и просмотра вопросов вынесены в общий `TournamentModals`-слой и подключены и в `Admin`, и в `Profile`, чтобы будущие правки структуры, табов, скрытия полуфинальных цифр и стилей больше не расходились между двумя отдельными JSX-копиями
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 30 мин.
-
-Ретроспектива:
-- Базовое время: 30 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 30 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 30 мин × 1.00 = 30 мин; 30 мин × 2000 ₽ / час = 1 000,00 ₽.
-2026-03-14 11:50 | 500,00 ₽ | 15 мин | Турниры: те же скрытие полуфинальных цифр и тёмные золотые табы дотянуты до админских модалок — раньше эти правки были только в пользовательском рендере, из-за чего в админке визуально ничего не менялось
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 15 мин.
-
-Ретроспектива:
-- Базовое время: 15 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 15 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 15 мин × 1.00 = 15 мин; 15 мин × 2000 ₽ / час = 500,00 ₽.
-2026-03-14 11:43 | 400,00 ₽ | 12 мин | Турниры: в пользовательской модалке вопросов скрыта полуфинальная цифровая статистика, а стиль табов переведён с синей заливки на чёрный вариант с золотым контуром только для игрока, без изменения админского визуала
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 12 мин.
-
-Ретроспектива:
-- Базовое время: 12 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 12 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 12 мин × 1.00 = 12 мин; 12 мин × 2000 ₽ / час = 400,00 ₽.
-2026-03-14 11:35 | 600,00 ₽ | 18 мин | Турниры: в пользовательской сетке скрыты полуфинальные цифры, а в админскую таблицу добавлен столбец режима игры с мягким расширением сохранённого набора колонок без сброса пользовательского порядка
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 18 мин.
-
-Ретроспектива:
-- Базовое время: 18 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 18 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 18 мин × 1.00 = 18 мин; 18 мин × 2000 ₽ / час = 600,00 ₽.
-2026-03-14 11:27 | 500,00 ₽ | 15 мин | Турниры: модалка просмотра вопросов переведена на реальный маршрут конкретного игрока — больше не подмешивает чужой полуфинальный допраунд вместо финала, а при открытии из строки `Финал` сразу показывает финальную вкладку и корректную статистику
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 15 мин.
-
-Ретроспектива:
-- Базовое время: 15 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 15 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 15 мин × 1.00 = 15 мин; 15 мин × 2000 ₽ / час = 500,00 ₽.
-2026-03-14 11:18 | 400,00 ₽ | 12 мин | Турниры: колонка `Вопросы` в строках этапов переведена на этапный показ — для `Полуфинал` остаются только полуфинальные вопросы с допраундами, для `Финал` только финальные, при этом модалка по клику по-прежнему открывает полный разбор всех ответов игрока по турниру
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 12 мин.
-
-Ретроспектива:
-- Базовое время: 12 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 12 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 12 мин × 1.00 = 12 мин; 12 мин × 2000 ₽ / час = 400,00 ₽.
-2026-03-14 11:13 | 800,00 ₽ | 24 мин | Турниры: resultLabel переведён на расширенный формат с очками и причиной поражения — сервер теперь отдаёт `Победа X-Y`, `Поражение X-Y` и `Поражение, время истекло`, а фронт обновлён на префиксную обработку таких статусов без жёсткой завязки на старые короткие строки
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 24 мин.
-
-Ретроспектива:
-- Базовое время: 24 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 24 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 24 мин × 1.00 = 24 мин; 24 мин × 2000 ₽ / час = 800,00 ₽.
-2026-03-14 11:02 | 300,00 ₽ | 9 мин | Турниры: исправлена финальная display-подмена для finished-турниров — история больше не затирает серверный `resultLabel` старым expired-fallback и не показывает ложную `Победа`, когда в `tournament_result` уже записано обоюдное поражение
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 9 мин.
-
-Ретроспектива:
-- Базовое время: 9 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 9 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 9 мин × 1.00 = 9 мин; 9 мин × 2000 ₽ / час = 300,00 ₽.
-2026-03-14 10:55 | 500,00 ₽ | 15 мин | Турниры: для старых finished-кейсов с ничейным финалом без чемпиона закреплено единое правило «оба проиграли по истечению времени» — серверный backfill теперь сохраняет всем `passed=0`, а списки/история показывают таким финалистам `Время истекло` вместо подвешенного результата
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 15 мин.
-
-Ретроспектива:
-- Базовое время: 15 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 15 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 15 мин × 1.00 = 15 мин; 15 мин × 2000 ₽ / час = 500,00 ₽.
-2026-03-14 10:48 | 300,00 ₽ | 9 мин | Турниры: дочищен фронтовый хвост после общего пакета фиксов — из админской модалки убрана оставшаяся неиспользуемая клиентская переменная источника, чтобы сборка не тащила лишнее предупреждение поверх уже исправленной единой серверной логики
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 9 мин.
-
-Ретроспектива:
-- Базовое время: 9 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 9 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 9 мин × 1.00 = 9 мин; 9 мин × 2000 ₽ / час = 300,00 ₽.
-2026-03-14 10:28 | 1 500,00 ₽ | 45 мин | Турниры: выполнен системный пакет фиксов логики — пересчёт ответов переведён на реальный порядок раундов, для финальных допраундов добавлен корректный таймерный переход, автозакрытие 1v1 по таймауту доведено до winner/status/result, модалка и список выровнены по общему timeline, а фронт очищен от оставшихся локальных догадок там, где они влияли на турнирное состояние
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 45 мин.
-
-Ретроспектива:
-- Базовое время: 45 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 45 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 45 мин × 1.00 = 45 мин; 45 мин × 2000 ₽ / час = 1 500,00 ₽.
-2026-03-14 10:15 | 700,00 ₽ | 21 мин | Турниры: исправлено разнесение finished-турниров по active/history — проигравший финалист больше не остаётся в активных только из-за того, что сам не начал финал; если финал уже определён общей логикой, запись уходит в историю с согласованным результатом
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 21 мин.
-
-Ретроспектива:
-- Базовое время: 21 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 21 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 21 мин × 1.00 = 21 мин; 21 мин × 2000 ₽ / час = 700,00 ₽.
-2026-03-14 10:08 | 600,00 ₽ | 18 мин | Турниры: модалки сетки в админке и профиле переведены на единый серверный источник правды — фронт больше не пересчитывает победителя финала по своим числам и использует только `finalWinnerId`, полученный из backend DTO
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 18 мин.
-
-Ретроспектива:
-- Базовое время: 18 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 18 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 18 мин × 1.00 = 18 мин; 18 мин × 2000 ₽ / час = 600,00 ₽.
-2026-03-14 10:00 | 800,00 ₽ | 24 мин | Турниры: список `getMyTournaments` переведён на ту же finished-логику финала, что и сетка/backfill — устранено затирание `tournament_result` при кейсе, когда один финалист закончил финал, а второй нет; для finished-турниров статус и результат финалистов теперь согласованы между модалкой и таблицей
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 24 мин.
-
-Ретроспектива:
-- Базовое время: 24 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 24 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 24 мин × 1.00 = 24 мин; 24 мин × 2000 ₽ / час = 800,00 ₽.
-2026-03-14 09:50 | 1 000,00 ₽ | 30 мин | Турниры: убрана ошибочная автопобеда при единственном финалисте — чемпион теперь определяется только по нормальному финалу или если противоположный полуфинал завершился сценарием «оба проиграли по таймауту»; дополнительно выполнен прямой ретропересчёт `tournament_progress` по finished-турнирам для выравнивания старых stage-агрегатов
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 30 мин.
-
-Ретроспектива:
-- Базовое время: 30 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 30 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 30 мин × 1.00 = 30 мин; 30 мин × 2000 ₽ / час = 1 000,00 ₽.
-2026-03-14 09:38 | 900,00 ₽ | 27 мин | Прод-БД: выполнен прямой аудит и ретрофикс завершённых 4-игроковых турниров по фактическому progress; обновлены неверные строки `tournament_result`, в том числе по турниру 52 чемпион восстановлен как игрок 2
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 27 мин.
-
-Ретроспектива:
-- Базовое время: 27 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 27 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 27 мин × 1.00 = 27 мин; 27 мин × 2000 ₽ / час = 900,00 ₽.
-2026-03-14 09:36 | 800,00 ₽ | 24 мин | Турниры: finished-backfill результатов расширен на кейс, когда один финалист закончил финал, а второй до финала не дошёл; такие завершённые турниры теперь получают корректного победителя по данным progress, что закрывает случай турнира 52
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 24 мин.
-
-Ретроспектива:
-- Базовое время: 24 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 24 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 24 мин × 1.00 = 24 мин; 24 мин × 2000 ₽ / час = 800,00 ₽.
-2026-03-14 09:32 | 1 200,00 ₽ | 36 мин | Турниры: добавлен серверный backfill результатов для завершённых 4-игроковых турниров — победители полуфиналов и финала теперь пересчитываются по фактическому progress и корректно записываются в `tournament_result`, чтобы случаи вроде турнира 52 автоматически восстанавливались после рестарта
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 36 мин.
-
-Ретроспектива:
-- Базовое время: 36 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 36 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 36 мин × 1.00 = 36 мин; 36 мин × 2000 ₽ / час = 1 200,00 ₽.
-2026-03-13 21:28 | 1 300,00 ₽ | 39 мин | Турнирные этапы: допраунды снова учитываются только после реальной ничьей на предыдущем шаге; убрано ложное суммирование лишних раундов в сетке и серверной логике, из-за которого обычные матчи начали показываться как `/20` и меняли победителя этапа
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 39 мин.
-
-Ретроспектива:
-- Базовое время: 39 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 39 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 39 мин × 1.00 = 39 мин; 39 мин × 2000 ₽ / час = 1 300,00 ₽.
-2026-03-13 21:16 | 900,00 ₽ | 27 мин | Турнирные модалки и серверная логика этапов: исправлен регресс после перевода на суммарный итог этапа — для завершённых турниров победитель этапа снова определяется по общей сумме очков, а в сетке оба игрока этапа теперь показываются от общего объёма вопросов этапа, включая допраунды
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 27 мин.
-
-Ретроспектива:
-- Базовое время: 27 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 27 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 27 мин × 1.00 = 27 мин; 27 мин × 2000 ₽ / час = 900,00 ₽.
-2026-03-13 21:02 | 1 500,00 ₽ | 45 мин | Турнирная логика этапов переведена на единый суммарный итог по этапу с учётом всех допраундов в полуфиналах и финалах; серверные расчёты победителя, перехода дальше, автозавершения и сетки синхронизированы, а на проде выполнена ретропроверка завершённых 4-игроковых турниров без найденных расхождений
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 45 мин.
-
-Ретроспектива:
-- Базовое время: 45 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 45 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 45 мин × 1.00 = 45 мин; 45 мин × 2000 ₽ / час = 1 500,00 ₽.
-2026-03-13 20:40 | 500,00 ₽ | 15 мин | Модалки сетки турниров: в финале победитель теперь помечается по той сумме очков, которая показана в самой модалке, без изменения остальной логики турниров и других мест интерфейса
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 15 мин.
-
-Ретроспектива:
-- Базовое время: 15 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 15 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 15 мин × 1.00 = 15 мин; 15 мин × 2000 ₽ / час = 500,00 ₽.
-2026-03-13 20:32 | 1 000,00 ₽ | 30 мин | Модалки сетки турниров: отображение счёта в полуфинале и финале переведено на итог по этапу с учётом допраундов, а пользовательская модалка профиля синхронизирована с серверным `finalWinnerId`, чтобы админка и профиль показывали одинаковые результаты
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 30 мин.
-
-Ретроспектива:
-- Базовое время: 30 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 30 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 30 мин × 1.00 = 30 мин; 30 мин × 2000 ₽ / час = 1 000,00 ₽.
-2026-03-13 20:12 | 600,00 ₽ | 18 мин | Админка стоимости проекта: добавлена 4-я метрика с общим временем по проекту, а главный блок переведён в лендинговый стиль с чёрным фоном, белой суммой и золотыми акцентами
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 18 мин.
-
-Ретроспектива:
-- Базовое время: 18 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 18 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 18 мин × 1.00 = 18 мин; 18 мин × 2000 ₽ / час = 600,00 ₽.
-2026-03-13 20:04 | 1 200,00 ₽ | 36 мин | Админка стоимости проекта: верхний блок упрощён до названия и суммы, убрана кнопка обновления, включено автообновление, описания в истории очищены от служебных пометок, а новые записи поддерживают время
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 36 мин.
-
-Ретроспектива:
-- Базовое время: 36 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 36 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 36 мин × 1.00 = 36 мин; 36 мин × 2000 ₽ / час = 1 200,00 ₽.
-2026-03-13 | 1 800,00 ₽ | 54 мин | Админка: добавлена новая подвкладка «Стоимость проекта» в статистике с отдельным дашбордом; бэкенд теперь читает `.cursor/project-cost-tracking.md`, отдаёт текущее `Стало`, «За сегодня», время обновления и историю изменений с расчётом «стало после прироста», а на фронте показаны крупный KPI-блок и таблица истории с датой, временем, длительностью и описанием задачи
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 54 мин.
-
-Ретроспектива:
-- Базовое время: 54 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 54 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 54 мин × 1.00 = 54 мин; 54 мин × 2000 ₽ / час = 1 800,00 ₽.
-2026-03-13 | 600,00 ₽ | 18 мин | Админка турниров: порядок столбцов теперь дублируется в localStorage и автоматически восстанавливается обратно в URL, если параметр `tournamentCols` пропал; это убирает самопроизвольный сброс пользовательской расстановки после навигации/обновления
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 12 мин.
-
-Ретроспектива:
-- Базовое время: 12 мин.
-- Коэффициент: 1.50.
-- Оплачиваемое время: 18 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 12 мин × 1.50 = 18 мин; 18 мин × 2000 ₽ / час = 600,00 ₽.
-2026-03-13 | 800,00 ₽ | 24 мин | Админка турниров: модалка сетки переведена на единый расчёт победителя финала из бэкенда (`finalWinnerId`) по той же формуле, что и таблица/результаты, чтобы убрать расхождение между модалкой и списком по турниру 30 и всем аналогичным случаям
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 16 мин.
-
-Ретроспектива:
-- Базовое время: 16 мин.
-- Коэффициент: 1.50.
-- Оплачиваемое время: 24 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 16 мин × 1.50 = 24 мин; 24 мин × 2000 ₽ / час = 800,00 ₽.
-2026-03-13 | 1 200,00 ₽ | 36 мин | Турниры: если в одном полуфинале оба игрока проиграли по таймауту, а во втором полуфинале есть победитель, он автоматически становится чемпионом; логика доведена до расчёта победителя, `userStatus`, результата финала без соперника и выплаты в money-режиме, затем выполнена подготовка к ретропроверке данных
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 18 мин.
-
-Ретроспектива:
-- Базовое время: 18 мин.
-- Коэффициент: 2.00.
-- Оплачиваемое время: 36 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 18 мин × 2.00 = 36 мин; 36 мин × 2000 ₽ / час = 1 200,00 ₽.
-2026-03-13 | 600,00 ₽ | 18 мин | Турниры: 1v1 полностью исключены из логики `Пройден` — для них `userStatus` всегда `Не пройден`, потому что победа в таком матче считается только выигранным полуфиналом и не означает прохождение всего турнира; затем сборка, деплой и проверка прода
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 12 мин.
-
-Ретроспектива:
-- Базовое время: 12 мин.
-- Коэффициент: 1.50.
-- Оплачиваемое время: 18 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 12 мин × 1.50 = 18 мин; 18 мин × 2000 ₽ / час = 600,00 ₽.
-2026-03-13 | 800,00 ₽ | 24 мин | Турниры: `userStatus` переведён на вычисление из фактического состояния турнира вместо опоры на сохранённый `tournament_result.passed` — в 4-игроковом турнире `Пройден` теперь только при реальной победе в финале, в 1v1 только при итоговой победе; это устраняет stale-данные в админке и профиле
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 16 мин.
-
-Ретроспектива:
-- Базовое время: 16 мин.
-- Коэффициент: 1.50.
-- Оплачиваемое время: 24 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 16 мин × 1.50 = 24 мин; 24 мин × 2000 ₽ / час = 800,00 ₽.
-2026-03-13 | 700,00 ₽ | 21 мин | Турниры: колонка «Турнир» (`userStatus`) больше не получает `Пройден` за победу в полуфинале или ожидание финала — для дублируемой записи о пройденном этапе ПФ статус турнира теперь `Не пройден`; `Пройден` остаётся только у победителя всего турнира
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 14 мин.
-
-Ретроспектива:
-- Базовое время: 14 мин.
-- Коэффициент: 1.50.
-- Оплачиваемое время: 21 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 14 мин × 1.50 = 21 мин; 21 мин × 2000 ₽ / час = 700,00 ₽.
-2026-03-13 | 900,00 ₽ | 27 мин | Турниры/админка: исправлено противоречие между active/history и статусом турнира — для активной записи теперь отдаётся вычисляемый display status (`waiting` или `active`), а `finished` остаётся только для истории; ошибочная правка про «Победа» в waiting-сценарии откатана
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 18 мин.
-
-Ретроспектива:
-- Базовое время: 18 мин.
-- Коэффициент: 1.50.
-- Оплачиваемое время: 27 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 18 мин × 1.50 = 27 мин; 27 мин × 2000 ₽ / час = 900,00 ₽.
-2026-03-13 | 700,00 ₽ | 21 мин | Турниры 1v1: в getResultLabel исправлена ветка finished — победитель больше не получает «Ожидание соперника», а корректно видит «Победа»; это убирает противоречие между статусом турнира и результатом в списках/админке
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 14 мин.
-
-Ретроспектива:
-- Базовое время: 14 мин.
-- Коэффициент: 1.50.
-- Оплачиваемое время: 21 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 14 мин × 1.50 = 21 мин; 21 мин × 2000 ₽ / час = 700,00 ₽.
-2026-03-13 | 600,00 ₽ | 18 мин | Админка турниров: обёртка таблицы сделана scroll-контейнером (overflow:auto + max-height:75vh), thead прилипает к top:0 внутри контейнера; убран весь JS-код для плавающей шапки и ResizeObserver; коммит/деплой/проверка прода
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 9 мин.
-
-Ретроспектива:
-- Базовое время: 9 мин.
-- Коэффициент: 2.00.
-- Оплачиваемое время: 18 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 9 мин × 2.00 = 18 мин; 18 мин × 2000 ₽ / час = 600,00 ₽.
-2026-03-13 | 900,00 ₽ | 27 мин | Админка турниров: убрана отдельная JS-копия шапки и включён нативный sticky прямо на реальных th таблицы с offset от верхнего хедера; сохранено закрепление колонки ID и выполнены сборка/деплой на прод
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 13,5 мин.
-
-Ретроспектива:
-- Базовое время: 13,5 мин.
-- Коэффициент: 2.00.
-- Оплачиваемое время: 27 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 13,5 мин × 2.00 = 27 мин; 27 мин × 2000 ₽ / час = 900,00 ₽.
-2026-03-13 | 1 000,00 ₽ | 30 мин | Админка турниров: плавающая шапка вынесена из горизонтального scroll-контейнера в отдельный sticky-слой с синхронизацией ширин и scrollLeft, чтобы строка заголовков реально закреплялась при вертикальной прокрутке; выполнены сборка и деплой на прод
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 15 мин.
-
-Ретроспектива:
-- Базовое время: 15 мин.
-- Коэффициент: 2.00.
-- Оплачиваемое время: 30 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 15 мин × 2.00 = 30 мин; 30 мин × 2000 ₽ / час = 1 000,00 ₽.
-2026-03-13 | 900,00 ₽ | 27 мин | Админка турниров: вместо нестабильного CSS sticky добавлена отдельная плавающая строка заголовков, которая измеряет ширины колонок и прилипает под верхний хедер; подписи «Турнир/Статус/Результат» переставлены по запросу
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 18 мин.
-
-Ретроспектива:
-- Базовое время: 18 мин.
-- Коэффициент: 1.50.
-- Оплачиваемое время: 27 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 18 мин × 1.50 = 27 мин; 27 мин × 2000 ₽ / час = 900,00 ₽.
-2026-03-13 | 700,00 ₽ | 21 мин | Админка турниров: строка заголовков привязана к реальной высоте верхнего sticky-хедера через ResizeObserver и CSS-переменную, чтобы прилипать строго под него при прокрутке
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 14 мин.
-
-Ретроспектива:
-- Базовое время: 14 мин.
-- Коэффициент: 1.50.
-- Оплачиваемое время: 21 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 14 мин × 1.50 = 21 мин; 21 мин × 2000 ₽ / час = 700,00 ₽.
-2026-03-13 | 600,00 ₽ | 18 мин | Админка турниров: усилено закрепление шапки таблицы через отдельную обёртку и border-collapse separate, заголовок столбца «Статус турнира» переименован в «Турнир»
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 12 мин.
-
-Ретроспектива:
-- Базовое время: 12 мин.
-- Коэффициент: 1.50.
-- Оплачиваемое время: 18 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 12 мин × 1.50 = 18 мин; 18 мин × 2000 ₽ / час = 600,00 ₽.
-2026-03-13 | 700,00 ₽ | 21 мин | Админка турниров: закреплены шапка и колонка ID при прокрутке, в столбце вопросов порядок значений изменён на всего/отвечено/правильно
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 14 мин.
-
-Ретроспектива:
-- Базовое время: 14 мин.
-- Коэффициент: 1.50.
-- Оплачиваемое время: 21 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 14 мин × 1.50 = 21 мин; 21 мин × 2000 ₽ / час = 700,00 ₽.
-2026-03-13 | 1 000,00 ₽ | 30 мин | Турниры 1v1: найден и исправлен корневой перезаписывающий баг в getMyTournaments — finished head-to-head турниры больше не затирают победителя в passed=0 при каждом открытии списка игр
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 15 мин.
-
-Ретроспектива:
-- Базовое время: 15 мин.
-- Коэффициент: 2.00.
-- Оплачиваемое время: 30 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 15 мин × 2.00 = 30 мин; 30 мин × 2000 ₽ / час = 1 000,00 ₽.
-2026-03-13 | 1 200,00 ₽ | 36 мин | Турниры 1v1: исправлена запись победителя в completeTournament и добавлен серверный backfill resolved head-to-head результатов/статусов по фактическому progress, чтобы массово восстановить старые finished/waiting турниры
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 18 мин.
-
-Ретроспектива:
-- Базовое время: 18 мин.
-- Коэффициент: 2.00.
-- Оплачиваемое время: 36 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 18 мин × 2.00 = 36 мин; 36 мин × 2000 ₽ / час = 1 200,00 ₽.
-2026-03-13 | 900,00 ₽ | 27 мин | Админка турниров: модалки сетки и вопросов переведены на admin-просмотр от лица участника строки через отдельные роуты с userId, чтобы открывались турниры, где админ не является игроком
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 18 мин.
-
-Ретроспектива:
-- Базовое время: 18 мин.
-- Коэффициент: 1.50.
-- Оплачиваемое время: 27 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 18 мин × 1.50 = 27 мин; 27 мин × 2000 ₽ / час = 900,00 ₽.
-2026-03-13 | 1 500,00 ₽ | 45 мин | Турниры: генерация уникальных вопросов по всему турниру — разнесены полуфиналы, финал и тайбрейки без повторов; обновлена документация и проверены открытые турниры в прод-БД на безопасный ретрофикс
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 22,5 мин.
-
-Ретроспектива:
-- Базовое время: 22,5 мин.
-- Коэффициент: 2.00.
-- Оплачиваемое время: 45 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 22,5 мин × 2.00 = 45 мин; 45 мин × 2000 ₽ / час = 1 500,00 ₽.
-2026-03-13 | 1 000,00 ₽ | 30 мин | Документация: создан отдельный файл с полной картой логики турниров по коду проекта — сущность, режимы, этапы, active/history, прогресс, таймеры, escrow, модалки и админка
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 20 мин.
-
-Ретроспектива:
-- Базовое время: 20 мин.
-- Коэффициент: 1.50.
-- Оплачиваемое время: 30 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 20 мин × 1.50 = 30 мин; 30 мин × 2000 ₽ / час = 1 000,00 ₽.
-2026-03-13 | 300,00 ₽ | 9 мин | Админка турниров: убрана кнопка сброса порядка столбцов, столбец «Результат» выровнен по центру
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 6 мин.
-
-Ретроспектива:
-- Базовое время: 6 мин.
-- Коэффициент: 1.50.
-- Оплачиваемое время: 9 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 6 мин × 1.50 = 9 мин; 9 мин × 2000 ₽ / час = 300,00 ₽.
-2026-03-13 | 1 200,00 ₽ | 36 мин | Админка: ID турнира и вопросы в таблице сделали кликабельными с открытием модалок сетки и вопросов как у игрока; drag-and-drop столбцов перенесён с иконки на само название заголовка
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 24 мин.
-
-Ретроспектива:
-- Базовое время: 24 мин.
-- Коэффициент: 1.50.
-- Оплачиваемое время: 36 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 24 мин × 1.50 = 36 мин; 36 мин × 2000 ₽ / час = 1 200,00 ₽.
-2026-03-13 | 700,00 ₽ | 21 мин | Админка: перестановка столбцов турниров через drag-and-drop за хэндл из точек вместо кнопок сдвига, с сохранением порядка в URL и визуальной подсветкой цели
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 14 мин.
-
-Ретроспектива:
-- Базовое время: 14 мин.
-- Коэффициент: 1.50.
-- Оплачиваемое время: 21 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 14 мин × 1.50 = 21 мин; 21 мин × 2000 ₽ / час = 700,00 ₽.
-2026-03-13 | 400,00 ₽ | 12 мин | Cursor: закреплено отдельное always-apply правило о поведении по умолчанию после правок — коммит, push, деплой, проверка продакшена и расчёт стоимости
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 8 мин.
-
-Ретроспектива:
-- Базовое время: 8 мин.
-- Коэффициент: 1.50.
-- Оплачиваемое время: 12 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 8 мин × 1.50 = 12 мин; 12 мин × 2000 ₽ / час = 400,00 ₽.
-2026-03-13 | 600,00 ₽ | 18 мин | Прод: безопасная очистка серверного репозитория через stash, git pull актуального main, сборка backend/frontend, pm2 restart и проверка ответа сайта
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 9 мин.
-
-Ретроспектива:
-- Базовое время: 9 мин.
-- Коэффициент: 2.00.
-- Оплачиваемое время: 18 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 9 мин × 2.00 = 18 мин; 18 мин × 2000 ₽ / час = 600,00 ₽.
-2026-03-13 | 700,00 ₽ | 21 мин | Админка: перестановка столбцов в таблице турниров, кнопки сдвига в заголовках, сохранение порядка в URL и кнопка сброса
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 14 мин.
-
-Ретроспектива:
-- Базовое время: 14 мин.
-- Коэффициент: 1.50.
-- Оплачиваемое время: 21 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 14 мин × 1.50 = 21 мин; 21 мин × 2000 ₽ / час = 700,00 ₽.
-2026-03-13 | 1 333,33 ₽ | 40 мин | Турниры у пользователей: исправлен runtime ReferenceError в getMyTournaments, восстановлены 28 tournament_entry из playerOrder на проде, убран риск затирания связи players
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 20 мин.
-
-Ретроспектива:
-- Базовое время: 20 мин.
-- Коэффициент: 2.00.
-- Оплачиваемое время: 40 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 20 мин × 2.00 = 40 мин; 40 мин × 2000 ₽ / час = 1 333,33 ₽.
-2026-03-13 | 1 000,00 ₽ | 30 мин | Активные игры: backfill для training+money; TypeORM первым, raw fallback; mode по умолчанию training; «Загрузка…» для тренировки
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 20 мин.
-
-Ретроспектива:
-- Базовое время: 20 мин.
-- Коэффициент: 1.50.
-- Оплачиваемое время: 30 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 20 мин × 1.50 = 30 мин; 30 мин × 2000 ₽ / час = 1 000,00 ₽.
-2026-03-13 | 500,00 ₽ | 15 мин | Противостояние: fallback raw SQL для ID (progress+entry), camelCase+snake_case; backfill snake_case при ошибке
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 10 мин.
-
-Ретроспектива:
-- Базовое время: 10 мин.
-- Коэффициент: 1.50.
-- Оплачиваемое время: 15 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 10 мин × 1.50 = 15 мин; 15 мин × 2000 ₽ / час = 500,00 ₽.
-2026-03-13 | 750,00 ₽ | 22,5 мин | Противостояние: backfill из progress+entry; добавление игрока через INSERT в join + update(playerOrder), без save(tournament); откат через DELETE+update
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 15 мин.
-
-Ретроспектива:
-- Базовое время: 15 мин.
-- Коэффициент: 1.50.
-- Оплачиваемое время: 22,5 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 15 мин × 1.50 = 22,5 мин; 22,5 мин × 2000 ₽ / час = 750,00 ₽.
-2026-03-13 | 400,00 ₽ | 12 мин | Противостояние: сбор ID только через TypeORM (progress, entry, players join), без raw SQL
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 8 мин.
-
-Ретроспектива:
-- Базовое время: 8 мин.
-- Коэффициент: 1.50.
-- Оплачиваемое время: 12 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 8 мин × 1.50 = 12 мин; 12 мин × 2000 ₽ / час = 400,00 ₽.
-2026-03-13 | 250,00 ₽ | 7,5 мин | getMyTournaments: try/catch в контроллере — при ошибке 200 + empty; escrows/sync не ломают поток
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 5 мин.
-
-Ретроспектива:
-- Базовое время: 5 мин.
-- Коэффициент: 1.50.
-- Оплачиваемое время: 7,5 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 5 мин × 1.50 = 7,5 мин; 7,5 мин × 2000 ₽ / час = 250,00 ₽.
-2026-03-13 | 350,00 ₽ | 10,5 мин | исправление 500: результат connection.query() — объект с .rows, брать result.rows
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 7 мин.
-
-Ретроспектива:
-- Базовое время: 7 мин.
-- Коэффициент: 1.50.
-- Оплачиваемое время: 10,5 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 7 мин × 1.50 = 10,5 мин; 10,5 мин × 2000 ₽ / час = 350,00 ₽.
-2026-03-13 | 600,00 ₽ | 18 мин | противостояние: один SQL для ID (progress/entry/players), fallback snake_case; отдельный state gameHistoryMoney и «Загрузка…» на фронте
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 12 мин.
-
-Ретроспектива:
-- Базовое время: 12 мин.
-- Коэффициент: 1.50.
-- Оплачиваемое время: 18 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 12 мин × 1.50 = 18 мин; 18 мин × 2000 ₽ / час = 600,00 ₽.
-2026-03-13 | 900,00 ₽ | 27 мин | противостояние: 4 источника ID (progress, entry ORM, entry raw, players raw), оба варианта колонок, нормализация mode в контроллере
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 18 мин.
-
-Ретроспектива:
-- Базовое время: 18 мин.
-- Коэффициент: 1.50.
-- Оплачиваемое время: 27 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 18 мин × 1.50 = 27 мин; 27 мин × 2000 ₽ / час = 900,00 ₽.
-2026-03-13 | 1 250,00 ₽ | 37,5 мин | противостояние: список турниров по tournament_progress, не по join players (надёжный источник участия)
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 25 мин.
-
-Ретроспектива:
-- Базовое время: 25 мин.
-- Коэффициент: 1.50.
-- Оплачиваемое время: 37,5 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 25 мин × 1.50 = 37,5 мин; 37,5 мин × 2000 ₽ / час = 1 250,00 ₽.
-2026-03-13 | 750,00 ₽ | 22,5 мин | getMyTournaments: не затирать денежные турниры (gameType NULL+leagueAmount → money; восстановление training+leagueAmount → money)
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 15 мин.
-
-Ретроспектива:
-- Базовое время: 15 мин.
-- Коэффициент: 1.50.
-- Оплачиваемое время: 22,5 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 15 мин × 1.50 = 22,5 мин; 22,5 мин × 2000 ₽ / час = 750,00 ₽.
-2026-03-13 | 1 000,00 ₽ | 30 мин | админка «Турниры»: только поле поиска по ID (без кнопки), турниры всех игроков (training+money), колонки этап/старт раунда/осталось до конца/статус/вопросы
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 20 мин.
-
-Ретроспектива:
-- Базовое время: 20 мин.
-- Коэффициент: 1.50.
-- Оплачиваемое время: 30 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 20 мин × 1.50 = 30 мин; 30 мин × 2000 ₽ / час = 1 000,00 ₽.
-2026-03-13 | 800,00 ₽ | 24 мин | админка «Турниры»: убрана кнопка, фильтр по ID турнира (URL), все колонки как у игрока + ник и фаза, бэкенд try/catch по пользователям
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 16 мин.
-
-Ретроспектива:
-- Базовое время: 16 мин.
-- Коэффициент: 1.50.
-- Оплачиваемое время: 24 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 16 мин × 1.50 = 24 мин; 24 мин × 2000 ₽ / час = 800,00 ₽.
-2026-03-13 | 600,00 ₽ | 18 мин | админка «Турниры»: колонки статус турнира и дата создания, отображение ошибки загрузки, кнопка «Обновить», подписи статусов по-русски
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 12 мин.
-
-Ретроспектива:
-- Базовое время: 12 мин.
-- Коэффициент: 1.50.
-- Оплачиваемое время: 18 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 12 мин × 1.50 = 18 мин; 18 мин × 2000 ₽ / час = 600,00 ₽.
-2026-03-13 | 1 250,00 ₽ | 37,5 мин | админка: вкладка «Турниры» в статистике — все турниры по всем игрокам, столбцы ID турнира, ник, ID игрока, фаза (активный/история), сортировка по ID
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 25 мин.
-
-Ретроспектива:
-- Базовое время: 25 мин.
-- Коэффициент: 1.50.
-- Оплачиваемое время: 37,5 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 25 мин × 1.50 = 37,5 мин; 37,5 мин × 2000 ₽ / час = 1 250,00 ₽.
-2026-03-13 | 1 333,33 ₽ | 40 мин | победа/поражение только при «оба ответили» или «24 ч истекли»; первый финалист без таймера до прихода второго, таймеры при входе второго с учётом «ответил на все — таймер не запускается»
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 20 мин.
-
-Ретроспектива:
-- Базовое время: 20 мин.
-- Коэффициент: 2.00.
-- Оплачиваемое время: 40 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 20 мин × 2.00 = 40 мин; 40 мин × 2000 ₽ / час = 1 333,33 ₽.
-2026-03-13 | 833,33 ₽ | 25 мин | турнир 52: переход в финал в модалке, таймер у финалистов, статус «Этап не пройден»/«Ожидание соперника» вместо «Поражение»/«Время истекло» (getResultLabel, getTournamentState, didUserWinSemiFinal, getTrainingState таймер)
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 25 мин.
-
-Ретроспектива:
-- Базовое время: 25 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 25 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 25 мин × 1.00 = 25 мин; 25 мин × 2000 ₽ / час = 833,33 ₽.
-2026-03-13 | 600,00 ₽ | 18 мин | выиграл ПФ, но не начал финал: турнир не в истории, в активных с доступом к финалу, в истории запись «Полуфинал» + «Победа» (анализ поведения + проектирование + правка)
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 18 мин.
-
-Ретроспектива:
-- Базовое время: 18 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 18 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 18 мин × 1.00 = 18 мин; 18 мин × 2000 ₽ / час = 600,00 ₽.
-2026-03-13 | 600,00 ₽ | 18 мин | этап в истории: только Полуфинал/Финал; победа в доп.раунде при завершении одним игроком → переход в финал
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 18 мин.
-
-Ретроспектива:
-- Базовое время: 18 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 18 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 18 мин × 1.00 = 18 мин; 18 мин × 2000 ₽ / час = 600,00 ₽.
-2026-03-13 | 400,00 ₽ | 12 мин | вопросы без ?????: двойная перекодировка в санитизаторе и в скрипте fix-question-encoding
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 12 мин.
-
-Ретроспектива:
-- Базовое время: 12 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 12 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 12 мин × 1.00 = 12 мин; 12 мин × 2000 ₽ / час = 400,00 ₽.
-2026-03-13 | 133,33 ₽ | 4 мин | в модалке турниров: «Ожидание игрока» → «Ожидание соперника»
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 4 мин.
-
-Ретроспектива:
-- Базовое время: 4 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 4 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 4 мин × 1.00 = 4 мин; 4 мин × 2000 ₽ / час = 133,33 ₽.
-2026-03-13 | 166,67 ₽ | 5 мин | бейдж в модалке турнира только по источнику (активные/история)
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 5 мин.
-
-Ретроспектива:
-- Базовое время: 5 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 5 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 5 мин × 1.00 = 5 мин; 5 мин × 2000 ₽ / час = 166,67 ₽.
-2026-03-13 | 366,67 ₽ | 11 мин | старт раунда в истории не позже даты завершения (cap)
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 11 мин.
-
-Ретроспектива:
-- Базовое время: 11 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 11 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 11 мин × 1.00 = 11 мин; 11 мин × 2000 ₽ / час = 366,67 ₽.
-2026-03-13 | 500,00 ₽ | 15 мин | дата завершения из реальных данных пары, иначе по старту раунда
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 15 мин.
-
-Ретроспектива:
-- Базовое время: 15 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 15 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 15 мин × 1.00 = 15 мин; 15 мин × 2000 ₽ / час = 500,00 ₽.
-2026-03-13 | 700,00 ₽ | 21 мин | при отсутствии соперника в паре — не «Победа», турнир в активных, ожидание соперника
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 21 мин.
-
-Ретроспектива:
-- Базовое время: 21 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 21 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 21 мин × 1.00 = 21 мин; 21 мин × 2000 ₽ / час = 700,00 ₽.
-2026-03-13 | 300,00 ₽ | 9 мин | computeSemiResult + isPlayerInFinalPhase: при отсутствии соперника — waiting / не в финале (везде)
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 9 мин.
-
-Ретроспектива:
-- Базовое время: 9 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 9 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 9 мин × 1.00 = 9 мин; 9 мин × 2000 ₽ / час = 300,00 ₽.
-2026-03-13 | 800,00 ₽ | 24 мин | отображение вопросов: санитизация UTF-8 при отдаче, charset в ответах, скрипт исправления кодировки в БД
-
-Разбивка:
-- Поэтапная детализация для этой записи в исходном логе не была зафиксирована.
-- Базовое время по записи: 24 мин.
-
-Ретроспектива:
-- Базовое время: 24 мин.
-- Коэффициент: 1.00.
-- Оплачиваемое время: 24 мин.
-- Ставка: 2000 ₽ / час.
-- Формула: 24 мин × 1.00 = 24 мин; 24 мин × 2000 ₽ / час = 800,00 ₽.
+2026-03-15 09:37 | 766,63 ₽ | 23 мин | Профиль/frontend: в истории транзакций отображение description упрощено без изменения backend-ledger contract — все topup-пополнения в кабинете показываются как `Пополнение баланса`, а `Вывод средств одобрен (requestId N)` локально переводится в `Вывод средств одобрен (заявка N)`; после frontend build, commit/push/deploy выполнен production health-check
+
+2026-03-15 09:24 | 1 531,25 ₽ | 45,94 мин | Профиль/frontend+URL-state: история транзакций в кабинете разделена на две вкладки `Рубли` и `L`, при этом transaction-таб, фильтр категории, диапазон дат и сортировка переведены в `search params`, а соседние переходы внутри кабинета перестали затирать query string; после frontend build, commit/push/deploy выполнен production health-check, но auth-зависимый F5/back-forward smoke кабинета без тестовых учётных данных автоматом не был воспроизведён
+
+2026-03-15 09:06 | 1 968,75 ₽ | 59,06 мин | Full finance recovery/manual-review+data-fix+deploy: по явному согласию закрыты 2 оставшихся ambiguous legacy-кейса — для `user 1` восстановлены missing opening `100 L`, missing `5 L` перед `tx #25` и ранняя `createdAt` из swap-aftermath evidence, а `tx #232` у `user 2` нормализован как подтверждённый legacy ruble topup без ложного `tournamentId`; затем выполнены backend build/test, commit/push/deploy, production manual-fix script и повторный full audit с нулём deterministic/manual drift
+
+2026-03-15 08:55 | 4 550,00 ₽ | 2,28 ч | Full finance recovery/backend+data-fix+deploy: добавлен production-wide audit `transaction/payment/withdrawal/escrow/result/user`, введён единый deterministic repair pipeline для missing withdrawal descriptions, missing refund/win ledger rows и batch reconcile stored balances, а runtime read/write-paths переведены на канонический ledger с row-lock защитой; после backend test/build, commit/push/deploy выполнены production audit -> repair -> re-audit, где deterministic drift обнулён, а 2 legacy-кейса оставлены в manual-review по согласованной политике
+
+2026-03-15 08:21 | 1 727,12 ₽ | 51,81 мин | Баланс игрока 1/backend+data-fix: полная ревизия прод-истории показала, что `tx #1` — это legacy admin topup в категории `other`, из-за чего текущий код уводил `+100 ₽` в L-баланс; расчёт рублёвого/L-баланса усилен обработкой таких legacy admin-topup описаний, backfill-скрипт переведён на рублёвую нормализацию и пересчёт stored balance-полей для затронутых пользователей, после чего выполнены build/test, commit/push/deploy и production-check
+
+2026-03-15 08:09 | 2 165,63 ₽ | 1,08 ч | Профиль+баланс/backend+frontend+data-fix: лимит ника снижен до `15` на фронте и в backend write-path, а причина сдвига рублёвого баланса найдена в ретрофиксе legacy-транзакции `id=1`, которую нельзя было переводить из `other` в `topup`; backfill-скрипт исправлен на сохранение целевой категории по каждой записи, после чего выполнены локальные build/test, commit/push/deploy и production-перепроверка расчёта
+
+2026-03-15 07:57 | 656,25 ₽ | 19,69 мин | Профиль/frontend: устранён runtime-crash кабинета `BRACKET_NAME_MAX_LEN is not defined` — в `Profile.tsx` восстановлен фронтовый лимит ника по реальному backend contract (`100`), после чего пройдены frontend build, commit/push, production deploy и проверка загрузки кабинета
+
+2026-03-15 07:50 | 1 531,25 ₽ | 45,94 мин | Прод-БД/админка: найдено, что спорные legacy-начисления действительно шли через `POST /admin/credit-balance`, но старый write-path не сохранял автора; добавлен отдельный backfill-скрипт с выборкой `до/после` для ретровосстановления подтверждённых adminId по legacy manual topup, после чего подготовлены commit/push/deploy и production endpoint-check
+
+2026-03-15 07:37 | 1 509,38 ₽ | 45,28 мин | Админка/backend+frontend: для legacy-начислений возвращён подтверждённый self-admin fallback только там, где старый `topup` реально принадлежит админ-аккаунту, старый `users/add-balance` переведён на структурированную запись автора начисления, а пустая ячейка `Админ` в истории удерживает нормальную высоту; локально пройдены backend test/build, frontend build и runtime-check через `dev:live`, затем подготовлены commit/push/deploy и production-check
+
+2026-03-15 07:27 | 656,25 ₽ | 19,69 мин | Админка/backend: найден финальный баг attribution-слоя — даже после обнуления `adminId` legacy-строки продолжали брать `adminUsername/adminEmail` прямо из SQL-джойна по `tournamentId=userId`, поэтому игрок всё ещё отображался как админ; read-path исправлен так, что joined admin поля используются только при подтверждённом `adminId`, после чего выполнены backend build/test/e2e, commit/push/deploy и target endpoint-check
+
+2026-03-15 07:24 | 765,63 ₽ | 22,97 мин | Админка/backend+frontend: проверка прод-БД показала, что у legacy-начислений `Пополнение баланса` поле `tournamentId` часто равно самому `userId`, поэтому колонка `Админ` ложно дублировала игрока; fallback исправлен так, что generic legacy topup теперь не выдают псевдо-админа, а пустые ячейки в таблице удерживают ту же высоту через placeholder-email стиль; выполнены локальные build/smoke, commit/push/deploy и production-check
+
+2026-03-15 07:18 | 437,50 ₽ | 13,13 мин | Админка/frontend: вкладка `Начисление` больше не держит залипший пустой список — история начислений теперь перезапрашивается при входе в раздел и автообновляется каждые 5 секунд, чтобы после backend-фиксов и новых начислений UI не оставался на первом неудачном ответе; выполнены frontend build/smoke, commit/push/deploy и production-check
+
+2026-03-15 07:12 | 656,25 ₽ | 19,69 мин | Админка/backend: финально расширен SQL-охват `getCreditHistory()` — теперь в выборку реально попадают legacy `topup/other`, а не только новый admin-format; это исправляет пустую историю на проде, где ручные начисления хранились как обычные `Пополнение баланса`; локально пройдены backend build/test/e2e/smoke, затем выполнены commit/push/deploy и production-check
+
+2026-03-15 07:09 | 656,25 ₽ | 19,69 мин | Админка/backend: история начислений расширена под реальные legacy-записи прод-БД — помимо нового admin-format теперь читаются старые `topup/other` с описанием `Пополнение баланса` и `Пополнение баланса (скрипт)`, при этом provider-topup остаются исключёнными; локально пройдены backend build/test/e2e, подготовлен production deploy
+
+2026-03-15 06:59 | 765,63 ₽ | 22,97 мин | Админка/backend: восстановлено чтение `История начислений` — `AdminService.getCreditHistory()` переведён на корректные Postgres-имена колонок (`\"userId\"`, `\"createdAt\"`, `\"tournamentId\"`), из-за которых raw SQL раньше падал в `catch` и фронт видел пустой список; локально пройдены backend build/test/e2e/smoke, затем выполнены commit/push/deploy и production-check
+
+2026-03-15 06:51 | 437,50 ₽ | 13,13 мин | Delivery: получен рабочий root SSH-доступ, frontend fix для withdrawals-деплоя выкачен на `95.163.226.154`, сервер обновлён до коммита `60df35a`, `pm2` перезапущен, remote health-check внутри deploy дал `200`, а публичный `https://legendgames.space/api/health` после выката подтвердил `200 OK`
+
+2026-03-15 06:16 | 656,25 ₽ | 19,69 мин | Админка: смена фильтра статуса в `Заявки на вывод` больше не сбрасывает раздел в статистику — URL для withdrawals теперь синхронизируется через единый effect с обязательным `tab=withdrawals`, а регресс закрыт отдельным route-state тестом; локально пройдены frontend test/build, dev health и smoke, production deploy по-прежнему заблокирован отсутствием SSH-доступа
+
+2026-03-15 06:13 | 670,83 ₽ | 20,12 мин | Deploy tooling: `scripts/deploy-prod.sh` теперь автоматически подхватывает локальный `.env.deploy.local`, добавлен `.env.deploy.example` и обновлены инструкции переноса/деплоя; shell-proof показал загрузку env-файла, но production deploy по-прежнему блокируется отсутствием авторизованного SSH-доступа к серверу
+
+2026-03-15 06:08 | 838,54 ₽ | 25,16 мин | Админка: вкладка `Заявки на вывод` больше не сбрасывается в статистику — теперь раздел всегда пишет `tab=withdrawals` в URL, старые ссылки вида `?status=...` остаются совместимыми, добавлены route-state тесты и выполнены frontend build, local health/smoke, commit/push; production deploy остановился из-за отсутствующих `DEPLOY_REMOTE_*` env
+
+2026-03-15 07:05 | 437,50 ₽ | 13,13 мин | Админка: во вкладке пользователей удалена лишняя кнопка `Войти как пользователь`, потому что вход уже доступен по клику на ник; затем выполнены verify:ci, commit/push, frontend-only deploy и production-check
+
+2026-03-15 06:55 | 1 093,75 ₽ | 32,81 мин | Админка: график overview-статистики больше не обрывается на последнем дне с событиями — backend `/admin/stats` теперь достраивает непрерывный период до текущего дня/недели/месяца и возвращает нулевые точки для пустых дат, затем выполнены verify:ci, перезапуск dev:live, commit/push/deploy и production-check
+
+2026-03-15 06:40 | 18 375,00 ₽ | 9,19 ч | Полный refactor-pass проекта по 5 фазам: усилены lint/test/CI и runtime e2e-check, read DTO и auth/session contracts, убраны hidden writes и stringly-typed зоны, вынесены общие tournament/user/payment contracts, декомпозированы части Profile/Admin через hooks и shared contracts, выровнены deploy/docs/legacy-слой, затем выполнены verify:ci, commit/push/deploy и production-check
+
+2026-03-15 04:58 | 1 458,33 ₽ | 43,75 мин | Cursor rules: добавлено отдельное always-apply правило детального учёта стоимости по этапам реальной работы — погружение, проектирование, реализация, cleanup, проверка и delivery с мягкими коэффициентами риска вместо грубой оценки по размеру diff
+
+2026-03-15 04:47 | 656,25 ₽ | 19,69 мин | Cursor rules: добавлено отдельное always-apply правило режимов рефакторинга с двумя состояниями — обязательный локальный refactor-pass после каждой правки и плановый полный refactor-pass по проекту с weekly cadence и коротким daily hygiene-проходом
+
+2026-03-14 23:12 | 7 000,00 ₽ | 3,5 ч | Архитектурный проход по зрелости проекта: рублёвый ledger переведён на структурированные payment/withdraw descriptions с repair-скриптом и локальным data-audit, backend write-path дочищен от inline DTO, cabinet route-state расширен `league`/`statsMode` как URL source of truth, slot logic по `playerOrder` вынесена в общий domain helper, а CI усилен frontend route-state test, backend helper tests и `npm ci` workflow
+
+2026-03-14 22:37 | 3 500,00 ₽ | 1,75 ч | Cleanup проекта: rules сведены к компактному каноническому набору с hygiene/evidence guards, безопасно удалены временные и неиспользуемые frontend-файлы, общий `PlayerStats` и список cabinet sections вынесены в единые точки, legacy scripts/docs помечены для следующего прохода, затем выполнены build/test/smoke, commit, push и production deploy-check
+
+2026-03-14 22:10 | 8 312,50 ₽ | 4,16 ч | Большой проход по стабилизации: платежный webhook переведён на явный ack/retry contract, рублёвый ledger и админские начисления сведены к одному topup-flow с подготовкой ретрофикса legacy `admin_credit`, турнирный progress/read flow частично нормализован через общий helper и `playerOrder` в write-path, support GET очищен от side effects с DTO-валидацией, кабинет и админка дочищены от лишнего route-state drift, а CI усилен runtime smoke-подъёмом backend с health-check
+
+2026-03-14 21:39 | 656,25 ₽ | 19,69 мин | Cursor rules: добавлен always-apply playbook с обязательной последовательностью работы по каждому запросу — классификация задачи, поиск единого источника истины, порядок правок через domain→API→frontend, URL-state, ретрофикс данных, сценарная проверка, а затем tests/build, commit/push/deploy и production-check
+
+2026-03-14 21:29 | 11 375,00 ₽ | 5,69 ч | Глубокая стабилизация архитектуры: удалены секреты и небезопасные диагностические скрипты из корня, турнирный backend вынесен на общие constants/view-model с read-only `GET training-state` через explicit prepare-route, добавлены DTO и frontend API/contracts/hooks для турниров и auth-session, объединён question generator catalog, включены unit-тесты backend и CI smoke/test-проверки, упрощён основной startup flow
+
+2026-03-14 20:52 | 546,88 ₽ | 16,41 мин | Cursor rules: добавлен отдельный always-apply hard-stop предохранитель для обязательного commit/push/deploy, явной production-проверки и запрета завершать ответ до успешного выката после любых правок, включая rules/docs/server-side изменения
+
+2026-03-14 20:48 | 546,88 ₽ | 16,41 мин | Cursor rules: добавлен отдельный always-apply hard-stop предохранитель для обязательного пересчета стоимости, ретроучета пропусков и учета deploy/DB/server-side шагов перед каждым финальным ответом
+
+2026-03-14 20:55 | 1 312,50 ₽ | 39,38 мин | Админка/учёт стоимости: исправлен raw SQL чтения заявок на вывод в `AdminService` для Postgres camelCase/snake_case колонок, заново проверен backend build, а журнал стоимости сверен с перепиской и дополнен пропущенными шагами
+
+2026-03-14 20:40 | 1 093,75 ₽ | 32,81 мин | Прод-стабилизация: после деплоя диагностирован `502`, найден missing runtime dependency `express` в backend, обновлён dependency graph, локальная сборка перепроверена и подготовлен повторный production deploy с сохранением серверного env
+
+2026-03-14 20:20 | 8 312,50 ₽ | 4,16 ч | Стабилизация проекта: восстановлены auth/cabinet bootstrap и единая обработка 401/refresh, выровнены verify-code/payment/support маршруты под HashRouter, сведён production contract env/nginx/pm2/deploy, добавлены smoke-проверки и аудит auth/payment данных, документация синхронизирована с фактическим runtime
+
+2026-03-14 19:40 | 4 156,25 ₽ | 2,08 ч | Ретроучёт пропущенного шага: восстановлен production после `502` до этапа плана стабилизации — найдены и исправлены расхождения `pm2 env`/`backend/.env.production`, backend переведён в стабильный `fork`, nginx upstream и публичный `/api/health` выровнены под `127.0.0.1:3000`, активный конфиг очищен от дубликатов и приведён к одному symlink-источнику
+
+2026-03-14 18:59 | 6 125,00 ₽ | 3,06 ч | Стабилизация проекта: закрыты auth/payment/security дыры, денежные write-path и money tournament join переведены на транзакции, backend read-path и playerOrder-статистика дочищены, Profile/Admin/SupportChat переведены на URL-state без ручного hash-drifts, добавлены health endpoint, CI и smoke checklist, документация и deploy-конфиг выровнены
+
+2026-03-14 18:27 | 1 312,50 ₽ | 39,38 мин | Турниры: финальный hard-pass по read-path — `getTournamentState` перестал удалять/создавать вопросы на GET, `getTrainingState` переведён на общие question/helper/resolver-правила для финала и тайбрейков, выполнен сценарный аудит оставшихся зон риска, backend пересобран и `dev:live` перезапущен
+
+2026-03-14 18:20 | 1 968,75 ₽ | 59,06 мин | Турниры: три writer-пути (`completeTournament`, `tryAutoComplete`, `closeTimedOutRounds`) переведены на общий resolver/apply слой завершения турнира — убраны разъехавшиеся ветки записи победителя, устранено преждевременное завершение 1v1 как всего турнира, документация обновлена, backend пересобран, `dev:live` перезапущен
+
+2026-03-14 18:11 | 1 640,63 ₽ | 49,22 мин | Турниры: `getMyTournaments` и `getTournamentBracket` переведены на read-only derived-state без скрытых `update/save/backfill` во время чтения — режим турнира и legacy-progress теперь нормализуются только в памяти, документация синхронизирована, `dev:live` перезапущен
+
+2026-03-14 17:56 | 3 500,00 ₽ | 1,75 ч | Турниры: локальный Postgres восстановлен через существующий cluster на 5433, внедрён explicit Variant B слой `tournament_round_resolution` с idempotent cron/backfill и resolution-first чтением для списков, state, training-state и bracket; документация обновлена, `dev:live` перезапущен
+
+2026-03-14 17:30 | 1 093,75 ₽ | 32,81 мин | Турниры: timeout-резолв пары доведён до канонического варианта A — сценарий «оба проиграли по таймауту» теперь везде считается только после подтверждённого общего дедлайна пары и по целевому объёму текущего раунда, включая тайбрейки; cron, список турниров и solo-final ветки переведены на единый helper
+
+2026-03-14 16:54 | 1 640,63 ₽ | 49,22 мин | Турниры: пустой слот и отсутствующий progress в полуфинальной паре окончательно переведены в строгий `waiting/incomplete` без скрытого автопрохода — сервер больше не создаёт ложного финалиста по одному живому участнику, а timeout-сценарии учитываются только после реального общего дедлайна пары; правило зафиксировано и в документации
+
+2026-03-14 13:47 | 875,00 ₽ | 26,25 мин | Frontend: устранены предупреждения ESLint в `Profile.tsx` и `SupportChat.tsx`, которые мешали production-сборке в режиме `CI=true` — убран мёртвый код, очищены неиспользуемые state-переменные и приведены в порядок зависимости эффектов без изменения поведения кабинета и чата
+
+2026-03-14 13:42 | 546,88 ₽ | 16,41 мин | Турниры: откатан неверный fallback полуфинального счёта в финальном слоте — если игрок ещё не начал финал, модалка теперь показывает честное `0/0`, а не прошлый результат полуфинала
+
+2026-03-14 13:39 | 875,00 ₽ | 26,25 мин | Инфраструктура деплоя: хрупкая интерактивная expect-цепочка заменена на единый скрипт `scripts/deploy-prod.sh` с одной SSH-командой, перезапуском pm2 и встроенной проверкой `200`; правило проекта переведено на новый сценарий, чтобы деплой больше не обрывался после завершения сборки
+
+2026-03-14 13:31 | 656,25 ₽ | 19,69 мин | Турниры: в финальном блоке сетки для единственного финалиста возвращён показ цифр под ником — если финал ещё не начат, модалка теперь показывает последний доступный счёт игрока по прохождению в финал вместо пустой строки
+
+2026-03-14 13:27 | 765,63 ₽ | 22,97 мин | Турниры: после унификации этапов исправлено преждевременное `Ожидание соперника` — теперь победитель полуфинала без сформированного финального соперника видит этот статус только после того, как сам уже отыграл свой следующий раунд; до этого остаётся `Этап не пройден` и возможность пройти этап
+
+2026-03-14 13:23 | 1 640,63 ₽ | 49,22 мин | Турниры: список и серверный backfill `getMyTournaments` переведены на одну общую логику этапов без отдельной ветки для 2-игроковых кейсов — старые `1v1` теперь считаются частным случаем той же сетки, где фиксируется победа в полуфинале и ожидание финального соперника вместо отдельного режима расчёта
+
+2026-03-14 13:11 | 656,25 ₽ | 19,69 мин | Турниры: старые 2-игроковые кейсы в `getMyTournaments` снова трактуются как выигранный полуфинал, а не как окончательная победа всего турнира — активная запись остаётся с ожиданием соперника, а этапная победа уходит в историю отдельной строкой
+
+2026-03-14 12:56 | 1 312,50 ₽ | 39,38 мин | Турниры: логика единственного финалиста после двойного таймаута в другом полуфинале переведена с автопобеды на обязательный финальный раунд — победа только при хотя бы одном правильном ответе, иначе поражение по 0 правильных или по истечению 24 часов; правило доведено до дедлайна, cron, списков, сетки и серверного backfill завершённых турниров
+
+2026-03-14 12:35 | 546,88 ₽ | 16,41 мин | Админка/кабинет: при входе как пользователь теперь сохраняется исходный URL админки и возврат восстанавливает тот же раздел с теми же search params, включая фильтры и поиск в турнирах
+
+2026-03-14 12:31 | 656,25 ₽ | 19,69 мин | Админка: для перехода в кабинет пользователя добавлено подтверждение через модалку — в турнирах теперь можно нажать прямо на ник игрока, а в списке пользователей подтверждение срабатывает и по нику, и по кнопке входа
+
+2026-03-14 12:25 | 328,13 ₽ | 9,84 мин | Турниры: в общей модалке вопросов убраны номера `1/2` у полуфинала — таб, строка статистики и заголовок блока теперь везде показывают просто `Полуфинал`
+
+2026-03-14 12:21 | 328,13 ₽ | 9,84 мин | Турниры: в общем компоненте сетки окончательно убраны номера `1/2` из заголовков полуфиналов и возвращён показ очков под никами в полуфинальных карточках, чтобы модалка снова отображала счёт прямо под именем игрока
+
+2026-03-14 12:28 | 437,50 ₽ | 13,13 мин | Турниры: после выноса в общий компонент восстановлены подписи и статистика в пользовательских модалках — у полуфинала убраны лишние номера, а строка с очками по вопросам снова отображается вместо ошибочного скрытия
+
+2026-03-14 12:18 | 1 093,75 ₽ | 32,81 мин | Турниры: модалки сетки и просмотра вопросов вынесены в общий `TournamentModals`-слой и подключены и в `Admin`, и в `Profile`, чтобы будущие правки структуры, табов, скрытия полуфинальных цифр и стилей больше не расходились между двумя отдельными JSX-копиями
+
+2026-03-14 11:50 | 546,88 ₽ | 16,41 мин | Турниры: те же скрытие полуфинальных цифр и тёмные золотые табы дотянуты до админских модалок — раньше эти правки были только в пользовательском рендере, из-за чего в админке визуально ничего не менялось
+
+2026-03-14 11:43 | 437,50 ₽ | 13,13 мин | Турниры: в пользовательской модалке вопросов скрыта полуфинальная цифровая статистика, а стиль табов переведён с синей заливки на чёрный вариант с золотым контуром только для игрока, без изменения админского визуала
+
+2026-03-14 11:35 | 656,25 ₽ | 19,69 мин | Турниры: в пользовательской сетке скрыты полуфинальные цифры, а в админскую таблицу добавлен столбец режима игры с мягким расширением сохранённого набора колонок без сброса пользовательского порядка
+
+2026-03-14 11:27 | 546,88 ₽ | 16,41 мин | Турниры: модалка просмотра вопросов переведена на реальный маршрут конкретного игрока — больше не подмешивает чужой полуфинальный допраунд вместо финала, а при открытии из строки `Финал` сразу показывает финальную вкладку и корректную статистику
+
+2026-03-14 11:18 | 437,50 ₽ | 13,13 мин | Турниры: колонка `Вопросы` в строках этапов переведена на этапный показ — для `Полуфинал` остаются только полуфинальные вопросы с допраундами, для `Финал` только финальные, при этом модалка по клику по-прежнему открывает полный разбор всех ответов игрока по турниру
+
+2026-03-14 11:13 | 875,00 ₽ | 26,25 мин | Турниры: resultLabel переведён на расширенный формат с очками и причиной поражения — сервер теперь отдаёт `Победа X-Y`, `Поражение X-Y` и `Поражение, время истекло`, а фронт обновлён на префиксную обработку таких статусов без жёсткой завязки на старые короткие строки
+
+2026-03-14 11:02 | 328,13 ₽ | 9,84 мин | Турниры: исправлена финальная display-подмена для finished-турниров — история больше не затирает серверный `resultLabel` старым expired-fallback и не показывает ложную `Победа`, когда в `tournament_result` уже записано обоюдное поражение
+
+2026-03-14 10:55 | 546,88 ₽ | 16,41 мин | Турниры: для старых finished-кейсов с ничейным финалом без чемпиона закреплено единое правило «оба проиграли по истечению времени» — серверный backfill теперь сохраняет всем `passed=0`, а списки/история показывают таким финалистам `Время истекло` вместо подвешенного результата
+
+2026-03-14 10:48 | 328,13 ₽ | 9,84 мин | Турниры: дочищен фронтовый хвост после общего пакета фиксов — из админской модалки убрана оставшаяся неиспользуемая клиентская переменная источника, чтобы сборка не тащила лишнее предупреждение поверх уже исправленной единой серверной логики
+
+2026-03-14 10:28 | 1 640,63 ₽ | 49,22 мин | Турниры: выполнен системный пакет фиксов логики — пересчёт ответов переведён на реальный порядок раундов, для финальных допраундов добавлен корректный таймерный переход, автозакрытие 1v1 по таймауту доведено до winner/status/result, модалка и список выровнены по общему timeline, а фронт очищен от оставшихся локальных догадок там, где они влияли на турнирное состояние
+
+2026-03-14 10:15 | 765,63 ₽ | 22,97 мин | Турниры: исправлено разнесение finished-турниров по active/history — проигравший финалист больше не остаётся в активных только из-за того, что сам не начал финал; если финал уже определён общей логикой, запись уходит в историю с согласованным результатом
+
+2026-03-14 10:08 | 656,25 ₽ | 19,69 мин | Турниры: модалки сетки в админке и профиле переведены на единый серверный источник правды — фронт больше не пересчитывает победителя финала по своим числам и использует только `finalWinnerId`, полученный из backend DTO
+
+2026-03-14 10:00 | 875,00 ₽ | 26,25 мин | Турниры: список `getMyTournaments` переведён на ту же finished-логику финала, что и сетка/backfill — устранено затирание `tournament_result` при кейсе, когда один финалист закончил финал, а второй нет; для finished-турниров статус и результат финалистов теперь согласованы между модалкой и таблицей
+
+2026-03-14 09:50 | 1 093,75 ₽ | 32,81 мин | Турниры: убрана ошибочная автопобеда при единственном финалисте — чемпион теперь определяется только по нормальному финалу или если противоположный полуфинал завершился сценарием «оба проиграли по таймауту»; дополнительно выполнен прямой ретропересчёт `tournament_progress` по finished-турнирам для выравнивания старых stage-агрегатов
+
+2026-03-14 09:38 | 984,38 ₽ | 29,53 мин | Прод-БД: выполнен прямой аудит и ретрофикс завершённых 4-игроковых турниров по фактическому progress; обновлены неверные строки `tournament_result`, в том числе по турниру 52 чемпион восстановлен как игрок 2
+
+2026-03-14 09:36 | 875,00 ₽ | 26,25 мин | Турниры: finished-backfill результатов расширен на кейс, когда один финалист закончил финал, а второй до финала не дошёл; такие завершённые турниры теперь получают корректного победителя по данным progress, что закрывает случай турнира 52
+
+2026-03-14 09:32 | 1 312,50 ₽ | 39,38 мин | Турниры: добавлен серверный backfill результатов для завершённых 4-игроковых турниров — победители полуфиналов и финала теперь пересчитываются по фактическому progress и корректно записываются в `tournament_result`, чтобы случаи вроде турнира 52 автоматически восстанавливались после рестарта
+
+2026-03-13 21:28 | 1 421,88 ₽ | 42,66 мин | Турнирные этапы: допраунды снова учитываются только после реальной ничьей на предыдущем шаге; убрано ложное суммирование лишних раундов в сетке и серверной логике, из-за которого обычные матчи начали показываться как `/20` и меняли победителя этапа
+
+2026-03-13 21:16 | 984,38 ₽ | 29,53 мин | Турнирные модалки и серверная логика этапов: исправлен регресс после перевода на суммарный итог этапа — для завершённых турниров победитель этапа снова определяется по общей сумме очков, а в сетке оба игрока этапа теперь показываются от общего объёма вопросов этапа, включая допраунды
+
+2026-03-13 21:02 | 1 640,63 ₽ | 49,22 мин | Турнирная логика этапов переведена на единый суммарный итог по этапу с учётом всех допраундов в полуфиналах и финалах; серверные расчёты победителя, перехода дальше, автозавершения и сетки синхронизированы, а на проде выполнена ретропроверка завершённых 4-игроковых турниров без найденных расхождений
+
+2026-03-13 20:40 | 546,88 ₽ | 16,41 мин | Модалки сетки турниров: в финале победитель теперь помечается по той сумме очков, которая показана в самой модалке, без изменения остальной логики турниров и других мест интерфейса
+
+2026-03-13 20:32 | 1 093,75 ₽ | 32,81 мин | Модалки сетки турниров: отображение счёта в полуфинале и финале переведено на итог по этапу с учётом допраундов, а пользовательская модалка профиля синхронизирована с серверным `finalWinnerId`, чтобы админка и профиль показывали одинаковые результаты
+
+2026-03-13 20:12 | 656,25 ₽ | 19,69 мин | Админка стоимости проекта: добавлена 4-я метрика с общим временем по проекту, а главный блок переведён в лендинговый стиль с чёрным фоном, белой суммой и золотыми акцентами
+
+2026-03-13 20:04 | 1 312,50 ₽ | 39,38 мин | Админка стоимости проекта: верхний блок упрощён до названия и суммы, убрана кнопка обновления, включено автообновление, описания в истории очищены от служебных пометок, а новые записи поддерживают время
+
+2026-03-13 | 1 968,75 ₽ | 59,06 мин | Админка: добавлена новая подвкладка «Стоимость проекта» в статистике с отдельным дашбордом; бэкенд теперь читает `.cursor/project-cost-tracking.md`, отдаёт текущее `Стало`, «За сегодня», время обновления и историю изменений с расчётом «стало после прироста», а на фронте показаны крупный KPI-блок и таблица истории с датой, временем, длительностью и описанием задачи
+
+2026-03-13 | 656,25 ₽ | 19,69 мин | Админка турниров: порядок столбцов теперь дублируется в localStorage и автоматически восстанавливается обратно в URL, если параметр `tournamentCols` пропал; это убирает самопроизвольный сброс пользовательской расстановки после навигации/обновления (база 12 мин × 1,5)
+
+2026-03-13 | 875,00 ₽ | 26,25 мин | Админка турниров: модалка сетки переведена на единый расчёт победителя финала из бэкенда (`finalWinnerId`) по той же формуле, что и таблица/результаты, чтобы убрать расхождение между модалкой и списком по турниру 30 и всем аналогичным случаям (база 16 мин × 1,5)
+
+2026-03-13 | 1 312,50 ₽ | 39,38 мин | Турниры: если в одном полуфинале оба игрока проиграли по таймауту, а во втором полуфинале есть победитель, он автоматически становится чемпионом; логика доведена до расчёта победителя, `userStatus`, результата финала без соперника и выплаты в money-режиме, затем выполнена подготовка к ретропроверке данных (база 18 мин × 2,0)
+
+2026-03-13 | 656,25 ₽ | 19,69 мин | Турниры: 1v1 полностью исключены из логики `Пройден` — для них `userStatus` всегда `Не пройден`, потому что победа в таком матче считается только выигранным полуфиналом и не означает прохождение всего турнира; затем сборка, деплой и проверка прода (база 12 мин × 1,5)
+
+2026-03-13 | 875,00 ₽ | 26,25 мин | Турниры: `userStatus` переведён на вычисление из фактического состояния турнира вместо опоры на сохранённый `tournament_result.passed` — в 4-игроковом турнире `Пройден` теперь только при реальной победе в финале, в 1v1 только при итоговой победе; это устраняет stale-данные в админке и профиле (база 16 мин × 1,5)
+
+2026-03-13 | 765,63 ₽ | 22,97 мин | Турниры: колонка «Турнир» (`userStatus`) больше не получает `Пройден` за победу в полуфинале или ожидание финала — для дублируемой записи о пройденном этапе ПФ статус турнира теперь `Не пройден`; `Пройден` остаётся только у победителя всего турнира (база 14 мин × 1,5)
+
+2026-03-13 | 984,38 ₽ | 29,53 мин | Турниры/админка: исправлено противоречие между active/history и статусом турнира — для активной записи теперь отдаётся вычисляемый display status (`waiting` или `active`), а `finished` остаётся только для истории; ошибочная правка про «Победа» в waiting-сценарии откатана (база 18 мин × 1,5)
+
+2026-03-13 | 765,63 ₽ | 22,97 мин | Турниры 1v1: в getResultLabel исправлена ветка finished — победитель больше не получает «Ожидание соперника», а корректно видит «Победа»; это убирает противоречие между статусом турнира и результатом в списках/админке (база 14 мин × 1,5)
+
+2026-03-13 | 656,25 ₽ | 19,69 мин | Админка турниров: обёртка таблицы сделана scroll-контейнером (overflow:auto + max-height:75vh), thead прилипает к top:0 внутри контейнера; убран весь JS-код для плавающей шапки и ResizeObserver; коммит/деплой/проверка прода (база 9 мин × 2,0)
+
+2026-03-13 | 984,38 ₽ | 29,53 мин | Админка турниров: убрана отдельная JS-копия шапки и включён нативный sticky прямо на реальных th таблицы с offset от верхнего хедера; сохранено закрепление колонки ID и выполнены сборка/деплой на прод (база 13,5 мин × 2,0)
+
+2026-03-13 | 1 093,75 ₽ | 32,81 мин | Админка турниров: плавающая шапка вынесена из горизонтального scroll-контейнера в отдельный sticky-слой с синхронизацией ширин и scrollLeft, чтобы строка заголовков реально закреплялась при вертикальной прокрутке; выполнены сборка и деплой на прод (база 15 мин × 2,0)
+
+2026-03-13 | 984,38 ₽ | 29,53 мин | Админка турниров: вместо нестабильного CSS sticky добавлена отдельная плавающая строка заголовков, которая измеряет ширины колонок и прилипает под верхний хедер; подписи «Турнир/Статус/Результат» переставлены по запросу (база 18 мин × 1,5)
+
+2026-03-13 | 765,63 ₽ | 22,97 мин | Админка турниров: строка заголовков привязана к реальной высоте верхнего sticky-хедера через ResizeObserver и CSS-переменную, чтобы прилипать строго под него при прокрутке (база 14 мин × 1,5)
+
+2026-03-13 | 656,25 ₽ | 19,69 мин | Админка турниров: усилено закрепление шапки таблицы через отдельную обёртку и border-collapse separate, заголовок столбца «Статус турнира» переименован в «Турнир» (база 12 мин × 1,5)
+
+2026-03-13 | 765,63 ₽ | 22,97 мин | Админка турниров: закреплены шапка и колонка ID при прокрутке, в столбце вопросов порядок значений изменён на всего/отвечено/правильно (база 14 мин × 1,5)
+
+2026-03-13 | 1 093,75 ₽ | 32,81 мин | Турниры 1v1: найден и исправлен корневой перезаписывающий баг в getMyTournaments — finished head-to-head турниры больше не затирают победителя в passed=0 при каждом открытии списка игр (база 15 мин × 2,0)
+
+2026-03-13 | 1 312,50 ₽ | 39,38 мин | Турниры 1v1: исправлена запись победителя в completeTournament и добавлен серверный backfill resolved head-to-head результатов/статусов по фактическому progress, чтобы массово восстановить старые finished/waiting турниры (база 18 мин × 2,0)
+
+2026-03-13 | 984,38 ₽ | 29,53 мин | Админка турниров: модалки сетки и вопросов переведены на admin-просмотр от лица участника строки через отдельные роуты с userId, чтобы открывались турниры, где админ не является игроком (база 18 мин × 1,5)
+
+2026-03-13 | 1 640,63 ₽ | 49,22 мин | Турниры: генерация уникальных вопросов по всему турниру — разнесены полуфиналы, финал и тайбрейки без повторов; обновлена документация и проверены открытые турниры в прод-БД на безопасный ретрофикс (база 22,5 мин × 2,0)
+
+2026-03-13 | 1 093,75 ₽ | 32,81 мин | Документация: создан отдельный файл с полной картой логики турниров по коду проекта — сущность, режимы, этапы, active/history, прогресс, таймеры, escrow, модалки и админка (база 20 мин × 1,5)
+
+2026-03-13 | 328,13 ₽ | 9,84 мин | Админка турниров: убрана кнопка сброса порядка столбцов, столбец «Результат» выровнен по центру (база 6 мин × 1,5)
+
+2026-03-13 | 1 312,50 ₽ | 39,38 мин | Админка: ID турнира и вопросы в таблице сделали кликабельными с открытием модалок сетки и вопросов как у игрока; drag-and-drop столбцов перенесён с иконки на само название заголовка (база 24 мин × 1,5)
+
+2026-03-13 | 765,63 ₽ | 22,97 мин | Админка: перестановка столбцов турниров через drag-and-drop за хэндл из точек вместо кнопок сдвига, с сохранением порядка в URL и визуальной подсветкой цели (база 14 мин × 1,5)
+
+2026-03-13 | 437,50 ₽ | 13,13 мин | Cursor: закреплено отдельное always-apply правило о поведении по умолчанию после правок — коммит, push, деплой, проверка продакшена и расчёт стоимости (база 8 мин × 1,5)
+
+2026-03-13 | 656,25 ₽ | 19,69 мин | Прод: безопасная очистка серверного репозитория через stash, git pull актуального main, сборка backend/frontend, pm2 restart и проверка ответа сайта (база 9 мин × 2,0)
+
+2026-03-13 | 765,63 ₽ | 22,97 мин | Админка: перестановка столбцов в таблице турниров, кнопки сдвига в заголовках, сохранение порядка в URL и кнопка сброса (база 14 мин × 1,5)
+
+2026-03-13 | 1 458,33 ₽ | 43,75 мин | Турниры у пользователей: исправлен runtime ReferenceError в getMyTournaments, восстановлены 28 tournament_entry из playerOrder на проде, убран риск затирания связи players (база 20 мин × 2,0)
+
+2026-03-13 | 1 093,75 ₽ | 32,81 мин | Активные игры: backfill для training+money; TypeORM первым, raw fallback; mode по умолчанию training; «Загрузка…» для тренировки (база 20 мин × 1,5)
+
+2026-03-13 | 270,00 ₽ | 8,1 мин | Противостояние: fallback raw SQL для ID (progress+entry), camelCase+snake_case; backfill snake_case при ошибке (база 10 мин × 1,5)
+
+2026-03-13 | 393,75 ₽ | 11,81 мин | Противостояние: backfill из progress+entry; добавление игрока через INSERT в join + update(playerOrder), без save(tournament); откат через DELETE+update (база 15 мин × 1,5)
+
+2026-03-13 | 270,00 ₽ | 8,1 мин | Противостояние: сбор ID только через TypeORM (progress, entry, players join), без raw SQL (база 8 мин × 1,5)
+
+2026-03-13 | 145,00 ₽ | 4,35 мин | getMyTournaments: try/catch в контроллере — при ошибке 200 + empty; escrows/sync не ломают поток (база 5 мин × 1,5)
+
+2026-03-13 | 245,00 ₽ | 7,35 мин | исправление 500: результат connection.query() — объект с .rows, брать result.rows (база 7 мин × 1,5)
+
+2026-03-13 | 328,13 ₽ | 9,84 мин | противостояние: один SQL для ID (progress/entry/players), fallback snake_case; отдельный state gameHistoryMoney и «Загрузка…» на фронте (база 12 мин × 1,5)
+
+2026-03-13 | 787,50 ₽ | 23,63 мин | противостояние: 4 источника ID (progress, entry ORM, entry raw, players raw), оба варианта колонок, нормализация mode в контроллере (база 18 мин × 1,5)
+
+2026-03-13 | 1 092,71 ₽ | 32,78 мин | противостояние: список турниров по tournament_progress, не по join players (надёжный источник участия) (база 25 мин × 1,5)
+
+2026-03-13 | 820,31 ₽ | 24,61 мин | getMyTournaments: не затирать денежные турниры (gameType NULL+leagueAmount → money; восстановление training+leagueAmount → money) (база 15 мин × 1,5)
+
+2026-03-13 | 1 093,75 ₽ | 32,81 мин | админка «Турниры»: только поле поиска по ID (без кнопки), турниры всех игроков (training+money), колонки этап/старт раунда/осталось до конца/статус/вопросы (база 20 мин × 1,5)
+
+2026-03-13 | 873,93 ₽ | 26,22 мин | админка «Турниры»: убрана кнопка, фильтр по ID турнира (URL), все колонки как у игрока + ник и фаза, бэкенд try/catch по пользователям (база 16 мин × 1,5)
+
+2026-03-13 | 729,17 ₽ | 21,88 мин | админка «Турниры»: колонки статус турнира и дата создания, отображение ошибки загрузки, кнопка «Обновить», подписи статусов по-русски (база 12 мин × 1,5)
+
+2026-03-13 | 1 367,19 ₽ | 41,02 мин | админка: вкладка «Турниры» в статистике — все турниры по всем игрокам, столбцы ID турнира, ник, ID игрока, фаза (активный/история), сортировка по ID (база 25 мин × 1,5)
+
+2026-03-13 | 1 458,33 ₽ | 43,75 мин | победа/поражение только при «оба ответили» или «24 ч истекли»; первый финалист без таймера до прихода второго, таймеры при входе второго с учётом «ответил на все — таймер не запускается» (база 20 мин × 2,0)
+
+2026-03-13 | 911,46 ₽ | 27,34 мин | турнир 52: переход в финал в модалке, таймер у финалистов, статус «Этап не пройден»/«Ожидание соперника» вместо «Поражение»/«Время истекло» (getResultLabel, getTournamentState, didUserWinSemiFinal, getTrainingState таймер)
+
+2026-03-13 | 656,25 ₽ | 19,69 мин | выиграл ПФ, но не начал финал: турнир не в истории, в активных с доступом к финалу, в истории запись «Полуфинал» + «Победа» (анализ поведения + проектирование + правка)
+
+2026-03-13 | 656,25 ₽ | 19,69 мин | этап в истории: только Полуфинал/Финал; победа в доп.раунде при завершении одним игроком → переход в финал
+
+2026-03-13 | 437,50 ₽ | 13,13 мин | вопросы без ?????: двойная перекодировка в санитизаторе и в скрипте fix-question-encoding
+
+2026-03-13 | 145,83 ₽ | 4,37 мин | в модалке турниров: «Ожидание игрока» → «Ожидание соперника»
+
+2026-03-13 | 182,29 ₽ | 5,47 мин | бейдж в модалке турнира только по источнику (активные/история)
+
+2026-03-13 | 393,75 ₽ | 11,81 мин | старт раунда в истории не позже даты завершения (cap)
+
+2026-03-13 | 546,88 ₽ | 16,41 мин | дата завершения из реальных данных пары, иначе по старту раунда
+
+2026-03-13 | 765,63 ₽ | 22,97 мин | при отсутствии соперника в паре — не «Победа», турнир в активных, ожидание соперника
+
+2026-03-13 | 328,13 ₽ | 9,84 мин | computeSemiResult + isPlayerInFinalPhase: при отсутствии соперника — waiting / не в финале (везде)
+
+2026-03-13 | 875,00 ₽ | 26,25 мин | отображение вопросов: санитизация UTF-8 при отдаче, charset в ответах, скрипт исправления кодировки в БД
+
+Начальная стоимость проекта (не выводить в историю): 635 000,00 ₽
