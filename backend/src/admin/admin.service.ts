@@ -575,8 +575,12 @@ export class AdminService {
               : null;
           const adminId = parsedAdminId ?? fallbackAdminId;
           const cached = adminId ? adminMap[adminId] : undefined;
-          const adminName = String(r.adminUsername ?? cached?.username ?? '');
-          const adminMail = String(r.adminEmail ?? cached?.email ?? '');
+          const adminName = adminId
+            ? String(r.adminUsername ?? cached?.username ?? '')
+            : '';
+          const adminMail = adminId
+            ? String(r.adminEmail ?? cached?.email ?? '')
+            : '';
           return {
             id: Number(r.id),
             userId: Number(r.userId),
