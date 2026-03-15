@@ -78,6 +78,8 @@ type TrainingData = {
 
 type TrainingRound = 0 | 1 | 2 | 3; // 0 = semi1, 1 = semi2, 2 = final, 3 = tiebreaker
 
+const NICKNAME_MAX_LEN = 100;
+
 /** Названия лиг по камням (от дешёвого к дорогому) */
 const LEAGUE_GEMS: Record<number, { name: string; color: string }> = {
   5: { name: "Янтарная лига", color: "#F5C842" },
@@ -3946,10 +3948,10 @@ const Profile: React.FC<ProfileProps> = ({
                         value={nickname}
                         onChange={(e) =>
                           setNickname(
-                            e.target.value.slice(0, BRACKET_NAME_MAX_LEN),
+                            e.target.value.slice(0, NICKNAME_MAX_LEN),
                           )
                         }
-                        maxLength={BRACKET_NAME_MAX_LEN}
+                        maxLength={NICKNAME_MAX_LEN}
                         className="profile-nickname-input"
                       />
                     </div>

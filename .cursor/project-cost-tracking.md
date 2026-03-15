@@ -1,7 +1,8 @@
-801913.02
-За сегодня (2026-03-15): 31 602,09 ₽
+802569.27
+За сегодня (2026-03-15): 32 258,34 ₽
 
 # Последние изменения (для резюме по задаче). Формат: YYYY-MM-DD HH:MM | Z ₽ | N ч M мин | описание. «За сегодня» — сумма всех Z за текущий день.
+2026-03-15 07:57 | 656,25 ₽ | 0 ч 18 мин | Профиль/frontend: устранён runtime-crash кабинета `BRACKET_NAME_MAX_LEN is not defined` — в `Profile.tsx` восстановлен фронтовый лимит ника по реальному backend contract (`100`), после чего пройдены frontend build, commit/push, production deploy и проверка загрузки кабинета
 2026-03-15 07:50 | 1 531,25 ₽ | 0 ч 42 мин | Прод-БД/админка: найдено, что спорные legacy-начисления действительно шли через `POST /admin/credit-balance`, но старый write-path не сохранял автора; добавлен отдельный backfill-скрипт с выборкой `до/после` для ретровосстановления подтверждённых adminId по legacy manual topup, после чего подготовлены commit/push/deploy и production endpoint-check
 2026-03-15 07:37 | 1 509,38 ₽ | 0 ч 36 мин | Админка/backend+frontend: для legacy-начислений возвращён подтверждённый self-admin fallback только там, где старый `topup` реально принадлежит админ-аккаунту, старый `users/add-balance` переведён на структурированную запись автора начисления, а пустая ячейка `Админ` в истории удерживает нормальную высоту; локально пройдены backend test/build, frontend build и runtime-check через `dev:live`, затем подготовлены commit/push/deploy и production-check
 2026-03-15 07:27 | 656,25 ₽ | 0 ч 18 мин | Админка/backend: найден финальный баг attribution-слоя — даже после обнуления `adminId` legacy-строки продолжали брать `adminUsername/adminEmail` прямо из SQL-джойна по `tournamentId=userId`, поэтому игрок всё ещё отображался как админ; read-path исправлен так, что joined admin поля используются только при подтверждённом `adminId`, после чего выполнены backend build/test/e2e, commit/push/deploy и target endpoint-check
