@@ -13,6 +13,12 @@ const USER1_RACE_DRIFT_DESCRIPTION =
   'Manual recovery: reconcile 5 L drift before tx #25';
 const USER2_TX232_DESCRIPTION =
   'Legacy ruble topup, manual review approved';
+const USER1_NORMALIZED_CONVERTS = [
+  { id: 25, amount: -80, description: '80 L → 80 ₽' },
+  { id: 26, amount: 80, description: '80 ₽ → 80 L' },
+  { id: 35, amount: -50, description: '50 L → 50 ₽' },
+  { id: 36, amount: 50, description: '50 ₽ → 50 L' },
+] as const;
 
 type ExistingTxRow = {
   id: number;
@@ -36,11 +42,13 @@ async function main() {
       `SELECT id, "userId", amount, category, description, "createdAt"
        FROM "transaction"
        WHERE ("userId" = 1 AND description IN ($1, $2))
+          OR id = ANY($3::int[])
           OR id = 232
        ORDER BY id ASC`,
       [
         USER1_OPENING_L_DESCRIPTION,
         USER1_RACE_DRIFT_DESCRIPTION,
+        USER1_NORMALIZED_CONVERTS.map((row) => row.id),
       ],
     )) as ExistingTxRow[];
 
@@ -51,14 +59,6 @@ async function main() {
         Number(row.amount) === 100 &&
         String(row.description ?? '') === USER1_OPENING_L_DESCRIPTION,
     );
-    const raceTxExists = existingRecoveryRows.some(
-      (row) =>
-        Number(row.userId) === 1 &&
-        row.category === 'other' &&
-        Number(row.amount) === 5 &&
-        String(row.description ?? '') === USER1_RACE_DRIFT_DESCRIPTION,
-    );
-
     const tx232Before = (await dataSource.query(
       `SELECT id, "userId", amount, category, description, "tournamentId", "createdAt"
        FROM "transaction"
@@ -103,12 +103,22 @@ async function main() {
         );
       }
 
-      if (!raceTxExists) {
+      await manager.query(
+        `DELETE FROM "transaction"
+         WHERE "userId" = 1
+           AND description = $1`,
+        [USER1_RACE_DRIFT_DESCRIPTION],
+      );
+
+      for (const convert of USER1_NORMALIZED_CONVERTS) {
         await manager.query(
-          `INSERT INTO "transaction"
-             ("userId", amount, description, "tournamentId", category, "createdAt")
-           VALUES ($1, $2, $3, NULL, 'other', $4)`,
-          [1, 5, USER1_RACE_DRIFT_DESCRIPTION, '2026-03-09T09:59:38.000Z'],
+          `UPDATE "transaction"
+           SET amount = $1,
+               description = $2
+           WHERE id = $3
+             AND "userId" = 1
+             AND category = 'convert'`,
+          [convert.amount, convert.description, convert.id],
         );
       }
 
@@ -134,11 +144,13 @@ async function main() {
       `SELECT id, "userId", amount, category, description, "tournamentId", "createdAt"
        FROM "transaction"
        WHERE ("userId" = 1 AND description IN ($1, $2))
+          OR id = ANY($3::int[])
           OR id = 232
        ORDER BY id ASC`,
       [
         USER1_OPENING_L_DESCRIPTION,
         USER1_RACE_DRIFT_DESCRIPTION,
+        USER1_NORMALIZED_CONVERTS.map((row) => row.id),
       ],
     );
 

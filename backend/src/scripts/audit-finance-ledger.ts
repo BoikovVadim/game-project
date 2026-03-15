@@ -12,6 +12,10 @@ import {
   parseAnyWithdrawalDescription,
   parsePaymentTopupDescription,
 } from '../users/ruble-ledger-descriptions';
+import {
+  applyLedgerTransactionToBalanceState,
+  sortTransactionsByTimeline,
+} from '../users/transaction-balance-history';
 
 type BasicUserRow = {
   id: number;
@@ -243,13 +247,18 @@ async function main() {
     const topupRows = txRows.filter((row) => row.category === 'topup');
     const escrowByUserTournament = new Map<string, EscrowRow[]>();
     const earliestEventByUser = new Map<number, number>();
+    const txRowsByUser = new Map<number, TxRow[]>();
 
     for (const row of txRows) {
+      const userId = Number(row.userId);
+      const userRows = txRowsByUser.get(userId) ?? [];
+      userRows.push(row);
+      txRowsByUser.set(userId, userRows);
       const createdAtMs = toMillis(row.createdAt);
       if (createdAtMs != null) {
-        const current = earliestEventByUser.get(Number(row.userId));
+        const current = earliestEventByUser.get(userId);
         if (current == null || createdAtMs < current) {
-          earliestEventByUser.set(Number(row.userId), createdAtMs);
+          earliestEventByUser.set(userId, createdAtMs);
         }
       }
       if (row.category === 'withdraw') {
@@ -326,6 +335,32 @@ async function main() {
         if (current == null || createdAtMs < current) {
           earliestEventByUser.set(Number(row.userId), createdAtMs);
         }
+      }
+    }
+
+    for (const [userId, userTxRows] of txRowsByUser.entries()) {
+      let running = { rubles: 0, balanceL: 0 };
+      for (const row of sortTransactionsByTimeline(userTxRows)) {
+        const amount = Number(row.amount);
+        if (row.category === 'convert' && amount < 0) {
+          const required = Math.abs(amount);
+          if (running.balanceL < required) {
+            pushIssue(
+              deterministicIssues,
+              'convert_without_sufficient_ledger_balance',
+              {
+                userId,
+                transactionId: Number(row.id),
+                required,
+                balanceBefore: running.balanceL,
+                shortfall: required - running.balanceL,
+                description: row.description,
+                createdAt: toIso(row.createdAt),
+              },
+            );
+          }
+        }
+        running = applyLedgerTransactionToBalanceState(running, row);
       }
     }
 
