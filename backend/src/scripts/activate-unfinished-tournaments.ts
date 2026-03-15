@@ -12,7 +12,7 @@ async function main() {
 
   try {
     const tournamentsService = app.get(TournamentsService);
-    const result = await tournamentsService.backfillStartedWaitingTournamentsToActive();
+    const result = await tournamentsService.backfillWaitingTournamentsToActive();
     console.log(
       JSON.stringify(
         {

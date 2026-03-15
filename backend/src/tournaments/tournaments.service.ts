@@ -2153,7 +2153,7 @@ export class TournamentsService implements OnModuleInit {
     }
   }
 
-  private async promoteStartedWaitingTournamentsToActive(): Promise<number[]> {
+  private async promoteWaitingTournamentsToActive(): Promise<number[]> {
     const waitingTournaments = await this.tournamentRepository.find({
       where: { status: TournamentStatus.WAITING },
       relations: ['players'],
@@ -2182,17 +2182,16 @@ export class TournamentsService implements OnModuleInit {
   }
 
   /**
-   * Поднимает старые незавершённые турниры в active, если они уже начались по новым правилам.
+   * Поднимает все незавершённые waiting-турниры в active по новому правилу.
    */
   private async cancelUnfilledTournaments(): Promise<void> {
-    await this.promoteStartedWaitingTournamentsToActive();
+    await this.promoteWaitingTournamentsToActive();
   }
 
-  async backfillStartedWaitingTournamentsToActive(): Promise<{
+  async backfillWaitingTournamentsToActive(): Promise<{
     updatedTournamentIds: number[];
   }> {
-    const updatedTournamentIds =
-      await this.promoteStartedWaitingTournamentsToActive();
+    const updatedTournamentIds = await this.promoteWaitingTournamentsToActive();
     return { updatedTournamentIds };
   }
 
@@ -2874,7 +2873,7 @@ export class TournamentsService implements OnModuleInit {
       );
     } else {
       tournament = this.tournamentRepository.create({
-        status: TournamentStatus.WAITING,
+        status: TournamentStatus.ACTIVE,
         players: [user],
         gameType: 'training',
         playerOrder: [user.id],
@@ -3305,7 +3304,7 @@ export class TournamentsService implements OnModuleInit {
         await this.syncTournamentActiveStatusWithManager(manager, tournament.id);
       } else {
         tournament = tournamentRepository.create({
-          status: TournamentStatus.WAITING,
+          status: TournamentStatus.ACTIVE,
           players: [user],
           gameType: 'money',
           leagueAmount,

@@ -59,7 +59,7 @@ async function main() {
       pushIssue(deterministicIssues, 'waiting_single_slot_artifacts', row);
     }
 
-    const waitingStarted = (await dataSource.query(
+    const waitingNotActive = (await dataSource.query(
       `SELECT t.id AS "tournamentId",
               t.status AS status,
               t."gameType" AS "gameType",
@@ -70,8 +70,6 @@ async function main() {
        LEFT JOIN tournament_progress p ON p."tournamentId" = t.id
        WHERE t.status = 'waiting'
        GROUP BY t.id, t.status, t."gameType", t."leagueAmount", t."playerOrder"
-       HAVING COALESCE(json_array_length(COALESCE(t."playerOrder"::json, '[]'::json)), 0) >= 2
-           OR COUNT(DISTINCT p.id) > 0
        ORDER BY t.id ASC`,
     )) as Array<{
       tournamentId: number;
@@ -81,8 +79,8 @@ async function main() {
       playerOrderCount: number;
       progressCount: number;
     }>;
-    for (const row of waitingStarted) {
-      pushIssue(deterministicIssues, 'waiting_started_not_active', row);
+    for (const row of waitingNotActive) {
+      pushIssue(deterministicIssues, 'waiting_not_active', row);
     }
 
     const userRows = (await dataSource.query(

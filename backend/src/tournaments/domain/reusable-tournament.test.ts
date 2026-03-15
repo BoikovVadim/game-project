@@ -27,14 +27,14 @@ test('promotes waiting tournaments with multiple players to active', () => {
   );
 });
 
-test('keeps fresh single-player waiting tournaments waiting', () => {
+test('promotes fresh single-player waiting tournaments to active', () => {
   assert.equal(
     shouldTournamentBeActive({
       status: 'waiting',
       playerCount: 1,
       progressCount: 0,
     }),
-    false,
+    true,
   );
 });
 

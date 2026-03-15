@@ -12,9 +12,9 @@ export function shouldTournamentBeActive(args: {
   playerCount: number;
   progressCount: number;
 }): boolean {
-  const { status, playerCount, progressCount } = args;
+  const { status } = args;
   if (status !== 'waiting') return false;
-  return playerCount >= 2 || progressCount > 0;
+  return true;
 }
 
 export function compareReusableTournamentCandidates(
