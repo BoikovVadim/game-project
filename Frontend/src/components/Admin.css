@@ -1143,7 +1143,7 @@
 
 .admin-table--project-cost td.admin-cost-description {
   max-width: 720px;
-  white-space: normal;
+  white-space: pre-line;
   line-height: 1.4;
 }
 

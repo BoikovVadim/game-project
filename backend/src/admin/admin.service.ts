@@ -49,12 +49,29 @@ function sanitizeProjectCostDescription(value: string): string {
     .trim();
 }
 
+function normalizeProjectCostDescriptionBlock(lines: string[]): string {
+  const normalized = lines
+    .map((line) => line.replace(/\s+$/g, ''))
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  return normalized
+    .split('\n')
+    .map((line, index) =>
+      index === 0 ? sanitizeProjectCostDescription(line) : line.trimEnd(),
+    )
+    .join('\n')
+    .trim();
+}
+
 function parseDurationToMinutes(value: string | null | undefined): number {
   const text = String(value ?? '').trim();
   if (!text) return 0;
-  const hours = text.match(/(\d+)\s*ч/);
-  const minutes = text.match(/(\d+)\s*мин/);
-  return Number(hours?.[1] ?? 0) * 60 + Number(minutes?.[1] ?? 0);
+  const hours = text.match(/(\d+(?:[.,]\d+)?)\s*ч/);
+  const minutes = text.match(/(\d+(?:[.,]\d+)?)\s*мин/);
+  return (
+    parseRubles(hours?.[1] ?? '0') * 60 + parseRubles(minutes?.[1] ?? '0')
+  );
 }
 
 function formatDurationLabel(totalMinutes: number): string {
@@ -882,20 +899,39 @@ export class AdminService {
         };
       }
 
-      const lines = file.content
-        .split(/\r?\n/)
+      const sourceLines = file.content.split(/\r?\n/);
+      const metadataLines = sourceLines
         .map((line) => line.trim())
         .filter(Boolean);
 
-      const currentTotal = roundMoney(Number(lines[0] ?? 0));
-      const todayTotal = parseRubles(lines[1]?.match(/:\s*(.+)$/)?.[1] ?? '0');
+      const currentTotal = roundMoney(Number(metadataLines[0] ?? 0));
+      const todayTotal = parseRubles(
+        metadataLines[1]?.match(/:\s*(.+)$/)?.[1] ?? '0',
+      );
       const rawHistory: RawProjectCostEntry[] = [];
-      for (const [sourceIndex, line] of lines.entries()) {
+      const entryBlocks: Array<{ sourceIndex: number; lines: string[] }> = [];
+      let activeBlock: { sourceIndex: number; lines: string[] } | null = null;
+
+      for (const [sourceIndex, rawLine] of sourceLines.entries()) {
+        const line = rawLine.trimEnd();
         if (
-          !/^\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2})?)?\s+\|/.test(line)
-        )
+          /^\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2})?)?\s+\|/.test(
+            line.trim(),
+          )
+        ) {
+          if (activeBlock) entryBlocks.push(activeBlock);
+          activeBlock = { sourceIndex, lines: [line.trim()] };
           continue;
-        const parts = line.split('|').map((part) => part.trim());
+        }
+        if (activeBlock) {
+          activeBlock.lines.push(line);
+        }
+      }
+      if (activeBlock) entryBlocks.push(activeBlock);
+
+      for (const block of entryBlocks) {
+        const [headerLine, ...bodyLines] = block.lines;
+        const parts = headerLine.split('|').map((part) => part.trim());
         if (parts.length < 4) continue;
 
         const [dateTimePart, amountPart, durationPart, ...descriptionParts] =
@@ -911,15 +947,22 @@ export class AdminService {
           `${date}T${time ?? '00:00'}:00+03:00`,
         ).toISOString();
         rawHistory.push({
-          sourceIndex,
+          sourceIndex: block.sourceIndex,
           sortTimestamp,
           timestamp: time ? sortTimestamp : null,
           date,
           time,
           amountChange: roundMoney(parseRubles(amountPart)),
           duration: durationPart,
-          description: sanitizeProjectCostDescription(
-            descriptionParts.join(' | '),
+          description: normalizeProjectCostDescriptionBlock(
+            [descriptionParts.join(' | '), ...bodyLines].filter(
+              (line, index, allLines) => {
+                if (line.trim()) return true;
+                const prev = allLines[index - 1]?.trim() ?? '';
+                const next = allLines[index + 1]?.trim() ?? '';
+                return Boolean(prev && next);
+              },
+            ),
           ),
         });
       }
