@@ -58,7 +58,7 @@ export function useCabinetRouteState(defaultSection: CabinetSection = 'news') {
       const next = new URLSearchParams(prev);
       next.set('section', nextSection);
       return next;
-    }, { replace: true });
+    }, { replace: false });
   }, [setSearchParams]);
 
   const setGameMode = useCallback((nextMode: CabinetGameMode) => {
@@ -68,7 +68,7 @@ export function useCabinetRouteState(defaultSection: CabinetSection = 'news') {
       else if (nextMode === 'money') next.set('section', 'games-money');
       else next.set('section', 'games');
       return next;
-    }, { replace: true });
+    }, { replace: false });
   }, [setSearchParams]);
 
   const setStatsMode = useCallback((nextMode: CabinetStatsMode) => {
@@ -78,7 +78,7 @@ export function useCabinetRouteState(defaultSection: CabinetSection = 'news') {
       if (nextMode === 'general') next.set('statsMode', 'general');
       else next.delete('statsMode');
       return next;
-    }, { replace: true });
+    }, { replace: false });
   }, [setSearchParams]);
 
   const setSelectedLeague = useCallback((nextLeague: number | null) => {
@@ -87,7 +87,7 @@ export function useCabinetRouteState(defaultSection: CabinetSection = 'news') {
       if (nextLeague == null || nextLeague <= 0) next.delete('league');
       else next.set('league', String(nextLeague));
       return next;
-    }, { replace: true });
+    }, { replace: false });
   }, [setSearchParams]);
 
   return {

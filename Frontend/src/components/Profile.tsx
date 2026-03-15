@@ -851,7 +851,7 @@ const Profile: React.FC<ProfileProps> = ({
       (next) => {
         next.set("section", newHash || "news");
       },
-      { replace: true },
+      { replace: false },
     );
     setSection(sectionToSet);
   };
@@ -864,7 +864,7 @@ const Profile: React.FC<ProfileProps> = ({
         (next) => {
           next.set("section", newSection);
         },
-        { replace: true },
+        { replace: false },
       );
     } else {
       setSection("games");
@@ -873,7 +873,7 @@ const Profile: React.FC<ProfileProps> = ({
           (next) => {
             next.set("section", "games");
           },
-          { replace: true },
+          { replace: false },
         );
       }
     }
@@ -3021,7 +3021,7 @@ const Profile: React.FC<ProfileProps> = ({
               (next) => {
                 next.set("section", "games");
               },
-              { replace: true },
+              { replace: false },
             );
             setSection("games");
           }}
@@ -5884,7 +5884,7 @@ const Profile: React.FC<ProfileProps> = ({
                   (next) => {
                     next.set("section", h);
                   },
-                  { replace: true },
+                  { replace: false },
                 );
                 setSection(newSection);
                 setHashVersion((v) => v + 1);
