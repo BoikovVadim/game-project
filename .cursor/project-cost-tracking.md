@@ -1,7 +1,24 @@
-897325.82
-За сегодня (2026-03-15): 123 468,57 ₽
+900159.15
+За сегодня (2026-03-15): 126 301,90 ₽
 
 # Последние изменения. Формат записи: YYYY-MM-DD HH:MM | Z ₽ | оплачиваемое время | описание. Если у задачи есть клиентская разбивка, она идёт отдельным списком ниже. Внутренние расчёты и ретроспектива на сайт не выводятся.
+2026-03-15 18:20 | 2 833,33 ₽ | 1 ч 25 мин | Турниры/backend+global-participant-drift-audit+repair+deploy: выполнен полный повторный аудит турниров на тот же класс багов, который всплыл на `T11`. Найден системный legacy drift: reusable-selector всё ещё зависел от relation `players` для `hasCurrentUser`, а production-хвост содержал отсутствующие строки в `tournament_players_user` и `tournament_entry`, из-за чего open-slot join/resume мог расходиться с фактическими `playerOrder/progress`. Selector переведён на объединённый состав из `playerOrder + players + entry + progress`, `audit:tournaments` дополнен детекторами `missing_players_join_rows` и `missing_entry_rows_for_player_order`, а `repair:tournaments` теперь автоматически запускает participant backfill. Локально подтверждены `build backend`, `repair -> audit = 0`, `verify:tournaments`; на production после выката выполнены `repair:tournaments`, новый `audit:tournaments = 0`, прямой SQL-check `missingPlayersJoin=0`, `missingEntryRows=0`, а public health-check вернул `200`.
+
+Разбивка:
+- Погружение: 12 мин.
+- Проектирование: 8 мин.
+- Реализация: 11 мин.
+- Cleanup: 4 мин.
+- Проверка: 18 мин.
+- Delivery: 12 мин.
+
+Ретроспектива:
+- Базовое время: 65 мин.
+- Коэффициент: 1.30
+- Оплачиваемое время: 1 ч 25 мин.
+- Ставка: 2000 ₽ / час.
+- Формула: 85 мин × 2000 ₽ / 60 мин = 2 833,33 ₽.
+
 2026-03-15 17:59 | 2 166,67 ₽ | 1 ч 5 мин | Турниры/backend+prod-retrofix+t11-final-access+deploy: по кейсу `турнир 11` закрыт split source of truth между списком турниров и live prepare-path. В `didUserWinSemiFinal()` убран legacy-запрет, из-за которого semifinal winner в недобранном money-турнире видел `final_ready/canContinue`, но `prepareTrainingState` не открывал ему финальные вопросы. Дополнительно на production восстановлена relation-связь участников `tournament_players_user` для `T11`, чтобы она снова совпадала с `entry/progress`. После правки подтверждены `build backend`, `verify:tournaments`, commit/push/deploy, production `prepare(user 6, T11) -> questionsFinal=10`, reusable preview `user 2 / 5L -> candidateTournamentId=11` и public health-check `200`.
 
 Разбивка:
