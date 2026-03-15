@@ -609,6 +609,104 @@ export class TournamentsService implements OnModuleInit {
     );
   }
 
+  private getCurrentRoundTimeoutResolution(
+    tournament: Tournament,
+    userId: number,
+    progress: TournamentProgress | null | undefined,
+    allProgress: TournamentProgress[],
+    resolutionMap: Map<string, TournamentRoundResolution>,
+  ): TournamentRoundResolution | null {
+    const inFinal = this.isPlayerInFinalPhase(
+      progress,
+      allProgress,
+      tournament,
+      resolutionMap,
+    );
+    return inFinal
+      ? this.getFinalTimeoutResolutionFromMap(tournament, resolutionMap)
+      : this.getOwnSemiTimeoutResolutionFromMap(tournament, userId, resolutionMap);
+  }
+
+  private async assertTournamentProgressWritable(
+    tournament: Tournament,
+    userId: number,
+    progress: TournamentProgress | null | undefined,
+    allProgress: TournamentProgress[],
+    now: Date,
+  ): Promise<void> {
+    const timeoutResolutionMap = await this.synchronizeTournamentTimingState(
+      tournament,
+      allProgress,
+      now,
+    );
+    const blockReason = this.getTournamentProgressWriteBlockReason(
+      tournament,
+      userId,
+      progress,
+      allProgress,
+      timeoutResolutionMap,
+      now,
+    );
+    if (blockReason) {
+      throw new BadRequestException(blockReason);
+    }
+  }
+
+  private async synchronizeTournamentTimingState(
+    tournament: Tournament,
+    allProgress: TournamentProgress[],
+    now: Date,
+  ): Promise<Map<string, TournamentRoundResolution>> {
+    await this.backfillTimeoutRoundResolutions([tournament.id]);
+    const timeoutResolutionMap = await this.getTournamentTimeoutResolutionMap(
+      tournament.id,
+    );
+    await this.finalizeTournamentIfResolved(
+      tournament,
+      allProgress,
+      timeoutResolutionMap,
+      now,
+      true,
+    );
+    return timeoutResolutionMap;
+  }
+
+  private getTournamentProgressWriteBlockReason(
+    tournament: Tournament,
+    userId: number,
+    progress: TournamentProgress | null | undefined,
+    allProgress: TournamentProgress[],
+    timeoutResolutionMap: Map<string, TournamentRoundResolution>,
+    now: Date,
+  ): string | null {
+    if (tournament.status === TournamentStatus.FINISHED) {
+      return 'Tournament is finished';
+    }
+
+    const timeoutResolution = this.getCurrentRoundTimeoutResolution(
+      tournament,
+      userId,
+      progress,
+      allProgress,
+      timeoutResolutionMap,
+    );
+    if (this.getTimeoutOutcomeForUser(timeoutResolution, userId)) {
+      return 'Round deadline expired';
+    }
+
+    const currentRoundStartedAt = this.getCurrentRoundSharedStart(
+      tournament,
+      userId,
+      progress,
+      allProgress,
+      timeoutResolutionMap,
+    );
+    if (this.isRoundDeadlinePassed(currentRoundStartedAt, now)) {
+      return 'Round deadline expired';
+    }
+    return null;
+  }
+
   async onModuleInit(): Promise<void> {
     this.logger.log(
       'Tournament startup backfills are disabled by default; use explicit maintenance actions when needed.',
@@ -890,22 +988,12 @@ export class TournamentsService implements OnModuleInit {
         (finalist2.questionsAnsweredCount ?? 0) >= finalTargets.p2Target;
       if (f1Finished && f2Finished) continue;
 
-      const getFinalCorrectCount = (progress: TournamentProgress): number => {
-        const total = progress.correctAnswersCount ?? 0;
-        const semi = progress.semiFinalCorrectCount ?? 0;
-        const tbSum = (progress.tiebreakerRoundsCorrect ?? []).reduce(
-          (a: number, b: number) => a + b,
-          0,
-        );
-        return total - semi - tbSum;
-      };
-
       let outcome: TournamentResolutionOutcome | null = null;
       let winnerUserId: number | null = null;
       let loserUserId: number | null = null;
 
       if (f1Finished && !f2Finished) {
-        const f1Correct = getFinalCorrectCount(finalist1);
+        const f1Correct = this.getFinalStageCorrectTotal(finalist1);
         if (f1Correct > 0) {
           outcome = TournamentResolutionOutcome.SLOT_A_WINS;
           winnerUserId = finalist1.userId;
@@ -914,7 +1002,7 @@ export class TournamentsService implements OnModuleInit {
           outcome = TournamentResolutionOutcome.BOTH_LOST;
         }
       } else if (f2Finished && !f1Finished) {
-        const f2Correct = getFinalCorrectCount(finalist2);
+        const f2Correct = this.getFinalStageCorrectTotal(finalist2);
         if (f2Correct > 0) {
           outcome = TournamentResolutionOutcome.SLOT_B_WINS;
           winnerUserId = finalist2.userId;
@@ -1389,6 +1477,19 @@ export class TournamentsService implements OnModuleInit {
     );
   }
 
+  private getFinalStageCorrectTotal(
+    prog: TournamentProgress | null | undefined,
+  ): number {
+    if (!prog) return 0;
+    return (
+      this.getFinalStageBaseCorrect(prog) +
+      (prog.finalTiebreakerRoundsCorrect ?? []).reduce(
+        (a: number, b: number) => a + b,
+        0,
+      )
+    );
+  }
+
   private getFinalHeadToHeadState(
     myProg: TournamentProgress | null | undefined,
     oppProg: TournamentProgress | null | undefined,
@@ -1414,18 +1515,8 @@ export class TournamentsService implements OnModuleInit {
       0,
       (oppProg.questionsAnsweredCount ?? 0) - oppSemiTotal,
     );
-    const myFinalTotal =
-      this.getFinalStageBaseCorrect(myProg) +
-      (myProg.finalTiebreakerRoundsCorrect ?? []).reduce(
-        (a: number, b: number) => a + b,
-        0,
-      );
-    const oppFinalTotal =
-      this.getFinalStageBaseCorrect(oppProg) +
-      (oppProg.finalTiebreakerRoundsCorrect ?? []).reduce(
-        (a: number, b: number) => a + b,
-        0,
-      );
+    const myFinalTotal = this.getFinalStageCorrectTotal(myProg);
+    const oppFinalTotal = this.getFinalStageCorrectTotal(oppProg);
 
     if (allowUnevenResolved) {
       const myFinishedBaseFinal = myAnswered >= this.QUESTIONS_PER_ROUND;
@@ -1494,12 +1585,7 @@ export class TournamentsService implements OnModuleInit {
       0,
       (prog.questionsAnsweredCount ?? 0) - semiTotal,
     );
-    const finalCorrect =
-      this.getFinalStageBaseCorrect(prog) +
-      (prog.finalTiebreakerRoundsCorrect ?? []).reduce(
-        (a: number, b: number) => a + b,
-        0,
-      );
+    const finalCorrect = this.getFinalStageCorrectTotal(prog);
     if (finalAnswered >= this.QUESTIONS_PER_ROUND) {
       return {
         result: finalCorrect > 0 ? 'won' : 'lost',
@@ -2584,20 +2670,8 @@ export class TournamentsService implements OnModuleInit {
               f2Prog,
             );
 
-            const getFinalCorrectCount = (uid: number): number => {
-              const prog = allProg.find((p) => p.userId === uid);
-              if (!prog) return 0;
-              const total = prog.correctAnswersCount ?? 0;
-              const semi = prog.semiFinalCorrectCount ?? 0;
-              const tbSum = (prog.tiebreakerRoundsCorrect ?? []).reduce(
-                (a: number, b: number) => a + b,
-                0,
-              );
-              return total - semi - tbSum;
-            };
-
             if (f1Finished && !f2Finished) {
-              const f1c = getFinalCorrectCount(f1);
+              const f1c = this.getFinalStageCorrectTotal(f1Prog);
               if (f1c === 0) {
                 rememberResolution(
                   await this.upsertTimeoutResolution({
@@ -2640,7 +2714,7 @@ export class TournamentsService implements OnModuleInit {
                 );
               }
             } else if (f2Finished && !f1Finished) {
-              const f2c = getFinalCorrectCount(f2);
+              const f2c = this.getFinalStageCorrectTotal(f2Prog);
               if (f2c === 0) {
                 rememberResolution(
                   await this.upsertTimeoutResolution({
@@ -5556,6 +5630,29 @@ export class TournamentsService implements OnModuleInit {
     tournamentId: number,
   ): Promise<void> {
     const tournament = await this.getTrainingTournamentForUser(userId, tournamentId);
+    const progress = await this.tournamentProgressRepository.findOne({
+      where: { userId, tournamentId },
+    });
+    let allProgress = await this.tournamentProgressRepository.find({
+      where: { tournamentId },
+    });
+    let timeoutResolutionMap = await this.synchronizeTournamentTimingState(
+      tournament,
+      allProgress,
+      new Date(),
+    );
+    const progressWriteBlockReason = this.getTournamentProgressWriteBlockReason(
+      tournament,
+      userId,
+      progress,
+      allProgress,
+      timeoutResolutionMap,
+      new Date(),
+    );
+    if (progressWriteBlockReason) {
+      return;
+    }
+
     let questions = await this.ensureSemifinalQuestionRoundsPrepared(tournament);
 
     let questionsFinal = questions.filter((q) => q.roundIndex === 2);
@@ -5573,15 +5670,13 @@ export class TournamentsService implements OnModuleInit {
       }
     }
 
-    const progress = await this.tournamentProgressRepository.findOne({
-      where: { userId, tournamentId },
-    });
     const normalizedProgress = this.normalizeProgressSnapshot(progress, true);
-    let allProgress = await this.tournamentProgressRepository.find({
+    allProgress = await this.tournamentProgressRepository.find({
       where: { tournamentId },
     });
-    const timeoutResolutionMap =
-      await this.getTournamentTimeoutResolutionMap(tournamentId);
+    timeoutResolutionMap = await this.getTournamentTimeoutResolutionMap(
+      tournamentId,
+    );
     let sharedStart = this.getCurrentRoundSharedStart(
       tournament,
       userId,
@@ -6665,6 +6760,20 @@ export class TournamentsService implements OnModuleInit {
     let progress = await this.tournamentProgressRepository.findOne({
       where: { userId, tournamentId },
     });
+    const allProgressBeforeWrite = await this.tournamentProgressRepository.find({
+      where: { tournamentId },
+    });
+    const currentProgressBeforeWrite =
+      progress ??
+      allProgressBeforeWrite.find((item) => item.userId === userId) ??
+      null;
+    await this.assertTournamentProgressWritable(
+      tournament,
+      userId,
+      currentProgressBeforeWrite,
+      allProgressBeforeWrite,
+      new Date(),
+    );
 
     // Anti-cheat: заблокированные ответы нельзя перезаписать
     if (progress) {

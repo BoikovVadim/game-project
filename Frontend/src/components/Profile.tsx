@@ -2057,7 +2057,6 @@ const Profile: React.FC<ProfileProps> = ({
         isCreator: data.isCreator ?? true,
         deadline: data.deadline,
       });
-      completedForfeitRef.current = false;
       const playersMsg =
         data.totalPlayers && data.totalPlayers > 1
           ? ` Игроков: ${data.totalPlayers}/4.`
@@ -2113,34 +2112,11 @@ const Profile: React.FC<ProfileProps> = ({
     !trainingRoundComplete &&
     !isForfeited &&
     trainingRound !== null;
-  const completedForfeitRef = useRef(false);
   useEffect(() => {
     if (!trainingDeadline || isForfeited) return;
     const interval = setInterval(() => setDeadlineTick((t) => t + 1), 30_000);
     return () => clearInterval(interval);
   }, [trainingDeadline, isForfeited]);
-  useEffect(() => {
-    if (
-      isForfeited &&
-      trainingData?.tournamentId &&
-      token &&
-      !completedForfeitRef.current
-    ) {
-      completedForfeitRef.current = true;
-      axios
-        .post(
-          `/tournaments/${trainingData.tournamentId}/complete`,
-          { passed: false },
-          { headers: { Authorization: `Bearer ${token}` } },
-        )
-        .catch(() => {});
-      addNotification({
-        type: "game_status",
-        title: "Время вышло",
-        text: "Турнир завершён по таймауту. Вы не успели ответить на все вопросы.",
-      });
-    }
-  }, [isForfeited, trainingData?.tournamentId, token, addNotification]);
 
   const formatTimeLeft = (deadlineStr: string): string => {
     const end = new Date(deadlineStr).getTime();
@@ -2513,7 +2489,6 @@ const Profile: React.FC<ProfileProps> = ({
       if (!options?.preserveJoinInfo) {
         setTournamentJoinInfo(session.joinInfo);
       }
-      completedForfeitRef.current = false;
       setFullAnswersChosen(session.fullAnswersChosen);
       setSemiPhaseTotal(session.semiPhaseTotal);
       setTiebreakerBase(session.tiebreakerBase);
