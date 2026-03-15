@@ -637,6 +637,10 @@
   white-space: nowrap;
 }
 
+.admin-credit-cell-email--placeholder {
+  visibility: hidden;
+}
+
 /* ---- Transfer card (after withdrawal approval) ---- */
 .admin-transfer-card {
   max-width: clamp(360px, 28vw + 144px, 480px);

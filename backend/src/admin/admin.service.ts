@@ -569,7 +569,10 @@ export class AdminService {
           if (!isManualAdminCredit) return null;
 
           const parsedAdminId = parsedTopup.adminId;
-          const fallbackAdminId = Number(r.adminId ?? 0) || null;
+          const fallbackAdminId =
+            !isLegacyManualTopup && category === 'admin_credit'
+              ? Number(r.adminId ?? 0) || null
+              : null;
           const adminId = parsedAdminId ?? fallbackAdminId;
           const cached = adminId ? adminMap[adminId] : undefined;
           const adminName = String(r.adminUsername ?? cached?.username ?? '');

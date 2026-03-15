@@ -2341,11 +2341,11 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                         <td>+{Number(ch.amount).toFixed(2)} ₽</td>
                         <td className="admin-credit-cell-name admin-td-left">
                           <span>{ch.adminUsername || "—"}</span>
-                          {ch.adminEmail && (
-                            <span className="admin-credit-cell-email">
-                              {ch.adminEmail}
-                            </span>
-                          )}
+                          <span
+                            className={`admin-credit-cell-email${ch.adminEmail ? "" : " admin-credit-cell-email--placeholder"}`}
+                          >
+                            {ch.adminEmail || " "}
+                          </span>
                         </td>
                         <td>
                           {ch.createdAt
