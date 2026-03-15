@@ -53,6 +53,7 @@ import {
   type TournamentResultTone,
   type TournamentStageKind,
 } from './domain/view-model';
+import { buildTrainingReviewRounds } from './domain/training-review';
 import {
   type TournamentBracketDto,
   type TournamentInfoDto,
@@ -1945,40 +1946,17 @@ export class TournamentsService implements OnModuleInit {
       resolutionMap,
     );
     if (inFinal) {
-      const otherSlots: [number, number] = playerSlot < 2 ? [2, 3] : [0, 1];
-      const fOpp1 =
-        otherSlots[0] < (tournament.playerOrder?.length ?? 0)
-          ? tournament.playerOrder![otherSlots[0]]
-          : -1;
-      const fOpp2 =
-        otherSlots[1] < (tournament.playerOrder?.length ?? 0)
-          ? tournament.playerOrder![otherSlots[1]]
-          : -1;
-      const fPr1 =
-        fOpp1 > 0
-          ? allProgress.find(
-              (p) => p.tournamentId === tournament.id && p.userId === fOpp1,
-            )
-          : null;
-      const fPr2 =
-        fOpp2 > 0
-          ? allProgress.find(
-              (p) => p.tournamentId === tournament.id && p.userId === fOpp2,
-            )
-          : null;
-      let finalOppProg: TournamentProgress | null = null;
-      if (fPr1 && fPr2) {
-        const st = this.getSemiHeadToHeadState(
-          fPr1.questionsAnsweredCount ?? 0,
-          fPr1.semiFinalCorrectCount,
-          fPr1.tiebreakerRoundsCorrect,
-          fPr2.questionsAnsweredCount ?? 0,
-          fPr2.semiFinalCorrectCount,
-          fPr2.tiebreakerRoundsCorrect,
-        );
-        if (st.result === 'won') finalOppProg = fPr1;
-        else if (st.result === 'lost') finalOppProg = fPr2;
-      }
+      const oppositePairIndex: 0 | 1 = playerSlot < 2 ? 1 : 0;
+      const progressByUser = new Map(
+        allProgress.map((progress) => [progress.userId, progress]),
+      );
+      const oppositeSemiState = this.getResolvedSemiPairState(
+        tournament,
+        oppositePairIndex,
+        progressByUser,
+        resolutionMap,
+      );
+      const finalOppProg = oppositeSemiState.winner;
       if (
         finalOppProg &&
         this.isPlayerInFinalPhase(
@@ -4939,6 +4917,13 @@ export class TournamentsService implements OnModuleInit {
       completedAt?: string | null;
       roundFinished?: boolean;
       roundStartedAt?: string | null;
+      stageKind: TournamentStageKind;
+      resultKind: TournamentResultKind;
+      resultTone: TournamentResultTone;
+      listBucket: TournamentListBucket;
+      canContinue: boolean;
+      isWaitingOpponent: boolean;
+      isTimeoutResult: boolean;
       userId: number;
       userNickname: string;
       phase: 'active' | 'history';
@@ -4984,6 +4969,13 @@ export class TournamentsService implements OnModuleInit {
       completedAt?: string | null;
       roundFinished?: boolean;
       roundStartedAt?: string | null;
+      stageKind: TournamentStageKind;
+      resultKind: TournamentResultKind;
+      resultTone: TournamentResultTone;
+      listBucket: TournamentListBucket;
+      canContinue: boolean;
+      isWaitingOpponent: boolean;
+      isTimeoutResult: boolean;
       userId: number;
       userNickname: string;
       phase: 'active' | 'history';
@@ -5015,15 +5007,22 @@ export class TournamentsService implements OnModuleInit {
             playersCount: item.playersCount ?? 0,
             leagueAmount: item.leagueAmount ?? null,
             deadline: item.deadline ?? null,
-            userStatus: item.userStatus ?? 'not_passed',
+            userStatus: item.userStatus,
             stage: item.stage,
             resultLabel: item.resultLabel,
-            roundForQuestions: item.roundForQuestions ?? 'semi',
-            questionsAnswered: item.questionsAnswered ?? 0,
-            questionsTotal: item.questionsTotal ?? 0,
-            correctAnswersInRound: item.correctAnswersInRound ?? 0,
+            roundForQuestions: item.roundForQuestions,
+            questionsAnswered: item.questionsAnswered,
+            questionsTotal: item.questionsTotal,
+            correctAnswersInRound: item.correctAnswersInRound,
             roundFinished: item.roundFinished,
             roundStartedAt: item.roundStartedAt ?? null,
+            stageKind: item.stageKind,
+            resultKind: item.resultKind,
+            resultTone: item.resultTone,
+            listBucket: item.listBucket,
+            canContinue: item.canContinue,
+            isWaitingOpponent: item.isWaitingOpponent,
+            isTimeoutResult: item.isTimeoutResult,
             userId,
             userNickname: nickname,
             phase: 'active',
@@ -5046,16 +5045,23 @@ export class TournamentsService implements OnModuleInit {
             playersCount: item.playersCount ?? 0,
             leagueAmount: item.leagueAmount ?? null,
             deadline: null,
-            userStatus: item.userStatus ?? 'not_passed',
+            userStatus: item.userStatus,
             stage: item.stage,
             resultLabel: item.resultLabel,
-            roundForQuestions: item.roundForQuestions ?? 'semi',
-            questionsAnswered: item.questionsAnswered ?? 0,
-            questionsTotal: item.questionsTotal ?? 0,
-            correctAnswersInRound: item.correctAnswersInRound ?? 0,
+            roundForQuestions: item.roundForQuestions,
+            questionsAnswered: item.questionsAnswered,
+            questionsTotal: item.questionsTotal,
+            correctAnswersInRound: item.correctAnswersInRound,
             tournament: item.tournament,
             completedAt: item.completedAt ?? null,
             roundStartedAt: item.roundStartedAt ?? null,
+            stageKind: item.stageKind,
+            resultKind: item.resultKind,
+            resultTone: item.resultTone,
+            listBucket: item.listBucket,
+            canContinue: item.canContinue,
+            isWaitingOpponent: item.isWaitingOpponent,
+            isTimeoutResult: item.isTimeoutResult,
             userId,
             userNickname: nickname,
             phase: 'history',
@@ -5778,6 +5784,21 @@ export class TournamentsService implements OnModuleInit {
       semiTiebreakerRoundsCorrect: normalizedProgress.tiebreakerRounds,
       finalTiebreakerAllQuestions,
       finalTiebreakerRoundsCorrect: normalizedProgress.finalTiebreakerRounds,
+      reviewRounds: buildTrainingReviewRounds({
+        questionsPerRound: this.QUESTIONS_PER_ROUND,
+        tiebreakerQuestions: this.TIEBREAKER_QUESTIONS,
+        userSemiIndex,
+        questionsSemi1,
+        questionsSemi2,
+        questionsFinal,
+        questionsAnsweredCount,
+        correctAnswersCount,
+        semiFinalCorrectCount,
+        semiTiebreakerAllQuestions,
+        semiTiebreakerRoundsCorrect: normalizedProgress.tiebreakerRounds,
+        finalTiebreakerAllQuestions,
+        finalTiebreakerRoundsCorrect: normalizedProgress.finalTiebreakerRounds,
+      }),
       opponentAnswersByRound,
       opponentInfoByRound,
     };

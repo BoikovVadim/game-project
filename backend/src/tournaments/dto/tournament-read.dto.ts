@@ -70,6 +70,18 @@ export interface TournamentTrainingStatePlayerDto {
   avatarUrl: string | null;
 }
 
+export interface TournamentTrainingReviewRoundDto {
+  key: string;
+  label: string;
+  stageKind: TournamentStageKind;
+  isTiebreaker: boolean;
+  sequence: number;
+  startIdx: number;
+  correctCount: number;
+  opponentRoundIndex: number;
+  questions: TournamentQuestionDto[];
+}
+
 export interface TournamentTrainingStateDto {
   tournamentId: number;
   deadline: string | null;
@@ -95,6 +107,7 @@ export interface TournamentTrainingStateDto {
   semiTiebreakerRoundsCorrect: number[];
   finalTiebreakerAllQuestions: TournamentQuestionDto[][];
   finalTiebreakerRoundsCorrect: number[];
+  reviewRounds: TournamentTrainingReviewRoundDto[];
   opponentAnswersByRound: number[][];
   opponentInfoByRound: TournamentTrainingStatePlayerDto[];
 }

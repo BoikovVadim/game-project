@@ -2897,6 +2897,7 @@ const Profile: React.FC<ProfileProps> = ({
           semiTiebreakerRoundsCorrect: data.semiTiebreakerRoundsCorrect ?? [],
           finalTiebreakerAllQuestions: data.finalTiebreakerAllQuestions ?? [],
           finalTiebreakerRoundsCorrect: data.finalTiebreakerRoundsCorrect ?? [],
+          reviewRounds: data.reviewRounds ?? [],
           opponentAnswersByRound: data.opponentAnswersByRound ?? [],
           opponentInfoByRound: data.opponentInfoByRound ?? [],
         });
@@ -5095,7 +5096,7 @@ const Profile: React.FC<ProfileProps> = ({
                                               #{t.id}
                                             </button>
                                           </td>
-                                          <td>{t.stage ?? "Полуфинал"}</td>
+                                          <td>{t.stage ?? "—"}</td>
                                           <td className="game-history-questions-col">
                                             <button
                                               type="button"
@@ -5108,12 +5109,10 @@ const Profile: React.FC<ProfileProps> = ({
                                               }
                                               title="Посмотреть вопросы турнира"
                                             >
-                                              {(t as any).questionsTotal ?? 10}/
-                                              {(t as any).questionsAnswered ??
-                                                0}
+                                              {t.questionsTotal}/
+                                              {t.questionsAnswered}
                                               /
-                                              {(t as any)
-                                                .correctAnswersInRound ?? 0}
+                                              {t.correctAnswersInRound}
                                             </button>
                                           </td>
                                           <td>
@@ -5137,8 +5136,7 @@ const Profile: React.FC<ProfileProps> = ({
                                             <span
                                               className={`game-history-status game-history-status--${getTournamentResultTone(t)}`}
                                             >
-                                              {t.resultLabel ??
-                                                "Этап не пройден"}
+                                              {t.resultLabel}
                                             </span>
                                           </td>
                                         </tr>
@@ -5221,7 +5219,7 @@ const Profile: React.FC<ProfileProps> = ({
                                               #{t.id}
                                             </button>
                                           </td>
-                                          <td>{t.stage ?? "Полуфинал"}</td>
+                                          <td>{t.stage ?? "—"}</td>
                                           <td className="game-history-questions-col">
                                             <button
                                               type="button"
@@ -5234,12 +5232,10 @@ const Profile: React.FC<ProfileProps> = ({
                                               }
                                               title="Посмотреть вопросы турнира"
                                             >
-                                              {(t as any).questionsTotal ?? 10}/
-                                              {(t as any).questionsAnswered ??
-                                                0}
+                                              {t.questionsTotal}/
+                                              {t.questionsAnswered}
                                               /
-                                              {(t as any)
-                                                .correctAnswersInRound ?? 0}
+                                              {t.correctAnswersInRound}
                                             </button>
                                           </td>
                                           <td>
@@ -5260,8 +5256,7 @@ const Profile: React.FC<ProfileProps> = ({
                                             <span
                                               className={`game-history-status game-history-status--${getTournamentResultTone(t)}`}
                                             >
-                                              {t.resultLabel ??
-                                                "Этап не пройден"}
+                                              {t.resultLabel}
                                             </span>
                                           </td>
                                         </tr>
@@ -6000,28 +5995,18 @@ const Profile: React.FC<ProfileProps> = ({
                                                 ? `${formatNum((t as { leagueAmount: number }).leagueAmount)} ${CURRENCY}`
                                                 : "—"}
                                             </td>
-                                            <td>{t.stage ?? "Полуфинал"}</td>
+                                            <td>{t.stage ?? "—"}</td>
                                             <td className="game-history-questions-col">
                                               <button
                                                 type="button"
                                                 className="game-history-questions-link"
                                                 onClick={() =>
-                                                  openQuestionsReview(
-                                                    t.id,
-                                                    t.roundForQuestions ??
-                                                      "semi",
-                                                  )
+                                                  openQuestionsReview(t.id, t.roundForQuestions)
                                                 }
                                                 title="Посмотреть вопросы турнира"
                                               >
-                                                {(t as any).questionsTotal ??
-                                                  10}
-                                                /
-                                                {(t as any).questionsAnswered ??
-                                                  0}
-                                                /
-                                                {(t as any)
-                                                  .correctAnswersInRound ?? 0}
+                                                {t.questionsTotal}/{t.questionsAnswered}/
+                                                {t.correctAnswersInRound}
                                               </button>
                                             </td>
                                             <td>
@@ -6045,8 +6030,7 @@ const Profile: React.FC<ProfileProps> = ({
                                               <span
                                                 className={`game-history-status game-history-status--${getTournamentResultTone(t)}`}
                                               >
-                                                {t.resultLabel ??
-                                                  "Этап не пройден"}
+                                                {t.resultLabel}
                                               </span>
                                             </td>
                                           </tr>
@@ -6144,28 +6128,18 @@ const Profile: React.FC<ProfileProps> = ({
                                                 ? `${formatNum((t as { leagueAmount: number }).leagueAmount)} ${CURRENCY}`
                                                 : "—"}
                                             </td>
-                                            <td>{t.stage ?? "Полуфинал"}</td>
+                                            <td>{t.stage ?? "—"}</td>
                                             <td className="game-history-questions-col">
                                               <button
                                                 type="button"
                                                 className="game-history-questions-link"
                                                 onClick={() =>
-                                                  openQuestionsReview(
-                                                    t.id,
-                                                    t.roundForQuestions ??
-                                                      "semi",
-                                                  )
+                                                  openQuestionsReview(t.id, t.roundForQuestions)
                                                 }
                                                 title="Посмотреть вопросы турнира"
                                               >
-                                                {(t as any).questionsTotal ??
-                                                  10}
-                                                /
-                                                {(t as any).questionsAnswered ??
-                                                  0}
-                                                /
-                                                {(t as any)
-                                                  .correctAnswersInRound ?? 0}
+                                                {t.questionsTotal}/{t.questionsAnswered}/
+                                                {t.correctAnswersInRound}
                                               </button>
                                             </td>
                                             <td>
@@ -6186,8 +6160,7 @@ const Profile: React.FC<ProfileProps> = ({
                                               <span
                                                 className={`game-history-status game-history-status--${getTournamentResultTone(t)}`}
                                               >
-                                                {t.resultLabel ??
-                                                  "Этап не пройден"}
+                                                {t.resultLabel}
                                               </span>
                                             </td>
                                           </tr>

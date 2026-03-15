@@ -18,6 +18,7 @@
     "set-password": "ts-node -r tsconfig-paths/register src/scripts/set-password.ts",
     "check-user": "ts-node -r tsconfig-paths/register src/scripts/check-user.ts",
     "audit:auth-payments": "ts-node src/scripts/audit-auth-payments.ts",
+    "audit:tournaments": "ts-node src/scripts/audit-tournaments.ts",
     "audit:finance-ledger": "ts-node src/scripts/audit-finance-ledger.ts",
     "fix:auth-payments-data": "ts-node src/scripts/audit-auth-payments.ts --fix",
     "fix:admin-credit-ledger": "ts-node src/scripts/normalize-admin-credit-ledger.ts",

@@ -26,22 +26,22 @@ export type TournamentListItem = {
   playersCount: number;
   leagueAmount?: number | null;
   deadline?: string | null;
-  userStatus?: "passed" | "not_passed";
+  userStatus: "passed" | "not_passed";
   stage?: string;
   stageKind: TournamentStageKind;
-  resultLabel?: string;
+  resultLabel: string;
   resultKind: TournamentResultKind;
   resultTone: TournamentResultTone;
   listBucket: TournamentListBucket;
   canContinue: boolean;
   isWaitingOpponent: boolean;
   isTimeoutResult: boolean;
-  roundForQuestions?: "semi" | "final";
+  roundForQuestions: "semi" | "final";
   roundFinished?: boolean;
   roundStartedAt?: string | null;
-  questionsAnswered?: number;
-  questionsTotal?: number;
-  correctAnswersInRound?: number;
+  questionsAnswered: number;
+  questionsTotal: number;
+  correctAnswersInRound: number;
   completedAt?: string | null;
   tournament?: {
     id: number;
@@ -89,6 +89,7 @@ export type TrainingStateResponse = {
   semiTiebreakerRoundsCorrect: number[];
   finalTiebreakerAllQuestions: TrainingQuestion[][];
   finalTiebreakerRoundsCorrect: number[];
+  reviewRounds: QuestionsReviewRound[];
   opponentAnswersByRound: number[][];
   opponentInfoByRound: {
     id: number;
@@ -137,12 +138,25 @@ export type QuestionsReviewData = {
   semiTiebreakerRoundsCorrect?: number[];
   finalTiebreakerAllQuestions?: TrainingQuestion[][];
   finalTiebreakerRoundsCorrect?: number[];
+  reviewRounds: QuestionsReviewRound[];
   opponentAnswersByRound?: number[][];
   opponentInfoByRound?: {
     id: number;
     nickname: string;
     avatarUrl?: string | null;
   }[];
+};
+
+export type QuestionsReviewRound = {
+  key: string;
+  label: string;
+  stageKind: "semi" | "final";
+  isTiebreaker: boolean;
+  sequence: number;
+  startIdx: number;
+  correctCount: number;
+  opponentRoundIndex: number;
+  questions: TrainingQuestion[];
 };
 
 export type BracketPlayerTooltipData = {

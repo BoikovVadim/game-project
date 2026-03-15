@@ -513,127 +513,14 @@ export function TournamentQuestionsModal(props: {
               : [];
             const oppRounds = questionsReviewData.opponentAnswersByRound ?? [];
             const oppInfoRounds = questionsReviewData.opponentInfoByRound ?? [];
-            const userSemiIdx = questionsReviewData.userSemiIndex ?? 0;
             const n = questionsReviewData.questionsAnsweredCount;
-            const semiQuestions =
-              userSemiIdx === 0
-                ? questionsReviewData.questionsSemi1
-                : questionsReviewData.questionsSemi2;
-            const semiCorrect =
-              questionsReviewData.semiFinalCorrectCount ??
-              (n <= 10 ? questionsReviewData.correctAnswersCount : 0);
-            const semiTBAll =
-              questionsReviewData.semiTiebreakerAllQuestions ?? [];
-            const semiTBCorrects =
-              questionsReviewData.semiTiebreakerRoundsCorrect ?? [];
-            const finalQuestions = questionsReviewData.questionsFinal ?? [];
-            const finalTBAll =
-              questionsReviewData.finalTiebreakerAllQuestions ?? [];
-            const finalTBCorrects =
-              questionsReviewData.finalTiebreakerRoundsCorrect ?? [];
-            const semiTBSum = semiTBCorrects.reduce(
-              (a: number, b: number) => a + b,
-              0,
-            );
-            const finalTBSum = finalTBCorrects.reduce(
-              (a: number, b: number) => a + b,
-              0,
-            );
-            const completedSemiTBCount = semiTBCorrects.length;
-            const hasFinalStarted =
-              finalQuestions.length > 0 && n > 10 + completedSemiTBCount * 10;
-            const visibleSemiTBCount = hasFinalStarted
-              ? Math.min(semiTBAll.length, completedSemiTBCount)
-              : Math.min(
-                  semiTBAll.length,
-                  Math.max(
-                    completedSemiTBCount,
-                    Math.ceil(Math.max(0, n - 10) / 10),
-                  ),
-                );
-
-            type ReviewTab = {
-              label: string;
-              questions: typeof semiQuestions;
-              startIdx: number;
-              correctCount: number;
-              oppRoundIdx: number;
-            };
-            const tabs: ReviewTab[] = [];
-            let oppIdx = 0;
-
-            tabs.push({
-              label: "Полуфинал",
-              questions: semiQuestions,
-              startIdx: 0,
-              correctCount: semiCorrect,
-              oppRoundIdx: oppIdx++,
-            });
-
-            let cursor = 10;
-            for (let r = 0; r < visibleSemiTBCount; r++) {
-              if (n <= cursor) break;
-              tabs.push({
-                label:
-                  semiTBAll.length === 1
-                    ? "Доп. раунд (ПФ)"
-                    : `Доп. раунд ${r + 1} (ПФ)`,
-                questions: semiTBAll[r],
-                startIdx: cursor,
-                correctCount: semiTBCorrects[r] ?? 0,
-                oppRoundIdx: oppIdx++,
-              });
-              cursor += 10;
-            }
-
-            if (finalQuestions.length > 0 && n > cursor) {
-              const finalBaseCorrect = Math.max(
-                0,
-                questionsReviewData.correctAnswersCount -
-                  semiCorrect -
-                  semiTBSum -
-                  finalTBSum,
-              );
-              tabs.push({
-                label: "Финал",
-                questions: finalQuestions,
-                startIdx: cursor,
-                correctCount: finalBaseCorrect,
-                oppRoundIdx: oppIdx++,
-              });
-              cursor += 10;
-              const visibleFinalTBCount = Math.min(
-                finalTBAll.length,
-                Math.max(
-                  finalTBCorrects.length,
-                  Math.ceil(Math.max(0, n - cursor) / 10),
-                ),
-              );
-
-              for (let r = 0; r < visibleFinalTBCount; r++) {
-                if (n <= cursor) break;
-                tabs.push({
-                  label:
-                    finalTBAll.length === 1
-                      ? "Доп. раунд (Ф)"
-                      : `Доп. раунд ${r + 1} (Ф)`,
-                  questions: finalTBAll[r],
-                  startIdx: cursor,
-                  correctCount: finalTBCorrects[r] ?? 0,
-                  oppRoundIdx: oppIdx++,
-                });
-                cursor += 10;
-              }
-            }
+            const tabs = questionsReviewData.reviewRounds ?? [];
 
             const preferredTabIdx =
               questionsReviewRound === "final"
                 ? Math.max(
                     0,
-                    tabs.findIndex(
-                      (tab) =>
-                        tab.label === "Финал" || tab.label.includes("(Ф)"),
-                    ),
+                    tabs.findIndex((tab) => tab.stageKind === "final"),
                   )
                 : 0;
             const resolvedTabIdx =
@@ -650,8 +537,8 @@ export function TournamentQuestionsModal(props: {
               0,
               answeredInRound,
             );
-            const oppAC = oppRounds[activeTab.oppRoundIdx] ?? [];
-            const oppInfo = oppInfoRounds[activeTab.oppRoundIdx] ?? null;
+            const oppAC = oppRounds[activeTab.opponentRoundIndex] ?? [];
+            const oppInfo = oppInfoRounds[activeTab.opponentRoundIndex] ?? null;
             const myAnswerTitle =
               variant === "player" ? "Мой ответ" : "Ответ игрока";
             const noAnswersText =

@@ -387,6 +387,27 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
     completedAt?: string | null;
     roundFinished?: boolean;
     roundStartedAt?: string | null;
+    stageKind: "semi" | "final";
+    resultKind:
+      | "victory"
+      | "defeat"
+      | "timeout_defeat"
+      | "waiting_opponent"
+      | "final_ready"
+      | "tiebreaker"
+      | "in_progress";
+    resultTone:
+      | "victory"
+      | "defeat"
+      | "time-expired"
+      | "stage-passed"
+      | "final-ready"
+      | "tiebreaker"
+      | "stage-not-passed";
+    listBucket: "active" | "completed";
+    canContinue: boolean;
+    isWaitingOpponent: boolean;
+    isTimeoutResult: boolean;
     userId: number;
     userNickname: string;
     phase: "active" | "history";
@@ -1400,6 +1421,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
           semiTiebreakerRoundsCorrect: data.semiTiebreakerRoundsCorrect ?? [],
           finalTiebreakerAllQuestions: data.finalTiebreakerAllQuestions ?? [],
           finalTiebreakerRoundsCorrect: data.finalTiebreakerRoundsCorrect ?? [],
+          reviewRounds: data.reviewRounds ?? [],
           opponentAnswersByRound: data.opponentAnswersByRound ?? [],
           opponentInfoByRound: data.opponentInfoByRound ?? [],
         });
@@ -1558,7 +1580,13 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
           );
         case "resultLabel":
           return (
-            <td style={{ textAlign: "center" }}>{row.resultLabel ?? "—"}</td>
+            <td style={{ textAlign: "center" }}>
+              <span
+                className={`game-history-status game-history-status--${row.resultTone}`}
+              >
+                {row.resultLabel ?? "—"}
+              </span>
+            </td>
           );
         case "correctAnswersInRound":
           return (
