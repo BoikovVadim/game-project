@@ -8,6 +8,7 @@ import {
   parseApprovedWithdrawalDescription,
   parsePaymentTopupDescription,
 } from './ruble-ledger-descriptions';
+import { buildTransactionHistoryWithBalances } from './transaction-balance-history';
 
 test('builds and parses structured payment topup descriptions', () => {
   const description = buildPaymentTopupDescription('yookassa', 42, 'yk_123');
@@ -40,4 +41,71 @@ test('parses admin topup descriptions with optional comments', () => {
     adminId: null,
     comment: null,
   });
+});
+
+test('getTransactions computes running balance by createdAt timeline', async () => {
+  const transactions = [
+    {
+      id: 1,
+      userId: 1,
+      amount: 100,
+      description: 'Пополнение баланса',
+      tournamentId: null,
+      category: 'topup',
+      createdAt: new Date('2026-03-07T02:28:59.000Z'),
+    },
+    {
+      id: 25,
+      userId: 1,
+      amount: -90,
+      description: 'Конвертация L в рубли',
+      tournamentId: null,
+      category: 'convert',
+      createdAt: new Date('2026-03-09T06:59:39.000Z'),
+    },
+    {
+      id: 26,
+      userId: 1,
+      amount: 90,
+      description: 'Конвертация L в рубли',
+      tournamentId: null,
+      category: 'convert',
+      createdAt: new Date('2026-03-09T06:59:56.000Z'),
+    },
+    {
+      id: 301,
+      userId: 1,
+      amount: 100,
+      description: 'Manual recovery: legacy opening balance before tx #2',
+      tournamentId: null,
+      category: 'other',
+      createdAt: new Date('2026-03-07T02:28:58.000Z'),
+    },
+    {
+      id: 302,
+      userId: 1,
+      amount: 5,
+      description: 'Manual recovery: reconcile 5 L drift before tx #25',
+      tournamentId: null,
+      category: 'other',
+      createdAt: new Date('2026-03-09T06:59:38.000Z'),
+    },
+  ];
+
+  const result = buildTransactionHistoryWithBalances(transactions).reverse();
+
+  assert.deepEqual(
+    result.map((row) => ({
+      id: row.transaction.id,
+      balanceAfterRubles: row.balanceAfterRubles,
+      balanceAfterL: row.balanceAfterL,
+    })),
+    [
+      { id: 26, balanceAfterRubles: 100, balanceAfterL: 105 },
+      { id: 25, balanceAfterRubles: 190, balanceAfterL: 15 },
+      { id: 302, balanceAfterRubles: 100, balanceAfterL: 105 },
+      { id: 1, balanceAfterRubles: 100, balanceAfterL: 100 },
+      { id: 301, balanceAfterRubles: 0, balanceAfterL: 100 },
+    ],
+  );
 });
