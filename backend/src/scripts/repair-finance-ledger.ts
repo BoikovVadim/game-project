@@ -44,6 +44,10 @@ type FinishedMoneyTournamentRow = {
   id: number;
 };
 
+type WaitingSinglePlayerArtifactRow = {
+  tournamentId: number;
+};
+
 async function main() {
   const app = await NestFactory.createApplicationContext(AppModule, {
     logger: false,
@@ -172,6 +176,25 @@ async function main() {
           settlementByTournamentId.get(tournamentId)?.settlementType ===
           'unresolved',
       );
+    const waitingSinglePlayerArtifactTournaments = (
+      await dataSource.query(
+        `SELECT t.id AS "tournamentId"
+         FROM tournament t
+         LEFT JOIN tournament_escrow e ON e."tournamentId" = t.id
+         LEFT JOIN "transaction" tx
+           ON tx."tournamentId" = t.id
+          AND tx.category IN ('refund', 'win')
+         LEFT JOIN tournament_result r ON r."tournamentId" = t.id
+         WHERE t.status = 'waiting'
+           AND t."gameType" = 'money'
+           AND json_array_length(t."playerOrder"::json) = 1
+         GROUP BY t.id
+         HAVING COUNT(*) FILTER (WHERE e.status IN ('refunded', 'paid_to_winner')) > 0
+             OR COUNT(*) FILTER (WHERE tx.id IS NOT NULL) > 0
+             OR COUNT(*) FILTER (WHERE r.id IS NOT NULL) > 0
+         ORDER BY t.id ASC`,
+      )
+    ) as WaitingSinglePlayerArtifactRow[];
 
     const affectedUserIds = new Set<number>([
       ...adminCreditResult.affectedUserIds,
@@ -185,6 +208,8 @@ async function main() {
     const restoredEscrowTournamentIds: number[] = [];
     const deletedSettlementTxIds: number[] = [];
     const deletedWinnerResultIds: number[] = [];
+    const restoredWaitingTournamentIds: number[] = [];
+    const deletedWaitingResultIds: number[] = [];
 
     await dataSource.transaction(async (manager) => {
       for (const tx of legacyWithdrawalTxToNormalize) {
@@ -289,6 +314,46 @@ async function main() {
         )) as Array<{ id: number }>;
         if (reopened.length > 0) {
           reopenedTournamentIds.push(tournamentId);
+        }
+      }
+
+      for (const row of waitingSinglePlayerArtifactTournaments) {
+        const tournamentId = Number(row.tournamentId);
+        const deletedTxRows = (await manager.query(
+          `DELETE FROM "transaction"
+           WHERE "tournamentId" = $1
+             AND category IN ('refund', 'win')
+           RETURNING id, "userId"`,
+          [tournamentId],
+        )) as Array<{ id: number; userId: number }>;
+        for (const deletedTx of deletedTxRows) {
+          deletedSettlementTxIds.push(Number(deletedTx.id));
+          affectedUserIds.add(Number(deletedTx.userId));
+        }
+
+        const restoredEscrows = (await manager.query(
+          `UPDATE tournament_escrow
+           SET status = 'held'
+           WHERE "tournamentId" = $1
+             AND status IN ('refunded', 'paid_to_winner', 'processing')
+           RETURNING "userId"`,
+          [tournamentId],
+        )) as Array<{ userId: number }>;
+        if (restoredEscrows.length > 0) {
+          restoredWaitingTournamentIds.push(tournamentId);
+          for (const escrow of restoredEscrows) {
+            affectedUserIds.add(Number(escrow.userId));
+          }
+        }
+
+        const deletedResultRows = (await manager.query(
+          `DELETE FROM tournament_result
+           WHERE "tournamentId" = $1
+           RETURNING id`,
+          [tournamentId],
+        )) as Array<{ id: number }>;
+        for (const deletedRow of deletedResultRows) {
+          deletedWaitingResultIds.push(Number(deletedRow.id));
         }
       }
     });
@@ -406,6 +471,14 @@ async function main() {
       deletedWinnerResultIds.length,
     );
     console.log(
+      '[repair-finance-ledger] restored waiting single-player tournaments:',
+      restoredWaitingTournamentIds.length,
+    );
+    console.log(
+      '[repair-finance-ledger] deleted waiting tournament result rows:',
+      deletedWaitingResultIds.length,
+    );
+    console.log(
       '[repair-finance-ledger] updated finished escrow rows:',
       settledEscrowRows,
     );
@@ -421,6 +494,7 @@ async function main() {
           ...reconcileResult.affectedUserIds,
         ]),
       )
+        .filter((value) => Number.isFinite(value) && value > 0)
         .sort((a, b) => a - b)
         .join(', ') || 'none',
     );

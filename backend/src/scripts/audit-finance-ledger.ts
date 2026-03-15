@@ -65,6 +65,7 @@ type TournamentRow = {
   status: string;
   gameType: string | null;
   leagueAmount: number | null;
+  playerOrder: string | null;
   createdAt: string | Date;
 };
 
@@ -217,7 +218,7 @@ async function main() {
        ORDER BY id ASC`,
     )) as EscrowRow[];
     const tournamentRows = (await dataSource.query(
-      `SELECT id, status, "gameType", "leagueAmount", "createdAt"
+      `SELECT id, status, "gameType", "leagueAmount", "playerOrder", "createdAt"
        FROM tournament
        ORDER BY id ASC`,
     )) as TournamentRow[];
@@ -513,6 +514,53 @@ async function main() {
     }
 
     for (const tournament of tournamentRows) {
+      const participantCount =
+        tournament.playerOrder != null
+          ? (() => {
+              try {
+                const parsed = JSON.parse(tournament.playerOrder) as unknown;
+                return Array.isArray(parsed)
+                  ? parsed.filter((value) => Number(value) > 0).length
+                  : 0;
+              } catch {
+                return 0;
+              }
+            })()
+          : 0;
+      if (
+        tournament.gameType === 'money' &&
+        tournament.status === 'waiting' &&
+        participantCount === 1
+      ) {
+        const tournamentId = Number(tournament.id);
+        const tournamentResults = resultsByTournament.get(tournamentId) ?? [];
+        const settlementTx = (txByTournament.get(tournamentId) ?? []).filter((row) =>
+          ['refund', 'win'].includes(row.category),
+        );
+        const settledEscrows = (escrowByTournament.get(tournamentId) ?? []).filter(
+          (row) => row.status !== 'held',
+        );
+        if (
+          tournamentResults.length > 0 ||
+          settlementTx.length > 0 ||
+          settledEscrows.length > 0
+        ) {
+          pushIssue(
+            deterministicIssues,
+            'waiting_single_player_tournament_with_settlement_artifacts',
+            {
+              tournamentId,
+              resultIds: tournamentResults.map((row) => Number(row.id)),
+              settlementTxIds: settlementTx.map((row) => Number(row.id)),
+              escrowStatuses: settledEscrows.map((row) => ({
+                escrowId: Number(row.id),
+                userId: Number(row.userId),
+                status: row.status,
+              })),
+            },
+          );
+        }
+      }
       if (tournament.gameType !== 'money' || tournament.status !== 'finished') {
         continue;
       }
