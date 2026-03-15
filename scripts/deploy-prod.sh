@@ -1,17 +1,38 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+LOCAL_DEPLOY_ENV="${DEPLOY_ENV_FILE:-$REPO_ROOT/.env.deploy.local}"
+
+if [[ -f "$LOCAL_DEPLOY_ENV" ]]; then
+  set -a
+  # shellcheck source=/dev/null
+  source "$LOCAL_DEPLOY_ENV"
+  set +a
+fi
+
 MODE="${1:-full}"
-REMOTE_HOST="${DEPLOY_REMOTE_HOST:?DEPLOY_REMOTE_HOST is required}"
-REMOTE_USER="${DEPLOY_REMOTE_USER:?DEPLOY_REMOTE_USER is required}"
+REMOTE_HOST="${DEPLOY_REMOTE_HOST:-}"
+REMOTE_USER="${DEPLOY_REMOTE_USER:-}"
 REMOTE_PASSWORD="${DEPLOY_REMOTE_PASSWORD:-}"
 REMOTE_DIR="${DEPLOY_REMOTE_DIR:-/var/www/game}"
 REMOTE_PM2_APP="${DEPLOY_PM2_APP:-game-backend}"
 REMOTE_HEALTHCHECK_URL="${DEPLOY_HEALTHCHECK_URL:-http://localhost:3000/api/health}"
 REMOTE_SSH_KEY_PATH="${DEPLOY_SSH_KEY_PATH:-}"
 
+if [[ -z "$REMOTE_HOST" ]]; then
+  echo "Set DEPLOY_REMOTE_HOST or create $LOCAL_DEPLOY_ENV from .env.deploy.example before running deploy." >&2
+  exit 1
+fi
+
+if [[ -z "$REMOTE_USER" ]]; then
+  echo "Set DEPLOY_REMOTE_USER or create $LOCAL_DEPLOY_ENV from .env.deploy.example before running deploy." >&2
+  exit 1
+fi
+
 if [[ -z "$REMOTE_PASSWORD" && -z "$REMOTE_SSH_KEY_PATH" ]]; then
-  echo "Set DEPLOY_REMOTE_PASSWORD or DEPLOY_SSH_KEY_PATH before running deploy." >&2
+  echo "Set DEPLOY_REMOTE_PASSWORD or DEPLOY_SSH_KEY_PATH in env or $LOCAL_DEPLOY_ENV before running deploy." >&2
   exit 1
 fi
 

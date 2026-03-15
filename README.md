@@ -59,7 +59,26 @@ CI= npm run build
 - public health-check: `https://legendgames.space/api/health`
 - основной домен: `https://legendgames.space`
 
-Перед запуском деплоя нужно передать переменные окружения:
+Перед запуском деплоя лучше один раз создать локальный файл `.env.deploy.local` на основе шаблона:
+
+```bash
+cp .env.deploy.example .env.deploy.local
+```
+
+И заполнить его своими значениями:
+
+```bash
+DEPLOY_REMOTE_HOST=example.com
+DEPLOY_REMOTE_USER=deploy
+DEPLOY_REMOTE_DIR=/var/www/game
+DEPLOY_PM2_APP=game-backend
+DEPLOY_HEALTHCHECK_URL=http://localhost:3000/api/health
+DEPLOY_SSH_KEY_PATH=/Users/your-user/.ssh/id_rsa
+```
+
+Файл `.env.deploy.local` уже игнорируется Git и автоматически подхватывается `scripts/deploy-prod.sh`.
+
+При необходимости можно по-прежнему передавать переменные через `export` в текущую shell-сессию:
 
 ```bash
 export DEPLOY_REMOTE_HOST=example.com
