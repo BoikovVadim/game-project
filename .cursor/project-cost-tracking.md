@@ -1,7 +1,8 @@
-770310.93
-За сегодня (2026-03-14): 87 718,84 ₽
+770967.18
+За сегодня (2026-03-15): 656,25 ₽
 
 # Последние изменения (для резюме по задаче). Формат: YYYY-MM-DD HH:MM | Z ₽ | N ч M мин | описание. «За сегодня» — сумма всех Z за текущий день.
+2026-03-15 04:47 | 656,25 ₽ | 0 ч 18 мин | Cursor rules: добавлено отдельное always-apply правило режимов рефакторинга с двумя состояниями — обязательный локальный refactor-pass после каждой правки и плановый полный refactor-pass по проекту с weekly cadence и коротким daily hygiene-проходом
 2026-03-14 23:12 | 7 000,00 ₽ | 3 ч 12 мин | Архитектурный проход по зрелости проекта: рублёвый ledger переведён на структурированные payment/withdraw descriptions с repair-скриптом и локальным data-audit, backend write-path дочищен от inline DTO, cabinet route-state расширен `league`/`statsMode` как URL source of truth, slot logic по `playerOrder` вынесена в общий domain helper, а CI усилен frontend route-state test, backend helper tests и `npm ci` workflow
 2026-03-14 22:37 | 3 500,00 ₽ | 1 ч 36 мин | Cleanup проекта: rules сведены к компактному каноническому набору с hygiene/evidence guards, безопасно удалены временные и неиспользуемые frontend-файлы, общий `PlayerStats` и список cabinet sections вынесены в единые точки, legacy scripts/docs помечены для следующего прохода, затем выполнены build/test/smoke, commit, push и production deploy-check
 2026-03-14 22:10 | 8 312,50 ₽ | 3 ч 48 мин | Большой проход по стабилизации: платежный webhook переведён на явный ack/retry contract, рублёвый ledger и админские начисления сведены к одному topup-flow с подготовкой ретрофикса legacy `admin_credit`, турнирный progress/read flow частично нормализован через общий helper и `playerOrder` в write-path, support GET очищен от side effects с DTO-валидацией, кабинет и админка дочищены от лишнего route-state drift, а CI усилен runtime smoke-подъёмом backend с health-check
