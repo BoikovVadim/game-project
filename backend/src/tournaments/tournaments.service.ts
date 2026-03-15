@@ -53,6 +53,10 @@ import {
   type TournamentResultTone,
   type TournamentStageKind,
 } from './domain/view-model';
+import {
+  compareReusableTournamentCandidates,
+  shouldTournamentBeActive,
+} from './domain/reusable-tournament';
 import { buildTrainingReviewRounds } from './domain/training-review';
 import {
   type TournamentBracketDto,
@@ -2095,6 +2099,41 @@ export class TournamentsService implements OnModuleInit {
     return latest;
   }
 
+  private getTournamentPlayerCount(
+    tournament: Pick<Tournament, 'playerOrder' | 'players'>,
+  ): number {
+    const orderCount = (tournament.playerOrder ?? []).filter((id) => id > 0).length;
+    const playersCount = (tournament.players ?? []).length;
+    return Math.max(orderCount, playersCount);
+  }
+
+  private async syncTournamentActiveStatusWithManager(
+    manager: EntityManager,
+    tournamentId: number,
+  ): Promise<boolean> {
+    const tournament = await manager.getRepository(Tournament).findOne({
+      where: { id: tournamentId },
+      relations: ['players'],
+    });
+    if (!tournament) return false;
+    if (
+      !shouldTournamentBeActive({
+        status: tournament.status,
+        playerCount: this.getTournamentPlayerCount(tournament),
+        progressCount: await manager.getRepository(TournamentProgress).count({
+          where: { tournamentId },
+        }),
+      })
+    ) {
+      return false;
+    }
+    await manager.getRepository(Tournament).update(
+      { id: tournamentId },
+      { status: TournamentStatus.ACTIVE },
+    );
+    return true;
+  }
+
   @Cron(CronExpression.EVERY_MINUTE)
   async handleExpiredEscrowsCron(): Promise<void> {
     try {
@@ -2114,11 +2153,47 @@ export class TournamentsService implements OnModuleInit {
     }
   }
 
+  private async promoteStartedWaitingTournamentsToActive(): Promise<number[]> {
+    const waitingTournaments = await this.tournamentRepository.find({
+      where: { status: TournamentStatus.WAITING },
+      relations: ['players'],
+      order: { id: 'ASC' },
+    });
+    const updatedTournamentIds: number[] = [];
+    for (const tournament of waitingTournaments) {
+      const progressCount = await this.tournamentProgressRepository.count({
+        where: { tournamentId: tournament.id },
+      });
+      if (
+        shouldTournamentBeActive({
+          status: tournament.status,
+          playerCount: this.getTournamentPlayerCount(tournament),
+          progressCount,
+        })
+      ) {
+        await this.tournamentRepository.update(
+          { id: tournament.id },
+          { status: TournamentStatus.ACTIVE },
+        );
+        updatedTournamentIds.push(tournament.id);
+      }
+    }
+    return updatedTournamentIds;
+  }
+
   /**
-   * Старые недозаполненные турниры остаются открытыми для новых игроков.
+   * Поднимает старые незавершённые турниры в active, если они уже начались по новым правилам.
    */
   private async cancelUnfilledTournaments(): Promise<void> {
-    return;
+    await this.promoteStartedWaitingTournamentsToActive();
+  }
+
+  async backfillStartedWaitingTournamentsToActive(): Promise<{
+    updatedTournamentIds: number[];
+  }> {
+    const updatedTournamentIds =
+      await this.promoteStartedWaitingTournamentsToActive();
+    return { updatedTournamentIds };
   }
 
   /**
@@ -2731,37 +2806,42 @@ export class TournamentsService implements OnModuleInit {
       order: { id: 'ASC' },
     });
     const waitingIds = reusableTournaments.map((t) => t.id);
-    const waitingEntries =
-      waitingIds.length > 0
-        ? await this.tournamentEntryRepository.find({
-            where: { tournament: { id: In(waitingIds) } } as any,
-          })
-        : [];
     const waitingProgress =
       waitingIds.length > 0
         ? await this.tournamentProgressRepository.find({
             where: { tournamentId: In(waitingIds) },
           })
         : [];
-    const lastActivityByTid = new Map<number, Date>();
-    for (const e of waitingEntries) {
-      const tid = (e as any).tournamentId ?? (e.tournament as any)?.id;
-      if (!tid) continue;
-      const prev = lastActivityByTid.get(tid);
-      if (!prev || e.joinedAt > prev) lastActivityByTid.set(tid, e.joinedAt);
-    }
+    const progressCountByTid = new Map<number, number>();
     for (const p of waitingProgress) {
-      if (p.leftAt) {
-        const prev = lastActivityByTid.get(p.tournamentId);
-        if (!prev || p.leftAt > prev)
-          lastActivityByTid.set(p.tournamentId, p.leftAt);
-      }
+      progressCountByTid.set(
+        p.tournamentId,
+        (progressCountByTid.get(p.tournamentId) ?? 0) + 1,
+      );
     }
-    const waitingTournament = reusableTournaments.find((t) => {
-      if (t.players.some((p) => p.id === userId)) return false;
-      if (t.players.length >= 4) return false;
-      return true;
-    });
+    const waitingTournament =
+      reusableTournaments
+        .filter((t) => {
+          if (t.players.some((p) => p.id === userId)) return false;
+          if (this.getTournamentPlayerCount(t) >= 4) return false;
+          return true;
+        })
+        .sort((left, right) =>
+          compareReusableTournamentCandidates(
+            {
+              id: left.id,
+              status: left.status,
+              playerCount: this.getTournamentPlayerCount(left),
+              progressCount: progressCountByTid.get(left.id) ?? 0,
+            },
+            {
+              id: right.id,
+              status: right.status,
+              playerCount: this.getTournamentPlayerCount(right),
+              progressCount: progressCountByTid.get(right.id) ?? 0,
+            },
+          ),
+        )[0] ?? null;
 
     let tournament: Tournament;
     let playerSlot: number;
@@ -2787,6 +2867,10 @@ export class TournamentsService implements OnModuleInit {
         newOrder,
         playerSlot,
         joinedAt,
+      );
+      await this.syncTournamentActiveStatusWithManager(
+        this.tournamentProgressRepository.manager,
+        tournament.id,
       );
     } else {
       tournament = this.tournamentRepository.create({
@@ -2989,11 +3073,14 @@ export class TournamentsService implements OnModuleInit {
   /** Количество уникальных игроков «онлайн» по лиге: только те, у кого лига — макс. по условиям и кто сейчас в личном кабинете. */
   async getPlayersOnlineByLeague(): Promise<Record<number, number>> {
     const tournaments = await this.tournamentRepository.find({
-      where: { status: TournamentStatus.WAITING, gameType: 'money' },
+      where: [
+        { status: TournamentStatus.WAITING, gameType: 'money' },
+        { status: TournamentStatus.ACTIVE, gameType: 'money' },
+      ],
       relations: ['players'],
     });
     const userIds = new Set<number>();
-    for (const t of tournaments) {
+    for (const t of tournaments.filter((tournament) => this.getTournamentPlayerCount(tournament) < 4)) {
       for (const p of t.players ?? []) {
         userIds.add(p.id);
       }
@@ -3149,12 +3236,44 @@ export class TournamentsService implements OnModuleInit {
         .orderBy('t.id', 'ASC')
         .setLock('pessimistic_write')
         .getMany();
+      const progressRows =
+        reusableTournaments.length > 0
+          ? await manager.getRepository(TournamentProgress).find({
+              where: { tournamentId: In(reusableTournaments.map((t) => t.id)) },
+              select: ['tournamentId'],
+            })
+          : [];
+      const progressCountByTid = new Map<number, number>();
+      for (const row of progressRows) {
+        progressCountByTid.set(
+          row.tournamentId,
+          (progressCountByTid.get(row.tournamentId) ?? 0) + 1,
+        );
+      }
 
-      const waitingTournament = reusableTournaments.find((t) => {
-        if (t.players.some((p) => p.id === userId)) return false;
-        if (t.players.length >= 4) return false;
-        return true;
-      });
+      const waitingTournament =
+        reusableTournaments
+          .filter((t) => {
+            if (t.players.some((p) => p.id === userId)) return false;
+            if (this.getTournamentPlayerCount(t) >= 4) return false;
+            return true;
+          })
+          .sort((left, right) =>
+            compareReusableTournamentCandidates(
+              {
+                id: left.id,
+                status: left.status,
+                playerCount: this.getTournamentPlayerCount(left),
+                progressCount: progressCountByTid.get(left.id) ?? 0,
+              },
+              {
+                id: right.id,
+                status: right.status,
+                playerCount: this.getTournamentPlayerCount(right),
+                progressCount: progressCountByTid.get(right.id) ?? 0,
+              },
+            ),
+          )[0] ?? null;
 
       let tournament: Tournament;
       let playerSlot: number;
@@ -3183,6 +3302,7 @@ export class TournamentsService implements OnModuleInit {
           playerSlot,
           joinedAt,
         );
+        await this.syncTournamentActiveStatusWithManager(manager, tournament.id);
       } else {
         tournament = tournamentRepository.create({
           status: TournamentStatus.WAITING,
@@ -6577,6 +6697,15 @@ export class TournamentsService implements OnModuleInit {
         roundStartedAt: new Date(),
       });
       await this.tournamentProgressRepository.save(progress);
+    }
+
+    if (
+      await this.syncTournamentActiveStatusWithManager(
+        this.tournamentProgressRepository.manager,
+        tournamentId,
+      )
+    ) {
+      tournament.status = TournamentStatus.ACTIVE;
     }
 
     await this.tryAutoComplete(tournament, userId).catch(() => {});
