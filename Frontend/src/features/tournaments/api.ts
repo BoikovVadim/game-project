@@ -1,5 +1,10 @@
 import axios from 'axios';
-import type { BracketViewData, QuestionsReviewData, TrainingStateResponse } from './contracts.ts';
+import type {
+  BracketViewData,
+  QuestionsReviewData,
+  TournamentJoinInfo,
+  TrainingStateResponse,
+} from './contracts.ts';
 import { withBearerToken } from '../../api/client.ts';
 import { toQuestionsReviewData } from './session.ts';
 
@@ -17,6 +22,12 @@ export async function fetchTrainingState(token: string, tournamentId: number, us
 export async function fetchPreparedTrainingState(token: string, tournamentId: number, userId?: number): Promise<TrainingStateResponse> {
   await prepareTrainingState(token, tournamentId, userId);
   return fetchTrainingState(token, tournamentId, userId);
+}
+
+export async function fetchTournamentState(token: string, tournamentId: number, userId?: number): Promise<TournamentJoinInfo> {
+  const suffix = userId != null ? `/tournaments/admin/${tournamentId}/state?userId=${userId}` : `/tournaments/${tournamentId}/state`;
+  const response = await axios.get<TournamentJoinInfo>(suffix, withBearerToken(token));
+  return response.data;
 }
 
 export async function fetchTournamentBracket(token: string, tournamentId: number, userId?: number): Promise<BracketViewData> {

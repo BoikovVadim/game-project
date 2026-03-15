@@ -19,6 +19,7 @@
     "check-user": "ts-node -r tsconfig-paths/register src/scripts/check-user.ts",
     "audit:auth-payments": "ts-node src/scripts/audit-auth-payments.ts",
     "audit:tournaments": "ts-node src/scripts/audit-tournaments.ts",
+    "preview:reusable-tournaments": "ts-node -r tsconfig-paths/register src/scripts/preview-reusable-tournaments.ts",
     "audit:finance-ledger": "ts-node src/scripts/audit-finance-ledger.ts",
     "fix:auth-payments-data": "ts-node src/scripts/audit-auth-payments.ts --fix",
     "fix:tournaments": "ts-node -r tsconfig-paths/register src/scripts/repair-tournaments.ts",

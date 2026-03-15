@@ -7,6 +7,7 @@ import {
   fetchTournamentBracket,
   fetchTournamentQuestions,
   fetchPreparedTrainingState,
+  fetchTournamentState,
 } from "../features/tournaments/api.ts";
 import type {
   BracketPlayerTooltipData,
@@ -1681,7 +1682,9 @@ const Profile: React.FC<ProfileProps> = ({
           headers: { Authorization: `Bearer ${token}` },
         })
         .then((res) => setData(res.data))
-        .catch(() => setData({ active: [], completed: [] }));
+        .catch(() =>
+          setData({ active: [], completed: [], resumeTournamentId: null }),
+        );
     },
     [token],
   );
@@ -2532,16 +2535,8 @@ const Profile: React.FC<ProfileProps> = ({
     setContinueTrainingLoading(tournamentId);
     setContinueTrainingError("");
     try {
+      const joinInfo = await fetchTournamentState(token, tournamentId);
       const data = await fetchPreparedTrainingState(token, tournamentId);
-      const joinInfo: TournamentJoinInfo = {
-        tournamentId: data.tournamentId,
-        playerSlot: (data.userSemiIndex ?? 0) * 2,
-        totalPlayers: 4,
-        semiIndex: data.userSemiIndex ?? 0,
-        positionInSemi: 0,
-        isCreator: false,
-        deadline: data.deadline,
-      };
       const session = buildTournamentSessionViewModel(data, {
         joinInfo,
         questionTimerSeconds: QUESTION_TIMER_SEC,
@@ -2607,17 +2602,7 @@ const Profile: React.FC<ProfileProps> = ({
     setContinueTournamentLoading(tournamentId);
     setContinueTournamentError("");
     try {
-      const { data } = await axios.get<{
-        tournamentId: number;
-        playerSlot: number;
-        totalPlayers: number;
-        semiIndex: number;
-        positionInSemi: number;
-        isCreator: boolean;
-        deadline: string | null;
-      }>(`/tournaments/${tournamentId}/state`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const data = await fetchTournamentState(token, tournamentId);
       setTournamentJoinInfo(data);
       setContinueTournamentError("");
       const trainData = await fetchPreparedTrainingState(token, tournamentId);
@@ -4436,9 +4421,12 @@ const Profile: React.FC<ProfileProps> = ({
                           <div className="training-start-buttons">
                             {(() => {
                               const continueTarget =
-                                [...(gameHistory?.active ?? [])]
-                                  .filter((t) => t.canContinue)
-                                  .sort((a, b) => a.id - b.id)[0] ?? null;
+                                gameHistory?.resumeTournamentId != null
+                                  ? (gameHistory?.active ?? []).find(
+                                      (t) =>
+                                        t.id === gameHistory.resumeTournamentId,
+                                    ) ?? null
+                                  : null;
                               const hasActiveGames = (
                                 gameHistory?.active ?? []
                               ).some((t) => t.canContinue);
@@ -5274,9 +5262,13 @@ const Profile: React.FC<ProfileProps> = ({
                                     const moneyActive =
                                       gameHistoryMoney?.active ?? [];
                                     const continueTarget =
-                                      [...moneyActive]
-                                        .filter((t) => t.canContinue)
-                                        .sort((a, b) => a.id - b.id)[0] ?? null;
+                                      gameHistoryMoney?.resumeTournamentId != null
+                                        ? moneyActive.find(
+                                            (t) =>
+                                              t.id ===
+                                              gameHistoryMoney.resumeTournamentId,
+                                          ) ?? null
+                                        : null;
                                     const hasActiveGames = moneyActive.some(
                                       (t) => t.canContinue,
                                     );

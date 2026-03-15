@@ -43,6 +43,25 @@ export interface TournamentListItemDto {
 export interface TournamentListResponseDto {
   active: TournamentListItemDto[];
   completed: TournamentListItemDto[];
+  resumeTournamentId: number | null;
+}
+
+export interface TournamentReusablePreviewItemDto {
+  id: number;
+  status: string;
+  playerCount: number;
+  progressCount: number;
+  hasCurrentUser: boolean;
+  canReuse: boolean;
+  leagueAmount: number | null;
+}
+
+export interface TournamentReusablePreviewDto {
+  mode: 'training' | 'money';
+  userId: number | null;
+  leagueAmount: number | null;
+  candidateTournamentId: number | null;
+  candidates: TournamentReusablePreviewItemDto[];
 }
 
 export interface TournamentQuestionDto {

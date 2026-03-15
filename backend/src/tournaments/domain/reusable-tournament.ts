@@ -2,9 +2,13 @@ export type ReusableTournamentStatus = 'waiting' | 'active' | 'finished';
 
 export interface ReusableTournamentCandidate {
   id: number;
-  status: ReusableTournamentStatus;
   playerCount: number;
-  progressCount: number;
+  hasCurrentUser: boolean;
+}
+
+export interface ResumeTournamentCandidate {
+  id: number;
+  canContinue: boolean;
 }
 
 export function isTournamentStructurallyFinishable(playerCount: number): boolean {
@@ -26,4 +30,30 @@ export function compareReusableTournamentCandidates(
   right: ReusableTournamentCandidate,
 ): number {
   return left.id - right.id;
+}
+
+export function canReuseTournamentCandidate(
+  candidate: ReusableTournamentCandidate,
+): boolean {
+  return !candidate.hasCurrentUser && candidate.playerCount < 4;
+}
+
+export function pickReusableTournamentCandidate<
+  T extends ReusableTournamentCandidate,
+>(candidates: T[]): T | null {
+  return (
+    candidates
+      .filter((candidate) => canReuseTournamentCandidate(candidate))
+      .sort(compareReusableTournamentCandidates)[0] ?? null
+  );
+}
+
+export function pickResumeTournamentId<
+  T extends ResumeTournamentCandidate,
+>(candidates: T[]): number | null {
+  return (
+    candidates
+      .filter((candidate) => candidate.canContinue)
+      .sort((left, right) => left.id - right.id)[0]?.id ?? null
+  );
 }

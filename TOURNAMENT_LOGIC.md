@@ -63,6 +63,7 @@
 
 1. Ищется подходящий турнир.
    - Приоритет выбора: минимальный `id` среди подходящих незавершённых турниров нужного режима.
+   - Внутренний selector общий для `training`, `money` и preview-smoke; правило нельзя дублировать отдельной локальной сортировкой во frontend.
 2. Игрок добавляется в `players`.
 3. Его `userId` добавляется в конец `playerOrder`.
 4. Пишется `tournament_entry`.
@@ -418,7 +419,7 @@ Escrow используется только в `money`-режиме.
 
 ### `getTournamentState(...)`
 
-Нужен для кнопки "Продолжить игру".
+Нужен для кнопки "Продолжить игру" и является каноническим `joinInfo` для resume-flow.
 
 Возвращает:
 
@@ -433,6 +434,22 @@ Escrow используется только в `money`-режиме.
 
 - если турнир формально `finished`, но игрок выиграл полуфинал и еще не прошел финал, доступ к продолжению сохраняется
 - метод больше не должен удалять или создавать tie-break questions на обычном GET; он только читает уже существующий state
+
+### `previewReusableTournamentSelection(...)`
+
+Read-only preview для browserless проверки reusable-пула.
+
+Возвращает:
+
+- `candidateTournamentId`
+- список открытых кандидатов с `playerCount`, `progressCount`, `hasCurrentUser`, `canReuse`
+- выбранный режим и `leagueAmount`, если это money preview
+
+Канонический shell entry point:
+
+- `npm run preview:tournaments`
+- `npm run preview:reusable-tournaments --workspace backend -- --mode=training`
+- `npm run preview:reusable-tournaments --workspace backend -- --mode=money --league-amount=5`
 
 ### `getTrainingState(...)`
 

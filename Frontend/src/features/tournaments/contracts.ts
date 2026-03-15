@@ -55,6 +55,7 @@ export type TournamentListItem = {
 export type TournamentHistoryResponse = {
   active: TournamentListItem[];
   completed: TournamentListItem[];
+  resumeTournamentId: number | null;
 };
 
 export type TrainingQuestion = {

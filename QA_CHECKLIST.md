@@ -29,8 +29,11 @@
 - незавершённый money tournament не содержит settled escrow (`paid_to_winner` / `forfeited`)
 - статистика полуфинальной пары считается по `playerOrder`, а не по сортировке `userId`
 - новый игрок попадает в открытый tournament с минимальным `ID`, а не в более заполненный
+- кнопка `Продолжить игру` использует backend `resumeTournamentId`, а не локальную сортировку списка
+- `continueTraining` берёт канонический `joinInfo` из `GET /tournaments/:id/state`, а не восстанавливает слот/пару на клиенте
 - `POST /tournaments/:id/training-state/prepare` создаёт вопросы/таймеры, а `GET /tournaments/:id/training-state` остаётся read-only
 - `npm run verify:tournaments` проходит без ошибок
+- `npm run preview:tournaments` показывает candidate `ID` без мутаций для `training` и money-лиг
 - `npm run repair:tournaments` после drift возвращает `audit:tournaments` к `0`
 - сценарная матрица покрыта минимумом:
   - `2 игрока`
@@ -58,7 +61,7 @@
 - `cd Frontend && CI= npm run build` проходит без предупреждений ESLint
 - `npm run smoke:stability` проходит и подтверждает runtime/auth/payment contracts
 - `cd backend && npm run audit:auth-payments` не находит противоречивых auth/payment записей
-- `npm run verify:tournaments` выполняет `backend test -> build -> audit:tournaments`
+- `npm run verify:tournaments` выполняет `backend test -> build -> audit:tournaments -> preview:reusable-tournaments`
 - после `npm run repair:tournaments` повторный `audit:tournaments` остаётся с `totalIssueCount = 0`
 - `npm run deploy:prod` использует только env-based deploy vars
 - после деплоя отвечает `DEPLOY_HEALTHCHECK_URL`

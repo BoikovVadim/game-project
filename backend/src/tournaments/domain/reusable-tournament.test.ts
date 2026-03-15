@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  canReuseTournamentCandidate,
   compareReusableTournamentCandidates,
   isTournamentStructurallyFinishable,
+  pickResumeTournamentId,
+  pickReusableTournamentCandidate,
   shouldTournamentBeActive,
 } from './reusable-tournament';
 
@@ -43,21 +46,18 @@ test('prefers the smallest tournament id for reuse', () => {
   const candidates = [
     {
       id: 45,
-      status: 'active',
       playerCount: 3,
-      progressCount: 3,
+      hasCurrentUser: false,
     },
     {
       id: 3,
-      status: 'active',
       playerCount: 2,
-      progressCount: 2,
+      hasCurrentUser: false,
     },
     {
       id: 11,
-      status: 'waiting',
       playerCount: 1,
-      progressCount: 1,
+      hasCurrentUser: false,
     },
   ];
 
@@ -65,6 +65,47 @@ test('prefers the smallest tournament id for reuse', () => {
   assert.deepEqual(
     candidates.map((candidate) => candidate.id),
     [3, 11, 45],
+  );
+});
+
+test('rejects reusable candidates with current user or full bracket', () => {
+  assert.equal(
+    canReuseTournamentCandidate({
+      id: 5,
+      playerCount: 4,
+      hasCurrentUser: false,
+    }),
+    false,
+  );
+  assert.equal(
+    canReuseTournamentCandidate({
+      id: 6,
+      playerCount: 2,
+      hasCurrentUser: true,
+    }),
+    false,
+  );
+});
+
+test('picks the smallest joinable reusable candidate', () => {
+  const candidate = pickReusableTournamentCandidate([
+    { id: 7, playerCount: 4, hasCurrentUser: false },
+    { id: 5, playerCount: 2, hasCurrentUser: true },
+    { id: 9, playerCount: 2, hasCurrentUser: false },
+    { id: 3, playerCount: 1, hasCurrentUser: false },
+  ]);
+
+  assert.equal(candidate?.id, 3);
+});
+
+test('picks the smallest resumable tournament id', () => {
+  assert.equal(
+    pickResumeTournamentId([
+      { id: 45, canContinue: true },
+      { id: 3, canContinue: false },
+      { id: 11, canContinue: true },
+    ]),
+    11,
   );
 });
 
