@@ -42,13 +42,15 @@ case "$MODE" in
 bash -lc 'set -euo pipefail
 cd "$REMOTE_DIR"
 git pull origin main
-npm install
+rm -rf node_modules
 cd backend
-npm install
+npm install --workspaces=false --omit=optional
 npm run build
+npm prune --workspaces=false --omit=dev --omit=optional
 cd ../Frontend
-npm install
+npm install --workspaces=false
 CI= npm run build
+rm -rf node_modules
 cd ..
 if pm2 describe "$REMOTE_PM2_APP" >/dev/null 2>&1; then
   pm2 restart "$REMOTE_PM2_APP" --update-env
@@ -73,10 +75,11 @@ EOF
 bash -lc 'set -euo pipefail
 cd "$REMOTE_DIR"
 git pull origin main
-npm install
+rm -rf node_modules
 cd Frontend
-npm install
+npm install --workspaces=false
 CI= npm run build
+rm -rf node_modules
 cd ..
 if pm2 describe "$REMOTE_PM2_APP" >/dev/null 2>&1; then
   pm2 restart "$REMOTE_PM2_APP" --update-env

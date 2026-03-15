@@ -60,14 +60,20 @@ async function bootstrap() {
 
   app.enableCors({
     origin: isProd
-      ? (origin, callback) => {
+      ? (
+          origin: string | undefined,
+          callback: (err: Error | null, allow?: boolean) => void,
+        ) => {
           if (!origin || allowedOrigins.includes(origin)) {
             callback(null, true);
           } else {
             callback(new Error('CORS blocked'));
           }
         }
-      : (origin, callback) => callback(null, origin || true),
+      : (
+          origin: string | undefined,
+          callback: (err: Error | null, allow?: boolean | string) => void,
+        ) => callback(null, origin || true),
     credentials: true,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     allowedHeaders: 'Content-Type,Authorization',

@@ -31,7 +31,18 @@
     "start:server": "cd backend && cross-env PORT=3000 NODE_OPTIONS=--max-old-space-size=2048 node dist/main.js",
     "dev:auto": "npm run dev:kill-ports && cd Frontend && cross-env NODE_OPTIONS=--max-old-space-size=4096 CI=true npm run build && cd ../backend && npm run build && node -e \"require('fs').writeFileSync(require('path').join(process.cwd(),'..','.last-rebuild'), String(Date.now()))\" && npx concurrently \"cross-env NODE_OPTIONS=--max-old-space-size=2048 node dist/main.js\" \"cross-env NODE_OPTIONS=--max-old-space-size=4096 node ../scripts/dev-watch.js\""
   },
+  "overrides": {
+    "sqlite3": "6.0.1",
+    "@tootallnate/once": "3.0.1",
+    "http-proxy-agent": "8.0.0",
+    "cacache": "20.0.3",
+    "make-fetch-happen": "15.0.4",
+    "node-gyp": "12.2.0",
+    "tar": "7.5.11"
+  },
   "devDependencies": {
+    "@nestjs/common": "^11.1.16",
+    "@nestjs/core": "^11.1.16",
     "chokidar": "^3.6.0",
     "concurrently": "^8.2.2",
     "cross-env": "^7.0.3",
