@@ -6220,6 +6220,14 @@ export class TournamentsService implements OnModuleInit {
           );
           opponentInfoByRound.push(finalOppInfo);
         }
+      } else {
+        const emptyFinalOppInfo = { id: 0, nickname: '—', avatarUrl: null };
+        opponentAnswersByRound.push([]);
+        opponentInfoByRound.push(emptyFinalOppInfo);
+        for (let r = 0; r < visibleFinalTiebreakerRoundCount; r++) {
+          opponentAnswersByRound.push([]);
+          opponentInfoByRound.push(emptyFinalOppInfo);
+        }
       }
     }
 
