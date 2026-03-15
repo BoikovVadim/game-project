@@ -29,6 +29,38 @@ function Probe() {
   );
 }
 
+function WithdrawalSyncProbe() {
+  const { state, patchQuery } = useAdminQueryState();
+  const [section, setSection] = React.useState(state.section);
+  const [status, setStatus] = React.useState(state.withdrawalStatus);
+
+  React.useEffect(() => {
+    setSection(state.section);
+    setStatus(state.withdrawalStatus);
+  }, [state.section, state.withdrawalStatus]);
+
+  React.useEffect(() => {
+    if (section !== 'withdrawals') return;
+    patchQuery({
+      tab: 'withdrawals',
+      status,
+    });
+  }, [section, status, patchQuery]);
+
+  return (
+    <div>
+      <div data-testid="sync-section">{section}</div>
+      <div data-testid="sync-status">{status || 'empty'}</div>
+      <button type="button" onClick={() => setStatus('approved')}>
+        approved
+      </button>
+      <button type="button" onClick={() => setStatus('')}>
+        all
+      </button>
+    </div>
+  );
+}
+
 test('restores admin query state from URL', () => {
   render(
     <MemoryRouter initialEntries={['/admin?tab=support&status=approved&supportTicket=17&statsTab=project-cost']}>
@@ -77,4 +109,20 @@ test('patchQuery keeps search-param state canonical', () => {
   expect(screen.getByTestId('status').textContent).toBe('empty');
   expect(screen.getByTestId('supportTicket').textContent).toBe('42');
   expect(screen.getByTestId('statsTab').textContent).toBe('transactions');
+});
+
+test('changing withdrawal status keeps withdrawals section in URL state', () => {
+  render(
+    <MemoryRouter initialEntries={['/admin?tab=withdrawals&status=pending']}>
+      <WithdrawalSyncProbe />
+    </MemoryRouter>,
+  );
+
+  fireEvent.click(screen.getByText('approved'));
+  expect(screen.getByTestId('sync-section').textContent).toBe('withdrawals');
+  expect(screen.getByTestId('sync-status').textContent).toBe('approved');
+
+  fireEvent.click(screen.getByText('all'));
+  expect(screen.getByTestId('sync-section').textContent).toBe('withdrawals');
+  expect(screen.getByTestId('sync-status').textContent).toBe('empty');
 });

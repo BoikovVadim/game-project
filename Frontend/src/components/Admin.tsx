@@ -523,6 +523,14 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
   };
 
   useEffect(() => {
+    if (section !== "withdrawals") return;
+    patchQuery({
+      tab: "withdrawals",
+      status: withdrawalStatusFilter,
+    });
+  }, [section, withdrawalStatusFilter, patchQuery]);
+
+  useEffect(() => {
     if (section !== "users") return;
     patchQuery({ userSearch: userSearch.trim() || null });
   }, [section, userSearch, patchQuery]);
@@ -2057,14 +2065,6 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
               onClick={() => {
                 setApprovedTransfer(null);
                 setWithdrawalStatusFilter("pending");
-                setSearchParams(
-                  (prev) => {
-                    const nextParams = new URLSearchParams(prev);
-                    nextParams.set("status", "pending");
-                    return nextParams;
-                  },
-                  { replace: true },
-                );
               }}
             >
               Перевод исполнен
@@ -2080,15 +2080,6 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
                 onChange={(e) => {
                   const v = e.target.value;
                   setWithdrawalStatusFilter(v);
-                  setSearchParams(
-                    (prev) => {
-                      const nextParams = new URLSearchParams(prev);
-                      // Всегда пишем статус в URL (в т.ч. '' для «Все»), чтобы при обновлении страницы выбор сохранялся
-                      nextParams.set("status", v);
-                      return nextParams;
-                    },
-                    { replace: true },
-                  );
                 }}
               >
                 <option value="">Все</option>
