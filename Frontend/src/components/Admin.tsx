@@ -17,12 +17,14 @@ import {
 } from "../features/tournaments/api.ts";
 import type {
   BracketPlayerTooltipData,
-  BracketViewData,
   OppTooltipState,
-  QuestionsReviewData,
 } from "../features/tournaments/contracts.ts";
 import type { PlayerStats } from "../features/users/contracts.ts";
 import { useAdminImpersonation } from "../features/admin/useAdminImpersonation.ts";
+import {
+  useTournamentBracketModalState,
+  useTournamentQuestionsModalState,
+} from "../features/tournaments/useTournamentModalState.ts";
 import { useAdminQueryState } from "../hooks/useAdminQueryState.ts";
 import { formatMoscowDateTimeFull, formatMoscowDateTime } from "./dateUtils.ts";
 import {
@@ -431,31 +433,50 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
     useState<TournamentColumnKey | null>(null);
   const [dragOverTournamentColumn, setDragOverTournamentColumn] =
     useState<TournamentColumnKey | null>(null);
-  const [bracketView, setBracketView] = useState<BracketViewData | null>(null);
-  const [bracketLoading, setBracketLoading] = useState(false);
-  const [bracketError, setBracketError] = useState("");
+  const {
+    bracketView,
+    bracketLoading,
+    bracketError,
+    openBracket: openBracketModalState,
+    closeBracket: closeBracketModalState,
+  } = useTournamentBracketModalState({
+    searchParams,
+    setSearchParams,
+    tournamentKey: "tournamentModal",
+    sourceKey: "tournamentSource",
+    viewerUserKey: "tournamentUserId",
+    loadBracket: ({ tournamentId, viewerUserId }) =>
+      fetchTournamentBracket(token, tournamentId, viewerUserId ?? undefined),
+  });
   const [bracketPlayerTooltip, setBracketPlayerTooltip] =
     useState<BracketPlayerTooltipData | null>(null);
   const bracketLeftColRef = React.useRef<HTMLDivElement>(null);
   const bracketFinalBlockRef = React.useRef<HTMLDivElement>(null);
   const [bracketBlocksEqualized, setBracketBlocksEqualized] = useState(false);
-  const bracketLoadedTournamentIdRef = React.useRef<string | null>(null);
-  const [questionsReviewTournamentId, setQuestionsReviewTournamentId] =
-    useState<number | null>(null);
-  const [questionsReviewRound, setQuestionsReviewRound] = useState<
-    "semi" | "final"
-  >("semi");
-  const [questionsReviewTabIdx, setQuestionsReviewTabIdx] = useState(-1);
-  const [questionsReviewData, setQuestionsReviewData] =
-    useState<QuestionsReviewData | null>(null);
-  const [questionsReviewLoading, setQuestionsReviewLoading] = useState(false);
-  const [questionsReviewError, setQuestionsReviewError] = useState("");
+  const {
+    questionsReviewTournamentId,
+    questionsReviewRound,
+    questionsReviewTabIdx,
+    setQuestionsReviewTabIdx,
+    questionsReviewData,
+    questionsReviewLoading,
+    questionsReviewError,
+    openQuestionsReview: openQuestionsReviewState,
+    closeQuestionsReview: closeQuestionsReviewModalState,
+  } = useTournamentQuestionsModalState({
+    searchParams,
+    setSearchParams,
+    tournamentKey: "questionsModal",
+    roundKey: "questionsRound",
+    viewerUserKey: "questionsUserId",
+    loadQuestions: ({ tournamentId, viewerUserId }) =>
+      fetchTournamentQuestions(token, tournamentId, viewerUserId ?? undefined),
+  });
   const [oppTooltip, setOppTooltip] = useState<OppTooltipState>({
     loading: false,
     data: null,
     visible: false,
   });
-  const questionsLoadedTournamentRef = React.useRef<string | null>(null);
   const [qsSortBy, setQsSortBy] = useState<"topic" | "count">("count");
   const [qsSortDir, setQsSortDir] = useState<"asc" | "desc">("desc");
   type TxRow = {
@@ -1247,88 +1268,19 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
 
   const openBracketModal = React.useCallback(
     (tournamentId: number, phase: "active" | "history", userId: number) => {
-      setSearchParams(
-        (prev) => {
-          const next = new URLSearchParams(prev);
-          next.set("tournamentModal", String(tournamentId));
-          next.set(
-            "tournamentSource",
-            phase === "history" ? "completed" : "active",
-          );
-          next.set("tournamentUserId", String(userId));
-          return next;
-        },
-        { replace: true },
+      openBracketModalState(
+        tournamentId,
+        phase === "history" ? "completed" : "active",
+        userId,
       );
     },
-    [setSearchParams],
+    [openBracketModalState],
   );
 
   const closeBracket = React.useCallback(() => {
-    setBracketView(null);
-    setBracketError("");
     setBracketPlayerTooltip(null);
-    bracketLoadedTournamentIdRef.current = null;
-    setSearchParams(
-      (prev) => {
-        const next = new URLSearchParams(prev);
-        next.delete("tournamentModal");
-        next.delete("tournamentSource");
-        next.delete("tournamentUserId");
-        return next;
-      },
-      { replace: true },
-    );
-  }, [setSearchParams]);
-
-  useEffect(() => {
-    const rawId = searchParams.get("tournamentModal");
-    const id = rawId && /^\d+$/.test(rawId) ? Number(rawId) : null;
-    const rawUserId = searchParams.get("tournamentUserId");
-    const viewerUserId =
-      rawUserId && /^\d+$/.test(rawUserId) ? Number(rawUserId) : null;
-    if (!id || !token || !viewerUserId) {
-      setBracketView(null);
-      setBracketError("");
-      setBracketLoading(false);
-      bracketLoadedTournamentIdRef.current = null;
-      return;
-    }
-    const bracketKey = `${id}:${viewerUserId}`;
-    if (
-      bracketLoadedTournamentIdRef.current === bracketKey &&
-      (bracketView || bracketError)
-    ) {
-      return;
-    }
-    bracketLoadedTournamentIdRef.current = bracketKey;
-    setBracketLoading(true);
-    setBracketError("");
-    setBracketPlayerTooltip(null);
-    fetchTournamentBracket(token, id, viewerUserId)
-      .then((data) => {
-        setBracketView(data);
-        setBracketError("");
-      })
-      .catch((e: unknown) => {
-        const err =
-          e && typeof e === "object" && "response" in e
-            ? (e as { response?: { data?: { message?: string | string[] } } })
-                .response
-            : undefined;
-        const msg = err?.data?.message;
-        const text = Array.isArray(msg)
-          ? msg[0]
-          : typeof msg === "string"
-            ? msg
-            : e instanceof Error
-              ? e.message
-              : "Не удалось загрузить сетку";
-        setBracketView(null);
-        setBracketError(text || "Не удалось загрузить сетку");
-      })
-      .finally(() => setBracketLoading(false));
-  }, [searchParams, token, headers, bracketView, bracketError]);
+    closeBracketModalState();
+  }, [closeBracketModalState]);
 
   const openQuestionsReview = React.useCallback(
     (
@@ -1336,105 +1288,15 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
       roundForQuestions: "semi" | "final",
       userId: number,
     ) => {
-      setQuestionsReviewRound(roundForQuestions);
-      setQuestionsReviewTabIdx(-1);
-      setSearchParams(
-        (prev) => {
-          const next = new URLSearchParams(prev);
-          next.set("questionsModal", String(tournamentId));
-          next.set("questionsRound", roundForQuestions);
-          next.set("questionsUserId", String(userId));
-          return next;
-        },
-        { replace: true },
-      );
+      openQuestionsReviewState(tournamentId, roundForQuestions, userId);
     },
-    [setSearchParams],
+    [openQuestionsReviewState],
   );
 
   const closeQuestionsReview = React.useCallback(() => {
-    setQuestionsReviewTournamentId(null);
-    setQuestionsReviewTabIdx(0);
-    setQuestionsReviewData(null);
-    setQuestionsReviewError("");
     setOppTooltip({ loading: false, data: null, visible: false });
-    questionsLoadedTournamentRef.current = null;
-    setSearchParams(
-      (prev) => {
-        const next = new URLSearchParams(prev);
-        next.delete("questionsModal");
-        next.delete("questionsRound");
-        next.delete("questionsUserId");
-        return next;
-      },
-      { replace: true },
-    );
-  }, [setSearchParams]);
-
-  useEffect(() => {
-    const rawId = searchParams.get("questionsModal");
-    const id = rawId && /^\d+$/.test(rawId) ? Number(rawId) : null;
-    const round =
-      searchParams.get("questionsRound") === "final" ? "final" : "semi";
-    setQuestionsReviewRound(round);
-    const rawUserId = searchParams.get("questionsUserId");
-    const viewerUserId =
-      rawUserId && /^\d+$/.test(rawUserId) ? Number(rawUserId) : null;
-    if (!id || !token || !viewerUserId) {
-      setQuestionsReviewTournamentId(null);
-      setQuestionsReviewData(null);
-      setQuestionsReviewLoading(false);
-      setQuestionsReviewError("");
-      questionsLoadedTournamentRef.current = null;
-      return;
-    }
-    const key = `${id}:${viewerUserId}:${round}`;
-    if (
-      questionsLoadedTournamentRef.current === key &&
-      (questionsReviewData || questionsReviewError)
-    ) {
-      setQuestionsReviewTournamentId(id);
-      return;
-    }
-    questionsLoadedTournamentRef.current = key;
-    setQuestionsReviewTournamentId(id);
-    setQuestionsReviewTabIdx(-1);
-    setQuestionsReviewData(null);
-    setQuestionsReviewError("");
-    setQuestionsReviewLoading(true);
-    fetchTournamentQuestions(token, id, viewerUserId)
-      .then((data) => {
-        const answersChosenRaw = data.answersChosen;
-        setQuestionsReviewData({
-          questionsSemi1: data.questionsSemi1 ?? [],
-          questionsSemi2: data.questionsSemi2 ?? [],
-          questionsFinal: data.questionsFinal ?? [],
-          questionsAnsweredCount: data.questionsAnsweredCount ?? 0,
-          correctAnswersCount: data.correctAnswersCount ?? 0,
-          semiFinalCorrectCount: data.semiFinalCorrectCount ?? null,
-          semiTiebreakerCorrectSum: data.semiTiebreakerCorrectSum ?? 0,
-          answersChosen: Array.isArray(answersChosenRaw)
-            ? answersChosenRaw
-            : [],
-          userSemiIndex: data.userSemiIndex ?? 0,
-          semiTiebreakerAllQuestions: data.semiTiebreakerAllQuestions ?? [],
-          semiTiebreakerRoundsCorrect: data.semiTiebreakerRoundsCorrect ?? [],
-          finalTiebreakerAllQuestions: data.finalTiebreakerAllQuestions ?? [],
-          finalTiebreakerRoundsCorrect: data.finalTiebreakerRoundsCorrect ?? [],
-          reviewRounds: data.reviewRounds ?? [],
-          opponentAnswersByRound: data.opponentAnswersByRound ?? [],
-          opponentInfoByRound: data.opponentInfoByRound ?? [],
-        });
-      })
-      .catch((e: unknown) => {
-        const msg =
-          axios.isAxiosError(e) && e.response?.data?.message
-            ? String(e.response.data.message)
-            : "Не удалось загрузить вопросы";
-        setQuestionsReviewError(msg);
-      })
-      .finally(() => setQuestionsReviewLoading(false));
-  }, [searchParams, token, headers, questionsReviewData, questionsReviewError]);
+    closeQuestionsReviewModalState();
+  }, [closeQuestionsReviewModalState]);
 
   const loadOppStats = React.useCallback(
     (userId: number, avatarUrl?: string | null) => {

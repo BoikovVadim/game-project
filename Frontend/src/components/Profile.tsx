@@ -6,18 +6,23 @@ import { refreshAccessToken, restoreAdminSession } from "../api/authClient.ts";
 import {
   fetchTournamentBracket,
   fetchTournamentQuestions,
-  fetchTrainingState,
-  prepareTrainingState,
+  fetchPreparedTrainingState,
 } from "../features/tournaments/api.ts";
 import type {
   BracketPlayerTooltipData,
-  BracketViewData,
   OppTooltipState,
-  QuestionsReviewData,
   TournamentHistoryResponse,
+  TournamentJoinInfo,
   TournamentListItem,
+  TrainingData,
   TrainingQuestion,
+  TrainingRound,
 } from "../features/tournaments/contracts.ts";
+import { buildTournamentSessionViewModel } from "../features/tournaments/session.ts";
+import {
+  useTournamentBracketModalState,
+  useTournamentQuestionsModalState,
+} from "../features/tournaments/useTournamentModalState.ts";
 import type { PlayerStats } from "../features/users/contracts.ts";
 import { usePartnerReferralData } from "../features/profile/usePartnerReferralData.ts";
 import {
@@ -64,20 +69,6 @@ type NotificationItem = {
   meta?: { goToGames: true; gameMode?: "training" | "money" };
 };
 type GameMode = null | "training" | "money";
-type TrainingData = {
-  tournamentId: number;
-  deadline: string | null;
-  questionsSemi1: TrainingQuestion[];
-  questionsSemi2: TrainingQuestion[];
-  questionsFinal: TrainingQuestion[];
-  questionsTiebreaker: TrainingQuestion[];
-  tiebreakerRound: number;
-  tiebreakerBase: number;
-  tiebreakerPhase: "semi" | "final" | null;
-};
-
-type TrainingRound = 0 | 1 | 2 | 3; // 0 = semi1, 1 = semi2, 2 = final, 3 = tiebreaker
-
 const NICKNAME_MAX_LEN = 15;
 
 /** Названия лиг по камням (от дешёвого к дорогому) */
@@ -1102,15 +1093,8 @@ const Profile: React.FC<ProfileProps> = ({
   }, [trainingRound]);
 
   // Турнир на людей: слот в ожидающем турнире
-  const [tournamentJoinInfo, setTournamentJoinInfo] = useState<{
-    tournamentId: number;
-    playerSlot: number;
-    totalPlayers: number;
-    semiIndex: number;
-    positionInSemi: number;
-    isCreator: boolean;
-    deadline: string | null;
-  } | null>(null);
+  const [tournamentJoinInfo, setTournamentJoinInfo] =
+    useState<TournamentJoinInfo | null>(null);
   const [tournamentJoinLoading, setTournamentJoinLoading] = useState(false);
   const tournamentJoinInProgressRef = useRef(false);
   const [tournamentJoinError, setTournamentJoinError] = useState("");
@@ -1143,9 +1127,19 @@ const Profile: React.FC<ProfileProps> = ({
   const [gameHistoryMoney, setGameHistoryMoney] =
     useState<TournamentHistoryResponse | null>(null);
 
-  const [bracketView, setBracketView] = useState<BracketViewData | null>(null);
-  const [bracketLoading, setBracketLoading] = useState(false);
-  const [bracketError, setBracketError] = useState("");
+  const {
+    bracketView,
+    bracketLoading,
+    bracketError,
+    openBracket,
+    closeBracket: closeBracketModal,
+  } = useTournamentBracketModalState({
+    searchParams,
+    setSearchParams,
+    tournamentKey: "bracket",
+    sourceKey: "bracketSource",
+    loadBracket: ({ tournamentId }) => fetchTournamentBracket(token, tournamentId),
+  });
   const [bracketPlayerTooltip, setBracketPlayerTooltip] =
     useState<BracketPlayerTooltipData | null>(null);
   const bracketLeftColRef = useRef<HTMLDivElement>(null);
@@ -1175,16 +1169,23 @@ const Profile: React.FC<ProfileProps> = ({
     return () => cancelAnimationFrame(rafId);
   }, [bracketView]);
 
-  const [questionsReviewTournamentId, setQuestionsReviewTournamentId] =
-    useState<number | null>(null);
-  const [questionsReviewRound, setQuestionsReviewRound] = useState<
-    "semi" | "final"
-  >("semi");
-  const [questionsReviewTabIdx, setQuestionsReviewTabIdx] = useState(-1);
-  const [questionsReviewData, setQuestionsReviewData] =
-    useState<QuestionsReviewData | null>(null);
-  const [questionsReviewLoading, setQuestionsReviewLoading] = useState(false);
-  const [questionsReviewError, setQuestionsReviewError] = useState("");
+  const {
+    questionsReviewTournamentId,
+    questionsReviewRound,
+    questionsReviewTabIdx,
+    setQuestionsReviewTabIdx,
+    questionsReviewData,
+    questionsReviewLoading,
+    questionsReviewError,
+    openQuestionsReview,
+    closeQuestionsReview: closeQuestionsReviewModal,
+  } = useTournamentQuestionsModalState({
+    searchParams,
+    setSearchParams,
+    tournamentKey: "questions",
+    roundKey: "questionsRound",
+    loadQuestions: ({ tournamentId }) => fetchTournamentQuestions(token, tournamentId),
+  });
   const [oppTooltip, setOppTooltip] = useState<OppTooltipState>({
     loading: false,
     data: null,
@@ -2399,73 +2400,13 @@ const Profile: React.FC<ProfileProps> = ({
         text: `Вы присоединились к турниру в лиге ${leagueAmount} L. Удачи!`,
         meta: { goToGames: true, gameMode: "money" },
       });
-      await prepareTrainingState(token, data.tournamentId);
-      const trainData = await fetchTrainingState(token, data.tournamentId);
-      setTrainingData({
-        tournamentId: trainData.tournamentId,
-        deadline: trainData.deadline,
-        questionsSemi1: trainData.questionsSemi1,
-        questionsSemi2: trainData.questionsSemi2,
-        questionsFinal: trainData.questionsFinal,
-        questionsTiebreaker: (trainData as any).questionsTiebreaker ?? [],
-        tiebreakerRound: (trainData as any).tiebreakerRound ?? 0,
-        tiebreakerBase: (trainData as any).tiebreakerBase ?? 0,
-        tiebreakerPhase: (trainData as any).tiebreakerPhase ?? null,
+      const trainData = await fetchPreparedTrainingState(token, data.tournamentId);
+      const session = buildTournamentSessionViewModel(trainData, {
+        joinInfo: data,
+        questionTimerSeconds: QUESTION_TIMER_SEC,
       });
-      completedForfeitRef.current = false;
-      const ac = Array.isArray(trainData.answersChosen)
-        ? trainData.answersChosen
-        : [];
-      setFullAnswersChosen(ac);
-      const cur =
-        trainData.currentQuestionIndex ?? trainData.questionsAnsweredCount ?? 0;
-      const semiIdx = data.semiIndex ?? 0;
-      const sr = trainData.semiResult;
-      if (cur < 10) {
-        setTrainingRound(semiIdx === 0 ? 0 : 1);
-        setTrainingQuestionIndex(cur);
-        setTrainingAnswers(Array(cur).fill(-1));
-        setTrainingRoundScores([]);
-      } else if (
-        sr === "won" &&
-        trainData.questionsFinal &&
-        trainData.questionsFinal.length > 0 &&
-        cur >= 10
-      ) {
-        if (cur < 20) {
-          setTrainingRound(2);
-          const indexInFinal = cur - 10;
-          setTrainingQuestionIndex(indexInFinal);
-          setTrainingAnswers(Array(indexInFinal).fill(-1));
-          setTrainingRoundScores([
-            trainData.semiFinalCorrectCount ??
-              trainData.correctAnswersCount ??
-              0,
-          ]);
-        } else {
-          const semiScore = trainData.semiFinalCorrectCount ?? 0;
-          const finalScore = (trainData.correctAnswersCount ?? 0) - semiScore;
-          setTrainingRound(2);
-          setTrainingQuestionIndex(10);
-          setTrainingAnswers(Array(10).fill(-1));
-          setTrainingRoundScores([semiScore, finalScore]);
-          setTrainingRoundComplete(true);
-        }
-      } else {
-        setTrainingRound(semiIdx === 0 ? 0 : 1);
-        setTrainingQuestionIndex(Math.min(cur, 10));
-        setTrainingAnswers(Array(Math.min(cur, 10)).fill(-1));
-        setTrainingRoundScores(
-          cur >= 10 ? [trainData.correctAnswersCount ?? 0] : [],
-        );
-        setTrainingRoundComplete(cur >= 10);
-      }
-      setTrainingRoundComplete(false);
-      setAnswerForCurrentQuestion(null);
-      setTrainingCorrectCount(trainData.correctAnswersCount ?? 0);
-      const restoredTimeLeft = trainData.timeLeftSeconds ?? QUESTION_TIMER_SEC;
-      timeLeftRef.current = restoredTimeLeft;
-      setTimeLeft(restoredTimeLeft);
+      setTournamentJoinInfo(data);
+      applyTrainingSessionViewModel(session, { preserveJoinInfo: true });
       fetchGameHistory("money");
       if (user?.id) {
         const profileRes = await axios.get("/users/profile", {
@@ -2560,189 +2501,61 @@ const Profile: React.FC<ProfileProps> = ({
     setTimeLeft(QUESTION_TIMER_SEC);
   };
 
+  const applyTrainingSessionViewModel = React.useCallback(
+    (
+      session: ReturnType<typeof buildTournamentSessionViewModel>,
+      options?: { preserveJoinInfo?: boolean },
+    ) => {
+      setTrainingData(session.trainingData);
+      if (!options?.preserveJoinInfo) {
+        setTournamentJoinInfo(session.joinInfo);
+      }
+      completedForfeitRef.current = false;
+      setFullAnswersChosen(session.fullAnswersChosen);
+      setSemiPhaseTotal(session.semiPhaseTotal);
+      setTiebreakerBase(session.tiebreakerBase);
+      setTrainingRound(session.trainingRound);
+      setTrainingQuestionIndex(session.trainingQuestionIndex);
+      setTrainingAnswers(session.trainingAnswers);
+      setTrainingRoundScores(session.trainingRoundScores);
+      setTrainingRoundComplete(session.trainingRoundComplete);
+      setAnswerForCurrentQuestion(null);
+      setTrainingCorrectCount(session.trainingCorrectCount);
+      timeLeftRef.current = session.timeLeft;
+      setTimeLeft(session.timeLeft);
+    },
+    [],
+  );
+
   const continueTraining = async (tournamentId: number) => {
     if (continueTrainingLoading !== null || !token) return;
     setContinueTrainingLoading(tournamentId);
     setContinueTrainingError("");
     try {
-      await prepareTrainingState(token, tournamentId);
-      const data = await fetchTrainingState(token, tournamentId);
-      const semiIdx = data.userSemiIndex ?? 0;
-      setTrainingData({
+      const data = await fetchPreparedTrainingState(token, tournamentId);
+      const joinInfo: TournamentJoinInfo = {
         tournamentId: data.tournamentId,
-        deadline: data.deadline,
-        questionsSemi1: data.questionsSemi1,
-        questionsSemi2: data.questionsSemi2,
-        questionsFinal: data.questionsFinal,
-        questionsTiebreaker: data.questionsTiebreaker ?? [],
-        tiebreakerRound: data.tiebreakerRound ?? 0,
-        tiebreakerBase: data.tiebreakerBase ?? 0,
-        tiebreakerPhase: data.tiebreakerPhase ?? null,
-      });
-      setTournamentJoinInfo({
-        tournamentId: data.tournamentId,
-        playerSlot: semiIdx * 2,
+        playerSlot: (data.userSemiIndex ?? 0) * 2,
         totalPlayers: 4,
-        semiIndex: semiIdx,
+        semiIndex: data.userSemiIndex ?? 0,
         positionInSemi: 0,
         isCreator: false,
         deadline: data.deadline,
+      };
+      const session = buildTournamentSessionViewModel(data, {
+        joinInfo,
+        questionTimerSeconds: QUESTION_TIMER_SEC,
       });
-      completedForfeitRef.current = false;
-      const ac = data.answersChosen ?? [];
-      setFullAnswersChosen(ac);
-      const rawCur =
-        data.currentQuestionIndex ?? data.questionsAnsweredCount ?? 0;
-      const lac = data.lockedAnswerCount ?? 0;
-      const cur = lac > 0 ? Math.min(rawCur, lac + 1) : rawCur;
-      const sr = data.semiResult;
-      const tbPhase = data.tiebreakerPhase;
-      const tbQuestions = data.questionsTiebreaker ?? [];
-      const tbBase = data.tiebreakerBase ?? 0;
-      const semiTBR = (data as any).semiTiebreakerRoundsCorrect ?? [];
-      const spt = 10 + semiTBR.length * 10;
-      setSemiPhaseTotal(spt);
-      if (sr === "tie" && tbQuestions.length > 0) {
-        setTiebreakerBase(tbBase);
-        setTrainingRound(3);
-        const indexInTB = Math.max(0, cur - tbBase);
-        setTrainingQuestionIndex(Math.min(indexInTB, tbQuestions.length));
-        setTrainingAnswers(
-          indexInTB > 0 ? ac.slice(tbBase, tbBase + indexInTB) : [],
-        );
-        if (indexInTB >= tbQuestions.length) {
-          const tbAns = ac.slice(tbBase, tbBase + tbQuestions.length);
-          const correctInTB = tbQuestions.reduce(
-            (sum: number, q: TrainingQuestion, i: number) =>
-              sum + (q.correctAnswer === tbAns[i] ? 1 : 0),
-            0,
-          );
-          setTrainingRoundScores([correctInTB]);
-        } else {
-          setTrainingRoundScores([]);
-        }
-        setTrainingRoundComplete(indexInTB >= tbQuestions.length);
-      } else if (
-        sr === "won" &&
-        tbPhase === "final" &&
-        tbQuestions.length > 0
-      ) {
-        setTiebreakerBase(tbBase);
-        setTrainingRound(3);
-        const indexInTB = Math.max(0, cur - tbBase);
-        setTrainingQuestionIndex(Math.min(indexInTB, tbQuestions.length));
-        setTrainingAnswers(
-          indexInTB > 0 ? ac.slice(tbBase, tbBase + indexInTB) : [],
-        );
-        if (indexInTB >= tbQuestions.length) {
-          const tbAns = ac.slice(tbBase, tbBase + tbQuestions.length);
-          const correctInTB = tbQuestions.reduce(
-            (sum: number, q: TrainingQuestion, i: number) =>
-              sum + (q.correctAnswer === tbAns[i] ? 1 : 0),
-            0,
-          );
-          setTrainingRoundScores([correctInTB]);
-        } else {
-          setTrainingRoundScores([]);
-        }
-        setTrainingRoundComplete(indexInTB >= tbQuestions.length);
-      } else if (cur < 10) {
-        setTrainingRound(semiIdx === 0 ? 0 : 1);
-        setTrainingQuestionIndex(cur);
-        setTrainingAnswers(
-          ac.length >= cur
-            ? ac.slice(0, cur)
-            : [...ac, ...Array(Math.max(0, cur - ac.length)).fill(-1)],
-        );
-        setTrainingRoundScores([]);
-        setTrainingRoundComplete(false);
-      } else if (
-        cur >= 10 &&
-        sr === "won" &&
-        data.questionsFinal &&
-        data.questionsFinal.length > 0
-      ) {
-        if (cur < spt + 10) {
-          const indexInFinal = cur - spt;
-          setTrainingRound(2);
-          setTrainingQuestionIndex(Math.max(0, indexInFinal));
-          setTrainingAnswers(
-            ac.length >= cur
-              ? ac.slice(spt, cur)
-              : [
-                  ...ac.slice(spt),
-                  ...Array(
-                    Math.max(0, indexInFinal - Math.max(0, ac.length - spt)),
-                  ).fill(-1),
-                ],
-          );
-          setTrainingRoundScores([
-            data.semiFinalCorrectCount ?? data.correctAnswersCount ?? 0,
-          ]);
-          setTrainingRoundComplete(indexInFinal >= 10);
-        } else {
-          const semiScore = data.semiFinalCorrectCount ?? 0;
-          const finalScore = (data.correctAnswersCount ?? 0) - semiScore;
-          setTrainingRound(2);
-          setTrainingQuestionIndex(10);
-          setTrainingAnswers(
-            ac.length >= spt + 10
-              ? ac.slice(spt, spt + 10)
-              : [
-                  ...ac.slice(spt),
-                  ...Array(10 - Math.max(0, ac.length - spt)).fill(-1),
-                ],
-          );
-          setTrainingRoundScores([semiScore, finalScore]);
-          setTrainingRoundComplete(true);
-        }
-      } else if (
-        sr === "waiting" ||
-        sr === "lost" ||
-        (cur >= 10 &&
-          (!data.questionsFinal || data.questionsFinal.length === 0) &&
-          sr !== "tie")
-      ) {
-        setContinueTrainingLoading(null);
+      setTournamentJoinInfo(joinInfo);
+      if (session.notice) {
         addNotification({
           type: "game_status",
-          title: sr === "lost" ? "Полуфинал завершён" : "Ожидание соперника",
-          text:
-            sr === "lost"
-              ? "К сожалению, соперник набрал больше баллов."
-              : "Вы завершили полуфинал. Ожидайте, пока соперник ответит на все вопросы.",
+          title: session.notice.title,
+          text: session.notice.text,
         });
         return;
-      } else if (sr === "tie" && cur >= 10) {
-        setContinueTrainingLoading(null);
-        addNotification({
-          type: "game_status",
-          title: "Доп. раунд",
-          text: "Ничья в полуфинале. Ожидайте формирование вопросов доп. раунда.",
-        });
-        return;
-      } else {
-        setTrainingRound(semiIdx === 0 ? 0 : 1);
-        setTrainingQuestionIndex(Math.min(cur, 10));
-        setTrainingAnswers(
-          ac.length >= Math.min(cur, 10)
-            ? ac.slice(0, Math.min(cur, 10))
-            : [
-                ...ac,
-                ...Array(Math.max(0, Math.min(cur, 10) - ac.length)).fill(-1),
-              ],
-        );
-        setTrainingRoundScores(
-          cur >= 10 ? [data.correctAnswersCount ?? 0] : [],
-        );
-        setTrainingRoundComplete(cur >= 10);
       }
-      setAnswerForCurrentQuestion(null);
-      setTrainingCorrectCount(data.correctAnswersCount ?? 0);
-      // Возвращаем в ту же секунду, на которой вышли (таймер "замораживается" вне игры).
-      const restoredTimeLeft = data.timeLeftSeconds ?? QUESTION_TIMER_SEC;
-      timeLeftRef.current = restoredTimeLeft;
-      setTimeLeft(restoredTimeLeft);
+      applyTrainingSessionViewModel(session, { preserveJoinInfo: true });
     } catch (e: any) {
       setContinueTrainingError(
         e?.response?.data?.message || e?.message || "Не удалось загрузить игру",
@@ -2752,169 +2565,10 @@ const Profile: React.FC<ProfileProps> = ({
     }
   };
 
-  const bracketRequestIdRef = useRef(0);
-  const activeBracketKeyRef = useRef<string | null>(null);
-  const openBracket = React.useCallback(
-    async (tournamentId: number, source?: "active" | "completed") => {
-      const nextKey = `${tournamentId}:${source ?? ""}`;
-      activeBracketKeyRef.current = nextKey;
-      setBracketLoading(true);
-      setBracketError("");
-      if (
-        searchParams.get("bracket") !== String(tournamentId) ||
-        (searchParams.get("bracketSource") ?? "") !== (source ?? "")
-      ) {
-        setSearchParams(
-          (prev) => {
-            const next = new URLSearchParams(prev);
-            next.set("bracket", String(tournamentId));
-            if (source) next.set("bracketSource", source);
-            else next.delete("bracketSource");
-            return next;
-          },
-          { replace: true },
-        );
-      }
-      const requestId = ++bracketRequestIdRef.current;
-      try {
-        const data = await fetchTournamentBracket(token, tournamentId);
-        if (bracketRequestIdRef.current !== requestId) return;
-        setBracketView(data);
-      } catch (e: unknown) {
-        if (bracketRequestIdRef.current !== requestId) return;
-        const err =
-          e && typeof e === "object" && "response" in e
-            ? (
-                e as {
-                  response?: {
-                    data?: { message?: string | string[] };
-                    status?: number;
-                  };
-                }
-              ).response
-            : undefined;
-        const msg = err?.data?.message;
-        const text = Array.isArray(msg)
-          ? msg[0]
-          : typeof msg === "string"
-            ? msg
-            : e instanceof Error
-              ? e.message
-              : "Не удалось загрузить сетку";
-        setBracketError(text || "Не удалось загрузить сетку");
-      } finally {
-        if (bracketRequestIdRef.current !== requestId) return;
-        setBracketLoading(false);
-      }
-    },
-    [token, searchParams, setSearchParams],
-  );
-
-  useEffect(() => {
-    if (!token) return;
-    const bracketRaw = searchParams.get("bracket");
-    const bracketId = bracketRaw ? parseInt(bracketRaw, 10) : NaN;
-    const sourceParam = searchParams.get("bracketSource");
-    const source =
-      sourceParam === "active" || sourceParam === "completed"
-        ? sourceParam
-        : undefined;
-    if (!bracketRaw || Number.isNaN(bracketId) || bracketId <= 0) {
-      activeBracketKeyRef.current = null;
-      setBracketView(null);
-      setBracketError("");
-      setBracketLoading(false);
-      setBracketPlayerTooltip(null);
-      return;
-    }
-    const nextKey = `${bracketId}:${source ?? ""}`;
-    if (activeBracketKeyRef.current === nextKey) return;
-    void openBracket(bracketId, source);
-  }, [token, searchParams, openBracket]);
-
-  const closeBracket = () => {
-    activeBracketKeyRef.current = null;
-    setBracketView(null);
-    setBracketError("");
+  const closeBracket = React.useCallback(() => {
     setBracketPlayerTooltip(null);
-    setSearchParams(
-      (prev) => {
-        const next = new URLSearchParams(prev);
-        next.delete("bracket");
-        next.delete("bracketSource");
-        return next;
-      },
-      { replace: true },
-    );
-  };
-
-  const questionsRequestIdRef = useRef(0);
-  const activeQuestionsKeyRef = useRef<string | null>(null);
-  const openQuestionsReview = React.useCallback(
-    async (tournamentId: number, roundForQuestions: "semi" | "final") => {
-      const nextKey = `${tournamentId}:${roundForQuestions}`;
-      activeQuestionsKeyRef.current = nextKey;
-      setQuestionsReviewTournamentId(tournamentId);
-      setQuestionsReviewRound(roundForQuestions);
-      setQuestionsReviewTabIdx(-1);
-      setQuestionsReviewData(null);
-      setQuestionsReviewError("");
-      setQuestionsReviewLoading(true);
-      if (
-        searchParams.get("questions") !== String(tournamentId) ||
-        (searchParams.get("questionsRound") ?? "semi") !== roundForQuestions
-      ) {
-        setSearchParams(
-          (prev) => {
-            const next = new URLSearchParams(prev);
-            next.set("questions", String(tournamentId));
-            next.set("questionsRound", roundForQuestions);
-            return next;
-          },
-          { replace: true },
-        );
-      }
-      const requestId = ++questionsRequestIdRef.current;
-      try {
-        const data = await fetchTournamentQuestions(token, tournamentId);
-        if (questionsRequestIdRef.current !== requestId) return;
-        const answersChosenRaw =
-          data.answersChosen ??
-          (data as { answers_chosen?: number[] }).answers_chosen;
-        setQuestionsReviewData({
-          questionsSemi1: data.questionsSemi1 ?? [],
-          questionsSemi2: data.questionsSemi2 ?? [],
-          questionsFinal: data.questionsFinal ?? [],
-          questionsAnsweredCount: data.questionsAnsweredCount ?? 0,
-          correctAnswersCount: data.correctAnswersCount ?? 0,
-          semiFinalCorrectCount: data.semiFinalCorrectCount ?? null,
-          semiTiebreakerCorrectSum: data.semiTiebreakerCorrectSum ?? 0,
-          answersChosen: Array.isArray(answersChosenRaw)
-            ? answersChosenRaw
-            : [],
-          userSemiIndex: data.userSemiIndex ?? 0,
-          semiTiebreakerAllQuestions: data.semiTiebreakerAllQuestions ?? [],
-          semiTiebreakerRoundsCorrect: data.semiTiebreakerRoundsCorrect ?? [],
-          finalTiebreakerAllQuestions: data.finalTiebreakerAllQuestions ?? [],
-          finalTiebreakerRoundsCorrect: data.finalTiebreakerRoundsCorrect ?? [],
-          reviewRounds: data.reviewRounds ?? [],
-          opponentAnswersByRound: data.opponentAnswersByRound ?? [],
-          opponentInfoByRound: data.opponentInfoByRound ?? [],
-        });
-      } catch (e: unknown) {
-        if (questionsRequestIdRef.current !== requestId) return;
-        const msg =
-          axios.isAxiosError(e) && e.response?.data?.message
-            ? String(e.response.data.message)
-            : "Не удалось загрузить вопросы";
-        setQuestionsReviewError(msg);
-      } finally {
-        if (questionsRequestIdRef.current !== requestId) return;
-        setQuestionsReviewLoading(false);
-      }
-    },
-    [token, searchParams, setSearchParams],
-  );
+    closeBracketModal();
+  }, [closeBracketModal]);
 
   const oppStatsRequestIdRef = useRef(0);
   const loadOppStats = (userId: number, avatarUrl?: string | null) => {
@@ -2943,41 +2597,10 @@ const Profile: React.FC<ProfileProps> = ({
       });
   };
 
-  const closeQuestionsReview = () => {
-    activeQuestionsKeyRef.current = null;
-    setQuestionsReviewTournamentId(null);
-    setQuestionsReviewData(null);
-    setQuestionsReviewError("");
+  const closeQuestionsReview = React.useCallback(() => {
     setOppTooltip({ loading: false, data: null, visible: false });
-    setSearchParams(
-      (prev) => {
-        const next = new URLSearchParams(prev);
-        next.delete("questions");
-        next.delete("questionsRound");
-        return next;
-      },
-      { replace: true },
-    );
-  };
-
-  useEffect(() => {
-    if (!token) return;
-    const tournamentIdRaw = searchParams.get("questions");
-    const tournamentId = tournamentIdRaw ? parseInt(tournamentIdRaw, 10) : NaN;
-    const roundRaw = searchParams.get("questionsRound");
-    const round = roundRaw === "final" ? "final" : "semi";
-    if (!tournamentIdRaw || Number.isNaN(tournamentId) || tournamentId <= 0) {
-      activeQuestionsKeyRef.current = null;
-      setQuestionsReviewTournamentId(null);
-      setQuestionsReviewData(null);
-      setQuestionsReviewError("");
-      setQuestionsReviewLoading(false);
-      return;
-    }
-    const nextKey = `${tournamentId}:${round}`;
-    if (activeQuestionsKeyRef.current === nextKey) return;
-    void openQuestionsReview(tournamentId, round);
-  }, [token, searchParams, openQuestionsReview]);
+    closeQuestionsReviewModal();
+  }, [closeQuestionsReviewModal]);
 
   const continueTournament = async (tournamentId: number) => {
     if (continueTournamentLoading !== null) return;
@@ -2997,179 +2620,25 @@ const Profile: React.FC<ProfileProps> = ({
       });
       setTournamentJoinInfo(data);
       setContinueTournamentError("");
-      await prepareTrainingState(token, tournamentId);
-      const trainData = await fetchTrainingState(token, tournamentId);
-      const ac = Array.isArray(trainData.answersChosen)
-        ? trainData.answersChosen
-        : [];
-      setFullAnswersChosen(ac);
+      const trainData = await fetchPreparedTrainingState(token, tournamentId);
       const hasQuestions =
         (trainData.questionsSemi1?.length ?? 0) > 0 ||
         (trainData.questionsSemi2?.length ?? 0) > 0 ||
         (trainData.questionsFinal?.length ?? 0) > 0;
       if (hasQuestions) {
-        setTrainingData({
-          tournamentId: trainData.tournamentId,
-          deadline: trainData.deadline,
-          questionsSemi1: trainData.questionsSemi1 ?? [],
-          questionsSemi2: trainData.questionsSemi2 ?? [],
-          questionsFinal: trainData.questionsFinal ?? [],
-          questionsTiebreaker: (trainData as any).questionsTiebreaker ?? [],
-          tiebreakerRound: (trainData as any).tiebreakerRound ?? 0,
-          tiebreakerBase: (trainData as any).tiebreakerBase ?? 0,
-          tiebreakerPhase: (trainData as any).tiebreakerPhase ?? null,
+        const session = buildTournamentSessionViewModel(trainData, {
+          joinInfo: data,
+          questionTimerSeconds: QUESTION_TIMER_SEC,
         });
-        completedForfeitRef.current = false;
-        const rawCur2 =
-          trainData.currentQuestionIndex ??
-          trainData.questionsAnsweredCount ??
-          0;
-        const lac2 = (trainData as any).lockedAnswerCount ?? 0;
-        const cur = lac2 > 0 ? Math.min(rawCur2, lac2 + 1) : rawCur2;
-        const semiIdx = data.semiIndex ?? 0;
-        const sr = trainData.semiResult;
-        const tbPhase2 = (trainData as any).tiebreakerPhase ?? null;
-        const semiTBR2 = (trainData as any).semiTiebreakerRoundsCorrect ?? [];
-        const spt2 = 10 + semiTBR2.length * 10;
-        setSemiPhaseTotal(spt2);
-        const tbQuestions2: TrainingQuestion[] =
-          (trainData as any).questionsTiebreaker ?? [];
-        const tbBase2: number = (trainData as any).tiebreakerBase ?? 0;
-        if (sr === "tie" && tbQuestions2.length > 0) {
-          setTiebreakerBase(tbBase2);
-          setTrainingRound(3);
-          const indexInTB = Math.max(0, cur - tbBase2);
-          setTrainingQuestionIndex(Math.min(indexInTB, tbQuestions2.length));
-          setTrainingAnswers(
-            indexInTB > 0 ? ac.slice(tbBase2, tbBase2 + indexInTB) : [],
-          );
-          if (indexInTB >= tbQuestions2.length) {
-            const tbAns = ac.slice(tbBase2, tbBase2 + tbQuestions2.length);
-            const correctInTB = tbQuestions2.reduce(
-              (sum: number, q: TrainingQuestion, i: number) =>
-                sum + (q.correctAnswer === tbAns[i] ? 1 : 0),
-              0,
-            );
-            setTrainingRoundScores([correctInTB]);
-          } else {
-            setTrainingRoundScores([]);
-          }
-          setTrainingRoundComplete(indexInTB >= tbQuestions2.length);
-        } else if (
-          sr === "won" &&
-          tbPhase2 === "final" &&
-          tbQuestions2.length > 0
-        ) {
-          setTiebreakerBase(tbBase2);
-          setTrainingRound(3);
-          const indexInTB = Math.max(0, cur - tbBase2);
-          setTrainingQuestionIndex(Math.min(indexInTB, tbQuestions2.length));
-          setTrainingAnswers(
-            indexInTB > 0 ? ac.slice(tbBase2, tbBase2 + indexInTB) : [],
-          );
-          if (indexInTB >= tbQuestions2.length) {
-            const tbAns = ac.slice(tbBase2, tbBase2 + tbQuestions2.length);
-            const correctInTB = tbQuestions2.reduce(
-              (sum: number, q: TrainingQuestion, i: number) =>
-                sum + (q.correctAnswer === tbAns[i] ? 1 : 0),
-              0,
-            );
-            setTrainingRoundScores([correctInTB]);
-          } else {
-            setTrainingRoundScores([]);
-          }
-          setTrainingRoundComplete(indexInTB >= tbQuestions2.length);
-        } else if (cur < 10) {
-          setTrainingRound(semiIdx === 0 ? 0 : 1);
-          setTrainingQuestionIndex(cur);
-          setTrainingAnswers(
-            ac.length >= cur
-              ? ac.slice(0, cur)
-              : [...ac, ...Array(Math.max(0, cur - ac.length)).fill(-1)],
-          );
-          setTrainingRoundScores([]);
-          setTrainingRoundComplete(false);
-        } else if (
-          sr === "won" &&
-          trainData.questionsFinal &&
-          trainData.questionsFinal.length > 0 &&
-          cur >= 10
-        ) {
-          if (cur < spt2 + 10) {
-            setTrainingRound(2);
-            const indexInFinal = cur - spt2;
-            setTrainingQuestionIndex(Math.max(0, indexInFinal));
-            setTrainingAnswers(
-              ac.length >= cur
-                ? ac.slice(spt2, cur)
-                : [
-                    ...ac.slice(spt2),
-                    ...Array(
-                      Math.max(0, indexInFinal - Math.max(0, ac.length - spt2)),
-                    ).fill(-1),
-                  ],
-            );
-            setTrainingRoundScores([
-              trainData.semiFinalCorrectCount ??
-                trainData.correctAnswersCount ??
-                0,
-            ]);
-            setTrainingRoundComplete(false);
-          } else {
-            const semiScore = trainData.semiFinalCorrectCount ?? 0;
-            const finalScore = (trainData.correctAnswersCount ?? 0) - semiScore;
-            setTrainingRound(2);
-            setTrainingQuestionIndex(10);
-            setTrainingAnswers(
-              ac.length >= spt2 + 10
-                ? ac.slice(spt2, spt2 + 10)
-                : [
-                    ...ac.slice(spt2),
-                    ...Array(10 - Math.max(0, ac.length - spt2)).fill(-1),
-                  ],
-            );
-            setTrainingRoundScores([semiScore, finalScore]);
-            setTrainingRoundComplete(true);
-          }
-        } else if (
-          sr === "waiting" ||
-          (cur >= 10 &&
-            (!trainData.questionsFinal ||
-              trainData.questionsFinal.length === 0) &&
-            sr !== "tie")
-        ) {
-          setContinueTournamentLoading(null);
+        if (session.notice) {
           addNotification({
             type: "game_status",
-            title: sr === "lost" ? "Полуфинал завершён" : "Ожидание соперника",
-            text:
-              sr === "lost"
-                ? "К сожалению, соперник набрал больше баллов."
-                : "Вы завершили полуфинал. Ожидайте, пока соперник ответит на все вопросы.",
+            title: session.notice.title,
+            text: session.notice.text,
           });
           return;
-        } else {
-          setTrainingRound(semiIdx === 0 ? 0 : 1);
-          setTrainingQuestionIndex(Math.min(cur, 10));
-          setTrainingAnswers(
-            ac.length >= Math.min(cur, 10)
-              ? ac.slice(0, Math.min(cur, 10))
-              : [
-                  ...ac,
-                  ...Array(Math.max(0, Math.min(cur, 10) - ac.length)).fill(-1),
-                ],
-          );
-          setTrainingRoundScores(
-            cur >= 10 ? [trainData.correctAnswersCount ?? 0] : [],
-          );
-          setTrainingRoundComplete(cur >= 10);
         }
-        setAnswerForCurrentQuestion(null);
-        setTrainingCorrectCount(trainData.correctAnswersCount ?? 0);
-        const restoredTimeLeft =
-          trainData.timeLeftSeconds ?? QUESTION_TIMER_SEC;
-        timeLeftRef.current = restoredTimeLeft;
-        setTimeLeft(restoredTimeLeft);
+        applyTrainingSessionViewModel(session, { preserveJoinInfo: true });
       }
     } catch (e: any) {
       setContinueTournamentError(

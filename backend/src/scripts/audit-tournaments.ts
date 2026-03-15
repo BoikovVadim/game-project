@@ -111,6 +111,67 @@ async function main() {
       pushIssue(deterministicIssues, 'finished_underfilled_tournaments', row);
     }
 
+    const moneyTournamentRows = (await dataSource.query(
+      `SELECT t.id AS "tournamentId",
+              t.status AS status,
+              COUNT(DISTINCT e.id) AS "escrowCount",
+              COUNT(DISTINCT e.id) FILTER (WHERE e.status IN ('held', 'processing')) AS "pendingEscrowCount",
+              COUNT(DISTINCT e.id) FILTER (WHERE e.status IN ('paid_to_winner', 'forfeited')) AS "settledEscrowCount"
+       FROM tournament t
+       LEFT JOIN tournament_escrow e ON e."tournamentId" = t.id
+       WHERE t."gameType" = 'money' OR t."leagueAmount" IS NOT NULL
+       GROUP BY t.id, t.status
+       ORDER BY t.id ASC`,
+    )) as Array<{
+      tournamentId: number;
+      status: string;
+      escrowCount: number;
+      pendingEscrowCount: number;
+      settledEscrowCount: number;
+    }>;
+    for (const row of moneyTournamentRows) {
+      const pendingEscrowCount = Number(row.pendingEscrowCount ?? 0);
+      const settledEscrowCount = Number(row.settledEscrowCount ?? 0);
+      const settlement =
+        await tournamentsService.getMoneyTournamentSettlementResolution(
+          row.tournamentId,
+        );
+      if (
+        row.status === 'finished' &&
+        settlement.settlementType !== 'unresolved' &&
+        pendingEscrowCount > 0
+      ) {
+        pushIssue(deterministicIssues, 'money_finished_unsettled_escrow', {
+          ...row,
+          pendingEscrowCount,
+          settledEscrowCount,
+          settlementType: settlement.settlementType,
+          winnerId: settlement.winnerId,
+        });
+      }
+      if (row.status !== 'finished' && settledEscrowCount > 0) {
+        pushIssue(deterministicIssues, 'money_unfinished_settled_escrow', {
+          ...row,
+          pendingEscrowCount,
+          settledEscrowCount,
+          settlementType: settlement.settlementType,
+          winnerId: settlement.winnerId,
+        });
+      }
+      if (
+        settlement.settlementType === 'unresolved' &&
+        settledEscrowCount > 0
+      ) {
+        pushIssue(deterministicIssues, 'money_unresolved_settlement_artifacts', {
+          ...row,
+          pendingEscrowCount,
+          settledEscrowCount,
+          settlementType: settlement.settlementType,
+          winnerId: settlement.winnerId,
+        });
+      }
+    }
+
     const userRows = (await dataSource.query(
       `SELECT DISTINCT "userId" AS id
        FROM tournament_progress

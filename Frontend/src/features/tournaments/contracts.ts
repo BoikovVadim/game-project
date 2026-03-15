@@ -64,6 +64,30 @@ export type TrainingQuestion = {
   correctAnswer: number;
 };
 
+export type TrainingRound = 0 | 1 | 2 | 3;
+
+export type TrainingData = {
+  tournamentId: number;
+  deadline: string | null;
+  questionsSemi1: TrainingQuestion[];
+  questionsSemi2: TrainingQuestion[];
+  questionsFinal: TrainingQuestion[];
+  questionsTiebreaker: TrainingQuestion[];
+  tiebreakerRound: number;
+  tiebreakerBase: number;
+  tiebreakerPhase: "semi" | "final" | null;
+};
+
+export type TournamentJoinInfo = {
+  tournamentId: number;
+  playerSlot: number;
+  totalPlayers: number;
+  semiIndex: number;
+  positionInSemi: number;
+  isCreator: boolean;
+  deadline: string | null;
+};
+
 export type TrainingStateResponse = {
   tournamentId: number;
   deadline: string | null;
@@ -145,6 +169,27 @@ export type QuestionsReviewData = {
     nickname: string;
     avatarUrl?: string | null;
   }[];
+};
+
+export type TournamentSessionNotice = {
+  title: string;
+  text: string;
+};
+
+export type TournamentSessionViewModel = {
+  trainingData: TrainingData;
+  joinInfo: TournamentJoinInfo;
+  fullAnswersChosen: number[];
+  trainingRound: TrainingRound;
+  trainingQuestionIndex: number;
+  trainingAnswers: number[];
+  trainingRoundScores: number[];
+  trainingRoundComplete: boolean;
+  trainingCorrectCount: number;
+  semiPhaseTotal: number;
+  tiebreakerBase: number;
+  timeLeft: number;
+  notice: TournamentSessionNotice | null;
 };
 
 export type QuestionsReviewRound = {

@@ -26,7 +26,21 @@
 - конкурентный вход двух игроков в один money tournament не создаёт двойной слот
 - при входе в money tournament атомарно создаются `entry`, `playerOrder`, loss transaction и escrow
 - завершённый money tournament не оставляет escrow в `held/processing`
+- незавершённый money tournament не содержит settled escrow (`paid_to_winner` / `forfeited`)
 - статистика полуфинальной пары считается по `playerOrder`, а не по сортировке `userId`
+- `POST /tournaments/:id/training-state/prepare` создаёт вопросы/таймеры, а `GET /tournaments/:id/training-state` остаётся read-only
+- `npm run verify:tournaments` проходит без ошибок
+- `npm run repair:tournaments` после drift возвращает `audit:tournaments` к `0`
+- сценарная матрица покрыта минимумом:
+  - `2 игрока`
+  - `4 игрока`
+  - `нет соперника`
+  - `ничья`
+  - `таймаут одного`
+  - `таймаут обоих`
+  - `ожидание финала`
+  - `finished/history`
+  - `active/continue`
 
 ## Profile / Admin / Support
 
@@ -35,6 +49,7 @@
 - в админке сохраняются `tab`, `status`, `userSearch`, `supportStatus`, `supportTicket`, `statsTab`, `txCategory`, `tournamentId`
 - `SupportChat` сохраняет открытый тикет в URL и возвращает пользователя в `returnTo`, а не на несуществующий `?section=support`
 - unread новости не протекают между разными пользователями на одном браузере
+- `Profile` и `Admin` открывают bracket/questions modals через единый URL-state hook без расхождения query param поведения
 
 ## Build / Deploy
 
@@ -42,5 +57,7 @@
 - `cd Frontend && CI= npm run build` проходит без предупреждений ESLint
 - `npm run smoke:stability` проходит и подтверждает runtime/auth/payment contracts
 - `cd backend && npm run audit:auth-payments` не находит противоречивых auth/payment записей
+- `npm run verify:tournaments` выполняет `backend test -> build -> audit:tournaments`
+- после `npm run repair:tournaments` повторный `audit:tournaments` остаётся с `totalIssueCount = 0`
 - `npm run deploy:prod` использует только env-based deploy vars
 - после деплоя отвечает `DEPLOY_HEALTHCHECK_URL`

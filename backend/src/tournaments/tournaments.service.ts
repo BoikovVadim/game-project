@@ -841,6 +841,24 @@ export class TournamentsService implements OnModuleInit {
     return { inserted };
   }
 
+  async repairTournamentConsistency(): Promise<{
+    backfilledTimeoutResolutionRows: number;
+    activatedWaitingTournamentIds: number[];
+    reactivatedFinishedTournamentIds: number[];
+    deletedResultRows: number;
+  }> {
+    const timeoutBackfill = await this.backfillTimeoutRoundResolutions();
+    const waitingResult = await this.backfillWaitingTournamentsToActive();
+    const finishedResult =
+      await this.reactivateStructurallyUnfinishedFinishedTournaments();
+    return {
+      backfilledTimeoutResolutionRows: timeoutBackfill.inserted,
+      activatedWaitingTournamentIds: waitingResult.updatedTournamentIds,
+      reactivatedFinishedTournamentIds: finishedResult.reactivatedTournamentIds,
+      deletedResultRows: finishedResult.deletedResultRows,
+    };
+  }
+
   async backfillResolvedBracketResults(): Promise<{
     updatedResults: number;
     updatedStatuses: number;
@@ -5333,12 +5351,10 @@ export class TournamentsService implements OnModuleInit {
     return { ok: true };
   }
 
-  /** Состояние тренировки для продолжения игры (вопросы по раундам + прогресс). */
-  async getTrainingState(
+  private async getTrainingTournamentForUser(
     userId: number,
     tournamentId: number,
-    allowMutations = false,
-  ): Promise<TournamentTrainingStateDto> {
+  ): Promise<Tournament> {
     const tournament = await this.tournamentRepository.findOne({
       where: { id: tournamentId },
       relations: ['players'],
@@ -5348,59 +5364,75 @@ export class TournamentsService implements OnModuleInit {
     const isPlayer = tournament.players?.some((p) => p.id === userId);
     if (!isPlayer)
       throw new BadRequestException('You are not in this tournament');
+    return tournament;
+  }
 
-    let questions = await this.questionRepository.find({
+  private async loadTournamentQuestions(tournamentId: number): Promise<Question[]> {
+    return this.questionRepository.find({
       where: { tournament: { id: tournamentId } },
       order: { roundIndex: 'ASC', id: 'ASC' },
     });
-    const mergeQuestions = (nextRows: Question[]): void => {
-      const byId = new Map<number, Question>();
-      for (const row of questions) byId.set(row.id, row);
-      for (const row of nextRows) byId.set(row.id, row);
-      questions = [...byId.values()].sort(
-        (a, b) => a.roundIndex - b.roundIndex || a.id - b.id,
-      );
-    };
+  }
 
+  private mergeTrainingQuestionRows(
+    questions: Question[],
+    nextRows: Question[],
+  ): Question[] {
+    const byId = new Map<number, Question>();
+    for (const row of questions) byId.set(row.id, row);
+    for (const row of nextRows) byId.set(row.id, row);
+    return [...byId.values()].sort(
+      (a, b) => a.roundIndex - b.roundIndex || a.id - b.id,
+    );
+  }
+
+  private async ensureSemifinalQuestionRoundsPrepared(
+    tournament: Tournament,
+  ): Promise<Question[]> {
+    let questions = await this.loadTournamentQuestions(tournament.id);
+    const semi0Count = questions.filter((q) => q.roundIndex === 0).length;
+    const semi1Count = questions.filter((q) => q.roundIndex === 1).length;
     if (
-      allowMutations &&
-      questions.filter((q) => q.roundIndex === 0).length === 0
+      semi0Count >= this.QUESTIONS_PER_ROUND &&
+      semi1Count >= this.QUESTIONS_PER_ROUND
     ) {
-      const { semi1, semi2 } = await this.pickQuestionsForSemi();
-      for (const q of semi1) {
-        const row = this.questionRepository.create({
-          ...q,
-          tournament,
-          roundIndex: 0,
-        });
-        await this.questionRepository.save(row);
-      }
-      for (const q of semi2) {
-        const row = this.questionRepository.create({
-          ...q,
-          tournament,
-          roundIndex: 1,
-        });
-        await this.questionRepository.save(row);
-      }
-      questions = await this.questionRepository.find({
-        where: { tournament: { id: tournamentId } },
-        order: { roundIndex: 'ASC', id: 'ASC' },
-      });
+      return questions;
     }
 
-    const questionsSemi1 = questions
-      .filter((q) => q.roundIndex === 0)
-      .map((q) => this.toTrainingQuestionDto(q));
-    const questionsSemi2 = questions
-      .filter((q) => q.roundIndex === 1)
-      .map((q) => this.toTrainingQuestionDto(q));
-    let questionsFinal = questions
-      .filter((q) => q.roundIndex === 2)
-      .map((q) => this.toTrainingQuestionDto(q));
+    await this.ensureQuestionRound(
+      tournament,
+      0,
+      this.QUESTIONS_PER_ROUND,
+      async () => {
+        const excludedKeys = await this.getTournamentQuestionKeySet(
+          tournament.id,
+        );
+        return this.pickRandomQuestions(this.QUESTIONS_PER_ROUND, excludedKeys);
+      },
+    );
+    await this.ensureQuestionRound(
+      tournament,
+      1,
+      this.QUESTIONS_PER_ROUND,
+      async () => {
+        const excludedKeys = await this.getTournamentQuestionKeySet(
+          tournament.id,
+        );
+        return this.pickRandomQuestions(this.QUESTIONS_PER_ROUND, excludedKeys);
+      },
+    );
+    return this.loadTournamentQuestions(tournament.id);
+  }
 
-    // Lazy-создание финальных вопросов: только когда определён победитель полуфинала
-    if (allowMutations && questionsFinal.length === 0) {
+  private async prepareTrainingStateMutations(
+    userId: number,
+    tournamentId: number,
+  ): Promise<void> {
+    const tournament = await this.getTrainingTournamentForUser(userId, tournamentId);
+    let questions = await this.ensureSemifinalQuestionRoundsPrepared(tournament);
+
+    let questionsFinal = questions.filter((q) => q.roundIndex === 2);
+    if (questionsFinal.length === 0) {
       const wonSemi = await this.didUserWinSemiFinal(tournament, userId);
       if (wonSemi) {
         const finalRows = await this.ensureQuestionRound(
@@ -5409,8 +5441,8 @@ export class TournamentsService implements OnModuleInit {
           this.QUESTIONS_PER_ROUND,
           () => this.pickQuestionsForFinal(tournamentId),
         );
-        mergeQuestions(finalRows);
-        questionsFinal = finalRows.map((q) => this.toTrainingQuestionDto(q));
+        questions = this.mergeTrainingQuestionRows(questions, finalRows);
+        questionsFinal = finalRows;
       }
     }
 
@@ -5430,9 +5462,8 @@ export class TournamentsService implements OnModuleInit {
       allProgress,
       timeoutResolutionMap,
     );
-    // Как только второй финалист зашёл в финал — запускаем таймеры у обоих (кроме того, кто уже ответил на все вопросы финала).
+
     if (
-      allowMutations &&
       questionsFinal.length > 0 &&
       progress &&
       !sharedStart &&
@@ -5513,19 +5544,153 @@ export class TournamentsService implements OnModuleInit {
         ) {
           progress.roundStartedAt = new Date();
           await this.tournamentProgressRepository.save(progress);
-          allProgress = await this.tournamentProgressRepository.find({
-            where: { tournamentId },
-          });
-          sharedStart = this.getCurrentRoundSharedStart(
-            tournament,
-            userId,
-            progress,
-            allProgress,
-            timeoutResolutionMap,
-          );
         }
       }
     }
+
+    const playerSlotForSemi = (tournament.playerOrder ?? []).indexOf(userId);
+    const userSemiIndex =
+      playerSlotForSemi >= 0 ? (playerSlotForSemi < 2 ? 0 : 1) : 0;
+    const questionsAnsweredCount = normalizedProgress.q;
+    const semiResult = await this.computeSemiResult(tournament, userId);
+
+    if (semiResult === 'tie' && progress) {
+      const oppSlotTB =
+        playerSlotForSemi % 2 === 0
+          ? playerSlotForSemi + 1
+          : playerSlotForSemi - 1;
+      const oppIdTB =
+        oppSlotTB >= 0 && oppSlotTB < (tournament.playerOrder?.length ?? 0)
+          ? (tournament.playerOrder![oppSlotTB] ?? -1)
+          : -1;
+      const oppProgress =
+        oppIdTB > 0
+          ? await this.tournamentProgressRepository.findOne({
+              where: { userId: oppIdTB, tournamentId },
+            })
+          : null;
+      const normalizedOppProgress = this.normalizeProgressSnapshot(
+        oppProgress,
+        false,
+      );
+      const semiState = this.getSemiHeadToHeadState(
+        questionsAnsweredCount,
+        normalizedProgress.semiCorrect,
+        normalizedProgress.tiebreakerRounds,
+        normalizedOppProgress.q,
+        normalizedOppProgress.semiCorrect,
+        normalizedOppProgress.tiebreakerRounds,
+      );
+      const tiebreakerRound = semiState.tiebreakerRound ?? 1;
+      const roundIndex = 2 + tiebreakerRound;
+      const existing = await this.ensureQuestionRound(
+        tournament,
+        roundIndex,
+        this.TIEBREAKER_QUESTIONS,
+        async () => {
+          const excludedQuestionKeys =
+            await this.getTournamentQuestionKeySet(tournamentId);
+          return this.pickRandomQuestions(
+            this.TIEBREAKER_QUESTIONS,
+            excludedQuestionKeys,
+          );
+        },
+      );
+      questions = this.mergeTrainingQuestionRows(questions, existing);
+    }
+
+    if (semiResult === 'won' && progress) {
+      const myTBCount = normalizedProgress.tiebreakerRounds.length;
+      const mySemiTotal =
+        this.QUESTIONS_PER_ROUND + myTBCount * this.TIEBREAKER_QUESTIONS;
+      if (questionsAnsweredCount >= mySemiTotal + this.QUESTIONS_PER_ROUND) {
+        const fOrder = tournament.playerOrder ?? [];
+        const otherSlots: [number, number] =
+          userSemiIndex === 0 ? [2, 3] : [0, 1];
+        const fOpp1Id =
+          otherSlots[0] < fOrder.length ? fOrder[otherSlots[0]] : -1;
+        const fOpp2Id =
+          otherSlots[1] < fOrder.length ? fOrder[otherSlots[1]] : -1;
+        let finalistProgress: TournamentProgress | null = null;
+        if (fOpp1Id > 0 && fOpp2Id > 0) {
+          const p1 = await this.tournamentProgressRepository.findOne({
+            where: { userId: fOpp1Id, tournamentId },
+          });
+          const p2 = await this.tournamentProgressRepository.findOne({
+            where: { userId: fOpp2Id, tournamentId },
+          });
+          finalistProgress = this.findSemiWinner(p1, p2);
+        }
+
+        if (finalistProgress) {
+          const oppTBCount =
+            finalistProgress.tiebreakerRoundsCorrect?.length ?? 0;
+          const oppSemiTotal =
+            this.QUESTIONS_PER_ROUND + oppTBCount * this.TIEBREAKER_QUESTIONS;
+          const oppQ = finalistProgress.questionsAnsweredCount ?? 0;
+          if (oppQ >= oppSemiTotal + this.QUESTIONS_PER_ROUND) {
+            const finalState = this.getFinalHeadToHeadState(
+              progress,
+              finalistProgress,
+            );
+            if (finalState.result === 'tie') {
+              const ftbRound = finalState.tiebreakerRound ?? 1;
+              const roundIndex = 100 + ftbRound;
+              const existing = await this.ensureQuestionRound(
+                tournament,
+                roundIndex,
+                this.TIEBREAKER_QUESTIONS,
+                async () => {
+                  const excludedQuestionKeys =
+                    await this.getTournamentQuestionKeySet(tournamentId);
+                  return this.pickRandomQuestions(
+                    this.TIEBREAKER_QUESTIONS,
+                    excludedQuestionKeys,
+                  );
+                },
+              );
+              questions = this.mergeTrainingQuestionRows(questions, existing);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  /** Состояние тренировки для продолжения игры (вопросы по раундам + прогресс). */
+  async getTrainingState(
+    userId: number,
+    tournamentId: number,
+  ): Promise<TournamentTrainingStateDto> {
+    const tournament = await this.getTrainingTournamentForUser(userId, tournamentId);
+    const questions = await this.loadTournamentQuestions(tournamentId);
+
+    const questionsSemi1 = questions
+      .filter((q) => q.roundIndex === 0)
+      .map((q) => this.toTrainingQuestionDto(q));
+    const questionsSemi2 = questions
+      .filter((q) => q.roundIndex === 1)
+      .map((q) => this.toTrainingQuestionDto(q));
+    let questionsFinal = questions
+      .filter((q) => q.roundIndex === 2)
+      .map((q) => this.toTrainingQuestionDto(q));
+
+    const progress = await this.tournamentProgressRepository.findOne({
+      where: { userId, tournamentId },
+    });
+    const normalizedProgress = this.normalizeProgressSnapshot(progress, true);
+    let allProgress = await this.tournamentProgressRepository.find({
+      where: { tournamentId },
+    });
+    const timeoutResolutionMap =
+      await this.getTournamentTimeoutResolutionMap(tournamentId);
+    const sharedStart = this.getCurrentRoundSharedStart(
+      tournament,
+      userId,
+      progress,
+      allProgress,
+      timeoutResolutionMap,
+    );
     const deadline: string | null = sharedStart
       ? this.getRoundDeadline(sharedStart)
       : null;
@@ -5598,25 +5763,7 @@ export class TournamentsService implements OnModuleInit {
         this.QUESTIONS_PER_ROUND +
         (tiebreakerRound - 1) * this.TIEBREAKER_QUESTIONS;
       const roundIndex = 2 + tiebreakerRound;
-      const existing = allowMutations
-        ? await this.ensureQuestionRound(
-            tournament,
-            roundIndex,
-            this.TIEBREAKER_QUESTIONS,
-            async () => {
-              const excludedQuestionKeys =
-                await this.getTournamentQuestionKeySet(tournamentId);
-              return this.pickRandomQuestions(
-                this.TIEBREAKER_QUESTIONS,
-                excludedQuestionKeys,
-              );
-            },
-          )
-        : await this.questionRepository.find({
-            where: { tournament: { id: tournamentId }, roundIndex },
-            order: { id: 'ASC' },
-          });
-      mergeQuestions(existing);
+      const existing = questions.filter((q) => q.roundIndex === roundIndex);
       questionsTiebreaker = existing.map((q) => this.toTrainingQuestionDto(q));
     }
 
@@ -5663,25 +5810,7 @@ export class TournamentsService implements OnModuleInit {
                 this.QUESTIONS_PER_ROUND +
                 (ftbRound - 1) * this.TIEBREAKER_QUESTIONS;
               const roundIndex = 100 + ftbRound;
-              const existing = allowMutations
-                ? await this.ensureQuestionRound(
-                    tournament,
-                    roundIndex,
-                    this.TIEBREAKER_QUESTIONS,
-                    async () => {
-                      const excludedQuestionKeys =
-                        await this.getTournamentQuestionKeySet(tournamentId);
-                      return this.pickRandomQuestions(
-                        this.TIEBREAKER_QUESTIONS,
-                        excludedQuestionKeys,
-                      );
-                    },
-                  )
-                : await this.questionRepository.find({
-                    where: { tournament: { id: tournamentId }, roundIndex },
-                    order: { id: 'ASC' },
-                  });
-              mergeQuestions(existing);
+              const existing = questions.filter((q) => q.roundIndex === roundIndex);
               questionsTiebreaker = existing.map((q) =>
                 this.toTrainingQuestionDto(q),
               );
@@ -5893,7 +6022,7 @@ export class TournamentsService implements OnModuleInit {
     userId: number,
     tournamentId: number,
   ): Promise<{ ok: true }> {
-    await this.getTrainingState(userId, tournamentId, true);
+    await this.prepareTrainingStateMutations(userId, tournamentId);
     return { ok: true };
   }
 

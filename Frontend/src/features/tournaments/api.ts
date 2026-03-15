@@ -1,6 +1,7 @@
 import axios from 'axios';
 import type { BracketViewData, QuestionsReviewData, TrainingStateResponse } from './contracts.ts';
 import { withBearerToken } from '../../api/client.ts';
+import { toQuestionsReviewData } from './session.ts';
 
 export async function prepareTrainingState(token: string, tournamentId: number, userId?: number): Promise<void> {
   const suffix = userId != null ? `/tournaments/admin/${tournamentId}/training-state/prepare?userId=${userId}` : `/tournaments/${tournamentId}/training-state/prepare`;
@@ -13,6 +14,11 @@ export async function fetchTrainingState(token: string, tournamentId: number, us
   return response.data;
 }
 
+export async function fetchPreparedTrainingState(token: string, tournamentId: number, userId?: number): Promise<TrainingStateResponse> {
+  await prepareTrainingState(token, tournamentId, userId);
+  return fetchTrainingState(token, tournamentId, userId);
+}
+
 export async function fetchTournamentBracket(token: string, tournamentId: number, userId?: number): Promise<BracketViewData> {
   const suffix = userId != null ? `/tournaments/admin/${tournamentId}/bracket?userId=${userId}` : `/tournaments/${tournamentId}/bracket`;
   const response = await axios.get<BracketViewData>(suffix, withBearerToken(token));
@@ -20,5 +26,6 @@ export async function fetchTournamentBracket(token: string, tournamentId: number
 }
 
 export async function fetchTournamentQuestions(token: string, tournamentId: number, userId?: number): Promise<QuestionsReviewData> {
-  return fetchTrainingState(token, tournamentId, userId);
+  const data = await fetchTrainingState(token, tournamentId, userId);
+  return toQuestionsReviewData(data);
 }
