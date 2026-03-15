@@ -241,7 +241,6 @@ async function main() {
     const manualReview: Record<string, AuditIssue[]> = {};
 
     const withdrawTxByRequestId = new Map<number, TxRow[]>();
-    const refundTxByUserTournament = new Map<string, TxRow[]>();
     const winTxByTournamentUser = new Map<string, TxRow[]>();
     const referralTxByTournament = new Map<number, TxRow[]>();
     const topupRows = txRows.filter((row) => row.category === 'topup');
@@ -268,12 +267,6 @@ async function main() {
           list.push(row);
           withdrawTxByRequestId.set(requestId, list);
         }
-      }
-      if (row.category === 'refund' && row.tournamentId != null) {
-        const key = `${row.userId}:${row.tournamentId}`;
-        const list = refundTxByUserTournament.get(key) ?? [];
-        list.push(row);
-        refundTxByUserTournament.set(key, list);
       }
       if (row.category === 'win' && row.tournamentId != null) {
         const key = `${row.userId}:${row.tournamentId}`;
@@ -531,20 +524,13 @@ async function main() {
 
     for (const escrow of escrowRows) {
       if (escrow.status === 'refunded') {
-        const key = `${escrow.userId}:${escrow.tournamentId}`;
-        const settlement = settlementByTournamentId.get(Number(escrow.tournamentId));
-        if (
-          settlement?.settlementType === 'refunded' &&
-          (refundTxByUserTournament.get(key) ?? []).length === 0
-        ) {
-          pushIssue(deterministicIssues, 'refunded_escrow_without_refund_tx', {
-            escrowId: Number(escrow.id),
-            userId: Number(escrow.userId),
-            tournamentId: Number(escrow.tournamentId),
-            amount: Number(escrow.amount),
-            createdAt: toIso(escrow.createdAt),
-          });
-        }
+        pushIssue(deterministicIssues, 'legacy_refunded_escrow_status', {
+          escrowId: Number(escrow.id),
+          userId: Number(escrow.userId),
+          tournamentId: Number(escrow.tournamentId),
+          amount: Number(escrow.amount),
+          createdAt: toIso(escrow.createdAt),
+        });
       }
     }
 
@@ -618,6 +604,9 @@ async function main() {
       const settlement = settlementByTournamentId.get(tournamentId);
       const tournamentResults = resultsByTournament.get(tournamentId) ?? [];
       const winners = tournamentResults.filter((row) => Number(row.passed) === 1);
+      const tournamentRefundTx = (txByTournament.get(tournamentId) ?? []).filter(
+        (row) => row.category === 'refund',
+      );
       if (settlement?.settlementType === 'unresolved') {
         const settlementTx = (txByTournament.get(tournamentId) ?? []).filter((row) =>
           ['refund', 'win'].includes(row.category),
@@ -658,20 +647,28 @@ async function main() {
           });
         }
       }
+      if (settlement?.settlementType === 'forfeited') {
+        if (winners.length > 0) {
+          pushIssue(deterministicIssues, 'forfeited_tournament_with_winner_rows', {
+            tournamentId,
+            winnerUserIds: winners.map((row) => Number(row.userId)),
+          });
+        }
+        if (tournamentRefundTx.length > 0) {
+          pushIssue(deterministicIssues, 'forfeited_tournament_with_refund_tx', {
+            tournamentId,
+            refundTxIds: tournamentRefundTx.map((row) => Number(row.id)),
+          });
+        }
+      }
       const lingeringEscrows = (escrowByTournament.get(tournamentId) ?? []).filter(
         (row) => row.status === 'held' || row.status === 'processing',
       );
       if (lingeringEscrows.length > 0) {
-        const hasUniqueWinner = winners.length === 1;
-        const hasAllRefunds =
-          winners.length === 0 &&
-          lingeringEscrows.every(
-            (row) =>
-              (refundTxByUserTournament.get(`${row.userId}:${row.tournamentId}`) ??
-                []).length > 0,
-          );
+        const hasUniqueWinner = settlement?.settlementType === 'paid_to_winner' && winners.length === 1;
+        const isForfeited = settlement?.settlementType === 'forfeited';
         const bucket =
-          hasUniqueWinner || hasAllRefunds
+          hasUniqueWinner || isForfeited
             ? deterministicIssues
             : manualReview;
         pushIssue(bucket, 'processing_or_held_escrow_on_finished_tournament', {

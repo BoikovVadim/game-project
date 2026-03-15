@@ -69,7 +69,7 @@ interface TournamentListResultState {
 }
 
 export type MoneyTournamentSettlementResolution = {
-  settlementType: 'unresolved' | 'paid_to_winner' | 'refunded';
+  settlementType: 'unresolved' | 'paid_to_winner' | 'forfeited';
   winnerId: number | null;
   participantCount: number;
 };
@@ -439,7 +439,7 @@ export class TournamentsService implements OnModuleInit {
     }
 
     return {
-      settlementType: resolved.winnerId ? 'paid_to_winner' : 'refunded',
+      settlementType: resolved.winnerId ? 'paid_to_winner' : 'forfeited',
       winnerId: resolved.winnerId,
       participantCount: participantIds.length,
     };
@@ -2500,7 +2500,7 @@ export class TournamentsService implements OnModuleInit {
     }
   }
 
-  /** Находит все турниры за деньги с эскроу в статусе held и дедлайном в прошлом, обрабатывает их (возврат или выплата). */
+  /** Находит все турниры за деньги с эскроу в статусе held и дедлайном в прошлом, обрабатывает их (выплата победителю или безвозвратное списание). */
   private async processAllExpiredEscrows(): Promise<void> {
     await this.tournamentEscrowRepository.query(
       "UPDATE tournament_escrow SET status = 'held' WHERE status = 'processing' AND \"createdAt\" < NOW() - INTERVAL '5 minutes'",
@@ -2523,7 +2523,7 @@ export class TournamentsService implements OnModuleInit {
     }
   }
 
-  /** Обрабатывает эскроу: выплата победителю или возврат при истечении времени. */
+  /** Обрабатывает эскроу: выплата победителю или окончательное списание без возврата. */
   private async processTournamentEscrow(tournamentId: number): Promise<void> {
     const tournament = await this.tournamentRepository.findOne({
       where: { id: tournamentId },
@@ -2565,13 +2565,6 @@ export class TournamentsService implements OnModuleInit {
     const existingWinTransactions = await this.transactionRepository.find({
       where: { tournamentId, category: 'win' },
     });
-    const existingRefundTransactions = await this.transactionRepository.find({
-      where: { tournamentId, category: 'refund' },
-    });
-    const refundedUserIds = new Set(
-      existingRefundTransactions.map((tx) => tx.userId),
-    );
-
     const leagueAmount = tournament.leagueAmount ?? 0;
     const prize = getLeaguePrize(leagueAmount);
 
@@ -2603,31 +2596,8 @@ export class TournamentsService implements OnModuleInit {
         [tournamentId],
       );
     } else {
-      for (const row of claimed) {
-        const uid = row.userId ?? (row as any).userid;
-        const amt = Number(row.amount ?? (row as any).amt ?? 0);
-        if (!uid || uid <= 0 || !amt || amt <= 0) {
-          console.warn(
-            `[processTournamentEscrow] Skipping invalid escrow row ${row.id}: userId=${uid}, amount=${amt}, tournamentId=${tournamentId}`,
-          );
-          continue;
-        }
-        if (refundedUserIds.has(uid)) {
-          this.logger.warn(
-            `[processTournamentEscrow] Skip duplicate refund for tournament ${tournamentId}, user ${uid}`,
-          );
-          continue;
-        }
-        await this.usersService.addToBalanceL(
-          uid,
-          amt,
-          `${getLeagueName(leagueAmount)}, ID ${tournamentId}`,
-          'refund',
-          tournamentId,
-        );
-      }
       await this.tournamentEscrowRepository.query(
-        "UPDATE tournament_escrow SET status = 'refunded' WHERE \"tournamentId\" = $1 AND status = 'processing'",
+        "UPDATE tournament_escrow SET status = 'forfeited' WHERE \"tournamentId\" = $1 AND status = 'processing'",
         [tournamentId],
       );
     }

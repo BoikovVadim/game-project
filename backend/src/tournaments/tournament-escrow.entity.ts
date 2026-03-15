@@ -1,7 +1,7 @@
 import { Entity, PrimaryGeneratedColumn, Column, ManyToOne, JoinColumn, CreateDateColumn, Index } from 'typeorm';
 import { User } from '../users/user.entity';
 
-/** Буфер: взнос игрока в турнир. При отсутствии победы/поражения (время вышло) — возврат. */
+/** Буфер: взнос игрока в денежный турнир до финального settlement. */
 @Entity()
 @Index('IDX_escrow_tournamentId', ['tournamentId'])
 @Index('IDX_escrow_userId', ['userId'])
@@ -19,7 +19,7 @@ export class TournamentEscrow {
   @Column({ type: 'integer' })
   amount!: number;
 
-  /** 'held' | 'refunded' | 'paid_to_winner' */
+  /** 'held' | 'forfeited' | 'paid_to_winner' */
   @Column({ type: 'varchar', length: 20, default: 'held' })
   status!: string;
 
