@@ -1027,16 +1027,23 @@ const Profile: React.FC<ProfileProps> = ({
     val: number[] | ((prev: number[]) => number[]),
   ) => {
     if (typeof val === "function") {
-      _setFullAnswersChosen((prev) => {
-        const next = val(prev);
-        fullAnswersChosenRef.current = next;
-        return next;
-      });
+      const next = val(fullAnswersChosenRef.current);
+      fullAnswersChosenRef.current = next;
+      _setFullAnswersChosen(next);
     } else {
       fullAnswersChosenRef.current = val;
       _setFullAnswersChosen(val);
     }
   };
+  const mergeAnswerAtIndex = React.useCallback(
+    (source: number[], answerIndex: number, value: number) => {
+      const next = [...source];
+      while (next.length <= answerIndex) next.push(-1);
+      next[answerIndex] = value;
+      return next;
+    },
+    [],
+  );
   const [trainingRoundScores, setTrainingRoundScores] = useState<number[]>([]);
   const [trainingRoundComplete, setTrainingRoundComplete] = useState(false);
   const [answerForCurrentQuestion, setAnswerForCurrentQuestion] = useState<
@@ -2128,6 +2135,50 @@ const Profile: React.FC<ProfileProps> = ({
     if (h > 0) return `${h} ч ${m} мин`;
     return `${m} мин`;
   };
+  const getTrainingAnswerBase = React.useCallback(() => {
+    if (trainingRound === 3) return tiebreakerBase;
+    return trainingRound !== null && trainingRound >= 2 ? semiPhaseTotal : 0;
+  }, [semiPhaseTotal, tiebreakerBase, trainingRound]);
+  const getPersistedAnswersSnapshot = React.useCallback(() => {
+    const answers = [...fullAnswersChosenRef.current];
+    if (
+      trainingRound === null ||
+      !currentQuestion ||
+      trainingRoundComplete ||
+      answerForCurrentQuestion === null
+    ) {
+      return answers;
+    }
+    const globalIdx = getTrainingAnswerBase() + trainingQuestionIndex;
+    return mergeAnswerAtIndex(answers, globalIdx, answerForCurrentQuestion);
+  }, [
+    answerForCurrentQuestion,
+    currentQuestion,
+    getTrainingAnswerBase,
+    mergeAnswerAtIndex,
+    trainingQuestionIndex,
+    trainingRound,
+    trainingRoundComplete,
+  ]);
+  const getCurrentRoundAnswersSnapshot = React.useCallback(() => {
+    const answers = [...trainingAnswers];
+    if (
+      !currentQuestion ||
+      trainingRoundComplete ||
+      answerForCurrentQuestion === null
+    ) {
+      return answers;
+    }
+    while (answers.length <= trainingQuestionIndex) answers.push(-1);
+    answers[trainingQuestionIndex] = answerForCurrentQuestion;
+    return answers;
+  }, [
+    answerForCurrentQuestion,
+    currentQuestion,
+    trainingAnswers,
+    trainingQuestionIndex,
+    trainingRoundComplete,
+  ]);
 
   useEffect(() => {
     if (!currentQuestion || trainingRound === null) return;
@@ -2163,16 +2214,13 @@ const Profile: React.FC<ProfileProps> = ({
         setBlinkKey((k) => k + 1);
         // Немедленно фиксируем timeout на сервере (answerFinal) — перезаписать будет нельзя
         if (trainingData?.tournamentId && token) {
-          const toBase =
-            trainingRound === 3
-              ? tiebreakerBase
-              : trainingRound !== null && trainingRound >= 2
-                ? semiPhaseTotal
-                : 0;
+          const toBase = getTrainingAnswerBase();
           const toGIdx = toBase + trainingQuestionIndex;
-          const toAnswers = [...fullAnswersChosenRef.current];
-          while (toAnswers.length <= toGIdx) toAnswers.push(-1);
-          toAnswers[toGIdx] = -1;
+          const toAnswers = mergeAnswerAtIndex(
+            fullAnswersChosenRef.current,
+            toGIdx,
+            -1,
+          );
           axios
             .post(
               `/tournaments/${trainingData.tournamentId}/progress`,
@@ -2191,16 +2239,13 @@ const Profile: React.FC<ProfileProps> = ({
     }, 50);
 
     if (trainingData?.tournamentId && token) {
-      const psBase =
-        trainingRound === 3
-          ? tiebreakerBase
-          : trainingRound !== null && trainingRound >= 2
-            ? semiPhaseTotal
-            : 0;
+      const psBase = getTrainingAnswerBase();
       const psGIdx = psBase + trainingQuestionIndex;
-      const psAnswers = [...fullAnswersChosenRef.current];
-      while (psAnswers.length <= psGIdx) psAnswers.push(-1);
-      psAnswers[psGIdx] = -1;
+      const psAnswers = mergeAnswerAtIndex(
+        fullAnswersChosenRef.current,
+        psGIdx,
+        -1,
+      );
       const psCount = psBase + trainingQuestionIndex + 1;
       axios
         .post(
@@ -2240,25 +2285,17 @@ const Profile: React.FC<ProfileProps> = ({
     setBlinkKey((k) => k + 1);
     const newRoundAnswers = [...trainingAnswers, answerIndex];
     setTrainingAnswers(newRoundAnswers);
-    const base =
-      trainingRound === 3
-        ? tiebreakerBase
-        : trainingRound !== null && trainingRound >= 2
-          ? semiPhaseTotal
-          : 0;
+    const base = getTrainingAnswerBase();
     const globalIdx = base + trainingQuestionIndex;
-    setFullAnswersChosen((prev) => {
-      const arr = [...prev];
-      while (arr.length <= globalIdx) arr.push(-1);
-      arr[globalIdx] = answerIndex;
-      return arr;
-    });
+    const cumulative = mergeAnswerAtIndex(
+      fullAnswersChosenRef.current,
+      globalIdx,
+      answerIndex,
+    );
+    setFullAnswersChosen(cumulative);
     const totalAnswered = base + trainingQuestionIndex + 1;
     const currentIndex = totalAnswered;
     if (trainingData?.tournamentId && token) {
-      const cumulative = [...fullAnswersChosenRef.current];
-      while (cumulative.length <= globalIdx) cumulative.push(-1);
-      cumulative[globalIdx] = answerIndex;
       axios
         .post(
           `/tournaments/${trainingData.tournamentId}/progress`,
@@ -2277,17 +2314,14 @@ const Profile: React.FC<ProfileProps> = ({
   };
 
   const goToNextQuestion = () => {
-    const roundBase =
-      trainingRound === 3
-        ? tiebreakerBase
-        : trainingRound !== null && trainingRound >= 2
-          ? semiPhaseTotal
-          : 0;
+    const roundBase = getTrainingAnswerBase();
     const totalAnswered = roundBase + trainingQuestionIndex + 1;
     const currentIndex = totalAnswered;
+    const roundAnswersSnapshot = getCurrentRoundAnswersSnapshot();
+    const answersSnapshot = getPersistedAnswersSnapshot();
     const correctThisRound = isLastQuestion
       ? currentQuestions.filter(
-          (q, i) => q.correctAnswer === trainingAnswers[i],
+          (q, i) => q.correctAnswer === roundAnswersSnapshot[i],
         ).length
       : 0;
     const totalCorrectToSend = isLastQuestion
@@ -2302,7 +2336,8 @@ const Profile: React.FC<ProfileProps> = ({
             currentIndex,
             timeLeft: QUESTION_TIMER_SEC,
             correctCount: totalCorrectToSend,
-            answersChosen: fullAnswersChosenRef.current,
+            answersChosen: answersSnapshot,
+            ...(answered ? { answerFinal: true } : {}),
           },
           { headers: { Authorization: `Bearer ${token}` } },
         )
@@ -2422,22 +2457,16 @@ const Profile: React.FC<ProfileProps> = ({
       clearInterval(trainingTimerRef.current);
       trainingTimerRef.current = null;
     }
-    const base =
-      trainingRound === 3
-        ? tiebreakerBase
-        : trainingRound >= 2
-          ? semiPhaseTotal
-          : 0;
+    const base = getTrainingAnswerBase();
     const wasAnswered = answerForCurrentQuestion !== null;
     const hasActiveQuestion =
       !wasAnswered && !!currentQuestion && !trainingRoundComplete;
     const count =
       base + trainingQuestionIndex + (wasAnswered || hasActiveQuestion ? 1 : 0);
-    const answersToSend = [...fullAnswersChosenRef.current];
+    let answersToSend = getPersistedAnswersSnapshot();
     if (hasActiveQuestion) {
       const gIdx = base + trainingQuestionIndex;
-      while (answersToSend.length <= gIdx) answersToSend.push(-1);
-      answersToSend[gIdx] = -1;
+      answersToSend = mergeAnswerAtIndex(answersToSend, gIdx, -1);
     }
     const body: {
       count: number;
@@ -2445,12 +2474,14 @@ const Profile: React.FC<ProfileProps> = ({
       timeLeft?: number;
       correctCount?: number;
       answersChosen?: number[];
+      answerFinal?: boolean;
     } = {
       count,
       currentIndex: count,
       correctCount: trainingCorrectCount,
       answersChosen: answersToSend,
     };
+    if (wasAnswered) body.answerFinal = true;
     body.timeLeft = QUESTION_TIMER_SEC;
     axios
       .post(`/tournaments/${trainingData.tournamentId}/progress`, body, {
