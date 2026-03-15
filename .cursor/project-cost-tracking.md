@@ -1,7 +1,8 @@
-770967.18
-За сегодня (2026-03-15): 656,25 ₽
+772425.51
+За сегодня (2026-03-15): 2 114,58 ₽
 
 # Последние изменения (для резюме по задаче). Формат: YYYY-MM-DD HH:MM | Z ₽ | N ч M мин | описание. «За сегодня» — сумма всех Z за текущий день.
+2026-03-15 04:58 | 1 458,33 ₽ | 0 ч 40 мин | Cursor rules: добавлено отдельное always-apply правило детального учёта стоимости по этапам реальной работы — погружение, проектирование, реализация, cleanup, проверка и delivery с мягкими коэффициентами риска вместо грубой оценки по размеру diff
 2026-03-15 04:47 | 656,25 ₽ | 0 ч 18 мин | Cursor rules: добавлено отдельное always-apply правило режимов рефакторинга с двумя состояниями — обязательный локальный refactor-pass после каждой правки и плановый полный refactor-pass по проекту с weekly cadence и коротким daily hygiene-проходом
 2026-03-14 23:12 | 7 000,00 ₽ | 3 ч 12 мин | Архитектурный проход по зрелости проекта: рублёвый ledger переведён на структурированные payment/withdraw descriptions с repair-скриптом и локальным data-audit, backend write-path дочищен от inline DTO, cabinet route-state расширен `league`/`statsMode` как URL source of truth, slot logic по `playerOrder` вынесена в общий domain helper, а CI усилен frontend route-state test, backend helper tests и `npm ci` workflow
 2026-03-14 22:37 | 3 500,00 ₽ | 1 ч 36 мин | Cleanup проекта: rules сведены к компактному каноническому набору с hygiene/evidence guards, безопасно удалены временные и неиспользуемые frontend-файлы, общий `PlayerStats` и список cabinet sections вынесены в единые точки, legacy scripts/docs помечены для следующего прохода, затем выполнены build/test/smoke, commit, push и production deploy-check
