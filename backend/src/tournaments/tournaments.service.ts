@@ -2254,9 +2254,24 @@ export class TournamentsService implements OnModuleInit {
   private getTournamentPlayerCount(
     tournament: Pick<Tournament, 'playerOrder' | 'players'>,
   ): number {
-    const orderCount = (tournament.playerOrder ?? []).filter((id) => id > 0).length;
-    const playersCount = (tournament.players ?? []).length;
-    return Math.max(orderCount, playersCount);
+    return this.getTournamentParticipantIds(tournament).length;
+  }
+
+  private getTournamentParticipantIds(
+    tournament: Pick<Tournament, 'playerOrder' | 'players'>,
+  ): number[] {
+    const ids = [
+      ...(tournament.playerOrder ?? []),
+      ...(tournament.players?.map((player) => player.id) ?? []),
+    ].filter((id): id is number => Number.isInteger(id) && id > 0);
+    return [...new Set(ids)];
+  }
+
+  private isTournamentParticipant(
+    tournament: Pick<Tournament, 'playerOrder' | 'players'>,
+    userId: number,
+  ): boolean {
+    return this.getTournamentParticipantIds(tournament).includes(userId);
   }
 
   private isTournamentStructurallyFinishable(
@@ -4569,6 +4584,10 @@ export class TournamentsService implements OnModuleInit {
         },
         bucket,
       );
+      const resultTone =
+        resultLabel === 'Этап не пройден'
+          ? 'stage-not-passed'
+          : viewMeta.resultTone;
       return {
         id: t.id,
         status: displayStatus,
@@ -4591,7 +4610,7 @@ export class TournamentsService implements OnModuleInit {
         roundStartedAt: roundStartedAtDisplay,
         stageKind: viewMeta.stageKind,
         resultKind: viewMeta.resultKind,
-        resultTone: viewMeta.resultTone,
+        resultTone,
         listBucket: viewMeta.listBucket,
         canContinue: viewMeta.canContinue,
         isWaitingOpponent: viewMeta.isWaitingOpponent,
@@ -5432,7 +5451,7 @@ export class TournamentsService implements OnModuleInit {
     });
     if (!tournament) throw new NotFoundException('Tournament not found');
     this.sortPlayersByOrder(tournament);
-    const isPlayer = tournament.players?.some((p) => p.id === userId);
+    const isPlayer = this.isTournamentParticipant(tournament, userId);
     if (!isPlayer)
       throw new BadRequestException('You are not in this tournament');
 
@@ -5467,7 +5486,7 @@ export class TournamentsService implements OnModuleInit {
     });
     if (!tournament) throw new NotFoundException('Tournament not found');
     this.sortPlayersByOrder(tournament);
-    const isPlayer = tournament.players?.some((p) => p.id === userId);
+    const isPlayer = this.isTournamentParticipant(tournament, userId);
     if (!isPlayer)
       throw new BadRequestException('You are not in this tournament');
     return tournament;
@@ -6949,7 +6968,7 @@ export class TournamentsService implements OnModuleInit {
     });
     if (!tournament) throw new NotFoundException('Tournament not found');
     this.sortPlayersByOrder(tournament);
-    const isPlayer = tournament.players?.some((p) => p.id === userId);
+    const isPlayer = this.isTournamentParticipant(tournament, userId);
     if (!isPlayer)
       throw new BadRequestException('You are not in this tournament');
 
