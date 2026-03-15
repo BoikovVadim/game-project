@@ -41,6 +41,7 @@ import {
   getMinBalanceForLeague,
   getTournamentDisplayName,
 } from './domain/constants';
+import { isFinalRoundFinished } from './domain/final-round-finished';
 import {
   getOpponentSlot,
   getSemiPairIndexBySlot as getSemiPairIndexBySlotFromOrder,
@@ -3825,22 +3826,48 @@ export class TournamentsService implements OnModuleInit {
       }
 
       // Determine if player has finished current round (no timer needed)
-      const hasOtherFinalist = (t: Tournament): boolean => {
+      const getOppositeFinalistProgress = (
+        t: Tournament,
+      ): TournamentProgress | null => {
         const order = t.playerOrder;
-        if (!order || order.length < 4) return false;
-        const pSlot = order.indexOf(userId);
-        if (pSlot < 0) return false;
-        const os: [number, number] = pSlot < 2 ? [2, 3] : [0, 1];
-        const id1 = order[os[0]];
-        const id2 = order[os[1]];
-        if (id1 == null || id2 == null || id1 <= 0 || id2 <= 0) return false;
-        const pr1 = allProgress.find(
-          (p) => p.tournamentId === t.id && p.userId === id1,
+        if (!order || order.length < 4) return null;
+        const playerSlot = order.indexOf(userId);
+        if (playerSlot < 0) return null;
+        const oppositePairIndex: 0 | 1 = playerSlot < 2 ? 1 : 0;
+        const otherSlots: [number, number] =
+          oppositePairIndex === 0 ? [0, 1] : [2, 3];
+        const p1Id = otherSlots[0] < order.length ? order[otherSlots[0]] : -1;
+        const p2Id = otherSlots[1] < order.length ? order[otherSlots[1]] : -1;
+        if (!(p1Id > 0) || !(p2Id > 0)) return null;
+
+        const timeoutResolution = this.getLatestResolutionFromMap(
+          timeoutResolutionMap,
+          t.id,
+          TournamentResolutionStage.SEMI,
+          oppositePairIndex,
         );
-        const pr2 = allProgress.find(
-          (p) => p.tournamentId === t.id && p.userId === id2,
-        );
-        if (!pr1 || !pr2) return false;
+        if (timeoutResolution) {
+          if (
+            timeoutResolution.outcome === TournamentResolutionOutcome.BOTH_LOST
+          ) {
+            return null;
+          }
+          const winnerId = timeoutResolution.winnerUserId;
+          return winnerId
+            ? allProgress.find(
+                (p) => p.tournamentId === t.id && p.userId === winnerId,
+              ) ?? null
+            : null;
+        }
+
+        const pr1 =
+          allProgress.find((p) => p.tournamentId === t.id && p.userId === p1Id) ??
+          null;
+        const pr2 =
+          allProgress.find((p) => p.tournamentId === t.id && p.userId === p2Id) ??
+          null;
+        if (!pr1 || !pr2) return null;
+
         const semiState = this.getSemiHeadToHeadState(
           pr1.questionsAnsweredCount ?? 0,
           pr1.semiFinalCorrectCount,
@@ -3848,8 +3875,14 @@ export class TournamentsService implements OnModuleInit {
           pr2.questionsAnsweredCount ?? 0,
           pr2.semiFinalCorrectCount,
           pr2.tiebreakerRoundsCorrect,
+          t.status === TournamentStatus.FINISHED,
         );
-        return semiState.result === 'won' || semiState.result === 'lost';
+        if (semiState.result === 'won') return pr1;
+        if (semiState.result === 'lost') return pr2;
+        return null;
+      };
+      const hasOtherFinalist = (t: Tournament): boolean => {
+        return getOppositeFinalistProgress(t) != null;
       };
 
       for (const tid of allIds) {
@@ -3921,10 +3954,25 @@ export class TournamentsService implements OnModuleInit {
           if (semiState.result === 'won') {
             if (myQ < mySemiTotal) {
               playerRoundFinished.set(tid, true);
-            } else if (myQ >= mySemiTotal + 10) {
-              playerRoundFinished.set(tid, true);
             } else {
-              playerRoundFinished.set(tid, false);
+              const otherFinalist = getOppositeFinalistProgress(t);
+              if (!otherFinalist) {
+                playerRoundFinished.set(tid, myQ >= mySemiTotal + 10);
+              } else {
+                const finalState = this.getFinalHeadToHeadState(
+                  myProg,
+                  otherFinalist,
+                );
+                playerRoundFinished.set(
+                  tid,
+                  isFinalRoundFinished({
+                    myQuestionCount: myQ,
+                    mySemiPhaseQuestionCount: mySemiTotal,
+                    finalResult: finalState.result,
+                    tiebreakerRound: finalState.tiebreakerRound,
+                  }),
+                );
+              }
             }
           } else if (semiState.result === 'lost') {
             playerRoundFinished.set(tid, true);
@@ -3940,10 +3988,25 @@ export class TournamentsService implements OnModuleInit {
         ) {
           if (myQ < mySemiTotal) {
             playerRoundFinished.set(tid, true);
-          } else if (myQ >= mySemiTotal + 10) {
-            playerRoundFinished.set(tid, true);
           } else {
-            playerRoundFinished.set(tid, false);
+            const otherFinalist = getOppositeFinalistProgress(t);
+            if (!otherFinalist) {
+              playerRoundFinished.set(tid, myQ >= mySemiTotal + 10);
+            } else {
+              const finalState = this.getFinalHeadToHeadState(
+                myProg,
+                otherFinalist,
+              );
+              playerRoundFinished.set(
+                tid,
+                isFinalRoundFinished({
+                  myQuestionCount: myQ,
+                  mySemiPhaseQuestionCount: mySemiTotal,
+                  finalResult: finalState.result,
+                  tiebreakerRound: finalState.tiebreakerRound,
+                }),
+              );
+            }
           }
         } else {
           playerRoundFinished.set(tid, myQ >= 10);
