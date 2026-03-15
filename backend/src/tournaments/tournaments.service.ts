@@ -6071,6 +6071,30 @@ export class TournamentsService implements OnModuleInit {
       if (qs.length === 0) break;
       finalTiebreakerAllQuestions.push(qs);
     }
+    const reviewRounds = buildTrainingReviewRounds({
+      questionsPerRound: this.QUESTIONS_PER_ROUND,
+      tiebreakerQuestions: this.TIEBREAKER_QUESTIONS,
+      userSemiIndex,
+      questionsSemi1,
+      questionsSemi2,
+      questionsFinal,
+      questionsAnsweredCount,
+      correctAnswersCount,
+      semiFinalCorrectCount,
+      semiTiebreakerAllQuestions,
+      semiTiebreakerRoundsCorrect: normalizedProgress.tiebreakerRounds,
+      finalTiebreakerAllQuestions,
+      finalTiebreakerRoundsCorrect: normalizedProgress.finalTiebreakerRounds,
+    });
+    const visibleSemiTiebreakerRoundCount = reviewRounds.filter(
+      (round) => round.stageKind === 'semi' && round.isTiebreaker,
+    ).length;
+    const hasVisibleFinalMain = reviewRounds.some(
+      (round) => round.stageKind === 'final' && !round.isTiebreaker,
+    );
+    const visibleFinalTiebreakerRoundCount = reviewRounds.filter(
+      (round) => round.stageKind === 'final' && round.isTiebreaker,
+    ).length;
 
     // ---- Opponent answers + info per round (for question review table) ----
     const opponentAnswersByRound: number[][] = [];
@@ -6130,7 +6154,7 @@ export class TournamentsService implements OnModuleInit {
       : { id: 0, nickname: '—', avatarUrl: null };
     opponentAnswersByRound.push(semiOppAC.slice(0, QPR));
     opponentInfoByRound.push(semiOppInfo);
-    for (let r = 0; r < semiTiebreakerAllQuestions.length; r++) {
+    for (let r = 0; r < visibleSemiTiebreakerRoundCount; r++) {
       opponentAnswersByRound.push(
         semiOppAC.slice(QPR + r * TBQ, QPR + (r + 1) * TBQ),
       );
@@ -6138,7 +6162,7 @@ export class TournamentsService implements OnModuleInit {
     }
 
     // Final opponent (winner of the other semi pair)
-    if (questionsFinal.length > 0) {
+    if (questionsFinal.length > 0 && hasVisibleFinalMain) {
       const fOtherSlots: [number, number] =
         playerSlotForSemi < 2 ? [2, 3] : [0, 1];
       const fOrder2 = tournament.playerOrder ?? [];
@@ -6187,7 +6211,7 @@ export class TournamentsService implements OnModuleInit {
         const fFinalStart = QPR + fTBCount * TBQ;
         opponentAnswersByRound.push(fAC.slice(fFinalStart, fFinalStart + QPR));
         opponentInfoByRound.push(finalOppInfo);
-        for (let r = 0; r < finalTiebreakerAllQuestions.length; r++) {
+        for (let r = 0; r < visibleFinalTiebreakerRoundCount; r++) {
           opponentAnswersByRound.push(
             fAC.slice(
               fFinalStart + QPR + r * TBQ,
@@ -6231,21 +6255,7 @@ export class TournamentsService implements OnModuleInit {
       semiTiebreakerRoundsCorrect: normalizedProgress.tiebreakerRounds,
       finalTiebreakerAllQuestions,
       finalTiebreakerRoundsCorrect: normalizedProgress.finalTiebreakerRounds,
-      reviewRounds: buildTrainingReviewRounds({
-        questionsPerRound: this.QUESTIONS_PER_ROUND,
-        tiebreakerQuestions: this.TIEBREAKER_QUESTIONS,
-        userSemiIndex,
-        questionsSemi1,
-        questionsSemi2,
-        questionsFinal,
-        questionsAnsweredCount,
-        correctAnswersCount,
-        semiFinalCorrectCount,
-        semiTiebreakerAllQuestions,
-        semiTiebreakerRoundsCorrect: normalizedProgress.tiebreakerRounds,
-        finalTiebreakerAllQuestions,
-        finalTiebreakerRoundsCorrect: normalizedProgress.finalTiebreakerRounds,
-      }),
+      reviewRounds,
       opponentAnswersByRound,
       opponentInfoByRound,
     };
