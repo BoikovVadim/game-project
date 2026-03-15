@@ -78,7 +78,7 @@ type TrainingData = {
 
 type TrainingRound = 0 | 1 | 2 | 3; // 0 = semi1, 1 = semi2, 2 = final, 3 = tiebreaker
 
-const NICKNAME_MAX_LEN = 100;
+const NICKNAME_MAX_LEN = 15;
 
 /** Названия лиг по камням (от дешёвого к дорогому) */
 const LEAGUE_GEMS: Record<number, { name: string; color: string }> = {

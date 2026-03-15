@@ -20,7 +20,7 @@ export class MarkNewsReadDto {
 export class UpdateNicknameDto {
   @IsOptional()
   @IsString()
-  @MaxLength(100)
+  @MaxLength(15)
   nickname?: string | null;
 }
 

@@ -361,7 +361,7 @@ export class UsersService implements OnModuleInit {
   ): Promise<{ nickname: string | null }> {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
-    const trimmed = nickname != null ? nickname.trim() : '';
+    const trimmed = nickname != null ? nickname.trim().slice(0, 15) : '';
     user.nickname = trimmed || null;
     await this.userRepository.save(user);
     return { nickname: user.nickname };

@@ -4,6 +4,7 @@ import { buildAdminTopupDescription } from '../users/ruble-ledger-descriptions';
 type LegacyManualTopupFix = {
   transactionId: number;
   adminId: number;
+  targetCategory: 'topup' | 'other';
   comment?: string | null;
   reason: string;
 };
@@ -12,44 +13,52 @@ const FIXES: LegacyManualTopupFix[] = [
   {
     transactionId: 1,
     adminId: 1,
+    targetCategory: 'other',
     reason: 'user-verified: all legacy credits for current user 1 were issued by admin 1',
   },
   {
     transactionId: 13,
     adminId: 1,
+    targetCategory: 'topup',
     comment: 'скрипт',
     reason: 'user-verified: script topup for current user 1 was issued by admin 1',
   },
   {
     transactionId: 21,
     adminId: 1,
+    targetCategory: 'topup',
     reason: 'user-verified: all legacy credits for current user 1 were issued by admin 1',
   },
   {
     transactionId: 23,
     adminId: 1,
+    targetCategory: 'topup',
     reason: 'user-verified: all legacy credits for current user 1 were issued by admin 1',
   },
   {
     transactionId: 37,
     adminId: 1,
+    targetCategory: 'topup',
     reason: 'user-verified: all legacy credits for current user 1 were issued by admin 1',
   },
   {
     transactionId: 48,
     adminId: 3,
+    targetCategory: 'topup',
     reason:
       'legacy admin-panel topup recovered from production audit and user-provided attribution for user 3',
   },
   {
     transactionId: 72,
     adminId: 3,
+    targetCategory: 'topup',
     reason:
       'legacy admin-panel topup recovered from production audit and user-provided attribution for user 5',
   },
   {
     transactionId: 74,
     adminId: 3,
+    targetCategory: 'topup',
     reason:
       'legacy admin-panel topup recovered from production audit and user-provided attribution for user 6',
   },
@@ -101,14 +110,14 @@ async function main() {
         const description = buildAdminTopupDescription(fix.adminId, fix.comment);
         await manager.query(
           `UPDATE "transaction"
-           SET category = 'topup',
-               description = $1,
+           SET category = $1,
+               description = $2,
                "tournamentId" = NULL
-           WHERE id = $2`,
-          [description, fix.transactionId],
+           WHERE id = $3`,
+          [fix.targetCategory, description, fix.transactionId],
         );
         console.log(
-          `[backfill-legacy-manual-topup-admins] updated tx=${fix.transactionId} admin=${fix.adminId} reason=${fix.reason}`,
+          `[backfill-legacy-manual-topup-admins] updated tx=${fix.transactionId} admin=${fix.adminId} category=${fix.targetCategory} reason=${fix.reason}`,
         );
       }
     });
