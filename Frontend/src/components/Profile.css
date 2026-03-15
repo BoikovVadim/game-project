@@ -3255,6 +3255,48 @@ body.partner-modal-open {
   color: #444;
 }
 
+.transactions-currency-tabs {
+  display: inline-flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.transactions-currency-tab {
+  min-width: 88px;
+  padding: 6px 14px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: #555;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 0.2s ease,
+    color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.transactions-currency-tab.active {
+  background: linear-gradient(180deg, #f4d675 0%, #d2a73a 100%);
+  border-color: rgba(0, 0, 0, 0.08);
+  color: #1f1f1f;
+  box-shadow: 0 3px 10px rgba(212, 175, 55, 0.24);
+}
+
+.transactions-currency-tab:hover {
+  background: rgba(255, 255, 255, 0.75);
+  color: #222;
+}
+
+.transactions-currency-tab.active:hover {
+  background: linear-gradient(180deg, #f6de8d 0%, #ddb655 100%);
+}
+
 .transactions-filters {
   margin-bottom: 12px;
   display: flex;
@@ -6411,6 +6453,16 @@ button.bracket-player-name-btn:active {
 
   .transactions-filter-date-row {
     gap: 6px;
+  }
+
+  .transactions-currency-tabs {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .transactions-currency-tab {
+    flex: 1 1 0;
+    min-width: 0;
   }
 
   .transactions-filter-presets {

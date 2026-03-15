@@ -510,6 +510,143 @@ function filterRejectedWithdrawalRefunds(
   });
 }
 
+type TransactionSortBy = "id" | "date" | "amount" | "category";
+type TransactionSortDir = "asc" | "desc";
+type TransactionCurrencyTab = "rubles" | "l";
+
+const TRANSACTION_CATEGORY_OPTIONS = {
+  rubles: ["", "Пополнение", "Вывод средств", "Конвертация", "Приход", "Расход"],
+  l: [
+    "",
+    "Конвертация",
+    "Реферал",
+    "Выигрыш",
+    "Возврат",
+    "Списание за турнир",
+    "Приход",
+    "Расход",
+  ],
+} as const satisfies Record<TransactionCurrencyTab, readonly string[]>;
+
+function parseTransactionSortBy(raw: string | null): TransactionSortBy {
+  if (
+    raw === "id" ||
+    raw === "date" ||
+    raw === "amount" ||
+    raw === "category"
+  ) {
+    return raw;
+  }
+  return "date";
+}
+
+function parseTransactionSortDir(raw: string | null): TransactionSortDir {
+  return raw === "asc" ? "asc" : "desc";
+}
+
+function parseTransactionCurrencyTab(raw: string | null): TransactionCurrencyTab {
+  return raw === "l" ? "l" : "rubles";
+}
+
+function isTransactionDateParam(raw: string | null): raw is string {
+  return typeof raw === "string" && /^\d{4}-\d{2}-\d{2}$/.test(raw);
+}
+
+function getTransactionCategoryLabel(t: any): string {
+  if (
+    t?.category === "topup" ||
+    t?.category === "admin_credit" ||
+    t?.description?.includes?.("Пополнение")
+  ) {
+    return "Пополнение";
+  }
+  if (
+    t?.category === "withdraw" ||
+    t?.description?.toLowerCase?.().includes?.("вывод")
+  ) {
+    return "Вывод средств";
+  }
+  if (
+    t?.category === "convert" ||
+    t?.description?.includes?.("Конвертация")
+  ) {
+    return "Конвертация";
+  }
+  if (
+    t?.category === "referral" ||
+    t?.description?.includes?.("Реферал")
+  ) {
+    return "Реферал";
+  }
+  if (t?.category === "win" || t?.description?.includes?.("Выигрыш")) {
+    return "Выигрыш";
+  }
+  if (t?.category === "refund" || t?.description?.includes?.("Возврат")) {
+    return "Возврат";
+  }
+  if (t?.category === "loss" && t?.tournamentId) {
+    return "Списание за турнир";
+  }
+  if (
+    t?.description?.includes?.("Списание за турнир") ||
+    (t?.description?.includes?.("турнир") && Number(t?.amount) < 0)
+  ) {
+    return "Списание за турнир";
+  }
+  return Number(t?.amount) >= 0 ? "Приход" : "Расход";
+}
+
+function getTransactionCurrencyScope(t: any): TransactionCurrencyTab | "both" {
+  if (
+    t?.category === "convert" ||
+    t?.description?.includes?.("Конвертация")
+  ) {
+    return "both";
+  }
+  if (
+    t?.category === "topup" ||
+    t?.category === "admin_credit" ||
+    t?.category === "withdraw" ||
+    t?.description?.includes?.("Пополнение") ||
+    t?.description?.toLowerCase?.().includes?.("вывод")
+  ) {
+    return "rubles";
+  }
+  return "l";
+}
+
+function getTransactionAmountDisplay(
+  t: any,
+  currencyTab: TransactionCurrencyTab,
+): string {
+  const amt = Number(t?.amount);
+  const formatTransactionAmount = (value: number) => {
+    if (!Number.isFinite(value)) return "0.00";
+    return value.toLocaleString("ru-RU", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
+  const isConvert =
+    t?.category === "convert" || t?.description?.includes?.("Конвертация");
+  if (isConvert) {
+    const absAmt = Math.abs(amt);
+    const sign =
+      currencyTab === "rubles"
+        ? amt < 0
+          ? "+"
+          : "-"
+        : amt >= 0
+          ? "+"
+          : "-";
+    const currency = currencyTab === "rubles" ? "₽" : CURRENCY;
+    return `${sign}${formatTransactionAmount(absAmt)} ${currency}`;
+  }
+  const sign = amt >= 0 ? "+" : "-";
+  const currency = getTransactionCurrencyScope(t) === "rubles" ? "₽" : CURRENCY;
+  return `${sign}${formatTransactionAmount(Math.abs(amt))} ${currency}`;
+}
+
 function getReadNewsStorageKey(
   userId: number | string | null | undefined,
 ): string {
@@ -567,12 +704,58 @@ const Profile: React.FC<ProfileProps> = ({
     CABINET_SECTIONS.includes(forceSectionProp as RouteCabinetSection)
       ? (forceSectionProp as CabinetSection)
       : undefined;
+  const replaceProfileSearchParams = React.useCallback(
+    (
+      updater: (next: URLSearchParams) => void,
+      options?: { replace?: boolean },
+    ) => {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          updater(next);
+          return next;
+        },
+        { replace: options?.replace ?? true },
+      );
+    },
+    [setSearchParams],
+  );
 
   const [section, setSection] = useState<CabinetSection>(() => {
     if (forceSection) return forceSection;
     return routeSection as CabinetSection;
   });
   const [gameMode, setGameModeState] = useState<GameMode>(() => routeGameMode);
+  const transactionCurrencyTab = useMemo<TransactionCurrencyTab>(
+    () => parseTransactionCurrencyTab(searchParams.get("txCurrency")),
+    [searchParams],
+  );
+  const transactionSortBy = useMemo<TransactionSortBy>(
+    () => parseTransactionSortBy(searchParams.get("txSort")),
+    [searchParams],
+  );
+  const transactionSortDir = useMemo<TransactionSortDir>(
+    () => parseTransactionSortDir(searchParams.get("txDir")),
+    [searchParams],
+  );
+  const transactionCategoryFilter = useMemo<string>(
+    () => searchParams.get("txCategory") ?? "",
+    [searchParams],
+  );
+  const transactionDateFrom = useMemo<string>(
+    () =>
+      isTransactionDateParam(searchParams.get("txFrom"))
+        ? (searchParams.get("txFrom") as string)
+        : "",
+    [searchParams],
+  );
+  const transactionDateTo = useMemo<string>(
+    () =>
+      isTransactionDateParam(searchParams.get("txTo"))
+        ? (searchParams.get("txTo") as string)
+        : "",
+    [searchParams],
+  );
 
   const sectionFromUrl = (() => {
     const fromSearch = getSectionFromSearchParams(searchParams);
@@ -584,11 +767,14 @@ const Profile: React.FC<ProfileProps> = ({
   useEffect(() => {
     if (forceSection) {
       setSection(forceSection);
-      navigate(`/profile?section=${encodeURIComponent(forceSection)}`, {
-        replace: true,
-      });
+      replaceProfileSearchParams(
+        (next) => {
+          next.set("section", forceSection);
+        },
+        { replace: true },
+      );
     }
-  }, [forceSection, navigate]);
+  }, [forceSection, replaceProfileSearchParams]);
 
   // После первого восстановления из URL не показывать древо/линии партнёрки до подтверждения — убирает мелькание при обновлении
   const [sectionFromUrlConfirmed, setSectionFromUrlConfirmed] = useState(false);
@@ -621,10 +807,13 @@ const Profile: React.FC<ProfileProps> = ({
     const current = searchParams.get("section");
     const toSet = section || "news";
     if (current === toSet) return;
-    navigate(`/profile?section=${encodeURIComponent(toSet)}`, {
-      replace: true,
-    });
-  }, [section, navigate, searchParams]);
+    replaceProfileSearchParams(
+      (next) => {
+        next.set("section", toSet);
+      },
+      { replace: true },
+    );
+  }, [section, searchParams, replaceProfileSearchParams]);
   const gameModeRef = useRef<GameMode>(gameMode);
   useEffect(() => {
     gameModeRef.current = gameMode;
@@ -666,8 +855,10 @@ const Profile: React.FC<ProfileProps> = ({
     } else {
       newHash = s;
     }
-    navigate(
-      newHash ? `/profile?section=${encodeURIComponent(newHash)}` : "/profile",
+    replaceProfileSearchParams(
+      (next) => {
+        next.set("section", newHash || "news");
+      },
       { replace: true },
     );
     setSection(sectionToSet);
@@ -677,13 +868,21 @@ const Profile: React.FC<ProfileProps> = ({
     if (mode === "training" || mode === "money") {
       const newSection = `games-${mode}` as CabinetSection;
       setSection(newSection);
-      navigate(`/profile?section=${encodeURIComponent(newSection)}`, {
-        replace: true,
-      });
+      replaceProfileSearchParams(
+        (next) => {
+          next.set("section", newSection);
+        },
+        { replace: true },
+      );
     } else {
       setSection("games");
       if (section === "games-training" || section === "games-money") {
-        navigate("/profile?section=games", { replace: true });
+        replaceProfileSearchParams(
+          (next) => {
+            next.set("section", "games");
+          },
+          { replace: true },
+        );
       }
     }
   };
@@ -696,17 +895,6 @@ const Profile: React.FC<ProfileProps> = ({
   const [rublesInput, setRublesInput] = useState("");
   const [legendsInput, setLegendsInput] = useState("");
   const [convertLoading, setConvertLoading] = useState(false);
-  const [transactionSortBy, setTransactionSortBy] = useState<
-    "id" | "date" | "amount" | "category"
-  >("date");
-  const [transactionSortDir, setTransactionSortDir] = useState<"asc" | "desc">(
-    "desc",
-  );
-  const [transactionCategoryFilter, setTransactionCategoryFilter] = useState<
-    string | null
-  >(null);
-  const [transactionDateFrom, setTransactionDateFrom] = useState<string>("");
-  const [transactionDateTo, setTransactionDateTo] = useState<string>("");
   const [convertError, setConvertError] = useState("");
   const [topupAmount, setTopupAmount] = useState("");
   const [topupProvider, setTopupProvider] = useState<"yookassa" | "robokassa">(
@@ -3093,6 +3281,141 @@ const Profile: React.FC<ProfileProps> = ({
     }
   };
 
+  const transactionCategoryOptions = useMemo(
+    () => TRANSACTION_CATEGORY_OPTIONS[transactionCurrencyTab],
+    [transactionCurrencyTab],
+  );
+
+  useEffect(() => {
+    if (transactionCategoryOptions.includes(transactionCategoryFilter)) return;
+    replaceProfileSearchParams(
+      (next) => {
+        next.set("txCategory", "");
+      },
+      { replace: true },
+    );
+  }, [
+    transactionCategoryFilter,
+    transactionCategoryOptions,
+    replaceProfileSearchParams,
+  ]);
+
+  const setTransactionCurrencyTabParam = React.useCallback(
+    (nextTab: TransactionCurrencyTab) => {
+      replaceProfileSearchParams(
+        (next) => {
+          next.set("txCurrency", nextTab);
+        },
+        { replace: true },
+      );
+    },
+    [replaceProfileSearchParams],
+  );
+
+  const setTransactionCategoryFilterParam = React.useCallback(
+    (nextValue: string) => {
+      replaceProfileSearchParams(
+        (next) => {
+          next.set("txCategory", nextValue);
+        },
+        { replace: true },
+      );
+    },
+    [replaceProfileSearchParams],
+  );
+
+  const setTransactionDateFromParam = React.useCallback(
+    (nextValue: string) => {
+      replaceProfileSearchParams(
+        (next) => {
+          next.set("txFrom", nextValue);
+        },
+        { replace: true },
+      );
+    },
+    [replaceProfileSearchParams],
+  );
+
+  const setTransactionDateToParam = React.useCallback(
+    (nextValue: string) => {
+      replaceProfileSearchParams(
+        (next) => {
+          next.set("txTo", nextValue);
+        },
+        { replace: true },
+      );
+    },
+    [replaceProfileSearchParams],
+  );
+
+  const setTransactionSortParams = React.useCallback(
+    (nextSortBy: TransactionSortBy, nextSortDir: TransactionSortDir) => {
+      replaceProfileSearchParams(
+        (next) => {
+          next.set("txSort", nextSortBy);
+          next.set("txDir", nextSortDir);
+        },
+        { replace: true },
+      );
+    },
+    [replaceProfileSearchParams],
+  );
+
+  const filteredTransactions = useMemo(() => {
+    let list = transactions.filter((transaction) => {
+      const scope = getTransactionCurrencyScope(transaction);
+      return scope === "both" || scope === transactionCurrencyTab;
+    });
+    if (transactionCategoryFilter) {
+      list = list.filter(
+        (transaction) =>
+          getTransactionCategoryLabel(transaction) === transactionCategoryFilter,
+      );
+    }
+    if (transactionDateFrom) {
+      const fromStart = parseMoscowDate(transactionDateFrom);
+      list = list.filter(
+        (transaction) => new Date(transaction.createdAt) >= fromStart,
+      );
+    }
+    if (transactionDateTo) {
+      const toEnd = new Date(transactionDateTo + "T23:59:59.999+03:00");
+      list = list.filter((transaction) => new Date(transaction.createdAt) <= toEnd);
+    }
+    return [...list].sort((a, b) => {
+      let cmp = 0;
+      if (transactionSortBy === "id") cmp = a.id - b.id;
+      else if (transactionSortBy === "date") {
+        cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      } else if (transactionSortBy === "amount") {
+        const amountA =
+          transactionCurrencyTab === "rubles" &&
+          getTransactionCurrencyScope(a) === "both"
+            ? -Number(a.amount)
+            : Number(a.amount);
+        const amountB =
+          transactionCurrencyTab === "rubles" &&
+          getTransactionCurrencyScope(b) === "both"
+            ? -Number(b.amount)
+            : Number(b.amount);
+        cmp = amountA - amountB;
+      } else if (transactionSortBy === "category") {
+        cmp = getTransactionCategoryLabel(a).localeCompare(
+          getTransactionCategoryLabel(b),
+        );
+      }
+      return transactionSortDir === "asc" ? cmp : -cmp;
+    });
+  }, [
+    transactionCategoryFilter,
+    transactionCurrencyTab,
+    transactionDateFrom,
+    transactionDateTo,
+    transactionSortBy,
+    transactionSortDir,
+    transactions,
+  ]);
+
   if (!user && !profileError) {
     return (
       <div className="cabinet cabinet-loading-skeleton">
@@ -3315,7 +3638,12 @@ const Profile: React.FC<ProfileProps> = ({
             saveTrainingProgress();
             clearTrainingState();
             setGameModeState(null);
-            navigate("/profile?section=games", { replace: true });
+            replaceProfileSearchParams(
+              (next) => {
+                next.set("section", "games");
+              },
+              { replace: true },
+            );
             setSection("games");
           }}
           disabled={isQuestionActive}
@@ -6194,54 +6522,16 @@ const Profile: React.FC<ProfileProps> = ({
                     : sub === "topup"
                       ? "finance-topup"
                       : "finance-withdraw";
-                navigate(`/profile?section=${encodeURIComponent(h)}`, {
-                  replace: true,
-                });
+                replaceProfileSearchParams(
+                  (next) => {
+                    next.set("section", h);
+                  },
+                  { replace: true },
+                );
                 setSection(newSection);
                 setHashVersion((v) => v + 1);
               };
-              const getCategoryLabel = (t: any) => {
-                if (
-                  t?.category === "topup" ||
-                  t?.category === "admin_credit" ||
-                  t?.description?.includes?.("Пополнение")
-                )
-                  return "Пополнение";
-                if (
-                  t?.category === "withdraw" ||
-                  t?.description?.toLowerCase?.().includes?.("вывод")
-                )
-                  return "Вывод средств";
-                if (
-                  t?.category === "convert" ||
-                  t?.description?.includes?.("Конвертация")
-                )
-                  return "Конвертация";
-                if (
-                  t?.category === "referral" ||
-                  t?.description?.includes?.("Реферал")
-                )
-                  return "Реферал";
-                if (
-                  t?.category === "win" ||
-                  t?.description?.includes?.("Выигрыш")
-                )
-                  return "Выигрыш";
-                if (
-                  t?.category === "refund" ||
-                  t?.description?.includes?.("Возврат")
-                )
-                  return "Возврат";
-                if (t?.category === "loss" && t?.tournamentId)
-                  return "Списание за турнир";
-                if (
-                  t?.description?.includes?.("Списание за турнир") ||
-                  (t?.description?.includes?.("турнир") &&
-                    Number(t?.amount) < 0)
-                )
-                  return "Списание за турнир";
-                return Number(t?.amount) >= 0 ? "Приход" : "Расход";
-              };
+              const getCategoryLabel = getTransactionCategoryLabel;
               const renderTransactionDescription = (t: {
                 description?: string;
                 tournamentId?: number | null;
@@ -6287,33 +6577,8 @@ const Profile: React.FC<ProfileProps> = ({
                 }
                 return desc;
               };
-              const formatTransactionAmount = (value: number) => {
-                if (!Number.isFinite(value)) return "0.00";
-                return value.toLocaleString("ru-RU", {
-                  minimumFractionDigits: 2,
-                  maximumFractionDigits: 2,
-                });
-              };
-              const getAmountDisplay = (t: any) => {
-                const amt = Number(t?.amount);
-                const isTopup =
-                  t?.category === "topup" ||
-                  t?.description?.includes?.("Пополнение");
-                const isWithdraw =
-                  t?.category === "withdraw" ||
-                  t?.description?.toLowerCase?.().includes?.("вывод");
-                const isConvert =
-                  t?.category === "convert" ||
-                  t?.description?.includes?.("Конвертация");
-                if (isConvert) {
-                  const absAmt = Math.abs(amt);
-                  const currency = amt > 0 ? CURRENCY : "₽";
-                  return `${formatTransactionAmount(absAmt)} ${currency}`;
-                }
-                const sign = amt >= 0 ? "+" : "-";
-                const currency = isTopup || isWithdraw ? "₽" : CURRENCY;
-                return `${sign}${formatTransactionAmount(Math.abs(amt))} ${currency}`;
-              };
+              const getAmountDisplay = (t: any) =>
+                getTransactionAmountDisplay(t, transactionCurrencyTab);
               const getAmountCellClass = (t: any) => {
                 const isConvert =
                   t?.category === "convert" ||
@@ -6975,32 +7240,45 @@ const Profile: React.FC<ProfileProps> = ({
                     <h3>История транзакций</h3>
                     {transactions.length > 0 ? (
                       <>
+                        <div
+                          className="transactions-currency-tabs"
+                          role="tablist"
+                          aria-label="Фильтр истории транзакций по валюте"
+                        >
+                          <button
+                            type="button"
+                            role="tab"
+                            aria-selected={transactionCurrencyTab === "rubles"}
+                            className={`transactions-currency-tab ${transactionCurrencyTab === "rubles" ? "active" : ""}`}
+                            onClick={() => setTransactionCurrencyTabParam("rubles")}
+                          >
+                            Рубли
+                          </button>
+                          <button
+                            type="button"
+                            role="tab"
+                            aria-selected={transactionCurrencyTab === "l"}
+                            className={`transactions-currency-tab ${transactionCurrencyTab === "l" ? "active" : ""}`}
+                            onClick={() => setTransactionCurrencyTabParam("l")}
+                          >
+                            {CURRENCY}
+                          </button>
+                        </div>
                         <div className="transactions-filters">
                           <label className="transactions-filter-label">
                             Категория:
                             <select
-                              value={transactionCategoryFilter ?? ""}
+                              value={transactionCategoryFilter}
                               onChange={(e) =>
-                                setTransactionCategoryFilter(
-                                  e.target.value || null,
-                                )
+                                setTransactionCategoryFilterParam(e.target.value)
                               }
                               className="transactions-filter-select"
                             >
-                              <option value="">Все</option>
-                              <option value="Пополнение">Пополнение</option>
-                              <option value="Вывод средств">
-                                Вывод средств
-                              </option>
-                              <option value="Конвертация">Конвертация</option>
-                              <option value="Реферал">Реферал</option>
-                              <option value="Выигрыш">Выигрыш</option>
-                              <option value="Возврат">Возврат</option>
-                              <option value="Списание за турнир">
-                                Списание за турнир
-                              </option>
-                              <option value="Приход">Приход</option>
-                              <option value="Расход">Расход</option>
+                              {transactionCategoryOptions.map((option) => (
+                                <option key={option || "all"} value={option}>
+                                  {option || "Все"}
+                                </option>
+                              ))}
                             </select>
                           </label>
                           <div className="transactions-filter-date-row">
@@ -7010,7 +7288,7 @@ const Profile: React.FC<ProfileProps> = ({
                                 type="date"
                                 value={transactionDateFrom}
                                 onChange={(e) =>
-                                  setTransactionDateFrom(e.target.value)
+                                  setTransactionDateFromParam(e.target.value)
                                 }
                                 className="transactions-filter-date"
                               />
@@ -7021,7 +7299,7 @@ const Profile: React.FC<ProfileProps> = ({
                                 type="date"
                                 value={transactionDateTo}
                                 onChange={(e) =>
-                                  setTransactionDateTo(e.target.value)
+                                  setTransactionDateToParam(e.target.value)
                                 }
                                 className="transactions-filter-date"
                               />
@@ -7074,8 +7352,8 @@ const Profile: React.FC<ProfileProps> = ({
                                   type="button"
                                   className="transactions-filter-preset"
                                   onClick={() => {
-                                    setTransactionDateFrom(from());
-                                    setTransactionDateTo(to());
+                                    setTransactionDateFromParam(from());
+                                    setTransactionDateToParam(to());
                                   }}
                                 >
                                   {label}
@@ -7091,14 +7369,13 @@ const Profile: React.FC<ProfileProps> = ({
                                 <th
                                   className="transactions-th-sortable"
                                   onClick={() => {
-                                    if (transactionSortBy === "id")
-                                      setTransactionSortDir((d) =>
-                                        d === "asc" ? "desc" : "asc",
-                                      );
-                                    else {
-                                      setTransactionSortBy("id");
-                                      setTransactionSortDir("desc");
-                                    }
+                                    setTransactionSortParams(
+                                      "id",
+                                      transactionSortBy === "id" &&
+                                        transactionSortDir === "desc"
+                                        ? "asc"
+                                        : "desc",
+                                    );
                                   }}
                                   title={
                                     transactionSortBy === "id"
@@ -7115,14 +7392,13 @@ const Profile: React.FC<ProfileProps> = ({
                                 <th
                                   className="transactions-th-sortable"
                                   onClick={() => {
-                                    if (transactionSortBy === "date")
-                                      setTransactionSortDir((d) =>
-                                        d === "asc" ? "desc" : "asc",
-                                      );
-                                    else {
-                                      setTransactionSortBy("date");
-                                      setTransactionSortDir("desc");
-                                    }
+                                    setTransactionSortParams(
+                                      "date",
+                                      transactionSortBy === "date" &&
+                                        transactionSortDir === "desc"
+                                        ? "asc"
+                                        : "desc",
+                                    );
                                   }}
                                   title={
                                     transactionSortBy === "date"
@@ -7139,14 +7415,13 @@ const Profile: React.FC<ProfileProps> = ({
                                 <th
                                   className="transactions-th-sortable"
                                   onClick={() => {
-                                    if (transactionSortBy === "category")
-                                      setTransactionSortDir((d) =>
-                                        d === "asc" ? "desc" : "asc",
-                                      );
-                                    else {
-                                      setTransactionSortBy("category");
-                                      setTransactionSortDir("asc");
-                                    }
+                                    setTransactionSortParams(
+                                      "category",
+                                      transactionSortBy === "category" &&
+                                        transactionSortDir === "asc"
+                                        ? "desc"
+                                        : "asc",
+                                    );
                                   }}
                                   title={
                                     transactionSortBy === "category"
@@ -7163,14 +7438,13 @@ const Profile: React.FC<ProfileProps> = ({
                                 <th
                                   className="transactions-th-sortable"
                                   onClick={() => {
-                                    if (transactionSortBy === "amount")
-                                      setTransactionSortDir((d) =>
-                                        d === "asc" ? "desc" : "asc",
-                                      );
-                                    else {
-                                      setTransactionSortBy("amount");
-                                      setTransactionSortDir("desc");
-                                    }
+                                    setTransactionSortParams(
+                                      "amount",
+                                      transactionSortBy === "amount" &&
+                                        transactionSortDir === "desc"
+                                        ? "asc"
+                                        : "desc",
+                                    );
                                   }}
                                   title={
                                     transactionSortBy === "amount"
@@ -7188,110 +7462,21 @@ const Profile: React.FC<ProfileProps> = ({
                               </tr>
                             </thead>
                             <tbody>
-                              {(() => {
-                                const getCat = (t: any) => {
-                                  if (
-                                    t?.category === "topup" ||
-                                    t?.category === "admin_credit" ||
-                                    t?.description?.includes?.("Пополнение")
-                                  )
-                                    return "Пополнение";
-                                  if (
-                                    t?.category === "withdraw" ||
-                                    t?.description
-                                      ?.toLowerCase?.()
-                                      .includes?.("вывод")
-                                  )
-                                    return "Вывод средств";
-                                  if (
-                                    t?.category === "convert" ||
-                                    t?.description?.includes?.("Конвертация")
-                                  )
-                                    return "Конвертация";
-                                  if (
-                                    t?.category === "referral" ||
-                                    t?.description?.includes?.("Реферал")
-                                  )
-                                    return "Реферал";
-                                  if (
-                                    t?.category === "win" ||
-                                    t?.description?.includes?.("Выигрыш")
-                                  )
-                                    return "Выигрыш";
-                                  if (
-                                    t?.category === "refund" ||
-                                    t?.description?.includes?.("Возврат")
-                                  )
-                                    return "Возврат";
-                                  if (t?.category === "loss" && t?.tournamentId)
-                                    return "Списание за турнир";
-                                  if (
-                                    t?.description?.includes?.(
-                                      "Списание за турнир",
-                                    ) ||
-                                    (t?.description?.includes?.("турнир") &&
-                                      Number(t?.amount) < 0)
-                                  )
-                                    return "Списание за турнир";
-                                  return Number(t?.amount) >= 0
-                                    ? "Приход"
-                                    : "Расход";
-                                };
-                                let list = transactions;
-                                if (transactionCategoryFilter) {
-                                  list = list.filter(
-                                    (t) =>
-                                      getCat(t) === transactionCategoryFilter,
-                                  );
-                                }
-                                if (transactionDateFrom) {
-                                  const fromStart =
-                                    parseMoscowDate(transactionDateFrom);
-                                  list = list.filter(
-                                    (t) => new Date(t.createdAt) >= fromStart,
-                                  );
-                                }
-                                if (transactionDateTo) {
-                                  const toEnd = new Date(
-                                    transactionDateTo + "T23:59:59.999+03:00",
-                                  );
-                                  list = list.filter(
-                                    (t) => new Date(t.createdAt) <= toEnd,
-                                  );
-                                }
-                                list = [...list].sort((a, b) => {
-                                  let cmp = 0;
-                                  if (transactionSortBy === "id")
-                                    cmp = a.id - b.id;
-                                  else if (transactionSortBy === "date")
-                                    cmp =
-                                      new Date(a.createdAt).getTime() -
-                                      new Date(b.createdAt).getTime();
-                                  else if (transactionSortBy === "amount")
-                                    cmp = Number(a.amount) - Number(b.amount);
-                                  else if (transactionSortBy === "category")
-                                    cmp = getCat(a).localeCompare(getCat(b));
-                                  return transactionSortDir === "asc"
-                                    ? cmp
-                                    : -cmp;
-                                });
-                                if (list.length === 0) {
-                                  return (
-                                    <tr>
-                                      <td
-                                        colSpan={5}
-                                        className="transactions-empty-filter"
-                                      >
-                                        {transactionCategoryFilter ||
-                                        transactionDateFrom ||
-                                        transactionDateTo
-                                          ? "Нет транзакций по выбранным фильтрам"
-                                          : "Транзакций нет"}
-                                      </td>
-                                    </tr>
-                                  );
-                                }
-                                return list.map((transaction) => (
+                              {filteredTransactions.length === 0 ? (
+                                <tr>
+                                  <td
+                                    colSpan={5}
+                                    className="transactions-empty-filter"
+                                  >
+                                    {transactionCategoryFilter ||
+                                    transactionDateFrom ||
+                                    transactionDateTo
+                                      ? "Нет транзакций по выбранным фильтрам"
+                                      : "Транзакций нет"}
+                                  </td>
+                                </tr>
+                              ) : (
+                                filteredTransactions.map((transaction) => (
                                   <tr key={transaction.id}>
                                     <td>{transaction.id}</td>
                                     <td>
@@ -7318,8 +7503,8 @@ const Profile: React.FC<ProfileProps> = ({
                                       )}
                                     </td>
                                   </tr>
-                                ));
-                              })()}
+                                ))
+                              )}
                             </tbody>
                           </table>
                         </div>
