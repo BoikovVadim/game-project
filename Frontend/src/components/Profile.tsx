@@ -6541,8 +6541,15 @@ const Profile: React.FC<ProfileProps> = ({
                   /\s*\(скрипт\)\s*/g,
                   "",
                 );
-                if (t?.category === "topup" || t?.category === "admin_credit")
-                  return desc;
+                if (t?.category === "topup" || t?.category === "admin_credit") {
+                  return "Пополнение баланса";
+                }
+                const approvedWithdrawalMatch = desc.match(
+                  /^Вывод средств одобрен \(requestId (\d+)\)$/i,
+                );
+                if (approvedWithdrawalMatch) {
+                  return `Вывод средств одобрен (заявка ${approvedWithdrawalMatch[1]})`;
+                }
                 const idMatch = desc?.match(/ID\s+(\d+)/);
                 const tid =
                   t?.tournamentId ??
