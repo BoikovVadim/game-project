@@ -178,7 +178,7 @@ const GemIcon = ({
 };
 
 const NewsItem = ({
-  id,
+  id: _id,
   topic,
   date,
   description,
@@ -362,7 +362,7 @@ const PartnerDetailTooltipCell = React.memo(
 const PartnerDetailTreeBody = React.memo(
   ({
     rowGrid,
-    subtreeLevels,
+    subtreeLevels: _subtreeLevels,
     expandedIds,
     setPartnerDetailExpandedIds,
     getDescendantCount,
@@ -1632,7 +1632,7 @@ const Profile: React.FC<ProfileProps> = ({
       try {
         const response = await axios.get("/users/transactions", authHeaders);
         setTransactions(filterRejectedWithdrawalRefunds(response.data ?? []));
-      } catch (error) {
+      } catch {
         console.error("Не удалось загрузить транзакции");
       } finally {
         setTransactionsLoaded(true);
@@ -2347,57 +2347,6 @@ const Profile: React.FC<ProfileProps> = ({
     }
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _semiScore = trainingRoundScores[0];
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const goNextRound = async () => {
-    if (trainingTimerRef.current) clearInterval(trainingTimerRef.current);
-    trainingTimerRef.current = null;
-
-    if (trainingRound === 3) {
-      addNotification({
-        type: "game_status",
-        title: "Доп. раунд завершён",
-        text: "Результат будет определён после ответа соперника.",
-      });
-      fetchGameHistory(gameMode === "money" ? "money" : "training");
-    } else if (trainingRound === 2) {
-      if (trainingData?.tournamentId && token) {
-        try {
-          await axios.post(
-            `/tournaments/${trainingData.tournamentId}/complete`,
-            { passed: true },
-            { headers: { Authorization: `Bearer ${token}` } },
-          );
-          addNotification({
-            type: "win",
-            title:
-              gameMode === "money"
-                ? "Победа в противостоянии!"
-                : "Победа в тренировке!",
-            text:
-              gameMode === "money"
-                ? "Поздравляем! Вы выиграли турнир за деньги. Выигрыш зачислен на баланс."
-                : "Поздравляем! Вы успешно прошли тренировочный турнир.",
-          });
-        } catch (_) {}
-        fetchGameHistory(gameMode === "money" ? "money" : "training");
-      }
-    }
-    setTrainingData(null);
-    setTournamentJoinInfo(null);
-    setTrainingRound(null);
-    setTrainingQuestionIndex(0);
-    setTrainingAnswers([]);
-    setFullAnswersChosen([]);
-    setTrainingRoundScores([]);
-    setTrainingRoundComplete(false);
-    setAnswerForCurrentQuestion(null);
-    setTimeLeft(QUESTION_TIMER_SEC);
-    setTiebreakerBase(0);
-  };
-
   const resetTraining = async () => {
     saveTrainingProgress();
     if (trainingTimerRef.current) clearInterval(trainingTimerRef.current);
@@ -2410,7 +2359,7 @@ const Profile: React.FC<ProfileProps> = ({
           { passed: false },
           { headers: { Authorization: `Bearer ${token}` } },
         );
-      } catch (_) {}
+      } catch {}
       fetchGameHistory("training");
     }
     setTrainingData(null);
@@ -3276,7 +3225,7 @@ const Profile: React.FC<ProfileProps> = ({
       setNewPassword("");
       setConfirmPassword("");
       setShowPasswordForm(false);
-    } catch (error) {
+    } catch {
       setError("Не удалось изменить пароль. Проверьте старый пароль");
     }
   };
@@ -3523,7 +3472,7 @@ const Profile: React.FC<ProfileProps> = ({
       }
       setProfileSaveOk(true);
       setTimeout(() => setProfileSaveOk(false), 2500);
-    } catch (_) {}
+    } catch {}
     setProfileSaving(false);
   };
 

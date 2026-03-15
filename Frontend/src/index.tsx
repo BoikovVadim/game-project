@@ -19,7 +19,7 @@ class RootErrorBoundary extends Component<{ children: ReactNode }, { hasError: b
 
   render() {
     if (this.state.hasError) {
-      try { document.getElementById('loading-screen')?.remove(); } catch (_) {}
+      try { document.getElementById('loading-screen')?.remove(); } catch {}
       return (
         <div style={{ padding: 24, textAlign: 'center', maxWidth: 480, margin: '40px auto', background: '#f9f9f9', border: '1px solid #ddd', borderRadius: 8 }}>
           <p style={{ color: '#c00', marginBottom: 16, fontWeight: 600 }}>Ошибка загрузки</p>
@@ -52,7 +52,7 @@ function setupAxiosInterceptor() {
               .then(() => {})
               .catch(() => {});
           }
-        } catch (_) {}
+        } catch {}
         return response;
       },
       (error) => {
@@ -73,11 +73,11 @@ function setupAxiosInterceptor() {
               detail: { reason: 'session-expired' },
             }));
           }
-        } catch (_) {}
+        } catch {}
         return Promise.reject(error);
       },
     );
-  } catch (_) {}
+  } catch {}
 }
 
 const rootEl = document.getElementById('root');

@@ -43,7 +43,7 @@ function removeLoadingScreen() {
   const el = document.getElementById('loading-screen');
   if (!el) return;
   el.style.opacity = '0';
-  setTimeout(() => { try { el.remove(); } catch (_) {} }, 180);
+  setTimeout(() => { try { el.remove(); } catch {} }, 180);
 }
 
 function AppContent() {
@@ -136,7 +136,7 @@ function AppContent() {
           y: window.scrollY,
           path,
         }));
-      } catch (_e) {}
+      } catch {}
     };
     window.addEventListener('beforeunload', saveScroll);
     window.addEventListener('pagehide', saveScroll);
@@ -166,7 +166,7 @@ function AppContent() {
         setTimeout(tryRestore, 100);
       };
       requestAnimationFrame(tryRestore);
-    } catch (_e) {}
+    } catch {}
   }, [location.pathname, location.search]);
 
   useEffect(() => {

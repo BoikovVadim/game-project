@@ -129,7 +129,7 @@ export default function SupportChat({ token }: { token: string }) {
         return next;
       }, { replace: true });
       fetchTickets();
-    } catch (_) {}
+    } catch {}
     setSending(false);
   };
 
@@ -142,7 +142,7 @@ export default function SupportChat({ token }: { token: string }) {
       setDraft('');
       fetchMessages();
       fetchTickets();
-    } catch (_) {}
+    } catch {}
     setSending(false);
   };
 
