@@ -2995,6 +2995,7 @@ export class TournamentsService implements OnModuleInit {
 
       if (waitingTournament) {
         tournament = waitingTournament;
+        this.sortPlayersByOrder(tournament);
         await this.ensureTournamentPlayerWithManager(manager, tournament.id, user.id);
         const newOrder = [...(tournament.playerOrder ?? []), user.id];
         tournament.playerOrder = newOrder;
@@ -3382,6 +3383,7 @@ export class TournamentsService implements OnModuleInit {
 
       if (waitingTournament) {
         tournament = waitingTournament;
+        this.sortPlayersByOrder(tournament);
         await this.ensureTournamentPlayerWithManager(
           manager,
           tournament.id,
@@ -5324,7 +5326,7 @@ export class TournamentsService implements OnModuleInit {
       relations: ['players'],
     });
     if (!tournament) throw new NotFoundException('Tournament not found');
-    this.sortPlayersByOrder(tournament);
+    await this.ensureTournamentPlayersLoaded(tournament);
     const order = tournament.playerOrder ?? [];
     if (
       tournament.status !== TournamentStatus.WAITING &&
@@ -5450,7 +5452,7 @@ export class TournamentsService implements OnModuleInit {
       relations: ['players'],
     });
     if (!tournament) throw new NotFoundException('Tournament not found');
-    this.sortPlayersByOrder(tournament);
+    await this.ensureTournamentPlayersLoaded(tournament);
     const isPlayer = this.isTournamentParticipant(tournament, userId);
     if (!isPlayer)
       throw new BadRequestException('You are not in this tournament');
@@ -5485,7 +5487,7 @@ export class TournamentsService implements OnModuleInit {
       relations: ['players'],
     });
     if (!tournament) throw new NotFoundException('Tournament not found');
-    this.sortPlayersByOrder(tournament);
+    await this.ensureTournamentPlayersLoaded(tournament);
     const isPlayer = this.isTournamentParticipant(tournament, userId);
     if (!isPlayer)
       throw new BadRequestException('You are not in this tournament');
@@ -6354,12 +6356,57 @@ export class TournamentsService implements OnModuleInit {
   private readonly TIEBREAKER_QUESTIONS = TIEBREAKER_QUESTIONS;
 
   private sortPlayersByOrder(tournament: Tournament): void {
-    const order = tournament.playerOrder;
-    if (!order || !tournament.players || tournament.players.length <= 1) return;
-    const orderMap = new Map(order.map((uid, i) => [uid, i]));
+    const playerIds = (tournament.players ?? [])
+      .map((player) => player.id)
+      .filter((id): id is number => Number.isInteger(id) && id > 0);
+    const order = (tournament.playerOrder ?? []).filter(
+      (id): id is number => Number.isInteger(id) && id > 0,
+    );
+    if (playerIds.length > 0) {
+      const seen = new Set(order);
+      const normalizedOrder = [...order];
+      for (const id of playerIds) {
+        if (!seen.has(id)) {
+          normalizedOrder.push(id);
+          seen.add(id);
+        }
+      }
+      tournament.playerOrder = normalizedOrder;
+    }
+
+    const effectiveOrder = tournament.playerOrder;
+    if (
+      !effectiveOrder ||
+      !tournament.players ||
+      tournament.players.length <= 1
+    )
+      return;
+    const orderMap = new Map(effectiveOrder.map((uid, i) => [uid, i]));
     tournament.players.sort(
       (a, b) => (orderMap.get(a.id) ?? 999) - (orderMap.get(b.id) ?? 999),
     );
+  }
+
+  private async ensureTournamentPlayersLoaded(
+    tournament: Tournament,
+  ): Promise<void> {
+    const loadedIds = new Set(
+      (tournament.players ?? [])
+        .map((player) => player.id)
+        .filter((id): id is number => Number.isInteger(id) && id > 0),
+    );
+    const missingIds = (tournament.playerOrder ?? []).filter(
+      (id): id is number => Number.isInteger(id) && id > 0 && !loadedIds.has(id),
+    );
+    if (missingIds.length > 0) {
+      const missingPlayers = await this.userRepository.find({
+        where: { id: In(missingIds) },
+      });
+      tournament.players = [...(tournament.players ?? []), ...missingPlayers];
+    } else if (!tournament.players) {
+      tournament.players = [];
+    }
+    this.sortPlayersByOrder(tournament);
   }
 
   /**
@@ -6967,7 +7014,7 @@ export class TournamentsService implements OnModuleInit {
       relations: ['players'],
     });
     if (!tournament) throw new NotFoundException('Tournament not found');
-    this.sortPlayersByOrder(tournament);
+    await this.ensureTournamentPlayersLoaded(tournament);
     const isPlayer = this.isTournamentParticipant(tournament, userId);
     if (!isPlayer)
       throw new BadRequestException('You are not in this tournament');
