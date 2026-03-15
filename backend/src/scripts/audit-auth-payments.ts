@@ -96,6 +96,7 @@ async function main() {
               )
               AND ABS(CAST(t.amount AS numeric) - CAST(p.amount AS numeric)) < 0.01
               AND t."createdAt" >= p."createdAt" - interval '1 day'
+              AND t."createdAt" <= p."createdAt" + interval '1 day'
           )
       `,
     );

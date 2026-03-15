@@ -418,18 +418,18 @@ export class AdminService {
         const isNumeric = /^\d+$/.test(q);
         raw = isNumeric
           ? await this.dataSource.query(
-              `SELECT id, username, email, balance, "balanceRubles", "isAdmin" FROM "user"
+              `SELECT id, username, email, "isAdmin" FROM "user"
                WHERE id = $1 OR username LIKE $2 OR email LIKE $3
                ORDER BY (CASE WHEN id = $4 THEN 0 ELSE 1 END), id ASC LIMIT $5`,
               [Number(q), `%${q}%`, `%${q}%`, Number(q), safeLimit],
             )
           : await this.dataSource.query(
-              'SELECT id, username, email, balance, "balanceRubles", "isAdmin" FROM "user" WHERE username LIKE $1 OR email LIKE $2 ORDER BY id ASC LIMIT $3',
+              'SELECT id, username, email, "isAdmin" FROM "user" WHERE username LIKE $1 OR email LIKE $2 ORDER BY id ASC LIMIT $3',
               [`%${q}%`, `%${q}%`, safeLimit],
             );
       } else {
         raw = await this.dataSource.query(
-          'SELECT id, username, email, balance, "balanceRubles", "isAdmin" FROM "user" ORDER BY id ASC LIMIT $1',
+          'SELECT id, username, email, "isAdmin" FROM "user" ORDER BY id ASC LIMIT $1',
           [safeLimit],
         );
       }
@@ -437,12 +437,16 @@ export class AdminService {
       console.error('[AdminService.getUsers] query error', e);
       return [];
     }
+    const userIds = (raw || []).map((u: any) => Number(u.id)).filter((id: number) => id > 0);
+    const balanceMaps = await this.usersService.getComputedBalanceMapsForUsers(
+      userIds,
+    );
     return (raw || []).map((u: any) => ({
       id: Number(u.id),
       username: String(u.username ?? ''),
       email: String(u.email ?? ''),
-      balance: Number(u.balance ?? 0),
-      balanceRubles: Number(u.balanceRubles ?? 0),
+      balance: balanceMaps.balanceL.get(Number(u.id)) ?? 0,
+      balanceRubles: balanceMaps.rubles.get(Number(u.id)) ?? 0,
       isAdmin: u.isAdmin === 1 || u.isAdmin === true || u.isAdmin === '1',
     }));
   }

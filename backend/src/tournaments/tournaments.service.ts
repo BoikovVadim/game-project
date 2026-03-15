@@ -2912,7 +2912,10 @@ export class TournamentsService implements OnModuleInit {
   }> {
     const user = await this.userRepository.findOneBy({ id: userId });
     if (!user) throw new BadRequestException('User not found');
-    const balance = Number(user.balance ?? 0) || 0;
+    const balanceMaps = await this.usersService.getComputedBalanceMapsForUsers([
+      userId,
+    ]);
+    const balance = balanceMaps.balanceL.get(userId) ?? 0;
     const leagueWins = await this.getLeagueWins(userId);
     const wins = (amt: number) => leagueWins.get(amt) ?? 0;
 
@@ -2984,7 +2987,7 @@ export class TournamentsService implements OnModuleInit {
     }
     const users = await this.userRepository.find({
       where: { id: In([...userIds]) },
-      select: ['id', 'balance', 'lastCabinetSeenAt'],
+      select: ['id', 'lastCabinetSeenAt'],
     });
     const now = Date.now();
     const cutoff = new Date(now - TournamentsService.CABINET_ONLINE_MS);
@@ -2997,9 +3000,13 @@ export class TournamentsService implements OnModuleInit {
         )
         .map((u) => u.id),
     );
-    const balanceByUser = new Map(
-      users.map((u) => [u.id, Number(u.balance ?? 0) || 0]),
-    );
+    const balanceMaps = await this.usersService.getComputedBalanceMapsForUsers([
+      ...userIds,
+    ]);
+    const balanceByUser = new Map<number, number>();
+    for (const uid of userIds) {
+      balanceByUser.set(uid, balanceMaps.balanceL.get(uid) ?? 0);
+    }
     const userIdArr = [...userIds];
     const winsRows = await this.tournamentResultRepository.manager.query(
       `SELECT r."userId" as "userId", t."leagueAmount" as "leagueAmount", COUNT(*) as wins

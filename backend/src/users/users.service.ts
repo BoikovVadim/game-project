@@ -56,6 +56,13 @@ import {
   toUserWithdrawalRequestDto,
 } from './dto/users-read.dto';
 
+type ComputedBalanceMaps = {
+  rubles: Map<number, number>;
+  balanceL: Map<number, number>;
+  pendingWithdrawals: Map<number, number>;
+  heldEscrow: Map<number, number>;
+};
+
 @Injectable()
 export class UsersService implements OnModuleInit {
   constructor(
@@ -75,7 +82,7 @@ export class UsersService implements OnModuleInit {
   }
 
   /** При старте приложения переписывает старые описания возвратов за турниры в формат «Возврат за турнир, {лига}, ID {id}». */
-  private async normalizeRefundDescriptions(): Promise<void> {
+  async normalizeRefundDescriptions(): Promise<void> {
     const rows = (await this.dataSource.query(
       `SELECT id, description, "tournamentId" FROM "transaction"
        WHERE category = 'refund' AND description IS NOT NULL AND description != ''`,
@@ -111,6 +118,212 @@ export class UsersService implements OnModuleInit {
     }
   }
 
+  private async getLockedUser(
+    manager: EntityManager,
+    userId: number,
+  ): Promise<User> {
+    const user = await manager
+      .createQueryBuilder(User, 'user')
+      .setLock('pessimistic_write')
+      .where('user.id = :userId', { userId })
+      .getOne();
+    if (!user) throw new NotFoundException('User not found');
+    return user;
+  }
+
+  async getComputedBalanceMapsForUsers(
+    userIds: number[],
+  ): Promise<ComputedBalanceMaps> {
+    const ids = Array.from(
+      new Set(
+        userIds
+          .map((value) => Number(value))
+          .filter((value) => Number.isInteger(value) && value > 0),
+      ),
+    );
+    const rubles = new Map<number, number>();
+    const balanceL = new Map<number, number>();
+    const pendingWithdrawals = new Map<number, number>();
+    const heldEscrow = new Map<number, number>();
+
+    for (const userId of ids) {
+      rubles.set(userId, 0);
+      balanceL.set(userId, 0);
+      pendingWithdrawals.set(userId, 0);
+      heldEscrow.set(userId, 0);
+    }
+
+    if (ids.length === 0) {
+      return { rubles, balanceL, pendingWithdrawals, heldEscrow };
+    }
+
+    const txRows = (await this.dataSource.query(
+      `SELECT "userId", category, amount, description, "tournamentId"
+       FROM "transaction"
+       WHERE "userId" = ANY($1::int[])
+         AND category IN ('topup','admin_credit','withdraw','refund','convert','other','win','loss','referral')
+       ORDER BY id ASC`,
+      [ids],
+    )) as {
+      userId: number;
+      category: string;
+      amount: number | string;
+      description: string | null;
+      tournamentId: number | null;
+    }[];
+
+    for (const row of txRows) {
+      const userId = Number(row.userId);
+      if (!rubles.has(userId) || !balanceL.has(userId)) continue;
+      const amount = Number(row.amount);
+      const parsedAdminTopup = UsersService.parseAdminTopupDescription(
+        row.description,
+      );
+      const isLegacyRublesOtherAdminTopup =
+        row.category === 'other' && parsedAdminTopup.adminId != null;
+
+      if (
+        ['topup', 'admin_credit', 'withdraw', 'refund', 'convert', 'other'].includes(
+          row.category,
+        )
+      ) {
+        if (row.category !== 'other' || isLegacyRublesOtherAdminTopup) {
+          if (
+            !UsersService.isRejectedWithdrawalRefund(
+              row.description,
+              row.category,
+            ) &&
+            !UsersService.isNonRublesRefund(
+              row.description,
+              row.category,
+              row.tournamentId,
+            )
+          ) {
+            rubles.set(
+              userId,
+              (rubles.get(userId) ?? 0) +
+                (row.category === 'convert' ? -amount : amount),
+            );
+          }
+        }
+      }
+
+      if (
+        ['win', 'loss', 'referral', 'other', 'convert', 'refund'].includes(
+          row.category,
+        )
+      ) {
+        if (row.category === 'other' && isLegacyRublesOtherAdminTopup) continue;
+        if (
+          UsersService.isRejectedWithdrawalRefund(row.description, row.category)
+        ) {
+          continue;
+        }
+        if (
+          row.category === 'refund' &&
+          !UsersService.isNonRublesRefund(
+            row.description,
+            row.category,
+            row.tournamentId,
+          )
+        ) {
+          continue;
+        }
+        balanceL.set(userId, (balanceL.get(userId) ?? 0) + amount);
+      }
+    }
+
+    const pendingRows = (await this.dataSource.query(
+      `SELECT "userId", COALESCE(SUM(amount), 0) AS total
+       FROM withdrawal_request
+       WHERE "userId" = ANY($1::int[]) AND status = 'pending'
+       GROUP BY "userId"`,
+      [ids],
+    )) as { userId: number; total: number | string }[];
+    for (const row of pendingRows) {
+      pendingWithdrawals.set(Number(row.userId), Number(row.total));
+    }
+
+    const escrowRows = (await this.dataSource.query(
+      `SELECT "userId", COALESCE(SUM(amount), 0) AS total
+       FROM tournament_escrow
+       WHERE "userId" = ANY($1::int[]) AND status = 'held'
+       GROUP BY "userId"`,
+      [ids],
+    )) as { userId: number; total: number | string }[];
+    for (const row of escrowRows) {
+      heldEscrow.set(Number(row.userId), Number(row.total));
+    }
+
+    for (const userId of ids) {
+      rubles.set(
+        userId,
+        Math.max(
+          0,
+          (rubles.get(userId) ?? 0) - (pendingWithdrawals.get(userId) ?? 0),
+        ),
+      );
+      balanceL.set(userId, Math.max(0, balanceL.get(userId) ?? 0));
+    }
+
+    return { rubles, balanceL, pendingWithdrawals, heldEscrow };
+  }
+
+  async reconcileAllStoredBalances(targetUserIds?: number[]): Promise<{
+    updatedCount: number;
+    affectedUserIds: number[];
+  }> {
+    const ids =
+      targetUserIds && targetUserIds.length > 0
+        ? Array.from(
+            new Set(
+              targetUserIds
+                .map((value) => Number(value))
+                .filter((value) => Number.isInteger(value) && value > 0),
+            ),
+          )
+        : [];
+    const users = await this.userRepository.find({
+      where: ids.length > 0 ? { id: In(ids) } : {},
+      select: ['id', 'balance', 'balanceRubles'],
+      order: { id: 'ASC' },
+    });
+    if (users.length === 0) {
+      return { updatedCount: 0, affectedUserIds: [] };
+    }
+
+    const maps = await this.getComputedBalanceMapsForUsers(
+      users.map((user) => user.id),
+    );
+    const affectedUserIds: number[] = [];
+
+    await this.dataSource.transaction(async (manager) => {
+      for (const user of users) {
+        const nextBalance = maps.balanceL.get(user.id) ?? 0;
+        const nextBalanceRubles = maps.rubles.get(user.id) ?? 0;
+        if (
+          Number(user.balance ?? 0) === nextBalance &&
+          Number(user.balanceRubles ?? 0) === nextBalanceRubles
+        ) {
+          continue;
+        }
+        await manager.query(
+          `UPDATE "user"
+           SET balance = $1,
+               "balanceRubles" = $2
+           WHERE id = $3`,
+          [nextBalance, nextBalanceRubles, user.id],
+        );
+        affectedUserIds.push(user.id);
+      }
+    });
+
+    return {
+      updatedCount: affectedUserIds.length,
+      affectedUserIds,
+    };
+  }
+
   async findAll(): Promise<UserAdminListItemDto[]> {
     const users = await this.userRepository.find({
       order: { id: 'ASC' },
@@ -126,13 +339,16 @@ export class UsersService implements OnModuleInit {
         'createdAt',
       ],
     });
+    const balanceMaps = await this.getComputedBalanceMapsForUsers(
+      users.map((user) => user.id),
+    );
     return users.map((user) => ({
       id: user.id,
       username: user.username,
       email: user.email,
       nickname: user.nickname ?? null,
-      balance: Number(user.balance ?? 0),
-      balanceRubles: Number(user.balanceRubles ?? 0),
+      balance: balanceMaps.balanceL.get(user.id) ?? 0,
+      balanceRubles: balanceMaps.rubles.get(user.id) ?? 0,
       isAdmin: !!user.isAdmin,
       referralCode: user.referralCode ?? null,
       createdAt: user.createdAt?.toISOString?.() ?? null,
@@ -308,14 +524,10 @@ export class UsersService implements OnModuleInit {
   async getProfile(userId: number): Promise<UserProfileDto> {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) throw new NotFoundException('User not found');
-    const balanceRublesFromTx = await this.getComputedBalanceRubles(userId);
-    const balanceLFromTx = await this.getBalanceLFromTransactions(userId);
-    const escrowRows = await this.dataSource.query(
-      'SELECT COALESCE(SUM(amount), 0) AS total FROM tournament_escrow WHERE "userId" = $1 AND status = $2',
-      [userId, 'held'],
-    );
-    const reservedBalance =
-      escrowRows?.[0]?.total != null ? Number(escrowRows[0].total) : 0;
+    const balanceMaps = await this.getComputedBalanceMapsForUsers([userId]);
+    const balanceRublesFromTx = balanceMaps.rubles.get(userId) ?? 0;
+    const balanceLFromTx = balanceMaps.balanceL.get(userId) ?? 0;
+    const reservedBalance = balanceMaps.heldEscrow.get(userId) ?? 0;
     return {
       id: user.id,
       username: user.username,
@@ -708,12 +920,7 @@ export class UsersService implements OnModuleInit {
   ): Promise<User> {
     if (amount <= 0)
       throw new BadRequestException('Сумма должна быть положительной');
-    const user = await manager
-      .createQueryBuilder(User, 'user')
-      .setLock('pessimistic_write')
-      .where('user.id = :userId', { userId })
-      .getOne();
-    if (!user) throw new NotFoundException('User not found');
+    const user = await this.getLockedUser(manager, userId);
     user.balanceRubles = Number(user.balanceRubles ?? 0) + amount;
     await manager.save(user);
     await this.addTransactionWithManager(
@@ -938,8 +1145,7 @@ export class UsersService implements OnModuleInit {
     if (amount <= 0)
       throw new BadRequestException('Сумма должна быть положительной');
     return this.dataSource.transaction(async (manager) => {
-      const user = await manager.findOne(User, { where: { id: userId } });
-      if (!user) throw new NotFoundException('User not found');
+      const user = await this.getLockedUser(manager, userId);
       user.balance = Number(user.balance ?? 0) + amount;
       await manager.save(user);
       const tx = manager.create(Transaction, {
@@ -977,8 +1183,7 @@ export class UsersService implements OnModuleInit {
     if (!amt || amt <= 0)
       throw new BadRequestException('Сумма должна быть положительной');
     return this.dataSource.transaction(async (manager) => {
-      const user = await manager.findOne(User, { where: { id: userId } });
-      if (!user) throw new NotFoundException('User not found');
+      const user = await this.getLockedUser(manager, userId);
       const balanceL = Number(user.balance ?? 0);
       const balanceRubles = Number(user.balanceRubles ?? 0);
       let newBalanceL: number;
@@ -1023,8 +1228,7 @@ export class UsersService implements OnModuleInit {
     tournamentId?: number,
   ): Promise<User> {
     return this.dataSource.transaction(async (manager) => {
-      const user = await manager.findOne(User, { where: { id: userId } });
-      if (!user) throw new NotFoundException('User not found');
+      const user = await this.getLockedUser(manager, userId);
       if (user.balance < amount)
         throw new BadRequestException('Недостаточно средств на балансе');
       user.balance -= amount;
@@ -1050,8 +1254,7 @@ export class UsersService implements OnModuleInit {
     if (amount <= 0)
       throw new BadRequestException('Сумма должна быть положительной');
     return this.dataSource.transaction(async (manager) => {
-      const user = await manager.findOne(User, { where: { id: userId } });
-      if (!user) throw new NotFoundException('User not found');
+      const user = await this.getLockedUser(manager, userId);
       const rubles = Number(user.balanceRubles ?? 0);
       if (rubles < amount)
         throw new BadRequestException(
@@ -1074,13 +1277,16 @@ export class UsersService implements OnModuleInit {
   async deductBalanceRublesHold(userId: number, amount: number): Promise<void> {
     if (amount <= 0)
       throw new BadRequestException('Сумма должна быть положительной');
-    const user = await this.userRepository.findOne({ where: { id: userId } });
-    if (!user) throw new NotFoundException('User not found');
-    const rubles = Number(user.balanceRubles ?? 0);
-    if (rubles < amount)
-      throw new BadRequestException('Недостаточно средств на балансе в рублях');
-    user.balanceRubles = rubles - amount;
-    await this.userRepository.save(user);
+    await this.dataSource.transaction(async (manager) => {
+      const user = await this.getLockedUser(manager, userId);
+      const rubles = Number(user.balanceRubles ?? 0);
+      if (rubles < amount)
+        throw new BadRequestException(
+          'Недостаточно средств на балансе в рублях',
+        );
+      user.balanceRubles = rubles - amount;
+      await manager.save(user);
+    });
   }
 
   /** Вернуть рубли на баланс и записать транзакцию (для реальных возвратов, не при отклонении заявки на вывод). */
@@ -1091,12 +1297,19 @@ export class UsersService implements OnModuleInit {
   ): Promise<User> {
     if (amount <= 0)
       throw new BadRequestException('Сумма должна быть положительной');
-    const user = await this.userRepository.findOne({ where: { id: userId } });
-    if (!user) throw new NotFoundException('User not found');
-    user.balanceRubles = Number(user.balanceRubles ?? 0) + amount;
-    await this.userRepository.save(user);
-    await this.addTransaction(userId, amount, description, 'refund');
-    return user;
+    return this.dataSource.transaction(async (manager) => {
+      const user = await this.getLockedUser(manager, userId);
+      user.balanceRubles = Number(user.balanceRubles ?? 0) + amount;
+      await manager.save(user);
+      await this.addTransactionWithManager(
+        manager,
+        userId,
+        amount,
+        description,
+        'refund',
+      );
+      return user;
+    });
   }
 
   /** Вернуть рубли на баланс после отклонения заявки на вывод — без записи транзакции (деньги формально оставались у игрока, только были заблокированы). */
@@ -1106,11 +1319,12 @@ export class UsersService implements OnModuleInit {
   ): Promise<User> {
     if (amount <= 0)
       throw new BadRequestException('Сумма должна быть положительной');
-    const user = await this.userRepository.findOne({ where: { id: userId } });
-    if (!user) throw new NotFoundException('User not found');
-    user.balanceRubles = Number(user.balanceRubles ?? 0) + amount;
-    await this.userRepository.save(user);
-    return user;
+    return this.dataSource.transaction(async (manager) => {
+      const user = await this.getLockedUser(manager, userId);
+      user.balanceRubles = Number(user.balanceRubles ?? 0) + amount;
+      await manager.save(user);
+      return user;
+    });
   }
 
   /** Создать заявку на вывод средств (рубли). Сумма сразу снимается с баланса (без записи транзакции); при отклонении — возвращается. */
@@ -1128,12 +1342,7 @@ export class UsersService implements OnModuleInit {
         'Укажите реквизиты для перевода (карта, счёт и т.д.)',
       );
     return this.dataSource.transaction(async (manager) => {
-      const user = await manager
-        .createQueryBuilder(User, 'user')
-        .setLock('pessimistic_write')
-        .where('user.id = :userId', { userId })
-        .getOne();
-      if (!user) throw new NotFoundException('User not found');
+      const user = await this.getLockedUser(manager, userId);
 
       const rubles = Number(user.balanceRubles ?? 0);
       if (rubles < amountNum)
@@ -1388,10 +1597,8 @@ export class UsersService implements OnModuleInit {
       let maxLeague: number | null = null;
       let maxLeagueName: string | null = null;
       try {
-        const user = await this.userRepository.findOne({
-          where: { id: userId },
-        });
-        const balance = user ? Number(user.balance ?? 0) || 0 : 0;
+        const balanceMaps = await this.getComputedBalanceMapsForUsers([userId]);
+        const balance = balanceMaps.balanceL.get(userId) ?? 0;
         const leagueWinsRows = (await manager.query(
           `SELECT t."leagueAmount" as amt, COUNT(*) as wins FROM tournament_result r
          INNER JOIN tournament t ON t.id = r."tournamentId"

@@ -68,3 +68,20 @@ export function parseApprovedWithdrawalDescription(
   const requestId = Number.parseInt(match[1] ?? '', 10);
   return { requestId: Number.isFinite(requestId) ? requestId : null };
 }
+
+export function parseAnyWithdrawalDescription(
+  description: string | null | undefined,
+): { requestId: number | null; isLegacy: boolean } {
+  const structured = parseApprovedWithdrawalDescription(description);
+  if (structured.requestId != null) {
+    return { requestId: structured.requestId, isLegacy: false };
+  }
+  const text = String(description ?? '').trim();
+  const legacyMatch = text.match(/^Заявка\s*#\s*(\d+)$/i);
+  if (!legacyMatch) return { requestId: null, isLegacy: false };
+  const requestId = Number.parseInt(legacyMatch[1] ?? '', 10);
+  return {
+    requestId: Number.isFinite(requestId) ? requestId : null,
+    isLegacy: true,
+  };
+}
