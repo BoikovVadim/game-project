@@ -515,6 +515,7 @@ export class AdminService {
            t."userId" AS "userId",
            u.username,
            u.email AS "userEmail",
+           u."isAdmin" AS "userIsAdmin",
            t.amount,
            t.category,
            t.description,
@@ -562,6 +563,11 @@ export class AdminService {
             (category === 'topup' || category === 'other') &&
             (description === 'Пополнение баланса' ||
               description === 'Пополнение баланса (скрипт)');
+          const isLegacySelfAdminTopup =
+            isLegacyManualTopup &&
+            Boolean(r.userIsAdmin) &&
+            Number(r.adminId ?? 0) > 0 &&
+            Number(r.adminId ?? 0) === Number(r.userId ?? 0);
           const isManualAdminCredit =
             category === 'admin_credit' ||
             parsedTopup.adminId != null ||
@@ -570,9 +576,11 @@ export class AdminService {
 
           const parsedAdminId = parsedTopup.adminId;
           const fallbackAdminId =
-            !isLegacyManualTopup && category === 'admin_credit'
+            category === 'admin_credit'
               ? Number(r.adminId ?? 0) || null
-              : null;
+              : isLegacySelfAdminTopup
+                ? Number(r.userId ?? 0) || null
+                : null;
           const adminId = parsedAdminId ?? fallbackAdminId;
           const cached = adminId ? adminMap[adminId] : undefined;
           const adminName = adminId
