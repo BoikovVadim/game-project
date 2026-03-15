@@ -509,14 +509,23 @@ export class AdminService {
   > {
     try {
       const rows = await this.dataSource.query(
-        `SELECT t.id, t.userId, u.username, u.email AS userEmail, t.amount, t.description, t.createdAt,
-           t.tournamentId AS adminId, a.username AS adminUsername, a.email AS adminEmail
+        `SELECT
+           t.id,
+           t."userId" AS "userId",
+           u.username,
+           u.email AS "userEmail",
+           t.amount,
+           t.description,
+           t."createdAt" AS "createdAt",
+           t."tournamentId" AS "adminId",
+           a.username AS "adminUsername",
+           a.email AS "adminEmail"
          FROM "transaction" t
-         LEFT JOIN "user" u ON u.id = t.userId
-         LEFT JOIN "user" a ON a.id = t.tournamentId
+         LEFT JOIN "user" u ON u.id = t."userId"
+         LEFT JOIN "user" a ON a.id = t."tournamentId"
          WHERE t.category = 'admin_credit'
             OR (t.category = 'topup' AND t.description LIKE 'Пополнение баланса администратором (ID %')
-         ORDER BY t.createdAt DESC
+         ORDER BY t."createdAt" DESC
          LIMIT 500`,
       );
       const missingAdminIds = new Set<number>();
