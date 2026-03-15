@@ -63,6 +63,18 @@ type ComputedBalanceMaps = {
   heldEscrow: Map<number, number>;
 };
 
+type LedgerBalanceState = {
+  rubles: number;
+  balanceL: number;
+};
+
+type LedgerBalanceRow = {
+  category: string;
+  amount: number | string;
+  description: string | null;
+  tournamentId: number | null;
+};
+
 @Injectable()
 export class UsersService implements OnModuleInit {
   constructor(
@@ -131,6 +143,72 @@ export class UsersService implements OnModuleInit {
     return user;
   }
 
+  private static applyLedgerTransactionToBalanceState(
+    current: LedgerBalanceState,
+    row: LedgerBalanceRow,
+  ): LedgerBalanceState {
+    const next: LedgerBalanceState = {
+      rubles: current.rubles,
+      balanceL: current.balanceL,
+    };
+    const amount = Number(row.amount);
+    const parsedAdminTopup = UsersService.parseAdminTopupDescription(
+      row.description,
+    );
+    const isLegacyRublesOtherAdminTopup =
+      row.category === 'other' && parsedAdminTopup.adminId != null;
+
+    if (
+      ['topup', 'admin_credit', 'withdraw', 'refund', 'convert', 'other'].includes(
+        row.category,
+      )
+    ) {
+      if (row.category !== 'other' || isLegacyRublesOtherAdminTopup) {
+        if (
+          !UsersService.isRejectedWithdrawalRefund(
+            row.description,
+            row.category,
+          ) &&
+          !UsersService.isNonRublesRefund(
+            row.description,
+            row.category,
+            row.tournamentId,
+          )
+        ) {
+          next.rubles += row.category === 'convert' ? -amount : amount;
+        }
+      }
+    }
+
+    if (
+      ['win', 'loss', 'referral', 'other', 'convert', 'refund'].includes(
+        row.category,
+      )
+    ) {
+      if (row.category === 'other' && isLegacyRublesOtherAdminTopup) {
+        return next;
+      }
+      if (
+        UsersService.isRejectedWithdrawalRefund(row.description, row.category)
+      ) {
+        return next;
+      }
+      if (
+        row.category === 'refund' &&
+        !UsersService.isNonRublesRefund(
+          row.description,
+          row.category,
+          row.tournamentId,
+        )
+      ) {
+        return next;
+      }
+      next.balanceL += amount;
+    }
+
+    return next;
+  }
+
   async getComputedBalanceMapsForUsers(
     userIds: number[],
   ): Promise<ComputedBalanceMaps> {
@@ -175,62 +253,15 @@ export class UsersService implements OnModuleInit {
     for (const row of txRows) {
       const userId = Number(row.userId);
       if (!rubles.has(userId) || !balanceL.has(userId)) continue;
-      const amount = Number(row.amount);
-      const parsedAdminTopup = UsersService.parseAdminTopupDescription(
-        row.description,
+      const next = UsersService.applyLedgerTransactionToBalanceState(
+        {
+          rubles: rubles.get(userId) ?? 0,
+          balanceL: balanceL.get(userId) ?? 0,
+        },
+        row,
       );
-      const isLegacyRublesOtherAdminTopup =
-        row.category === 'other' && parsedAdminTopup.adminId != null;
-
-      if (
-        ['topup', 'admin_credit', 'withdraw', 'refund', 'convert', 'other'].includes(
-          row.category,
-        )
-      ) {
-        if (row.category !== 'other' || isLegacyRublesOtherAdminTopup) {
-          if (
-            !UsersService.isRejectedWithdrawalRefund(
-              row.description,
-              row.category,
-            ) &&
-            !UsersService.isNonRublesRefund(
-              row.description,
-              row.category,
-              row.tournamentId,
-            )
-          ) {
-            rubles.set(
-              userId,
-              (rubles.get(userId) ?? 0) +
-                (row.category === 'convert' ? -amount : amount),
-            );
-          }
-        }
-      }
-
-      if (
-        ['win', 'loss', 'referral', 'other', 'convert', 'refund'].includes(
-          row.category,
-        )
-      ) {
-        if (row.category === 'other' && isLegacyRublesOtherAdminTopup) continue;
-        if (
-          UsersService.isRejectedWithdrawalRefund(row.description, row.category)
-        ) {
-          continue;
-        }
-        if (
-          row.category === 'refund' &&
-          !UsersService.isNonRublesRefund(
-            row.description,
-            row.category,
-            row.tournamentId,
-          )
-        ) {
-          continue;
-        }
-        balanceL.set(userId, (balanceL.get(userId) ?? 0) + amount);
-      }
+      rubles.set(userId, next.rubles);
+      balanceL.set(userId, next.balanceL);
     }
 
     const pendingRows = (await this.dataSource.query(
@@ -783,14 +814,24 @@ export class UsersService implements OnModuleInit {
   async getTransactions(userId: number): Promise<UserTransactionDto[]> {
     const list = await this.transactionRepository.find({
       where: { userId },
-      order: { createdAt: 'DESC' },
+      order: { id: 'ASC' },
     });
-    return list
+    let running: LedgerBalanceState = { rubles: 0, balanceL: 0 };
+    const dtoList = list
       .filter(
         (t) =>
           !UsersService.isRejectedWithdrawalRefund(t.description, t.category),
       )
-      .map(toUserTransactionDto);
+      .map((transaction) => {
+        running = UsersService.applyLedgerTransactionToBalanceState(running, {
+          category: transaction.category ?? 'other',
+          amount: transaction.amount ?? 0,
+          description: transaction.description ?? null,
+          tournamentId: transaction.tournamentId ?? null,
+        });
+        return toUserTransactionDto(transaction, running);
+      });
+    return dtoList.reverse();
   }
 
   /**

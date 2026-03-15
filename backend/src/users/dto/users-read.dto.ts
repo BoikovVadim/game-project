@@ -38,6 +38,8 @@ export interface UserTransactionDto {
   tournamentId: number | null;
   category: string;
   createdAt: string;
+  balanceAfterRubles: number;
+  balanceAfterL: number;
 }
 
 export interface UserWithdrawalRequestDto {
@@ -135,6 +137,7 @@ export function buildEmptyUserStatsDto(): UserStatsDto {
 
 export function toUserTransactionDto(
   transaction: Transaction,
+  balances?: { rubles: number; balanceL: number },
 ): UserTransactionDto {
   return {
     id: transaction.id,
@@ -144,6 +147,8 @@ export function toUserTransactionDto(
     tournamentId: transaction.tournamentId ?? null,
     category: transaction.category ?? 'other',
     createdAt: transaction.createdAt.toISOString(),
+    balanceAfterRubles: balances?.rubles ?? 0,
+    balanceAfterL: balances?.balanceL ?? 0,
   };
 }
 

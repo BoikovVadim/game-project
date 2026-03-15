@@ -6586,6 +6586,18 @@ const Profile: React.FC<ProfileProps> = ({
               };
               const getAmountDisplay = (t: any) =>
                 getTransactionAmountDisplay(t, transactionCurrencyTab);
+              const getBalanceAfterDisplay = (t: {
+                balanceAfterRubles?: number | null;
+                balanceAfterL?: number | null;
+              }) => {
+                const value =
+                  transactionCurrencyTab === "rubles"
+                    ? Number(t.balanceAfterRubles ?? 0)
+                    : Number(t.balanceAfterL ?? 0);
+                return `${formatNum(value)} ${
+                  transactionCurrencyTab === "rubles" ? "₽" : CURRENCY
+                }`;
+              };
               const getAmountCellClass = (t: any) => {
                 const isConvert =
                   t?.category === "convert" ||
@@ -7465,6 +7477,7 @@ const Profile: React.FC<ProfileProps> = ({
                                       ? " ↓"
                                       : " ↑")}
                                 </th>
+                                <th>Стало</th>
                                 <th>Описание</th>
                               </tr>
                             </thead>
@@ -7472,7 +7485,7 @@ const Profile: React.FC<ProfileProps> = ({
                               {filteredTransactions.length === 0 ? (
                                 <tr>
                                   <td
-                                    colSpan={5}
+                                    colSpan={6}
                                     className="transactions-empty-filter"
                                   >
                                     {transactionCategoryFilter ||
@@ -7498,6 +7511,9 @@ const Profile: React.FC<ProfileProps> = ({
                                       )}
                                     >
                                       {getAmountDisplay(transaction)}
+                                    </td>
+                                    <td>
+                                      {getBalanceAfterDisplay(transaction)}
                                     </td>
                                     <td
                                       className="transactions-desc"
