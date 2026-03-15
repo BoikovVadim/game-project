@@ -515,7 +515,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
   ) => {
     setSection(next);
     patchQuery({
-      tab: next === "withdrawals" ? null : next,
+      tab: next,
       status: next === "withdrawals" ? withdrawalStatusFilter : null,
       statsGroupBy: next === "statistics" ? statsGroupBy : null,
       statsTab: next === "statistics" ? statsSubTab : null,

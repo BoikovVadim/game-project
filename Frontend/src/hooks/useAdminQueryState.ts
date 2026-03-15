@@ -6,8 +6,9 @@ export type AdminStatsTab = 'overview' | 'transactions' | 'questions' | 'tournam
 export type AdminWithdrawalStatus = 'pending' | 'approved' | 'rejected' | '';
 export type AdminTxCategory = '' | 'topup' | 'withdraw' | 'win' | 'other';
 
-function parseSection(raw: string | null): AdminSection {
+function parseSection(raw: string | null, searchParams: URLSearchParams): AdminSection {
   if (raw === 'users' || raw === 'credit' || raw === 'support' || raw === 'withdrawals' || raw === 'news') return raw;
+  if (raw == null && searchParams.has('status')) return 'withdrawals';
   return 'statistics';
 }
 
@@ -31,7 +32,7 @@ export function useAdminQueryState() {
     const supportTicketRaw = searchParams.get('supportTicket');
     const supportTicket = supportTicketRaw && /^\d+$/.test(supportTicketRaw) ? Number(supportTicketRaw) : null;
     return {
-      section: parseSection(searchParams.get('tab')),
+      section: parseSection(searchParams.get('tab'), searchParams),
       withdrawalStatus: parseWithdrawalStatus(searchParams.get('status')),
       userSearch: searchParams.get('userSearch') ?? '',
       supportStatus: searchParams.get('supportStatus') ?? 'open',

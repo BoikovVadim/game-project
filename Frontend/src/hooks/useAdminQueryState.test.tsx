@@ -42,6 +42,28 @@ test('restores admin query state from URL', () => {
   expect(screen.getByTestId('statsTab').textContent).toBe('project-cost');
 });
 
+test('restores withdrawals section from explicit tab in URL', () => {
+  render(
+    <MemoryRouter initialEntries={['/admin?tab=withdrawals&status=rejected']}>
+      <Probe />
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByTestId('section').textContent).toBe('withdrawals');
+  expect(screen.getByTestId('status').textContent).toBe('rejected');
+});
+
+test('keeps legacy withdrawal URLs on withdrawals section', () => {
+  render(
+    <MemoryRouter initialEntries={['/admin?status=approved']}>
+      <Probe />
+    </MemoryRouter>,
+  );
+
+  expect(screen.getByTestId('section').textContent).toBe('withdrawals');
+  expect(screen.getByTestId('status').textContent).toBe('approved');
+});
+
 test('patchQuery keeps search-param state canonical', () => {
   render(
     <MemoryRouter initialEntries={['/admin?tab=statistics&status=pending']}>
