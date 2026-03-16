@@ -1,7 +1,24 @@
-917292.47
-За сегодня (2026-03-16): 143 435,22 ₽
+919025.80
+За сегодня (2026-03-16): 145 168,55 ₽
 
 # Последние изменения. Формат записи: YYYY-MM-DD HH:MM | Z ₽ | оплачиваемое время | описание. Если у задачи есть клиентская разбивка, она идёт отдельным списком ниже. Внутренние расчёты и ретроспектива на сайт не выводятся.
+2026-03-16 05:20 | 1 733,33 ₽ | 52 мин | Tournaments/risky-wave-first-cut+read-model-helper-extraction+deploy: начат risky-later split турнирного домена, но в самой безопасной под-волне без изменения поведения. Из `tournaments.service.ts` вынесены чистые progress/read-model helper-ы (`normalizeProgressSnapshot`, reliable correct-count recompute, visible stage totals, effective player order) в отдельный domain-модуль `progress-read-model`, а сам сервис перестал держать у себя эту projection-логику. Дополнительно добавлен unit-test на новый helper-слой и расширено backend lint-покрытие на новый domain файл. Локально подтверждены `lint:backend`, unit tests, `verify:tournaments`, `localhost:3001/api/health = 200`; затем выполнены commit/push/deploy и production health-check `https://legendgames.space/api/health = 200`.
+
+Разбивка:
+- Погружение: 8 мин.
+- Проектирование: 6 мин.
+- Реализация: 8 мин.
+- Cleanup: 3 мин.
+- Проверка: 7 мин.
+- Delivery: 8 мин.
+
+Ретроспектива:
+- Базовое время: 40 мин.
+- Коэффициент: 1.30
+- Оплачиваемое время: 52 мин.
+- Ставка: 2000 ₽ / час.
+- Формула: 52 мин × 2000 ₽ / 60 мин = 1 733,33 ₽.
+
 2026-03-16 05:09 | 833,33 ₽ | 25 мин | Admin/project-cost+today-rollover-fix+deploy: причина была в split source of truth внутри dashboard parser — `todayTotal` брался не из дат реальных записей, а из ручной metadata-строки `За сегодня (...)`, поэтому после смены дня сумма не сбрасывалась автоматически, пока кто-то не перепишет строку вручную. Backend parser переведён на канонический расчёт `todayTotal` по entry-блокам за текущую московскую дату, а регрессионный unit-test фиксирует сценарий со stale metadata и новой датой.
 
 Разбивка:

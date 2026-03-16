@@ -5,7 +5,7 @@
   "main": "src/main.ts",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "lint": "eslint \"src/common/stats-exception.filter.ts\" \"src/users/users.controller.ts\" \"src/users/dto/**/*.ts\" \"src/users/user-balance-ledger.service.ts\" \"src/admin/admin.controller.ts\" \"src/admin/admin.module.ts\" \"src/admin/project-cost-dashboard.service.ts\" \"src/payments/payments.controller.ts\" \"src/payments/dto/**/*.ts\" \"src/tournaments/tournaments.controller.ts\" \"src/tournaments/domain/progress-correct-counts.ts\" \"src/scripts/preview-reusable-tournaments.ts\"",
+    "lint": "eslint \"src/common/stats-exception.filter.ts\" \"src/users/users.controller.ts\" \"src/users/dto/**/*.ts\" \"src/users/user-balance-ledger.service.ts\" \"src/admin/admin.controller.ts\" \"src/admin/admin.module.ts\" \"src/admin/project-cost-dashboard.service.ts\" \"src/payments/payments.controller.ts\" \"src/payments/dto/**/*.ts\" \"src/tournaments/tournaments.controller.ts\" \"src/tournaments/domain/progress-correct-counts.ts\" \"src/tournaments/domain/progress-read-model.ts\" \"src/scripts/preview-reusable-tournaments.ts\"",
     "test": "tsx --test src/**/*.test.ts src/**/*.spec.ts",
     "test:e2e": "npm run build && node dist/scripts/e2e-health-check.js",
     "test:all": "npm run test && npm run test:e2e",
