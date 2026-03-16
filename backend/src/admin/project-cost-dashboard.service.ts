@@ -154,6 +154,15 @@ function formatDurationLabel(totalMinutes: number): string {
   return `${minutes} мин`;
 }
 
+function formatMoscowDate(date: Date): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Moscow',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}
+
 function getEmptyProjectCostDashboard(): ProjectCostDashboardDto {
   return {
     currentTotal: 0,
@@ -187,14 +196,11 @@ async function readProjectCostTrackingFile(): Promise<{
 
 export function parseProjectCostDashboardContent(
   content: string,
+  now: Date = new Date(),
 ): ProjectCostDashboardDto {
   const sourceLines = content.split(/\r?\n/);
-  const metadataLines = sourceLines.map((line) => line.trim()).filter(Boolean);
 
   const baseProjectCost = parseProjectCostBaseAmount(sourceLines);
-  const todayTotal = parseRubles(
-    metadataLines[1]?.match(/:\s*(.+)$/)?.[1] ?? '0',
-  );
   const rawHistory: RawProjectCostEntry[] = [];
   const entryBlocks: Array<{ sourceIndex: number; lines: string[] }> = [];
   let activeBlock: { sourceIndex: number; lines: string[] } | null = null;
@@ -253,6 +259,11 @@ export function parseProjectCostDashboardContent(
   );
   const totalDurationMinutes = rawHistory.reduce(
     (sum, entry) => sum + parseDurationToMinutes(entry.duration),
+    0,
+  );
+  const todayKey = formatMoscowDate(now);
+  const todayTotal = rawHistory.reduce(
+    (sum, entry) => (entry.date === todayKey ? sum + entry.amountChange : sum),
     0,
   );
   const sortedHistory = [...rawHistory].sort((a, b) => {

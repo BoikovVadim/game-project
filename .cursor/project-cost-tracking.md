@@ -1,7 +1,24 @@
-916459.14
-За сегодня (2026-03-16): 142 601,89 ₽
+917292.47
+За сегодня (2026-03-16): 143 435,22 ₽
 
 # Последние изменения. Формат записи: YYYY-MM-DD HH:MM | Z ₽ | оплачиваемое время | описание. Если у задачи есть клиентская разбивка, она идёт отдельным списком ниже. Внутренние расчёты и ретроспектива на сайт не выводятся.
+2026-03-16 05:09 | 833,33 ₽ | 25 мин | Admin/project-cost+today-rollover-fix+deploy: причина была в split source of truth внутри dashboard parser — `todayTotal` брался не из дат реальных записей, а из ручной metadata-строки `За сегодня (...)`, поэтому после смены дня сумма не сбрасывалась автоматически, пока кто-то не перепишет строку вручную. Backend parser переведён на канонический расчёт `todayTotal` по entry-блокам за текущую московскую дату, а регрессионный unit-test фиксирует сценарий со stale metadata и новой датой.
+
+Разбивка:
+- Погружение: 4 мин.
+- Проектирование: 2 мин.
+- Реализация: 5 мин.
+- Cleanup: 1 мин.
+- Проверка: 5 мин.
+- Delivery: 8 мин.
+
+Ретроспектива:
+- Базовое время: 25 мин.
+- Коэффициент: 1.00
+- Оплачиваемое время: 25 мин.
+- Ставка: 2000 ₽ / час.
+- Формула: 25 мин × 2000 ₽ / 60 мин = 833,33 ₽.
+
 2026-03-16 05:05 | 1 933,33 ₽ | 58 мин | Refactor wave 1/safe-now seams+tooling+docs+deploy: выполнена первая безопасная волна глубокого refactor-pass без смены внешних контрактов. Из `AdminService` вынесен отдельный read-model `project-cost-dashboard service`, из `UsersService` выделен ledger/balance seam, на фронтенде вынесен общий `player-stats tooltip` loader/content для `Profile` / `Admin` / `TournamentModals`, а backend tooling усилен: lint теперь покрывает safe-now service/domain/script файлы, test runner запускает и `*.spec.ts`, CI дополнен tournament audit/preview и syntax-check для deploy path. Дополнительно отдельно оформлены safe-now inventory и risky-later plan для `tournaments` и `finance`.
 
 Разбивка:

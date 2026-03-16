@@ -3,9 +3,10 @@ import test from 'node:test';
 import { parseProjectCostDashboardContent } from './project-cost-dashboard.service';
 
 test('parses project cost history blocks and strips hidden retrospectives', () => {
-  const dashboard = parseProjectCostDashboardContent(`
+  const dashboard = parseProjectCostDashboardContent(
+    `
 Начальная стоимость проекта (не выводить в историю): 1000 ₽
-За сегодня: 600 ₽
+За сегодня: 999999 ₽
 
 2026-03-15 10:30 | 400 ₽ | 1 ч 15 мин | Починили турнирную read-модель
 Разбивка:
@@ -18,7 +19,9 @@ test('parses project cost history blocks and strips hidden retrospectives', () =
 Разбивка:
 - Реализация: 15 мин
 - Проверка: 15 мин
-`.trim());
+`.trim(),
+    new Date('2026-03-15T08:00:00.000Z'),
+  );
 
   assert.equal(dashboard.currentTotal, 1600);
   assert.equal(dashboard.todayTotal, 600);
@@ -45,4 +48,20 @@ test('parses project cost history blocks and strips hidden retrospectives', () =
     description: 'Починили турнирную read-модель',
     breakdown: ['Погружение: 20 мин', 'Проверка: 55 мин'],
   });
+});
+
+test('computes today total from entry dates instead of metadata line', () => {
+  const dashboard = parseProjectCostDashboardContent(
+    `
+Начальная стоимость проекта (не выводить в историю): 1000 ₽
+За сегодня (2026-03-15): 999999 ₽
+
+2026-03-15 12:00 | 200 ₽ | 30 мин | Вчерашняя задача
+2026-03-16 10:00 | 500 ₽ | 20 мин | Сегодняшняя задача
+2026-03-16 11:00 | 300 ₽ | 15 мин | Ещё одна сегодняшняя задача
+`.trim(),
+    new Date('2026-03-16T09:00:00.000Z'),
+  );
+
+  assert.equal(dashboard.todayTotal, 800);
 });
