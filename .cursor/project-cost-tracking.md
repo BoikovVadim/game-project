@@ -1,7 +1,24 @@
-914525.81
-За сегодня (2026-03-15): 140 668,56 ₽
+916459.14
+За сегодня (2026-03-16): 142 601,89 ₽
 
 # Последние изменения. Формат записи: YYYY-MM-DD HH:MM | Z ₽ | оплачиваемое время | описание. Если у задачи есть клиентская разбивка, она идёт отдельным списком ниже. Внутренние расчёты и ретроспектива на сайт не выводятся.
+2026-03-16 05:05 | 1 933,33 ₽ | 58 мин | Refactor wave 1/safe-now seams+tooling+docs+deploy: выполнена первая безопасная волна глубокого refactor-pass без смены внешних контрактов. Из `AdminService` вынесен отдельный read-model `project-cost-dashboard service`, из `UsersService` выделен ledger/balance seam, на фронтенде вынесен общий `player-stats tooltip` loader/content для `Profile` / `Admin` / `TournamentModals`, а backend tooling усилен: lint теперь покрывает safe-now service/domain/script файлы, test runner запускает и `*.spec.ts`, CI дополнен tournament audit/preview и syntax-check для deploy path. Дополнительно отдельно оформлены safe-now inventory и risky-later plan для `tournaments` и `finance`.
+
+Разбивка:
+- Погружение: 8 мин.
+- Проектирование: 6 мин.
+- Реализация: 16 мин.
+- Cleanup: 4 мин.
+- Проверка: 8 мин.
+- Delivery: 8 мин.
+
+Ретроспектива:
+- Базовое время: 50 мин.
+- Коэффициент: 1.15
+- Оплачиваемое время: 58 мин.
+- Ставка: 2000 ₽ / час.
+- Формула: 58 мин × 2000 ₽ / 60 мин = 1 933,33 ₽.
+
 2026-03-16 04:39 | 1 000,00 ₽ | 30 мин | Cursor rules/refactoring-rule-hardening+deploy: правило `refactoring-operating-modes` усилено без дублей с соседними always-apply rules. В локальный refactor-pass добавлены deletion evidence, обязательная проверка call-sites при `extract/rename/move`, анти-раздувание scope и требование измеримого evidence для optimization; в полный refactor-pass добавлен явный переход в plan при большом scope и классификация результата на `safe now` / `risky later` с отдельным упоминанием data-fix необходимости.
 
 Разбивка:

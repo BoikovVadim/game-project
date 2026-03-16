@@ -5,12 +5,11 @@ import { UsersController } from './users.controller';
 import { User } from './user.entity';
 import { Transaction } from './transaction.entity';
 import { WithdrawalRequest } from './withdrawal-request.entity';
+import { UserBalanceLedgerService } from './user-balance-ledger.service';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([User, Transaction, WithdrawalRequest]),
-  ],
-  providers: [UsersService],
+  imports: [TypeOrmModule.forFeature([User, Transaction, WithdrawalRequest])],
+  providers: [UsersService, UserBalanceLedgerService],
   controllers: [UsersController],
   exports: [UsersService],
 })

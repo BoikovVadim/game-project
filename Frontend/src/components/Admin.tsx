@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
 import { Link } from "react-router-dom";
 import {
   LineChart,
@@ -19,7 +18,7 @@ import type {
   BracketPlayerTooltipData,
   OppTooltipState,
 } from "../features/tournaments/contracts.ts";
-import type { PlayerStats } from "../features/users/contracts.ts";
+import { usePublicPlayerStatsLoader } from "../features/users/player-stats-tooltip.tsx";
 import { useAdminImpersonation } from "../features/admin/useAdminImpersonation.ts";
 import {
   useTournamentBracketModalState,
@@ -478,6 +477,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
     data: null,
     visible: false,
   });
+  const loadPlayerStats = usePublicPlayerStatsLoader(token);
   const [qsSortBy, setQsSortBy] = useState<"topic" | "count">("count");
   const [qsSortDir, setQsSortDir] = useState<"asc" | "desc">("desc");
   type TxRow = {
@@ -1306,12 +1306,11 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
         return;
       }
       setOppTooltip({ loading: true, data: null, visible: true, avatarUrl });
-      axios
-        .get<PlayerStats>(`/users/${userId}/public-stats`, { headers })
-        .then((res) =>
+      loadPlayerStats(userId)
+        .then((stats) =>
           setOppTooltip({
             loading: false,
-            data: res.data,
+            data: stats,
             visible: true,
             avatarUrl,
           }),
@@ -1320,7 +1319,7 @@ const Admin: React.FC<AdminProps> = ({ token }) => {
           setOppTooltip({ loading: false, data: null, visible: false }),
         );
     },
-    [headers, oppTooltip.data, oppTooltip.visible],
+    [loadPlayerStats, oppTooltip.data, oppTooltip.visible],
   );
 
   const renderTournamentCell = React.useCallback(

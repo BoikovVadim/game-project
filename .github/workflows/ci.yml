@@ -71,11 +71,24 @@ jobs:
           DB_PASS: ci
           DB_NAME: ci
 
+      - name: Tournament audits
+        run: npm run audit:tournaments --workspace backend && npm run preview:reusable-tournaments --workspace backend
+        env:
+          JWT_SECRET: ci-test-secret
+          DB_HOST: localhost
+          DB_PORT: "5432"
+          DB_USER: ci
+          DB_PASS: ci
+          DB_NAME: ci
+
       - name: Test frontend
         run: npm run test:frontend
 
       - name: Build frontend
         run: npm run build:frontend
+
+      - name: Validate deploy script syntax
+        run: bash -n scripts/deploy-prod.sh
 
       - name: Start backend for runtime smoke
         working-directory: backend

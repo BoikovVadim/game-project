@@ -5,6 +5,7 @@ import { WithdrawalRequest } from '../users/withdrawal-request.entity';
 import { Transaction } from '../users/transaction.entity';
 import { AdminService } from './admin.service';
 import { AdminController } from './admin.controller';
+import { ProjectCostDashboardService } from './project-cost-dashboard.service';
 import { UsersModule } from '../users/users.module';
 import { TournamentsModule } from '../tournaments/tournaments.module';
 import { JwtModule } from '@nestjs/jwt';
@@ -15,9 +16,12 @@ import { getRequiredEnv } from '../common/env';
     TypeOrmModule.forFeature([User, WithdrawalRequest, Transaction]),
     UsersModule,
     TournamentsModule,
-    JwtModule.register({ secret: getRequiredEnv('JWT_SECRET'), signOptions: { expiresIn: '6h' } }),
+    JwtModule.register({
+      secret: getRequiredEnv('JWT_SECRET'),
+      signOptions: { expiresIn: '6h' },
+    }),
   ],
   controllers: [AdminController],
-  providers: [AdminService],
+  providers: [AdminService, ProjectCostDashboardService],
 })
 export class AdminModule {}

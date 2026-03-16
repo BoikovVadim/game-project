@@ -286,7 +286,11 @@ export class UsersController {
     @Request() req: { user: { id: number } },
   ) {
     const userId = body.userId ?? req.user.id;
-    return this.usersService.addManualAdminTopup(req.user.id, userId, body.amount);
+    return this.usersService.addManualAdminTopup(
+      req.user.id,
+      userId,
+      body.amount,
+    );
   }
 
   @UseGuards(JwtAuthGuard)

@@ -31,11 +31,7 @@ async function main() {
         ? Number.parseInt(leagueAmountArg, 10)
         : undefined;
 
-    if (
-      modeArg != null &&
-      modeArg !== 'training' &&
-      modeArg !== 'money'
-    ) {
+    if (modeArg != null && modeArg !== 'training' && modeArg !== 'money') {
       throw new Error(`Unsupported mode: ${modeArg}`);
     }
 

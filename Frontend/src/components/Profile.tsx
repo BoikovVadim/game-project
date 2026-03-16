@@ -29,6 +29,10 @@ import {
   useTournamentQuestionsModalState,
 } from "../features/tournaments/useTournamentModalState.ts";
 import type { PlayerStats } from "../features/users/contracts.ts";
+import {
+  PlayerStatsTooltipContent,
+  usePublicPlayerStatsLoader,
+} from "../features/users/player-stats-tooltip.tsx";
 import { usePartnerReferralData } from "../features/profile/usePartnerReferralData.ts";
 import {
   CABINET_SECTIONS,
@@ -282,6 +286,7 @@ const PartnerDetailTooltipCell = React.memo(
         ? currentUserAvatar
         : (node.avatarUrl ?? null);
     const elRef = useRef<HTMLButtonElement | null>(null);
+    const loadPlayerStats = usePublicPlayerStatsLoader(token);
 
     const handleNodeClick = (e: React.MouseEvent) => {
       e.stopPropagation();
@@ -291,16 +296,13 @@ const PartnerDetailTooltipCell = React.memo(
       }
       const rect = elRef.current?.getBoundingClientRect();
       if (!rect) return;
-      axios
-        .get<PlayerStats>(`/users/${node.id}/public-stats`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        .then((res) =>
+      loadPlayerStats(node.id)
+        .then((stats) =>
           onShowTooltip({
             playerId: node.id,
             displayName,
             avatarUrl,
-            stats: res.data,
+            stats,
             rect,
           }),
         )
@@ -511,7 +513,14 @@ type TransactionSortDir = "asc" | "desc";
 type TransactionCurrencyTab = "rubles" | "l";
 
 const TRANSACTION_CATEGORY_OPTIONS = {
-  rubles: ["", "Пополнение", "Вывод средств", "Конвертация", "Приход", "Расход"],
+  rubles: [
+    "",
+    "Пополнение",
+    "Вывод средств",
+    "Конвертация",
+    "Приход",
+    "Расход",
+  ],
   l: [
     "",
     "Конвертация",
@@ -540,7 +549,9 @@ function parseTransactionSortDir(raw: string | null): TransactionSortDir {
   return raw === "asc" ? "asc" : "desc";
 }
 
-function parseTransactionCurrencyTab(raw: string | null): TransactionCurrencyTab {
+function parseTransactionCurrencyTab(
+  raw: string | null,
+): TransactionCurrencyTab {
   return raw === "l" ? "l" : "rubles";
 }
 
@@ -562,16 +573,10 @@ function getTransactionCategoryLabel(t: any): string {
   ) {
     return "Вывод средств";
   }
-  if (
-    t?.category === "convert" ||
-    t?.description?.includes?.("Конвертация")
-  ) {
+  if (t?.category === "convert" || t?.description?.includes?.("Конвертация")) {
     return "Конвертация";
   }
-  if (
-    t?.category === "referral" ||
-    t?.description?.includes?.("Реферал")
-  ) {
+  if (t?.category === "referral" || t?.description?.includes?.("Реферал")) {
     return "Реферал";
   }
   if (t?.category === "win" || t?.description?.includes?.("Выигрыш")) {
@@ -593,10 +598,7 @@ function getTransactionCategoryLabel(t: any): string {
 }
 
 function getTransactionCurrencyScope(t: any): TransactionCurrencyTab | "both" {
-  if (
-    t?.category === "convert" ||
-    t?.description?.includes?.("Конвертация")
-  ) {
+  if (t?.category === "convert" || t?.description?.includes?.("Конвертация")) {
     return "both";
   }
   if (
@@ -628,13 +630,7 @@ function getTransactionAmountDisplay(
   if (isConvert) {
     const absAmt = Math.abs(amt);
     const sign =
-      currencyTab === "rubles"
-        ? amt < 0
-          ? "+"
-          : "-"
-        : amt >= 0
-          ? "+"
-          : "-";
+      currencyTab === "rubles" ? (amt < 0 ? "+" : "-") : amt >= 0 ? "+" : "-";
     const currency = currencyTab === "rubles" ? "₽" : CURRENCY;
     return `${sign}${formatTransactionAmount(absAmt)} ${currency}`;
   }
@@ -1151,7 +1147,8 @@ const Profile: React.FC<ProfileProps> = ({
     setSearchParams,
     tournamentKey: "bracket",
     sourceKey: "bracketSource",
-    loadBracket: ({ tournamentId }) => fetchTournamentBracket(token, tournamentId),
+    loadBracket: ({ tournamentId }) =>
+      fetchTournamentBracket(token, tournamentId),
   });
   const [bracketPlayerTooltip, setBracketPlayerTooltip] =
     useState<BracketPlayerTooltipData | null>(null);
@@ -1197,7 +1194,8 @@ const Profile: React.FC<ProfileProps> = ({
     setSearchParams,
     tournamentKey: "questions",
     roundKey: "questionsRound",
-    loadQuestions: ({ tournamentId }) => fetchTournamentQuestions(token, tournamentId),
+    loadQuestions: ({ tournamentId }) =>
+      fetchTournamentQuestions(token, tournamentId),
   });
   const [oppTooltip, setOppTooltip] = useState<OppTooltipState>({
     loading: false,
@@ -1206,13 +1204,9 @@ const Profile: React.FC<ProfileProps> = ({
   });
 
   const [referralLinkCopied, setReferralLinkCopied] = useState(false);
-  const [partnerPlayerTooltip, setPartnerPlayerTooltip] = useState<{
-    playerId: number;
-    displayName: string;
-    avatarUrl: string | null;
-    stats: PlayerStats;
-    rect: DOMRect;
-  } | null>(null);
+  const [partnerPlayerTooltip, setPartnerPlayerTooltip] =
+    useState<BracketPlayerTooltipData | null>(null);
+  const loadPlayerStats = usePublicPlayerStatsLoader(token);
   const {
     referralCode,
     referralTree,
@@ -2207,7 +2201,12 @@ const Profile: React.FC<ProfileProps> = ({
   ]);
   useEffect(() => {
     resolvedCurrentQuestionRef.current = null;
-  }, [currentQuestion, trainingQuestionIndex, trainingRound, trainingRoundComplete]);
+  }, [
+    currentQuestion,
+    trainingQuestionIndex,
+    trainingRound,
+    trainingRoundComplete,
+  ]);
 
   useEffect(() => {
     if (!currentQuestion || trainingRound === null) return;
@@ -2460,7 +2459,10 @@ const Profile: React.FC<ProfileProps> = ({
         text: `Вы присоединились к турниру в лиге ${leagueAmount} L. Удачи!`,
         meta: { goToGames: true, gameMode: "money" },
       });
-      const trainData = await fetchPreparedTrainingState(token, data.tournamentId);
+      const trainData = await fetchPreparedTrainingState(
+        token,
+        data.tournamentId,
+      );
       const session = buildTournamentSessionViewModel(trainData, {
         joinInfo: data,
         questionTimerSeconds: QUESTION_TIMER_SEC,
@@ -2626,15 +2628,12 @@ const Profile: React.FC<ProfileProps> = ({
     }
     const requestId = ++oppStatsRequestIdRef.current;
     setOppTooltip({ loading: true, data: null, visible: true, avatarUrl });
-    axios
-      .get<PlayerStats>(`/users/${userId}/public-stats`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      .then((res) => {
+    loadPlayerStats(userId)
+      .then((stats) => {
         if (oppStatsRequestIdRef.current !== requestId) return;
         setOppTooltip({
           loading: false,
-          data: res.data,
+          data: stats,
           visible: true,
           avatarUrl,
         });
@@ -2826,7 +2825,8 @@ const Profile: React.FC<ProfileProps> = ({
     if (transactionCategoryFilter) {
       list = list.filter(
         (transaction) =>
-          getTransactionCategoryLabel(transaction) === transactionCategoryFilter,
+          getTransactionCategoryLabel(transaction) ===
+          transactionCategoryFilter,
       );
     }
     if (transactionDateFrom) {
@@ -2837,7 +2837,9 @@ const Profile: React.FC<ProfileProps> = ({
     }
     if (transactionDateTo) {
       const toEnd = new Date(transactionDateTo + "T23:59:59.999+03:00");
-      list = list.filter((transaction) => new Date(transaction.createdAt) <= toEnd);
+      list = list.filter(
+        (transaction) => new Date(transaction.createdAt) <= toEnd,
+      );
     }
     return [...list].sort((a, b) => {
       let cmp = 0;
@@ -3732,9 +3734,7 @@ const Profile: React.FC<ProfileProps> = ({
                         placeholder="Введите ник"
                         value={nickname}
                         onChange={(e) =>
-                          setNickname(
-                            e.target.value.slice(0, NICKNAME_MAX_LEN),
-                          )
+                          setNickname(e.target.value.slice(0, NICKNAME_MAX_LEN))
                         }
                         maxLength={NICKNAME_MAX_LEN}
                         className="profile-nickname-input"
@@ -4475,10 +4475,10 @@ const Profile: React.FC<ProfileProps> = ({
                             {(() => {
                               const continueTarget =
                                 gameHistory?.resumeTournamentId != null
-                                  ? (gameHistory?.active ?? []).find(
+                                  ? ((gameHistory?.active ?? []).find(
                                       (t) =>
                                         t.id === gameHistory.resumeTournamentId,
-                                    ) ?? null
+                                    ) ?? null)
                                   : null;
                               const hasActiveGames = (
                                 gameHistory?.active ?? []
@@ -4620,8 +4620,7 @@ const Profile: React.FC<ProfileProps> = ({
                                               title="Посмотреть вопросы турнира"
                                             >
                                               {t.questionsTotal}/
-                                              {t.questionsAnswered}
-                                              /
+                                              {t.questionsAnswered}/
                                               {t.correctAnswersInRound}
                                             </button>
                                           </td>
@@ -4743,8 +4742,7 @@ const Profile: React.FC<ProfileProps> = ({
                                               title="Посмотреть вопросы турнира"
                                             >
                                               {t.questionsTotal}/
-                                              {t.questionsAnswered}
-                                              /
+                                              {t.questionsAnswered}/
                                               {t.correctAnswersInRound}
                                             </button>
                                           </td>
@@ -5315,12 +5313,13 @@ const Profile: React.FC<ProfileProps> = ({
                                     const moneyActive =
                                       gameHistoryMoney?.active ?? [];
                                     const continueTarget =
-                                      gameHistoryMoney?.resumeTournamentId != null
-                                        ? moneyActive.find(
+                                      gameHistoryMoney?.resumeTournamentId !=
+                                      null
+                                        ? (moneyActive.find(
                                             (t) =>
                                               t.id ===
                                               gameHistoryMoney.resumeTournamentId,
-                                          ) ?? null
+                                          ) ?? null)
                                         : null;
                                     const hasActiveGames = moneyActive.some(
                                       (t) => t.canContinue,
@@ -5515,11 +5514,15 @@ const Profile: React.FC<ProfileProps> = ({
                                                 type="button"
                                                 className="game-history-questions-link"
                                                 onClick={() =>
-                                                  openQuestionsReview(t.id, t.roundForQuestions)
+                                                  openQuestionsReview(
+                                                    t.id,
+                                                    t.roundForQuestions,
+                                                  )
                                                 }
                                                 title="Посмотреть вопросы турнира"
                                               >
-                                                {t.questionsTotal}/{t.questionsAnswered}/
+                                                {t.questionsTotal}/
+                                                {t.questionsAnswered}/
                                                 {t.correctAnswersInRound}
                                               </button>
                                             </td>
@@ -5648,11 +5651,15 @@ const Profile: React.FC<ProfileProps> = ({
                                                 type="button"
                                                 className="game-history-questions-link"
                                                 onClick={() =>
-                                                  openQuestionsReview(t.id, t.roundForQuestions)
+                                                  openQuestionsReview(
+                                                    t.id,
+                                                    t.roundForQuestions,
+                                                  )
                                                 }
                                                 title="Посмотреть вопросы турнира"
                                               >
-                                                {t.questionsTotal}/{t.questionsAnswered}/
+                                                {t.questionsTotal}/
+                                                {t.questionsAnswered}/
                                                 {t.correctAnswersInRound}
                                               </button>
                                             </td>
@@ -6705,7 +6712,9 @@ const Profile: React.FC<ProfileProps> = ({
                             role="tab"
                             aria-selected={transactionCurrencyTab === "rubles"}
                             className={`transactions-currency-tab ${transactionCurrencyTab === "rubles" ? "active" : ""}`}
-                            onClick={() => setTransactionCurrencyTabParam("rubles")}
+                            onClick={() =>
+                              setTransactionCurrencyTabParam("rubles")
+                            }
                           >
                             Рубли
                           </button>
@@ -6725,7 +6734,9 @@ const Profile: React.FC<ProfileProps> = ({
                             <select
                               value={transactionCategoryFilter}
                               onChange={(e) =>
-                                setTransactionCategoryFilterParam(e.target.value)
+                                setTransactionCategoryFilterParam(
+                                  e.target.value,
+                                )
                               }
                               className="transactions-filter-select"
                             >
@@ -7166,64 +7177,12 @@ const Profile: React.FC<ProfileProps> = ({
                         e.key === "Enter" && setPartnerPlayerTooltip(null)
                       }
                     >
-                      <div className="bracket-player-tooltip-inner">
-                        <div className="bracket-player-tooltip-avatar">
-                          {partnerPlayerTooltip.avatarUrl ? (
-                            <img src={partnerPlayerTooltip.avatarUrl} alt="" />
-                          ) : (
-                            <DollarIcon />
-                          )}
-                        </div>
-                        <div className="bracket-player-tooltip-stats">
-                          <div className="bracket-player-tooltip-name">
-                            {partnerPlayerTooltip.displayName}
-                          </div>
-                          <div className="bracket-player-tooltip-stat">
-                            <strong>Лига:</strong>{" "}
-                            {partnerPlayerTooltip.stats.maxLeagueName ?? "—"}
-                          </div>
-                          <div className="bracket-player-tooltip-stat">
-                            Сыграно раундов:{" "}
-                            {formatNum(
-                              partnerPlayerTooltip.stats.gamesPlayed ?? 0,
-                            )}
-                          </div>
-                          <div className="bracket-player-tooltip-stat">
-                            Сыгранных матчей:{" "}
-                            {formatNum(
-                              partnerPlayerTooltip.stats.completedMatches ?? 0,
-                            )}
-                          </div>
-                          <div className="bracket-player-tooltip-stat">
-                            <strong>Сумма выигрыша:</strong>{" "}
-                            {formatNum(
-                              partnerPlayerTooltip.stats.totalWinnings ?? 0,
-                            )}{" "}
-                            {CURRENCY}
-                          </div>
-                          <div className="bracket-player-tooltip-stat">
-                            <strong>Выиграно турниров:</strong>{" "}
-                            {formatNum(partnerPlayerTooltip.stats.wins ?? 0)}
-                          </div>
-                          <div className="bracket-player-tooltip-stat">
-                            <strong>Верных ответов:</strong>{" "}
-                            {formatNum(
-                              partnerPlayerTooltip.stats.correctAnswers ?? 0,
-                            )}{" "}
-                            из{" "}
-                            {formatNum(
-                              partnerPlayerTooltip.stats.totalQuestions ?? 0,
-                            )}
-                          </div>
-                          <div className="bracket-player-tooltip-stat">
-                            <strong>% верных ответов:</strong>{" "}
-                            {(partnerPlayerTooltip.stats.totalQuestions ?? 0) >
-                            0
-                              ? `${(((partnerPlayerTooltip.stats.correctAnswers ?? 0) / (partnerPlayerTooltip.stats.totalQuestions ?? 1)) * 100).toFixed(2)}%`
-                              : "—"}
-                          </div>
-                        </div>
-                      </div>
+                      <PlayerStatsTooltipContent
+                        displayName={partnerPlayerTooltip.displayName}
+                        avatarUrl={partnerPlayerTooltip.avatarUrl}
+                        stats={partnerPlayerTooltip.stats}
+                        fallbackIcon={<DollarIcon />}
+                      />
                     </div>
                   )}
                   <PartnerDetailTreeSection

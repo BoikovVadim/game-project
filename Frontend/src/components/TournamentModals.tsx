@@ -1,13 +1,15 @@
 import React from "react";
-import axios from "axios";
-import { formatNum, CURRENCY } from "./formatNum.ts";
+import { formatNum } from "./formatNum.ts";
 import type {
   BracketPlayerTooltipData,
   BracketViewData,
   OppTooltipState,
   QuestionsReviewData,
 } from "../features/tournaments/contracts.ts";
-import type { PlayerStats } from "../features/users/contracts.ts";
+import {
+  PlayerStatsTooltipContent,
+  usePublicPlayerStatsLoader,
+} from "../features/users/player-stats-tooltip.tsx";
 
 const DollarIcon = ({ className }: { className?: string }) => (
   <svg
@@ -48,6 +50,7 @@ const BracketPlayerName = ({
   onCloseTooltip: () => void;
 }) => {
   const elRef = React.useRef<HTMLButtonElement | null>(null);
+  const loadPlayerStats = usePublicPlayerStatsLoader(token);
 
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -57,16 +60,13 @@ const BracketPlayerName = ({
     }
     const rect = elRef.current?.getBoundingClientRect();
     if (!rect) return;
-    axios
-      .get<PlayerStats>(`/users/${playerId}/public-stats`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-      .then((res) =>
+    loadPlayerStats(playerId)
+      .then((stats) =>
         onShowTooltip({
           playerId,
           displayName,
           avatarUrl,
-          stats: res.data,
+          stats,
           rect,
         }),
       )
@@ -190,52 +190,12 @@ export function TournamentBracketModal(props: {
             onMouseEnter={(e) => e.stopPropagation()}
             onMouseLeave={(e) => e.stopPropagation()}
           >
-            <div className="bracket-player-tooltip-inner">
-              <div className="bracket-player-tooltip-avatar">
-                {bracketPlayerTooltip.avatarUrl ? (
-                  <img src={bracketPlayerTooltip.avatarUrl} alt="" />
-                ) : (
-                  <DollarIcon />
-                )}
-              </div>
-              <div className="bracket-player-tooltip-stats">
-                <div className="bracket-player-tooltip-name">
-                  {bracketPlayerTooltip.displayName}
-                </div>
-                <div className="bracket-player-tooltip-stat">
-                  <strong>Лига:</strong>{" "}
-                  {bracketPlayerTooltip.stats.maxLeagueName ?? "—"}
-                </div>
-                <div className="bracket-player-tooltip-stat">
-                  Сыграно раундов:{" "}
-                  {formatNum(bracketPlayerTooltip.stats.gamesPlayed ?? 0)}
-                </div>
-                <div className="bracket-player-tooltip-stat">
-                  Сыгранных матчей:{" "}
-                  {formatNum(bracketPlayerTooltip.stats.completedMatches ?? 0)}
-                </div>
-                <div className="bracket-player-tooltip-stat">
-                  <strong>Сумма выигрыша:</strong>{" "}
-                  {formatNum(bracketPlayerTooltip.stats.totalWinnings ?? 0)}{" "}
-                  {CURRENCY}
-                </div>
-                <div className="bracket-player-tooltip-stat">
-                  <strong>Выиграно турниров:</strong>{" "}
-                  {formatNum(bracketPlayerTooltip.stats.wins ?? 0)}
-                </div>
-                <div className="bracket-player-tooltip-stat">
-                  <strong>Верных ответов:</strong>{" "}
-                  {formatNum(bracketPlayerTooltip.stats.correctAnswers ?? 0)} из{" "}
-                  {formatNum(bracketPlayerTooltip.stats.totalQuestions ?? 0)}
-                </div>
-                <div className="bracket-player-tooltip-stat">
-                  <strong>% верных ответов:</strong>{" "}
-                  {(bracketPlayerTooltip.stats.totalQuestions ?? 0) > 0
-                    ? `${(((bracketPlayerTooltip.stats.correctAnswers ?? 0) / (bracketPlayerTooltip.stats.totalQuestions ?? 1)) * 100).toFixed(2)}%`
-                    : "—"}
-                </div>
-              </div>
-            </div>
+            <PlayerStatsTooltipContent
+              displayName={bracketPlayerTooltip.displayName}
+              avatarUrl={bracketPlayerTooltip.avatarUrl}
+              stats={bracketPlayerTooltip.stats}
+              fallbackIcon={<DollarIcon />}
+            />
           </div>
         )}
         {bracketView && (
@@ -613,63 +573,12 @@ export function TournamentQuestionsModal(props: {
                                 </span>
                               </div>
                             ) : oppTooltip.data ? (
-                              <div className="bracket-player-tooltip-inner">
-                                <div className="bracket-player-tooltip-avatar">
-                                  {oppTooltip.avatarUrl ? (
-                                    <img src={oppTooltip.avatarUrl} alt="" />
-                                  ) : (
-                                    <DollarIcon />
-                                  )}
-                                </div>
-                                <div className="bracket-player-tooltip-stats">
-                                  <div className="bracket-player-tooltip-name">
-                                    {oppInfo.nickname}
-                                  </div>
-                                  <div className="bracket-player-tooltip-stat">
-                                    <strong>Лига:</strong>{" "}
-                                    {oppTooltip.data.maxLeagueName ?? "—"}
-                                  </div>
-                                  <div className="bracket-player-tooltip-stat">
-                                    Сыграно раундов:{" "}
-                                    {formatNum(
-                                      oppTooltip.data.gamesPlayed ?? 0,
-                                    )}
-                                  </div>
-                                  <div className="bracket-player-tooltip-stat">
-                                    Сыгранных матчей:{" "}
-                                    {formatNum(
-                                      oppTooltip.data.completedMatches ?? 0,
-                                    )}
-                                  </div>
-                                  <div className="bracket-player-tooltip-stat">
-                                    <strong>Сумма выигрыша:</strong>{" "}
-                                    {formatNum(
-                                      oppTooltip.data.totalWinnings ?? 0,
-                                    )}{" "}
-                                    {CURRENCY}
-                                  </div>
-                                  <div className="bracket-player-tooltip-stat">
-                                    <strong>Выиграно турниров:</strong>{" "}
-                                    {formatNum(oppTooltip.data.wins ?? 0)}
-                                  </div>
-                                  <div className="bracket-player-tooltip-stat">
-                                    <strong>Верных ответов:</strong>{" "}
-                                    {formatNum(
-                                      oppTooltip.data.correctAnswers ?? 0,
-                                    )}{" "}
-                                    из{" "}
-                                    {formatNum(
-                                      oppTooltip.data.totalQuestions ?? 0,
-                                    )}
-                                  </div>
-                                  <div className="bracket-player-tooltip-stat">
-                                    <strong>% верных ответов:</strong>{" "}
-                                    {(oppTooltip.data.totalQuestions ?? 0) > 0
-                                      ? `${(((oppTooltip.data.correctAnswers ?? 0) / (oppTooltip.data.totalQuestions ?? 1)) * 100).toFixed(2)}%`
-                                      : "—"}
-                                  </div>
-                                </div>
-                              </div>
+                              <PlayerStatsTooltipContent
+                                displayName={oppInfo.nickname}
+                                avatarUrl={oppTooltip.avatarUrl ?? null}
+                                stats={oppTooltip.data}
+                                fallbackIcon={<DollarIcon />}
+                              />
                             ) : (
                               <div className="bracket-player-tooltip-inner">
                                 <span className="qr-opponent-tooltip-loading">

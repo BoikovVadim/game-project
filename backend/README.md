@@ -64,6 +64,18 @@ GET /api/health
 
 ## Audit / Smoke
 
+Канонический локальный прогон backend-проверок:
+
+```bash
+npm run lint
+npm run test
+npm run audit:tournaments
+npm run preview:reusable-tournaments
+npm run build
+```
+
+`lint` покрывает controllers/dto и расширенный набор service/domain/scripts, а `test` запускает и `*.test.ts`, и `*.spec.ts`, чтобы service/domain/tests не выпадали из проверки.
+
 Быстрый аудит продовых auth/payment данных:
 
 ```bash

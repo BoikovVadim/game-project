@@ -84,18 +84,21 @@ export function computeCorrectCountsFromQuestions(args: {
       return map;
     }, new Map());
 
-  const orderedSemiTiebreakerRounds = [...semiTiebreakerQuestionsByRound.entries()]
+  const orderedSemiTiebreakerRounds = [
+    ...semiTiebreakerQuestionsByRound.entries(),
+  ]
     .sort(([left], [right]) => left - right)
     .map(([, roundQuestions]) => roundQuestions);
-  const orderedFinalTiebreakerRounds = [...finalTiebreakerQuestionsByRound.entries()]
+  const orderedFinalTiebreakerRounds = [
+    ...finalTiebreakerQuestionsByRound.entries(),
+  ]
     .sort(([left], [right]) => left - right)
     .map(([, roundQuestions]) => roundQuestions);
 
   const hasFinalStarted =
     finalQuestions.length > 0 &&
     answeredCount >
-      QUESTIONS_PER_ROUND +
-        semiTiebreakerRoundCount * TIEBREAKER_QUESTIONS;
+      QUESTIONS_PER_ROUND + semiTiebreakerRoundCount * TIEBREAKER_QUESTIONS;
   const visibleSemiTiebreakerRoundCount = hasFinalStarted
     ? Math.min(orderedSemiTiebreakerRounds.length, semiTiebreakerRoundCount)
     : Math.min(
@@ -150,7 +153,8 @@ export function computeCorrectCountsFromQuestions(args: {
     index < answersChosen.length && index < orderedQuestions.length;
     index++
   ) {
-    if (answersChosen[index] !== orderedQuestions[index]?.correctAnswer) continue;
+    if (answersChosen[index] !== orderedQuestions[index]?.correctAnswer)
+      continue;
     if (answersChosen[index] < 0) continue;
     total += 1;
     if (index < semiQuestions.length) semi += 1;
@@ -209,18 +213,21 @@ export function computeVisibleStageTotalsFromQuestions(args: {
       return map;
     }, new Map());
 
-  const orderedSemiTiebreakerRounds = [...semiTiebreakerQuestionsByRound.entries()]
+  const orderedSemiTiebreakerRounds = [
+    ...semiTiebreakerQuestionsByRound.entries(),
+  ]
     .sort(([left], [right]) => left - right)
     .map(([, roundQuestions]) => roundQuestions);
-  const orderedFinalTiebreakerRounds = [...finalTiebreakerQuestionsByRound.entries()]
+  const orderedFinalTiebreakerRounds = [
+    ...finalTiebreakerQuestionsByRound.entries(),
+  ]
     .sort(([left], [right]) => left - right)
     .map(([, roundQuestions]) => roundQuestions);
 
   const hasFinalStarted =
     finalQuestions.length > 0 &&
     answeredCount >
-      QUESTIONS_PER_ROUND +
-        semiTiebreakerRoundCount * TIEBREAKER_QUESTIONS;
+      QUESTIONS_PER_ROUND + semiTiebreakerRoundCount * TIEBREAKER_QUESTIONS;
   const visibleSemiTiebreakerRoundCount = hasFinalStarted
     ? Math.min(orderedSemiTiebreakerRounds.length, semiTiebreakerRoundCount)
     : Math.min(
@@ -240,17 +247,26 @@ export function computeVisibleStageTotalsFromQuestions(args: {
     ...semiQuestions,
     ...visibleSemiTiebreakerQuestions,
   ];
-  const semiAnsweredQuestions = Math.min(answeredCount, semiStageQuestions.length);
+  const semiAnsweredQuestions = Math.min(
+    answeredCount,
+    semiStageQuestions.length,
+  );
   const semiCorrect = semiStageQuestions.reduce((sum, question, index) => {
-    return sum +
+    return (
+      sum +
       (answersChosen[index] >= 0 &&
       answersChosen[index] === question.correctAnswer
         ? 1
-        : 0);
+        : 0)
+    );
   }, 0);
 
-  const answeredAfterSemi = Math.max(0, answeredCount - semiStageQuestions.length);
-  const hasVisibleFinal = finalQuestions.length > 0 && answeredCount > semiStageQuestions.length;
+  const answeredAfterSemi = Math.max(
+    0,
+    answeredCount - semiStageQuestions.length,
+  );
+  const hasVisibleFinal =
+    finalQuestions.length > 0 && answeredCount > semiStageQuestions.length;
   const visibleFinalTiebreakerRoundCount = hasVisibleFinal
     ? answeredAfterSemi > QUESTIONS_PER_ROUND
       ? Math.min(
@@ -263,10 +279,7 @@ export function computeVisibleStageTotalsFromQuestions(args: {
             ),
           ),
         )
-      : Math.min(
-          orderedFinalTiebreakerRounds.length,
-          finalTiebreakerRoundCount,
-        )
+      : Math.min(orderedFinalTiebreakerRounds.length, finalTiebreakerRoundCount)
     : 0;
   const visibleFinalTiebreakerQuestions = orderedFinalTiebreakerRounds
     .slice(0, visibleFinalTiebreakerRoundCount)
@@ -274,14 +287,19 @@ export function computeVisibleStageTotalsFromQuestions(args: {
   const finalStageQuestions = hasVisibleFinal
     ? [...finalQuestions, ...visibleFinalTiebreakerQuestions]
     : [];
-  const finalAnsweredQuestions = Math.min(answeredAfterSemi, finalStageQuestions.length);
+  const finalAnsweredQuestions = Math.min(
+    answeredAfterSemi,
+    finalStageQuestions.length,
+  );
   const finalCorrect = finalStageQuestions.reduce((sum, question, index) => {
     const answerIndex = semiStageQuestions.length + index;
-    return sum +
+    return (
+      sum +
       (answersChosen[answerIndex] >= 0 &&
       answersChosen[answerIndex] === question.correctAnswer
         ? 1
-        : 0);
+        : 0)
+    );
   }, 0);
 
   return {

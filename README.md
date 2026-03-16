@@ -111,8 +111,9 @@ npm run verify:ci
 
 Что входит в `verify:ci`:
 
-- contract-layer lint для backend и frontend
+- lint для backend controllers/dto плюс расширенное покрытие service/domain/scripts и frontend
 - backend unit + runtime e2e
+- tournament audit/preview checks для backend
 - frontend tests
 - smoke stability check
 - production build backend/frontend
@@ -124,3 +125,4 @@ npm run verify:ci
 - `backend/.env` на сервере заполнен реальными значениями и имеет приоритет над шаблонным `backend/.env.production`
 - `pm2 describe game-backend` показывает один процесс
 - Nginx использует один активный конфиг `game` и проксирует `/api/health` в backend
+- `bash -n scripts/deploy-prod.sh` проходит локально, если менялся deploy path
