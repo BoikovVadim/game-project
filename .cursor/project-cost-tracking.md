@@ -1,7 +1,24 @@
-913525.81
-За сегодня (2026-03-15): 139 668,56 ₽
+914525.81
+За сегодня (2026-03-15): 140 668,56 ₽
 
 # Последние изменения. Формат записи: YYYY-MM-DD HH:MM | Z ₽ | оплачиваемое время | описание. Если у задачи есть клиентская разбивка, она идёт отдельным списком ниже. Внутренние расчёты и ретроспектива на сайт не выводятся.
+2026-03-16 04:39 | 1 000,00 ₽ | 30 мин | Cursor rules/refactoring-rule-hardening+deploy: правило `refactoring-operating-modes` усилено без дублей с соседними always-apply rules. В локальный refactor-pass добавлены deletion evidence, обязательная проверка call-sites при `extract/rename/move`, анти-раздувание scope и требование измеримого evidence для optimization; в полный refactor-pass добавлен явный переход в plan при большом scope и классификация результата на `safe now` / `risky later` с отдельным упоминанием data-fix необходимости.
+
+Разбивка:
+- Погружение: 5 мин.
+- Проектирование: 4 мин.
+- Реализация: 5 мин.
+- Cleanup: 2 мин.
+- Проверка: 6 мин.
+- Delivery: 8 мин.
+
+Ретроспектива:
+- Базовое время: 30 мин.
+- Коэффициент: 1.00
+- Оплачиваемое время: 30 мин.
+- Ставка: 2000 ₽ / час.
+- Формула: 30 мин × 2000 ₽ / 60 мин = 1 000,00 ₽.
+
 2026-03-16 03:46 | 2 600,00 ₽ | 1 ч 18 мин | Турниры/backend+prod-verify+read-path-alignment+deploy: по кейсу `турнир 13 / игрок 2` найден ещё один split source of truth между внешними stage counters и review-модалкой. Read-path турниров усилен в три слоя: `getMyTournaments()` и `getTournamentBracket()` больше не полагаются на stale stage aggregates, сначала безопасно пересчитывают `correctAnswersCount/semiFinalCorrectCount` по `answersChosen`, затем считают видимые stage totals тем же canonical helper-ом, что и review, и больше не перетирают player-specific счёт pair-level override-ами. На production подтверждён `T13/u2`: список `10/10/7`, bracket `semi=9/10`, review `semi-main=9`, а итоговый compare-скрипт по всем `203` парам `tournament/user` после выката вернул `mismatchCount = 0`.
 
 Разбивка:
