@@ -1,7 +1,24 @@
-910925.81
-За сегодня (2026-03-15): 137 068,56 ₽
+913525.81
+За сегодня (2026-03-15): 139 668,56 ₽
 
 # Последние изменения. Формат записи: YYYY-MM-DD HH:MM | Z ₽ | оплачиваемое время | описание. Если у задачи есть клиентская разбивка, она идёт отдельным списком ниже. Внутренние расчёты и ретроспектива на сайт не выводятся.
+2026-03-16 03:46 | 2 600,00 ₽ | 1 ч 18 мин | Турниры/backend+prod-verify+read-path-alignment+deploy: по кейсу `турнир 13 / игрок 2` найден ещё один split source of truth между внешними stage counters и review-модалкой. Read-path турниров усилен в три слоя: `getMyTournaments()` и `getTournamentBracket()` больше не полагаются на stale stage aggregates, сначала безопасно пересчитывают `correctAnswersCount/semiFinalCorrectCount` по `answersChosen`, затем считают видимые stage totals тем же canonical helper-ом, что и review, и больше не перетирают player-specific счёт pair-level override-ами. На production подтверждён `T13/u2`: список `10/10/7`, bracket `semi=9/10`, review `semi-main=9`, а итоговый compare-скрипт по всем `203` парам `tournament/user` после выката вернул `mismatchCount = 0`.
+
+Разбивка:
+- Погружение: 10 мин.
+- Проектирование: 8 мин.
+- Реализация: 16 мин.
+- Cleanup: 4 мин.
+- Проверка: 12 мин.
+- Delivery: 10 мин.
+
+Ретроспектива:
+- Базовое время: 60 мин.
+- Коэффициент: 1.30
+- Оплачиваемое время: 1 ч 18 мин.
+- Ставка: 2000 ₽ / час.
+- Формула: 78 мин × 2000 ₽ / 60 мин = 2 600,00 ₽.
+
 2026-03-16 03:23 | 3 900,00 ₽ | 1 ч 57 мин | Турниры/backend+prod-retrofix+global-correct-count-audit+deploy: по кейсу `турнир 10 / игрок 5` закрыт split source of truth между внешним счётчиком этапа и review-модалкой. Канонический пересчёт `correctAnswersCount/semiFinalCorrectCount` вынесен в общий helper по реальному пути игрока с учётом только фактически сыгранных tie-breaker раундов, `repairTournamentConsistency` теперь массово пересчитывает stale progress aggregates, а `audit-tournaments` детерминированно ловит такие рассинхроны по всем турнирам. На production initial audit нашёл `4` count-mismatch кейса (`T32/u2`, `T32/u4`, `T10/u5`, `T45/u4`); после normalizing dirty `playerOrder` выяснилось, что `T32/u2` был false positive, а production repair пересчитал `3` реальные stale записи. Финальный production audit вернул `totalIssueCount = 0`, public health-check `https://legendgames.space/api/health = 200`, а у `T10/u5` внешний `correctAnswersInRound` теперь совпадает с review-модалкой: `5`.
 
 Разбивка:
