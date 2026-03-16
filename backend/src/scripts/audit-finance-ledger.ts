@@ -90,6 +90,10 @@ type EntryRow = {
 
 type AuditIssue = Record<string, unknown>;
 
+function roundMoney(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
 function getArgValue(flag: string): string | null {
   const index = process.argv.indexOf(flag);
   if (index < 0) return null;
@@ -151,7 +155,9 @@ function buildMarkdown(report: {
   lines.push(`- Manual review issues: ${report.summary.manualReviewCount}`);
   lines.push('');
   lines.push('## Issue Counts');
-  for (const [kind, count] of Object.entries(report.summary.issueCounts).sort()) {
+  for (const [kind, count] of Object.entries(
+    report.summary.issueCounts,
+  ).sort()) {
     lines.push(`- ${kind}: ${count}`);
   }
   const appendBucket = (
@@ -160,7 +166,9 @@ function buildMarkdown(report: {
   ): void => {
     lines.push('');
     lines.push(`## ${title}`);
-    const entries = Object.entries(bucket).filter(([, items]) => items.length > 0);
+    const entries = Object.entries(bucket).filter(
+      ([, items]) => items.length > 0,
+    );
     if (entries.length === 0) {
       lines.push('- none');
       return;
@@ -261,7 +269,9 @@ async function main() {
         }
       }
       if (row.category === 'withdraw') {
-        const requestId = parseAnyWithdrawalDescription(row.description).requestId;
+        const requestId = parseAnyWithdrawalDescription(
+          row.description,
+        ).requestId;
         if (requestId != null) {
           const list = withdrawTxByRequestId.get(requestId) ?? [];
           list.push(row);
@@ -359,10 +369,10 @@ async function main() {
 
     for (const user of users) {
       const userId = Number(user.id);
-      const computedL = computed.balanceL.get(userId) ?? 0;
-      const computedRubles = computed.rubles.get(userId) ?? 0;
-      const storedL = Number(user.balance ?? 0);
-      const storedRubles = Number(user.balanceRubles ?? 0);
+      const computedL = roundMoney(computed.balanceL.get(userId) ?? 0);
+      const computedRubles = roundMoney(computed.rubles.get(userId) ?? 0);
+      const storedL = roundMoney(Number(user.balance ?? 0));
+      const storedRubles = roundMoney(Number(user.balanceRubles ?? 0));
       if (storedL !== computedL || storedRubles !== computedRubles) {
         pushIssue(deterministicIssues, 'stored_vs_ledger_mismatch', {
           userId,
@@ -510,7 +520,9 @@ async function main() {
     }
     const settlementByTournamentId = new Map<
       number,
-      Awaited<ReturnType<TournamentsService['getMoneyTournamentSettlementResolution']>>
+      Awaited<
+        ReturnType<TournamentsService['getMoneyTournamentSettlementResolution']>
+      >
     >();
     for (const tournament of tournamentRows) {
       if (tournament.gameType !== 'money') continue;
@@ -555,12 +567,12 @@ async function main() {
       ) {
         const tournamentId = Number(tournament.id);
         const tournamentResults = resultsByTournament.get(tournamentId) ?? [];
-        const settlementTx = (txByTournament.get(tournamentId) ?? []).filter((row) =>
-          ['refund', 'win'].includes(row.category),
+        const settlementTx = (txByTournament.get(tournamentId) ?? []).filter(
+          (row) => ['refund', 'win'].includes(row.category),
         );
-        const settledEscrows = (escrowByTournament.get(tournamentId) ?? []).filter(
-          (row) => row.status !== 'held',
-        );
+        const settledEscrows = (
+          escrowByTournament.get(tournamentId) ?? []
+        ).filter((row) => row.status !== 'held');
         if (
           tournamentResults.length > 0 ||
           settlementTx.length > 0 ||
@@ -603,17 +615,19 @@ async function main() {
       const tournamentId = Number(tournament.id);
       const settlement = settlementByTournamentId.get(tournamentId);
       const tournamentResults = resultsByTournament.get(tournamentId) ?? [];
-      const winners = tournamentResults.filter((row) => Number(row.passed) === 1);
-      const tournamentRefundTx = (txByTournament.get(tournamentId) ?? []).filter(
-        (row) => row.category === 'refund',
+      const winners = tournamentResults.filter(
+        (row) => Number(row.passed) === 1,
       );
+      const tournamentRefundTx = (
+        txByTournament.get(tournamentId) ?? []
+      ).filter((row) => row.category === 'refund');
       if (settlement?.settlementType === 'unresolved') {
-        const settlementTx = (txByTournament.get(tournamentId) ?? []).filter((row) =>
-          ['refund', 'win'].includes(row.category),
+        const settlementTx = (txByTournament.get(tournamentId) ?? []).filter(
+          (row) => ['refund', 'win'].includes(row.category),
         );
-        const settledEscrows = (escrowByTournament.get(tournamentId) ?? []).filter(
-          (row) => row.status !== 'held',
-        );
+        const settledEscrows = (
+          escrowByTournament.get(tournamentId) ?? []
+        ).filter((row) => row.status !== 'held');
         if (
           winners.length > 0 ||
           settlementTx.length > 0 ||
@@ -636,7 +650,10 @@ async function main() {
           );
         }
       }
-      if (settlement?.settlementType === 'paid_to_winner' && winners.length === 1) {
+      if (
+        settlement?.settlementType === 'paid_to_winner' &&
+        winners.length === 1
+      ) {
         const winner = winners[0]!;
         const winKey = `${winner.userId}:${tournamentId}`;
         if ((winTxByTournamentUser.get(winKey) ?? []).length === 0) {
@@ -649,28 +666,36 @@ async function main() {
       }
       if (settlement?.settlementType === 'forfeited') {
         if (winners.length > 0) {
-          pushIssue(deterministicIssues, 'forfeited_tournament_with_winner_rows', {
-            tournamentId,
-            winnerUserIds: winners.map((row) => Number(row.userId)),
-          });
+          pushIssue(
+            deterministicIssues,
+            'forfeited_tournament_with_winner_rows',
+            {
+              tournamentId,
+              winnerUserIds: winners.map((row) => Number(row.userId)),
+            },
+          );
         }
         if (tournamentRefundTx.length > 0) {
-          pushIssue(deterministicIssues, 'forfeited_tournament_with_refund_tx', {
-            tournamentId,
-            refundTxIds: tournamentRefundTx.map((row) => Number(row.id)),
-          });
+          pushIssue(
+            deterministicIssues,
+            'forfeited_tournament_with_refund_tx',
+            {
+              tournamentId,
+              refundTxIds: tournamentRefundTx.map((row) => Number(row.id)),
+            },
+          );
         }
       }
-      const lingeringEscrows = (escrowByTournament.get(tournamentId) ?? []).filter(
-        (row) => row.status === 'held' || row.status === 'processing',
-      );
+      const lingeringEscrows = (
+        escrowByTournament.get(tournamentId) ?? []
+      ).filter((row) => row.status === 'held' || row.status === 'processing');
       if (lingeringEscrows.length > 0) {
-        const hasUniqueWinner = settlement?.settlementType === 'paid_to_winner' && winners.length === 1;
+        const hasUniqueWinner =
+          settlement?.settlementType === 'paid_to_winner' &&
+          winners.length === 1;
         const isForfeited = settlement?.settlementType === 'forfeited';
         const bucket =
-          hasUniqueWinner || isForfeited
-            ? deterministicIssues
-            : manualReview;
+          hasUniqueWinner || isForfeited ? deterministicIssues : manualReview;
         pushIssue(bucket, 'processing_or_held_escrow_on_finished_tournament', {
           tournamentId,
           statuses: lingeringEscrows.map((row) => ({

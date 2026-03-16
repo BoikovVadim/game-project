@@ -1,7 +1,26 @@
-924592.46
-За сегодня (2026-03-16): 17 566,65 ₽
+925392.46
+За сегодня (2026-03-16): 18 366,65 ₽
 
 # Последние изменения. Формат записи: YYYY-MM-DD HH:MM | Z ₽ | оплачиваемое время | описание. Если у задачи есть клиентская разбивка, она идёт отдельным списком ниже. Внутренние расчёты и ретроспектива на сайт не выводятся.
+
+2026-03-16 06:07 | 800,00 ₽ | 24 мин | Finance/audit+rounding-noise-fix+deploy: после production retrofix `duplicate_withdraw_tx` ушёл, но audit всё ещё показывал ложный `stored_vs_ledger_mismatch` из-за сравнения сырых float-значений (`51.88` vs `51.879999999999995`). В `audit-finance-ledger` сравнение stored/computed balances переведено на округление до копеек, чтобы audit ловил реальные money-drift кейсы, а не артефакты IEEE-арифметики. Локально подтверждены `build:backend` и post-audit `Deterministic issues: 0`; после выката требуется только финальный production audit без ложного mismatch.
+
+Разбивка:
+
+- Погружение: 4 мин.
+- Проектирование: 2 мин.
+- Реализация: 3 мин.
+- Cleanup: 1 мин.
+- Проверка: 8 мин.
+- Delivery: 2 мин.
+
+Ретроспектива:
+
+- Базовое время: 20 мин.
+- Коэффициент: 1.20
+- Оплачиваемое время: 24 мин.
+- Ставка: 2000 ₽ / час.
+- Формула: 24 мин × 2000 ₽ / 60 мин = 800,00 ₽.
 
 2026-03-16 05:59 | 1 733,33 ₽ | 52 мин | Finance/data-fix+duplicate-withdraw-retrofix+deploy: закрыт следующий manual-review хвост в finance audit. До фикса по `requestId 9/10/11/12` существовало по две `withdraw`-транзакции: канонические `20/22/24/38`, совпадающие по времени с `processedAt`, и поздние артефакты `45/46/47/48`, созданные массовым repair-запуском. В `repair-finance-ledger` добавлено безопасное правило: для approved withdrawal с несколькими одинаковыми tx удалять только те дубли, где все записи совпадают по `userId` и сумме, а канонической считать tx, ближайшую к `processedAt` (или `createdAt`) заявки. Локально подтверждены `SELECT before/after` по id `20/22/24/38/45/46/47/48`, `fix:finance-ledger`, post-audit `Deterministic issues: 0`, `duplicate_withdraw_tx` исчез из manual-review, а остаток audit сузился до `legacy_topup_ambiguous = 7` и `swap_id_inconsistency = 2`.
 
