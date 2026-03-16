@@ -2,9 +2,17 @@ import * as dotenv from 'dotenv';
 dotenv.config();
 
 import { NestFactory } from '@nestjs/core';
-import { DataSource } from 'typeorm';
+import { DataSource, In } from 'typeorm';
 import { AppModule } from '../app.module';
 import { TournamentsService } from '../tournaments/tournaments.service';
+import { Tournament } from '../tournaments/tournament.entity';
+import { TournamentProgress } from '../tournaments/tournament-progress.entity';
+import { Question } from '../tournaments/question.entity';
+import {
+  computeCorrectCountsFromQuestions,
+  hasReliableChosenAnswers,
+  normalizeChosenAnswers,
+} from '../tournaments/domain/progress-correct-counts';
 
 type AuditIssue = Record<string, unknown>;
 
@@ -235,6 +243,80 @@ async function main() {
           settlementType: settlement.settlementType,
           winnerId: settlement.winnerId,
         });
+      }
+    }
+
+    const progressRepo = dataSource.getRepository(TournamentProgress);
+    const tournamentRepo = dataSource.getRepository(Tournament);
+    const questionRepo = dataSource.getRepository(Question);
+    const allProgress = await progressRepo.find();
+    const progressTournamentIds = [
+      ...new Set(allProgress.map((progress) => progress.tournamentId)),
+    ];
+    if (progressTournamentIds.length > 0) {
+      const tournaments = await tournamentRepo.find({
+        where: { id: In(progressTournamentIds) },
+        relations: ['players'],
+      });
+      const questions = await questionRepo.find({
+        where: { tournament: { id: In(progressTournamentIds) } },
+        order: { roundIndex: 'ASC', id: 'ASC' },
+      });
+      const tournamentById = new Map(
+        tournaments.map((tournament) => [tournament.id, tournament]),
+      );
+      const questionsByTournamentId = new Map<number, Question[]>();
+      for (const question of questions) {
+        const tournamentId = question.tournament?.id;
+        if (!tournamentId) continue;
+        const bucket = questionsByTournamentId.get(tournamentId) ?? [];
+        bucket.push(question);
+        questionsByTournamentId.set(tournamentId, bucket);
+      }
+
+      for (const progress of allProgress) {
+        const answersChosen = normalizeChosenAnswers(progress.answersChosen);
+        if (answersChosen.length === 0) continue;
+        if (!hasReliableChosenAnswers(answersChosen)) continue;
+
+        const tournament = tournamentById.get(progress.tournamentId);
+        const tournamentQuestions =
+          questionsByTournamentId.get(progress.tournamentId) ?? [];
+        if (!tournament || tournamentQuestions.length === 0) continue;
+
+        const effectivePlayerOrder =
+          Array.isArray(tournament.playerOrder) && tournament.playerOrder.length > 0
+            ? tournament.playerOrder
+            : (tournament.players?.map((player) => player.id) ?? []);
+        const playerSlot = effectivePlayerOrder.indexOf(progress.userId);
+        const semiRoundIndex = playerSlot >= 0 && playerSlot < 2 ? 0 : 1;
+        const recomputed = computeCorrectCountsFromQuestions({
+          answersChosen,
+          semiRoundIndex,
+          questions: tournamentQuestions.map((question) => ({
+            roundIndex: question.roundIndex,
+            correctAnswer: question.correctAnswer,
+          })),
+        });
+
+        const shouldCheckSemi =
+          Math.max(answersChosen.length, progress.questionsAnsweredCount ?? 0) >= 10;
+        if (
+          progress.correctAnswersCount !== recomputed.total ||
+          (shouldCheckSemi && progress.semiFinalCorrectCount !== recomputed.semi)
+        ) {
+          pushIssue(deterministicIssues, 'stored_correct_count_mismatch', {
+            tournamentId: progress.tournamentId,
+            userId: progress.userId,
+            storedCorrectAnswersCount: progress.correctAnswersCount,
+            recomputedCorrectAnswersCount: recomputed.total,
+            storedSemiFinalCorrectCount: progress.semiFinalCorrectCount,
+            recomputedSemiFinalCorrectCount: shouldCheckSemi
+              ? recomputed.semi
+              : null,
+            answersChosenLength: answersChosen.length,
+          });
+        }
       }
     }
 

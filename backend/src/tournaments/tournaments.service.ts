@@ -55,6 +55,11 @@ import {
   type TournamentStageKind,
 } from './domain/view-model';
 import {
+  computeCorrectCountsFromQuestions,
+  hasReliableChosenAnswers,
+  normalizeChosenAnswers,
+} from './domain/progress-correct-counts';
+import {
   canReuseTournamentCandidate,
   isTournamentStructurallyFinishable,
   pickResumeTournamentId,
@@ -1078,6 +1083,8 @@ export class TournamentsService implements OnModuleInit {
   async repairTournamentConsistency(): Promise<{
     backfilledTimeoutResolutionRows: number;
     backfilledParticipantRows: number;
+    recomputedCorrectCountRows: number;
+    skippedUnreliableCorrectCountRows: number;
     backfilledResolvedResultRows: number;
     finalizedTournamentStatuses: number;
     deletedUnfinishedResultRows: number;
@@ -1088,6 +1095,7 @@ export class TournamentsService implements OnModuleInit {
   }> {
     const timeoutBackfill = await this.backfillTimeoutRoundResolutions();
     const participantBackfill = await this.backfillTournamentPlayersFromEntry();
+    const correctCountRepair = await this.recomputeProgressCorrectCounts();
     const waitingResult = await this.backfillWaitingTournamentsToActive();
     const resolvedBracketResult = await this.backfillResolvedBracketResults();
     const unfinishedResultCleanup =
@@ -1099,6 +1107,9 @@ export class TournamentsService implements OnModuleInit {
     return {
       backfilledTimeoutResolutionRows: timeoutBackfill.inserted,
       backfilledParticipantRows: participantBackfill.inserted,
+      recomputedCorrectCountRows: correctCountRepair.updatedProgressRows,
+      skippedUnreliableCorrectCountRows:
+        correctCountRepair.skippedUnreliableProgressRows,
       backfilledResolvedResultRows: resolvedBracketResult.updatedResults,
       finalizedTournamentStatuses: resolvedBracketResult.updatedStatuses,
       deletedUnfinishedResultRows: unfinishedResultCleanup.deletedResultRows,
@@ -1344,6 +1355,87 @@ export class TournamentsService implements OnModuleInit {
       tournamentIds,
       deletedResultRows: deleteResult.affected ?? 0,
     };
+  }
+
+  async recomputeProgressCorrectCounts(): Promise<{
+    updatedProgressRows: number;
+    skippedUnreliableProgressRows: number;
+  }> {
+    const allProgress = await this.tournamentProgressRepository.find();
+    const tournamentIds = [...new Set(allProgress.map((progress) => progress.tournamentId))];
+    if (tournamentIds.length === 0) {
+      return { updatedProgressRows: 0, skippedUnreliableProgressRows: 0 };
+    }
+
+    const tournaments = await this.tournamentRepository.find({
+      where: { id: In(tournamentIds) },
+      relations: ['players'],
+    });
+    const questions = await this.questionRepository.find({
+      where: { tournament: { id: In(tournamentIds) } },
+      order: { roundIndex: 'ASC', id: 'ASC' },
+    });
+    const tournamentById = new Map(tournaments.map((tournament) => [tournament.id, tournament]));
+    const questionsByTournamentId = new Map<number, Question[]>();
+    for (const question of questions) {
+      const questionTournamentId = question.tournament?.id;
+      if (!questionTournamentId) continue;
+      const bucket = questionsByTournamentId.get(questionTournamentId) ?? [];
+      bucket.push(question);
+      questionsByTournamentId.set(questionTournamentId, bucket);
+    }
+
+    let updatedProgressRows = 0;
+    let skippedUnreliableProgressRows = 0;
+
+    for (const progress of allProgress) {
+      const answersChosen = normalizeChosenAnswers(progress.answersChosen);
+      if (answersChosen.length === 0) continue;
+      if (!hasReliableChosenAnswers(answersChosen)) {
+        skippedUnreliableProgressRows += 1;
+        continue;
+      }
+
+      const tournament = tournamentById.get(progress.tournamentId);
+      const tournamentQuestions = questionsByTournamentId.get(progress.tournamentId) ?? [];
+      if (!tournament || tournamentQuestions.length === 0) continue;
+
+      this.sortPlayersByOrder(tournament);
+      const effectivePlayerOrder =
+        Array.isArray(tournament.playerOrder) && tournament.playerOrder.length > 0
+          ? tournament.playerOrder
+          : (tournament.players?.map((player) => player.id) ?? []);
+      const playerSlot = effectivePlayerOrder.indexOf(progress.userId);
+      const semiRoundIndex = playerSlot >= 0 && playerSlot < 2 ? 0 : 1;
+      const recomputed = computeCorrectCountsFromQuestions({
+        answersChosen,
+        semiRoundIndex,
+        questions: tournamentQuestions.map((question) => ({
+          roundIndex: question.roundIndex,
+          correctAnswer: question.correctAnswer,
+        })),
+      });
+
+      let changed = false;
+      if (progress.correctAnswersCount !== recomputed.total) {
+        progress.correctAnswersCount = recomputed.total;
+        changed = true;
+      }
+      if (
+        Math.max(answersChosen.length, progress.questionsAnsweredCount ?? 0) >=
+          this.QUESTIONS_PER_ROUND &&
+        progress.semiFinalCorrectCount !== recomputed.semi
+      ) {
+        progress.semiFinalCorrectCount = recomputed.semi;
+        changed = true;
+      }
+
+      if (!changed) continue;
+      await this.tournamentProgressRepository.save(progress);
+      updatedProgressRows += 1;
+    }
+
+    return { updatedProgressRows, skippedUnreliableProgressRows };
   }
 
   async convertLegacyMoneyTournamentsWithoutLeagueToTraining(): Promise<{
@@ -6632,22 +6724,7 @@ export class TournamentsService implements OnModuleInit {
   }
 
   private normalizeAnswersChosen(val: unknown): number[] {
-    const mapFn = (a: unknown): number => {
-      if (typeof a === 'number' && !Number.isNaN(a)) {
-        return a < 0 ? -1 : Math.floor(a);
-      }
-      return -1;
-    };
-    if (Array.isArray(val)) return val.map(mapFn);
-    if (typeof val === 'string') {
-      try {
-        const parsed = JSON.parse(val) as unknown;
-        return Array.isArray(parsed) ? parsed.map(mapFn) : [];
-      } catch {
-        return [];
-      }
-    }
-    return [];
+    return normalizeChosenAnswers(val);
   }
 
   private readonly QUESTIONS_PER_ROUND = QUESTIONS_PER_ROUND;
@@ -6885,40 +6962,14 @@ export class TournamentsService implements OnModuleInit {
       where: { tournament: { id: tournamentId } },
       order: { roundIndex: 'ASC', id: 'ASC' },
     });
-    const semiQuestions = questions.filter(
-      (q) => q.roundIndex === semiRoundIndex,
-    );
-    const semiTiebreakerQuestions = questions
-      .filter((q) => q.roundIndex >= 3 && q.roundIndex < 100)
-      .sort((a, b) => a.roundIndex - b.roundIndex || a.id - b.id);
-    const finalQuestions = questions
-      .filter((q) => q.roundIndex === 2)
-      .sort((a, b) => a.id - b.id);
-    const finalTiebreakerQuestions = questions
-      .filter((q) => q.roundIndex >= 100)
-      .sort((a, b) => a.roundIndex - b.roundIndex || a.id - b.id);
-    const playerQuestions = [
-      ...semiQuestions,
-      ...semiTiebreakerQuestions,
-      ...finalQuestions,
-      ...finalTiebreakerQuestions,
-    ];
-    let total = 0;
-    let semi = 0;
-    for (
-      let i = 0;
-      i < answersChosen.length && i < playerQuestions.length;
-      i++
-    ) {
-      if (
-        answersChosen[i] >= 0 &&
-        answersChosen[i] === playerQuestions[i].correctAnswer
-      ) {
-        total++;
-        if (i < semiQuestions.length) semi++;
-      }
-    }
-    return { total, semi };
+    return computeCorrectCountsFromQuestions({
+      answersChosen,
+      semiRoundIndex,
+      questions: questions.map((question) => ({
+        roundIndex: question.roundIndex,
+        correctAnswer: question.correctAnswer,
+      })),
+    });
   }
 
   /** Обновить прогресс участника (сколько вопросов ответил + на каком вопросе остановились + оставшееся время). */
