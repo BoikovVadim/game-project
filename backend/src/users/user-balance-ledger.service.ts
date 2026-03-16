@@ -17,6 +17,13 @@ export type ComputedBalanceMaps = {
   heldEscrow: Map<number, number>;
 };
 
+export type ComputedUserBalanceState = {
+  rubles: number;
+  balanceL: number;
+  pendingWithdrawals: number;
+  heldEscrow: number;
+};
+
 @Injectable()
 export class UserBalanceLedgerService {
   constructor(
@@ -34,6 +41,18 @@ export class UserBalanceLedgerService {
     row: LedgerBalanceRow,
   ): LedgerBalanceState {
     return applyLedgerTransactionToBalanceState(current, row);
+  }
+
+  async getComputedBalanceStateForUser(
+    userId: number,
+  ): Promise<ComputedUserBalanceState> {
+    const maps = await this.getComputedBalanceMapsForUsers([userId]);
+    return {
+      rubles: maps.rubles.get(userId) ?? 0,
+      balanceL: maps.balanceL.get(userId) ?? 0,
+      pendingWithdrawals: maps.pendingWithdrawals.get(userId) ?? 0,
+      heldEscrow: maps.heldEscrow.get(userId) ?? 0,
+    };
   }
 
   async getComputedBalanceMapsForUsers(

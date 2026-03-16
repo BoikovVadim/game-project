@@ -1,7 +1,24 @@
-919025.80
-За сегодня (2026-03-16): 145 168,55 ₽
+920559.13
+За сегодня (2026-03-16): 146 701,88 ₽
 
 # Последние изменения. Формат записи: YYYY-MM-DD HH:MM | Z ₽ | оплачиваемое время | описание. Если у задачи есть клиентская разбивка, она идёт отдельным списком ниже. Внутренние расчёты и ретроспектива на сайт не выводятся.
+2026-03-16 05:27 | 1 533,33 ₽ | 46 мин | Finance/risky-wave-first-cut+ledger-read-path-unification+deploy: начата отдельная risky-подволна для finance domain без вмешательства в write-path. Per-user balance projection в `UsersService` больше не пересчитывает рубли/L/pending разрозненными SQL-ветками, а делегирует в канонический `UserBalanceLedgerService`, где уже живёт общий ledger source of truth. Локально подтверждены `lint:backend`, `test:backend`, `build:backend`, `localhost:3001/api/health = 200`; дополнительно `audit:finance-ledger` поднял старые data issues (`convert_without_sufficient_ledger_balance`, `stored_vs_ledger_mismatch`, legacy/manual cases), которые не были созданы этой правкой и требуют отдельной data-repair волны.
+
+Разбивка:
+- Погружение: 7 мин.
+- Проектирование: 5 мин.
+- Реализация: 8 мин.
+- Cleanup: 3 мин.
+- Проверка: 7 мин.
+- Delivery: 6 мин.
+
+Ретроспектива:
+- Базовое время: 36 мин.
+- Коэффициент: 1.30
+- Оплачиваемое время: 46 мин.
+- Ставка: 2000 ₽ / час.
+- Формула: 46 мин × 2000 ₽ / 60 мин = 1 533,33 ₽.
+
 2026-03-16 05:20 | 1 733,33 ₽ | 52 мин | Tournaments/risky-wave-first-cut+read-model-helper-extraction+deploy: начат risky-later split турнирного домена, но в самой безопасной под-волне без изменения поведения. Из `tournaments.service.ts` вынесены чистые progress/read-model helper-ы (`normalizeProgressSnapshot`, reliable correct-count recompute, visible stage totals, effective player order) в отдельный domain-модуль `progress-read-model`, а сам сервис перестал держать у себя эту projection-логику. Дополнительно добавлен unit-test на новый helper-слой и расширено backend lint-покрытие на новый domain файл. Локально подтверждены `lint:backend`, unit tests, `verify:tournaments`, `localhost:3001/api/health = 200`; затем выполнены commit/push/deploy и production health-check `https://legendgames.space/api/health = 200`.
 
 Разбивка:

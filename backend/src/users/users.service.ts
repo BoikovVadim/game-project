@@ -137,7 +137,9 @@ export class UsersService implements OnModuleInit {
   async getComputedBalanceMapsForUsers(
     userIds: number[],
   ): Promise<ComputedBalanceMaps> {
-    return this.userBalanceLedgerService.getComputedBalanceMapsForUsers(userIds);
+    return this.userBalanceLedgerService.getComputedBalanceMapsForUsers(
+      userIds,
+    );
   }
 
   async reconcileAllStoredBalances(targetUserIds?: number[]): Promise<{
@@ -205,38 +207,11 @@ export class UsersService implements OnModuleInit {
    * Не учитываются: возврат по отклонённой заявке на вывод; любые refund, связанные с турнирами/L (взносы, возврат за турнир).
    */
   async getBalanceRublesFromTransactions(userId: number): Promise<number> {
-    const rows = (await this.dataSource.query(
-      `SELECT category, amount, description, "tournamentId" FROM "transaction"
-       WHERE "userId" = $1 AND category IN ('topup','admin_credit','withdraw','refund','convert','other')`,
-      [userId],
-    )) as {
-      category: string;
-      amount: number;
-      description: string | null;
-      tournamentId: number | null;
-    }[];
-    const list = Array.isArray(rows) ? rows : [];
-    let total = 0;
-    for (const r of list) {
-      const parsedAdminTopup = UsersService.parseAdminTopupDescription(
-        r.description,
+    const computed =
+      await this.userBalanceLedgerService.getComputedBalanceStateForUser(
+        userId,
       );
-      const isLegacyRublesOtherAdminTopup =
-        r.category === 'other' && parsedAdminTopup.adminId != null;
-      if (r.category === 'other' && !isLegacyRublesOtherAdminTopup) continue;
-      if (UsersService.isRejectedWithdrawalRefund(r.description, r.category))
-        continue;
-      if (
-        UsersService.isNonRublesRefund(
-          r.description,
-          r.category,
-          r.tournamentId,
-        )
-      )
-        continue;
-      total += r.category === 'convert' ? -Number(r.amount) : Number(r.amount);
-    }
-    return total;
+    return computed.rubles + computed.pendingWithdrawals;
   }
 
   /**
@@ -246,53 +221,29 @@ export class UsersService implements OnModuleInit {
    * Не учитываются: topup, withdraw, admin_credit (рубли).
    */
   async getBalanceLFromTransactions(userId: number): Promise<number> {
-    const rows = (await this.dataSource.query(
-      `SELECT category, amount, description, "tournamentId" FROM "transaction"
-       WHERE "userId" = $1 AND category IN ('win','loss','referral','other','convert','refund')`,
-      [userId],
-    )) as {
-      category: string;
-      amount: number;
-      description: string | null;
-      tournamentId: number | null;
-    }[];
-    const list = Array.isArray(rows) ? rows : [];
-    let total = 0;
-    for (const r of list) {
-      const parsedAdminTopup = UsersService.parseAdminTopupDescription(
-        r.description,
+    const computed =
+      await this.userBalanceLedgerService.getComputedBalanceStateForUser(
+        userId,
       );
-      if (r.category === 'other' && parsedAdminTopup.adminId != null) continue;
-      if (UsersService.isRejectedWithdrawalRefund(r.description, r.category))
-        continue;
-      if (
-        r.category === 'refund' &&
-        !UsersService.isNonRublesRefund(
-          r.description,
-          r.category,
-          r.tournamentId,
-        )
-      )
-        continue;
-      total += Number(r.amount);
-    }
-    return Math.max(0, total);
+    return computed.balanceL;
   }
 
   /** Сумма заявок на вывод в статусе pending (уже снята с баланса, но транзакция withdraw ещё не создана). */
   async getPendingWithdrawalSum(userId: number): Promise<number> {
-    const rows = await this.dataSource.query(
-      'SELECT COALESCE(SUM(amount), 0) AS total FROM withdrawal_request WHERE "userId" = $1 AND status = $2',
-      [userId, 'pending'],
-    );
-    return rows?.[0]?.total != null ? Number(rows[0].total) : 0;
+    const computed =
+      await this.userBalanceLedgerService.getComputedBalanceStateForUser(
+        userId,
+      );
+    return computed.pendingWithdrawals;
   }
 
   /** Итоговый доступный баланс в рублях: по транзакциям минус суммы в pending-заявках на вывод. */
   async getComputedBalanceRubles(userId: number): Promise<number> {
-    const fromTx = await this.getBalanceRublesFromTransactions(userId);
-    const pending = await this.getPendingWithdrawalSum(userId);
-    return Math.max(0, fromTx - pending);
+    const computed =
+      await this.userBalanceLedgerService.getComputedBalanceStateForUser(
+        userId,
+      );
+    return computed.rubles;
   }
 
   /** Приводит user.balanceRubles в БД в соответствие с расчётом по транзакциям (и pending-заявкам). */
