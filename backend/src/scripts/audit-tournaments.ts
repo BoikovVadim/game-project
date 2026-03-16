@@ -260,6 +260,7 @@ async function main() {
       });
       const questions = await questionRepo.find({
         where: { tournament: { id: In(progressTournamentIds) } },
+        relations: ['tournament'],
         order: { roundIndex: 'ASC', id: 'ASC' },
       });
       const tournamentById = new Map(

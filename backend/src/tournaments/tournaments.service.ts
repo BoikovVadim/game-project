@@ -1373,6 +1373,7 @@ export class TournamentsService implements OnModuleInit {
     });
     const questions = await this.questionRepository.find({
       where: { tournament: { id: In(tournamentIds) } },
+      relations: ['tournament'],
       order: { roundIndex: 'ASC', id: 'ASC' },
     });
     const tournamentById = new Map(tournaments.map((tournament) => [tournament.id, tournament]));
