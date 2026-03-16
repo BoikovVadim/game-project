@@ -13,12 +13,16 @@ type ApprovedWithdrawalRow = {
   id: number;
   userId: number;
   amount: number | string;
+  createdAt: string | Date;
+  processedAt: string | Date | null;
 };
 
 type WithdrawTxRow = {
   id: number;
   userId: number;
+  amount: number | string;
   description: string | null;
+  createdAt: string | Date;
 };
 
 type MissingWinRow = {
@@ -44,6 +48,47 @@ type UnfinishedTournamentWithResultRow = {
   tournamentId: number;
 };
 
+function toMillis(value: string | Date | null | undefined): number | null {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.getTime();
+}
+
+function getDuplicateApprovedWithdrawTxIdsToDelete(
+  withdrawal: ApprovedWithdrawalRow,
+  rows: WithdrawTxRow[],
+): number[] {
+  if (rows.length <= 1) return [];
+
+  const expectedUserId = Number(withdrawal.userId);
+  const expectedAmount = -Math.abs(Number(withdrawal.amount));
+  const normalizedRows = rows.map((row) => ({
+    ...row,
+    userId: Number(row.userId),
+    amount: Number(row.amount),
+    createdAtMs: toMillis(row.createdAt),
+  }));
+
+  const allRowsMatchRequest = normalizedRows.every(
+    (row) =>
+      row.userId === expectedUserId &&
+      Math.abs(row.amount - expectedAmount) < 0.01,
+  );
+  if (!allRowsMatchRequest) return [];
+
+  const targetTimeMs =
+    toMillis(withdrawal.processedAt) ?? toMillis(withdrawal.createdAt) ?? 0;
+  const sorted = [...normalizedRows].sort((left, right) => {
+    const leftDistance = Math.abs((left.createdAtMs ?? 0) - targetTimeMs);
+    const rightDistance = Math.abs((right.createdAtMs ?? 0) - targetTimeMs);
+    if (leftDistance !== rightDistance) return leftDistance - rightDistance;
+    return left.id - right.id;
+  });
+
+  return sorted.slice(1).map((row) => Number(row.id));
+}
+
 async function main() {
   const app = await NestFactory.createApplicationContext(AppModule, {
     logger: false,
@@ -57,23 +102,26 @@ async function main() {
     await usersService.normalizeRefundDescriptions();
     const adminCreditResult =
       await usersService.normalizeLegacyAdminCreditTransactions();
-    const paymentRepairResult = await usersService.repairPaymentTopupTransactions();
+    const paymentRepairResult =
+      await usersService.repairPaymentTopupTransactions();
 
     const approvedWithdrawals = (await dataSource.query(
-      `SELECT id, "userId", amount
+      `SELECT id, "userId", amount, "createdAt", "processedAt"
        FROM withdrawal_request
        WHERE status = 'approved'
        ORDER BY id ASC`,
     )) as ApprovedWithdrawalRow[];
     const withdrawTxRows = (await dataSource.query(
-      `SELECT id, "userId", description
+      `SELECT id, "userId", amount, description, "createdAt"
        FROM "transaction"
        WHERE category = 'withdraw'
        ORDER BY id ASC`,
     )) as WithdrawTxRow[];
     const withdrawTxByRequestId = new Map<number, WithdrawTxRow[]>();
     for (const row of withdrawTxRows) {
-      const requestId = parseAnyWithdrawalDescription(row.description).requestId;
+      const requestId = parseAnyWithdrawalDescription(
+        row.description,
+      ).requestId;
       if (requestId == null) continue;
       const list = withdrawTxByRequestId.get(requestId) ?? [];
       list.push(row);
@@ -96,6 +144,13 @@ async function main() {
           expectedDescription,
         }));
     });
+    const duplicateApprovedWithdrawTxIdsToDelete = approvedWithdrawals.flatMap(
+      (row) =>
+        getDuplicateApprovedWithdrawTxIdsToDelete(
+          row,
+          withdrawTxByRequestId.get(Number(row.id)) ?? [],
+        ),
+    );
 
     const finishedMoneyTournaments = (await dataSource.query(
       `SELECT id
@@ -106,7 +161,9 @@ async function main() {
     )) as FinishedMoneyTournamentRow[];
     const settlementByTournamentId = new Map<
       number,
-      Awaited<ReturnType<TournamentsService['getMoneyTournamentSettlementResolution']>>
+      Awaited<
+        ReturnType<TournamentsService['getMoneyTournamentSettlementResolution']>
+      >
     >();
     for (const tournament of finishedMoneyTournaments) {
       settlementByTournamentId.set(
@@ -117,8 +174,9 @@ async function main() {
       );
     }
 
-    const missingWins = ((await dataSource.query(
-      `SELECT r."tournamentId" AS "tournamentId",
+    const missingWins = (
+      (await dataSource.query(
+        `SELECT r."tournamentId" AS "tournamentId",
               r."userId" AS "userId",
               t."leagueAmount" AS "leagueAmount"
        FROM tournament_result r
@@ -140,7 +198,8 @@ async function main() {
            WHERE r2."tournamentId" = r."tournamentId" AND r2.passed = 1
          )
        ORDER BY r."tournamentId" ASC`,
-    )) as MissingWinRow[]).filter((row) => {
+      )) as MissingWinRow[]
+    ).filter((row) => {
       const settlement = settlementByTournamentId.get(Number(row.tournamentId));
       return (
         settlement?.settlementType === 'paid_to_winner' &&
@@ -162,9 +221,8 @@ async function main() {
           settlementByTournamentId.get(tournamentId)?.settlementType ===
           'forfeited',
       );
-    const waitingSinglePlayerArtifactTournaments = (
-      await dataSource.query(
-        `SELECT t.id AS "tournamentId"
+    const waitingSinglePlayerArtifactTournaments = (await dataSource.query(
+      `SELECT t.id AS "tournamentId"
          FROM tournament t
          LEFT JOIN tournament_escrow e ON e."tournamentId" = t.id
          LEFT JOIN "transaction" tx
@@ -179,17 +237,14 @@ async function main() {
              OR COUNT(*) FILTER (WHERE tx.id IS NOT NULL) > 0
              OR COUNT(*) FILTER (WHERE r.id IS NOT NULL) > 0
          ORDER BY t.id ASC`,
-      )
-    ) as WaitingSinglePlayerArtifactRow[];
-    const unfinishedTournamentsWithResultRows = (
-      await dataSource.query(
-        `SELECT DISTINCT t.id AS "tournamentId"
+    )) as WaitingSinglePlayerArtifactRow[];
+    const unfinishedTournamentsWithResultRows = (await dataSource.query(
+      `SELECT DISTINCT t.id AS "tournamentId"
          FROM tournament t
          INNER JOIN tournament_result r ON r."tournamentId" = t.id
          WHERE t.status <> 'finished'
          ORDER BY t.id ASC`,
-      )
-    ) as UnfinishedTournamentWithResultRow[];
+    )) as UnfinishedTournamentWithResultRow[];
 
     const affectedUserIds = new Set<number>([
       ...adminCreditResult.affectedUserIds,
@@ -197,7 +252,9 @@ async function main() {
     ]);
     const insertedWithdrawalTxIds: number[] = [];
     const normalizedWithdrawalTxIds: number[] = [];
-    const insertedWinTxRefs: Array<{ userId: number; tournamentId: number }> = [];
+    const deletedDuplicateWithdrawTxIds: number[] = [];
+    const insertedWinTxRefs: Array<{ userId: number; tournamentId: number }> =
+      [];
     const reopenedTournamentIds: number[] = [];
     const restoredEscrowTournamentIds: number[] = [];
     const deletedSettlementTxIds: number[] = [];
@@ -215,6 +272,20 @@ async function main() {
           [tx.expectedDescription, tx.transactionId],
         );
         normalizedWithdrawalTxIds.push(tx.transactionId);
+      }
+
+      for (const txId of duplicateApprovedWithdrawTxIdsToDelete) {
+        const deletedRows = (await manager.query(
+          `DELETE FROM "transaction"
+           WHERE id = $1
+             AND category = 'withdraw'
+           RETURNING id, "userId"`,
+          [txId],
+        )) as Array<{ id: number; userId: number }>;
+        for (const row of deletedRows) {
+          deletedDuplicateWithdrawTxIds.push(Number(row.id));
+          affectedUserIds.add(Number(row.userId));
+        }
       }
 
       for (const request of missingApprovedWithdrawals) {
@@ -418,7 +489,9 @@ async function main() {
              AND e.status IN ('held', 'processing')
          )
        ORDER BY t.id ASC`,
-    )) as Array<FinishedTournamentSettlementRow & { settlementType: string | null }>;
+    )) as Array<
+      FinishedTournamentSettlementRow & { settlementType: string | null }
+    >;
 
     let settledEscrowRows = 0;
     await dataSource.transaction(async (manager) => {
@@ -465,6 +538,10 @@ async function main() {
     console.log(
       '[repair-finance-ledger] inserted approved withdrawal tx:',
       insertedWithdrawalTxIds.length,
+    );
+    console.log(
+      '[repair-finance-ledger] deleted duplicate withdraw tx:',
+      deletedDuplicateWithdrawTxIds.length,
     );
     console.log(
       '[repair-finance-ledger] inserted missing win tx:',

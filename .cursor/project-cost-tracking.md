@@ -1,7 +1,26 @@
-922859.13
-За сегодня (2026-03-16): 15 833,32 ₽
+924592.46
+За сегодня (2026-03-16): 17 566,65 ₽
 
 # Последние изменения. Формат записи: YYYY-MM-DD HH:MM | Z ₽ | оплачиваемое время | описание. Если у задачи есть клиентская разбивка, она идёт отдельным списком ниже. Внутренние расчёты и ретроспектива на сайт не выводятся.
+
+2026-03-16 05:59 | 1 733,33 ₽ | 52 мин | Finance/data-fix+duplicate-withdraw-retrofix+deploy: закрыт следующий manual-review хвост в finance audit. До фикса по `requestId 9/10/11/12` существовало по две `withdraw`-транзакции: канонические `20/22/24/38`, совпадающие по времени с `processedAt`, и поздние артефакты `45/46/47/48`, созданные массовым repair-запуском. В `repair-finance-ledger` добавлено безопасное правило: для approved withdrawal с несколькими одинаковыми tx удалять только те дубли, где все записи совпадают по `userId` и сумме, а канонической считать tx, ближайшую к `processedAt` (или `createdAt`) заявки. Локально подтверждены `SELECT before/after` по id `20/22/24/38/45/46/47/48`, `fix:finance-ledger`, post-audit `Deterministic issues: 0`, `duplicate_withdraw_tx` исчез из manual-review, а остаток audit сузился до `legacy_topup_ambiguous = 7` и `swap_id_inconsistency = 2`.
+
+Разбивка:
+
+- Погружение: 8 мин.
+- Проектирование: 5 мин.
+- Реализация: 8 мин.
+- Cleanup: 2 мин.
+- Проверка: 11 мин.
+- Delivery: 6 мин.
+
+Ретроспектива:
+
+- Базовое время: 40 мин.
+- Коэффициент: 1.30
+- Оплачиваемое время: 52 мин.
+- Ставка: 2000 ₽ / час.
+- Формула: 52 мин × 2000 ₽ / 60 мин = 1 733,33 ₽.
 
 2026-03-16 05:47 | 1 300,00 ₽ | 39 мин | Finance/data-fix+deterministic-ledger-retrofix+deploy: закрыта детерминированная часть finance audit без смены domain-логики. До retrofix `audit:finance-ledger` показывал `4` deterministic issues: `2` кейса `convert_without_sufficient_ledger_balance` у `user 1` и `2` кейса `stored_vs_ledger_mismatch` у `user 2/3`. Канонический maintenance-path уже существовал в `fix:manual-finance-cases`: он добавил `user 1` recovery-opening balance, нормализовал legacy convert amounts/descriptions и пересчитал `user 2`; затем отдельным каноническим `reconcileAllStoredBalances([3])` закрыт остаточный drift у `user 3` (`1095/1000` -> `95/0`). Финальный post-audit подтвердил `Deterministic issues: 0`, при этом manual-review хвосты сознательно оставлены отдельным блоком (`duplicate_withdraw_tx = 4`, `legacy_topup_ambiguous = 7`, `swap_id_inconsistency = 2`).
 
