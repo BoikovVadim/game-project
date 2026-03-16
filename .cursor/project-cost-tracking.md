@@ -1,7 +1,24 @@
-907025.81
-За сегодня (2026-03-15): 133 168,56 ₽
+910925.81
+За сегодня (2026-03-15): 137 068,56 ₽
 
 # Последние изменения. Формат записи: YYYY-MM-DD HH:MM | Z ₽ | оплачиваемое время | описание. Если у задачи есть клиентская разбивка, она идёт отдельным списком ниже. Внутренние расчёты и ретроспектива на сайт не выводятся.
+2026-03-16 03:23 | 3 900,00 ₽ | 1 ч 57 мин | Турниры/backend+prod-retrofix+global-correct-count-audit+deploy: по кейсу `турнир 10 / игрок 5` закрыт split source of truth между внешним счётчиком этапа и review-модалкой. Канонический пересчёт `correctAnswersCount/semiFinalCorrectCount` вынесен в общий helper по реальному пути игрока с учётом только фактически сыгранных tie-breaker раундов, `repairTournamentConsistency` теперь массово пересчитывает stale progress aggregates, а `audit-tournaments` детерминированно ловит такие рассинхроны по всем турнирам. На production initial audit нашёл `4` count-mismatch кейса (`T32/u2`, `T32/u4`, `T10/u5`, `T45/u4`); после normalizing dirty `playerOrder` выяснилось, что `T32/u2` был false positive, а production repair пересчитал `3` реальные stale записи. Финальный production audit вернул `totalIssueCount = 0`, public health-check `https://legendgames.space/api/health = 200`, а у `T10/u5` внешний `correctAnswersInRound` теперь совпадает с review-модалкой: `5`.
+
+Разбивка:
+- Погружение: 14 мин.
+- Проектирование: 8 мин.
+- Реализация: 20 мин.
+- Cleanup: 6 мин.
+- Проверка: 20 мин.
+- Delivery: 22 мин.
+
+Ретроспектива:
+- Базовое время: 90 мин.
+- Коэффициент: 1.30
+- Оплачиваемое время: 1 ч 57 мин.
+- Ставка: 2000 ₽ / час.
+- Формула: 117 мин × 2000 ₽ / 60 мин = 3 900,00 ₽.
+
 2026-03-15 19:25 | 2 166,67 ₽ | 1 ч 5 мин | Турниры/backend+prod-audit-repair-hardening+deploy: после массовой проверки выяснилось, что глобально логика финального продолжения уже лучше, но production всё ещё содержал хвосты `unfinished_with_results`, включая `T16`. `repairTournamentConsistency` усилен двумя каноническими шагами: теперь он добирает resolved brackets не только среди `finished`, но и среди `active/waiting`, а оставшиеся `tournament_result` у незавершённых турниров удаляет как stale-артефакты. Локально подтверждены `verify:tournaments` и `repair:tournaments -> audit = 0`; на production после двух последовательных repair-проходов удалены `4` stale result rows, итоговый `audit-tournaments` вернул `totalIssueCount = 0`, а public health-check `https://legendgames.space/api/health = 200`.
 
 Разбивка:
