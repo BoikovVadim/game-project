@@ -13,8 +13,12 @@ alwaysApply: true
 
 1. Проверь не только место правки, но и соседние helper-ы, дубли типов, parallel read/write paths, fallback-ветки и UI/API места, которые читают ту же логику.
 2. Убери мёртвые импорты, временные переменные, старые helper-ы, локальные костыли и дубли, если они уже стали лишними после правки.
-3. Убедись, что изменение не ломает архитектурные инварианты проекта: source of truth, read-only GET, URL-state, machine-readable contracts, общую турнирную логику и data-fix порядок.
-4. Подтверди результат evidence-проверкой по типу задачи: build, tests, smoke, runtime-check, URL/F5/back-forward или целевой endpoint-check.
+3. Любое удаление file/helper/ветки считать безопасным только после evidence: нет импортов/вызовов/конфиг-ссылок и есть релевантный build/runtime-check.
+4. При `extract`, `rename`, `move`, `merge duplicates` проверь все call-sites и не оставляй второй скрытый source of truth.
+5. Убедись, что изменение не ломает архитектурные инварианты проекта: source of truth, read-only GET, URL-state, machine-readable contracts, общую турнирную логику и data-fix порядок.
+6. Не раздувай локальный refactor-pass в полпроекта. Если чистое решение требует несмежных слоёв или нескольких архитектурных вариантов, остановись и переходи в plan.
+7. Для optimization нельзя заявлять улучшение без измеримого evidence: latency, query count, build time, bundle size, render count, memory или другой целевой before/after сигнал.
+8. Подтверди результат evidence-проверкой по типу задачи: build, tests, smoke, runtime-check, URL/F5/back-forward или целевой endpoint-check.
 
 ## 2. Полный refactor-pass по проекту
 
@@ -33,4 +37,12 @@ alwaysApply: true
 5. Tests, CI, smoke, vulnerabilities, runtime/deploy риски.
 6. Data drift и необходимость ретрофикса существующих записей.
 
-Полный refactor-pass считается завершённым только если найдены и классифицированы риски, безопасные cleanup-правки внесены, опасные зоны явно перечислены, а результат подтверждён verification evidence, а не только поиском по коду.
+Перед полным refactor-pass сначала переходи в plan, если есть несколько валидных путей, большой scope или заметный архитектурный риск.
+
+Полный refactor-pass считается завершённым только если:
+
+1. Найдены и классифицированы риски.
+2. Безопасные cleanup-правки внесены сразу.
+3. Опасные зоны явно вынесены в `safe now` и `risky later`.
+4. Data-fix/retrofix необходимость отдельно названа, если код и данные уже разошлись.
+5. Результат подтверждён verification evidence, а не только поиском по коду.
