@@ -11,8 +11,8 @@ import { Cache } from 'cache-manager';
 import { DataSource, Repository } from 'typeorm';
 import { User } from '../users/user.entity';
 import { WithdrawalRequest } from '../users/withdrawal-request.entity';
-import { Transaction } from '../users/transaction.entity';
 import { UsersService } from '../users/users.service';
+import { UserWithdrawalService } from '../users/user-withdrawal.service';
 import { parsePaymentTopupDescription } from '../users/ruble-ledger-descriptions';
 import { TournamentsService } from '../tournaments/tournaments.service';
 import { JwtService } from '@nestjs/jwt';
@@ -111,7 +111,9 @@ function buildContinuousPeriods(
 
   if (groupBy === 'day') {
     const start = parseDayPeriod(uniquePeriods[0] ?? '') ?? new Date();
-    const end = parseDayPeriod(uniquePeriods[uniquePeriods.length - 1] ?? '') ?? new Date();
+    const end =
+      parseDayPeriod(uniquePeriods[uniquePeriods.length - 1] ?? '') ??
+      new Date();
     const current = parseDayPeriod(formatUtcDay(now)) ?? now;
     const cursor = new Date(start > current ? current : start);
     const limit = end > current ? end : current;
@@ -125,7 +127,9 @@ function buildContinuousPeriods(
 
   if (groupBy === 'week') {
     const start = parseWeekPeriod(uniquePeriods[0] ?? '') ?? new Date();
-    const end = parseWeekPeriod(uniquePeriods[uniquePeriods.length - 1] ?? '') ?? new Date();
+    const end =
+      parseWeekPeriod(uniquePeriods[uniquePeriods.length - 1] ?? '') ??
+      new Date();
     const current = parseWeekPeriod(getUtcIsoWeek(now)) ?? now;
     const cursor = new Date(start > current ? current : start);
     const limit = end > current ? end : current;
@@ -138,7 +142,9 @@ function buildContinuousPeriods(
   }
 
   const start = parseMonthPeriod(uniquePeriods[0] ?? '') ?? new Date();
-  const end = parseMonthPeriod(uniquePeriods[uniquePeriods.length - 1] ?? '') ?? new Date();
+  const end =
+    parseMonthPeriod(uniquePeriods[uniquePeriods.length - 1] ?? '') ??
+    new Date();
   const current = parseMonthPeriod(formatUtcMonth(now)) ?? now;
   const cursor = new Date(start > current ? current : start);
   cursor.setUTCDate(1);
@@ -160,6 +166,7 @@ export class AdminService {
     @InjectRepository(WithdrawalRequest)
     private readonly withdrawalRepository: Repository<WithdrawalRequest>,
     private readonly usersService: UsersService,
+    private readonly userWithdrawalService: UserWithdrawalService,
     private readonly tournamentsService: TournamentsService,
     private readonly jwtService: JwtService,
     private readonly dataSource: DataSource,
@@ -278,31 +285,11 @@ export class AdminService {
     adminId: number,
     comment?: string,
   ): Promise<WithdrawalRequest> {
-    return this.dataSource.transaction(async (manager) => {
-      const req = await manager
-        .createQueryBuilder(WithdrawalRequest, 'wr')
-        .setLock('pessimistic_write')
-        .where('wr.id = :requestId', { requestId })
-        .getOne();
-      if (!req) throw new NotFoundException('Заявка не найдена');
-      if (req.status !== 'pending')
-        throw new BadRequestException('Заявка уже обработана');
-
-      const amount = Number(req.amount);
-      await this.usersService.addTransactionWithManager(
-        manager,
-        req.userId,
-        -amount,
-        UsersService.buildApprovedWithdrawalDescription(requestId),
-        'withdraw',
-      );
-
-      req.status = 'approved';
-      req.adminComment = comment || null;
-      req.processedByAdminId = adminId;
-      req.processedAt = new Date();
-      return manager.save(req);
-    });
+    return this.userWithdrawalService.approveWithdrawal(
+      requestId,
+      adminId,
+      comment,
+    );
   }
 
   /** Отклонить заявку: вернуть сумму на баланс (без записи транзакции — деньги формально оставались у игрока, только были заблокированы). */
@@ -311,33 +298,11 @@ export class AdminService {
     adminId: number,
     comment?: string,
   ): Promise<WithdrawalRequest> {
-    return this.dataSource.transaction(async (manager) => {
-      const req = await manager
-        .createQueryBuilder(WithdrawalRequest, 'wr')
-        .setLock('pessimistic_write')
-        .where('wr.id = :requestId', { requestId })
-        .getOne();
-      if (!req) throw new NotFoundException('Заявка не найдена');
-      if (req.status !== 'pending')
-        throw new BadRequestException('Заявка уже обработана');
-
-      const user = await manager
-        .createQueryBuilder(User, 'user')
-        .setLock('pessimistic_write')
-        .where('user.id = :userId', { userId: req.userId })
-        .getOne();
-      if (!user) throw new NotFoundException('User not found');
-
-      const amount = Number(req.amount);
-      user.balanceRubles = Number(user.balanceRubles ?? 0) + amount;
-      await manager.save(user);
-
-      req.status = 'rejected';
-      req.adminComment = comment || null;
-      req.processedByAdminId = adminId;
-      req.processedAt = new Date();
-      return manager.save(req);
-    });
+    return this.userWithdrawalService.rejectWithdrawal(
+      requestId,
+      adminId,
+      comment,
+    );
   }
 
   /** Список пользователей (кратко) — через то же подключение TypeORM, что и всё приложение */
@@ -381,10 +346,11 @@ export class AdminService {
       console.error('[AdminService.getUsers] query error', e);
       return [];
     }
-    const userIds = (raw || []).map((u: any) => Number(u.id)).filter((id: number) => id > 0);
-    const balanceMaps = await this.usersService.getComputedBalanceMapsForUsers(
-      userIds,
-    );
+    const userIds = (raw || [])
+      .map((u: any) => Number(u.id))
+      .filter((id: number) => id > 0);
+    const balanceMaps =
+      await this.usersService.getComputedBalanceMapsForUsers(userIds);
     return (raw || []).map((u: any) => ({
       id: Number(u.id),
       username: String(u.username ?? ''),
@@ -503,9 +469,8 @@ export class AdminService {
         .map((r: any) => {
           const description = String(r.description ?? '').trim();
           const category = String(r.category ?? '');
-          const parsedTopup = UsersService.parseAdminTopupDescription(
-            description,
-          );
+          const parsedTopup =
+            UsersService.parseAdminTopupDescription(description);
           const parsedPaymentTopup = parsePaymentTopupDescription(description);
           const isLegacyManualTopup =
             (category === 'topup' || category === 'other') &&

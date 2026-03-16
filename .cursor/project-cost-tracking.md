@@ -1,7 +1,26 @@
-926759.13
-За сегодня (2026-03-16): 19 733,32 ₽
+928525.80
+За сегодня (2026-03-16): 21 499,99 ₽
 
 # Последние изменения. Формат записи: YYYY-MM-DD HH:MM | Z ₽ | оплачиваемое время | описание. Если у задачи есть клиентская разбивка, она идёт отдельным списком ниже. Внутренние расчёты и ретроспектива на сайт не выводятся.
+
+2026-03-16 06:58 | 1 766,67 ₽ | 53 мин | Finance/risky-wave-next-cut+withdrawal-flow-service-extraction+deploy: выполнен следующий controlled refactor-cut в finance без смены публичных контрактов. User/admin withdrawal flow собран в новый `UserWithdrawalService`: туда вынесены создание заявки, список заявок пользователя, approve/reject и внутренний hold/restore баланс-path, а `UsersService` и `AdminService` оставлены façade-слоем для контроллеров и существующих call-sites. Локально подтверждены `lint:backend`, `test:backend`, `build:backend`, чистый restart `npm run dev:live` после backend-правок и `localhost:3001/api/health = 200`; после commit/push выполняется production deploy и health-check.
+
+Разбивка:
+
+- Погружение: 8 мин.
+- Проектирование: 6 мин.
+- Реализация: 9 мин.
+- Cleanup: 4 мин.
+- Проверка: 12 мин.
+- Delivery: 7 мин.
+
+Ретроспектива:
+
+- Базовое время: 46 мин.
+- Коэффициент: 1.15
+- Оплачиваемое время: 53 мин.
+- Ставка: 2000 ₽ / час.
+- Формула: 53 мин × 2000 ₽ / 60 мин = 1 766,67 ₽.
 
 2026-03-16 06:18 | 1 366,67 ₽ | 41 мин | Finance/risky-wave-next-cut+ruble-topup-service-extraction+deploy: после стабилизации finance audit сделан следующий controlled refactor-cut без смены внешних контрактов. Из `UsersService` вынесены ruble topup command/maintenance paths в новый `UserRubleTopupService`: туда переехали `addToBalance`, `addManualAdminTopup`, `creditRublesWithManager`, `normalizeLegacyAdminCreditTransactions` и `repairPaymentTopupTransactions`, а `UsersService` остался façade с делегацией для controller/admin/scripts. Локально подтверждены `lint:backend`, `test:backend`, `build:backend`, runtime smoke вызовов `normalizeLegacyAdminCreditTransactions()` и `repairPaymentTopupTransactions()` через `UsersService` (оба вернули no-op на чистых данных), а также `localhost:3001/api/health = 200`.
 

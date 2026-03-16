@@ -53,7 +53,6 @@ import {
   type UserTransactionDto,
   type UserWithdrawalRequestDto,
   toUserTransactionDto,
-  toUserWithdrawalRequestDto,
 } from './dto/users-read.dto';
 import {
   buildTransactionHistoryWithBalances,
@@ -65,6 +64,7 @@ import {
   type ComputedBalanceMaps,
 } from './user-balance-ledger.service';
 import { UserRubleTopupService } from './user-ruble-topup.service';
+import { UserWithdrawalService } from './user-withdrawal.service';
 
 @Injectable()
 export class UsersService implements OnModuleInit {
@@ -73,11 +73,10 @@ export class UsersService implements OnModuleInit {
     private readonly userRepository: Repository<User>,
     @InjectRepository(Transaction)
     private readonly transactionRepository: Repository<Transaction>,
-    @InjectRepository(WithdrawalRequest)
-    private readonly withdrawalRepository: Repository<WithdrawalRequest>,
     private readonly dataSource: DataSource,
     private readonly userBalanceLedgerService: UserBalanceLedgerService,
     private readonly userRubleTopupService: UserRubleTopupService,
+    private readonly userWithdrawalService: UserWithdrawalService,
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
   ) {}
 
@@ -827,133 +826,24 @@ export class UsersService implements OnModuleInit {
     });
   }
 
-  /** Списывает рубли с баланса в рублях (вывод средств) и создаёт транзакцию. Атомарно через DB-транзакцию. */
-  async deductBalanceRubles(
-    userId: number,
-    amount: number,
-    description: string,
-  ): Promise<User> {
-    if (amount <= 0)
-      throw new BadRequestException('Сумма должна быть положительной');
-    return this.dataSource.transaction(async (manager) => {
-      const user = await this.getLockedUser(manager, userId);
-      const rubles = Number(user.balanceRubles ?? 0);
-      if (rubles < amount)
-        throw new BadRequestException(
-          'Недостаточно средств на балансе в рублях',
-        );
-      user.balanceRubles = rubles - amount;
-      await manager.save(user);
-      const tx = manager.create(Transaction, {
-        userId,
-        amount: -amount,
-        description,
-        category: 'withdraw',
-      });
-      await manager.save(tx);
-      return user;
-    });
-  }
-
-  /** Снять рубли с баланса без записи транзакции (резерв при подаче заявки на вывод). */
-  async deductBalanceRublesHold(userId: number, amount: number): Promise<void> {
-    if (amount <= 0)
-      throw new BadRequestException('Сумма должна быть положительной');
-    await this.dataSource.transaction(async (manager) => {
-      const user = await this.getLockedUser(manager, userId);
-      const rubles = Number(user.balanceRubles ?? 0);
-      if (rubles < amount)
-        throw new BadRequestException(
-          'Недостаточно средств на балансе в рублях',
-        );
-      user.balanceRubles = rubles - amount;
-      await manager.save(user);
-    });
-  }
-
-  /** Вернуть рубли на баланс и записать транзакцию (для реальных возвратов, не при отклонении заявки на вывод). */
-  async refundBalanceRubles(
-    userId: number,
-    amount: number,
-    description: string,
-  ): Promise<User> {
-    if (amount <= 0)
-      throw new BadRequestException('Сумма должна быть положительной');
-    return this.dataSource.transaction(async (manager) => {
-      const user = await this.getLockedUser(manager, userId);
-      user.balanceRubles = Number(user.balanceRubles ?? 0) + amount;
-      await manager.save(user);
-      await this.addTransactionWithManager(
-        manager,
-        userId,
-        amount,
-        description,
-        'refund',
-      );
-      return user;
-    });
-  }
-
-  /** Вернуть рубли на баланс после отклонения заявки на вывод — без записи транзакции (деньги формально оставались у игрока, только были заблокированы). */
-  async restoreBalanceRublesAfterRejectedWithdrawal(
-    userId: number,
-    amount: number,
-  ): Promise<User> {
-    if (amount <= 0)
-      throw new BadRequestException('Сумма должна быть положительной');
-    return this.dataSource.transaction(async (manager) => {
-      const user = await this.getLockedUser(manager, userId);
-      user.balanceRubles = Number(user.balanceRubles ?? 0) + amount;
-      await manager.save(user);
-      return user;
-    });
-  }
-
   /** Создать заявку на вывод средств (рубли). Сумма сразу снимается с баланса (без записи транзакции); при отклонении — возвращается. */
   async createWithdrawalRequest(
     userId: number,
     amount: number,
     details?: string,
   ): Promise<WithdrawalRequest> {
-    const amountNum = Number(amount);
-    if (!amountNum || amountNum < 100)
-      throw new BadRequestException('Минимальная сумма вывода — 100 ₽');
-    const detailsStr = (details?.trim() || '').slice(0, 500);
-    if (!detailsStr)
-      throw new BadRequestException(
-        'Укажите реквизиты для перевода (карта, счёт и т.д.)',
-      );
-    return this.dataSource.transaction(async (manager) => {
-      const user = await this.getLockedUser(manager, userId);
-
-      const rubles = Number(user.balanceRubles ?? 0);
-      if (rubles < amountNum)
-        throw new BadRequestException(
-          'Недостаточно средств на балансе в рублях',
-        );
-
-      user.balanceRubles = rubles - amountNum;
-      await manager.save(user);
-
-      const req = manager.create(WithdrawalRequest, {
-        userId,
-        amount: amountNum,
-        details: detailsStr,
-        status: 'pending',
-      });
-      return manager.save(req);
-    });
+    return this.userWithdrawalService.createWithdrawalRequest(
+      userId,
+      amount,
+      details,
+    );
   }
 
   /** Список заявок на вывод текущего пользователя (для личного кабинета). */
   async getMyWithdrawalRequests(
     userId: number,
   ): Promise<UserWithdrawalRequestDto[]> {
-    const requests = await this.withdrawalRepository.find({
-      where: { userId },
-      order: { createdAt: 'DESC' },
-    });
-    return requests.map(toUserWithdrawalRequestDto);
+    return this.userWithdrawalService.getMyWithdrawalRequests(userId);
   }
 
   async updateBalance(userId: number, newBalance: number) {
