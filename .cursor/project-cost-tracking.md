@@ -1,7 +1,26 @@
-925392.46
-За сегодня (2026-03-16): 18 366,65 ₽
+926759.13
+За сегодня (2026-03-16): 19 733,32 ₽
 
 # Последние изменения. Формат записи: YYYY-MM-DD HH:MM | Z ₽ | оплачиваемое время | описание. Если у задачи есть клиентская разбивка, она идёт отдельным списком ниже. Внутренние расчёты и ретроспектива на сайт не выводятся.
+
+2026-03-16 06:18 | 1 366,67 ₽ | 41 мин | Finance/risky-wave-next-cut+ruble-topup-service-extraction+deploy: после стабилизации finance audit сделан следующий controlled refactor-cut без смены внешних контрактов. Из `UsersService` вынесены ruble topup command/maintenance paths в новый `UserRubleTopupService`: туда переехали `addToBalance`, `addManualAdminTopup`, `creditRublesWithManager`, `normalizeLegacyAdminCreditTransactions` и `repairPaymentTopupTransactions`, а `UsersService` остался façade с делегацией для controller/admin/scripts. Локально подтверждены `lint:backend`, `test:backend`, `build:backend`, runtime smoke вызовов `normalizeLegacyAdminCreditTransactions()` и `repairPaymentTopupTransactions()` через `UsersService` (оба вернули no-op на чистых данных), а также `localhost:3001/api/health = 200`.
+
+Разбивка:
+
+- Погружение: 7 мин.
+- Проектирование: 5 мин.
+- Реализация: 7 мин.
+- Cleanup: 3 мин.
+- Проверка: 9 мин.
+- Delivery: 5 мин.
+
+Ретроспектива:
+
+- Базовое время: 36 мин.
+- Коэффициент: 1.15
+- Оплачиваемое время: 41 мин.
+- Ставка: 2000 ₽ / час.
+- Формула: 41 мин × 2000 ₽ / 60 мин = 1 366,67 ₽.
 
 2026-03-16 06:07 | 800,00 ₽ | 24 мин | Finance/audit+rounding-noise-fix+deploy: после production retrofix `duplicate_withdraw_tx` ушёл, но audit всё ещё показывал ложный `stored_vs_ledger_mismatch` из-за сравнения сырых float-значений (`51.88` vs `51.879999999999995`). В `audit-finance-ledger` сравнение stored/computed balances переведено на округление до копеек, чтобы audit ловил реальные money-drift кейсы, а не артефакты IEEE-арифметики. Локально подтверждены `build:backend` и post-audit `Deterministic issues: 0`; после выката требуется только финальный production audit без ложного mismatch.
 

@@ -64,6 +64,7 @@ import {
   UserBalanceLedgerService,
   type ComputedBalanceMaps,
 } from './user-balance-ledger.service';
+import { UserRubleTopupService } from './user-ruble-topup.service';
 
 @Injectable()
 export class UsersService implements OnModuleInit {
@@ -76,6 +77,7 @@ export class UsersService implements OnModuleInit {
     private readonly withdrawalRepository: Repository<WithdrawalRequest>,
     private readonly dataSource: DataSource,
     private readonly userBalanceLedgerService: UserBalanceLedgerService,
+    private readonly userRubleTopupService: UserRubleTopupService,
     @Inject(CACHE_MANAGER) private readonly cache: Cache,
   ) {}
 
@@ -681,19 +683,12 @@ export class UsersService implements OnModuleInit {
     amount: number,
     description: string,
   ): Promise<User> {
-    if (amount <= 0)
-      throw new BadRequestException('Сумма должна быть положительной');
-    const user = await this.getLockedUser(manager, userId);
-    user.balanceRubles = Number(user.balanceRubles ?? 0) + amount;
-    await manager.save(user);
-    await this.addTransactionWithManager(
+    return this.userRubleTopupService.creditRublesWithManager(
       manager,
       userId,
       amount,
       description,
-      'topup',
     );
-    return user;
   }
 
   async addManualAdminTopup(
@@ -702,77 +697,19 @@ export class UsersService implements OnModuleInit {
     amount: number,
     comment?: string | null,
   ): Promise<{ success: true; newBalanceRubles: number }> {
-    return this.dataSource.transaction(async (manager) => {
-      const user = await this.creditRublesWithManager(
-        manager,
-        targetUserId,
-        amount,
-        UsersService.buildAdminTopupDescription(adminId, comment),
-      );
-      return {
-        success: true as const,
-        newBalanceRubles: Number(user.balanceRubles ?? 0),
-      };
-    });
+    return this.userRubleTopupService.addManualAdminTopup(
+      adminId,
+      targetUserId,
+      amount,
+      comment,
+    );
   }
 
   async normalizeLegacyAdminCreditTransactions(): Promise<{
     updatedCount: number;
     affectedUserIds: number[];
   }> {
-    const legacyRows = (await this.dataSource.query(
-      `SELECT id, "userId", description, "tournamentId"
-       FROM "transaction"
-       WHERE category = 'admin_credit'
-       ORDER BY id ASC`,
-    )) as {
-      id: number;
-      userId: number;
-      description: string | null;
-      tournamentId: number | null;
-    }[];
-
-    if (legacyRows.length === 0) {
-      return { updatedCount: 0, affectedUserIds: [] };
-    }
-
-    const affectedUserIds = new Set<number>();
-    await this.dataSource.transaction(async (manager) => {
-      for (const row of legacyRows) {
-        const adminId =
-          row.tournamentId != null ? Number(row.tournamentId) : null;
-        const parsed = UsersService.parseAdminTopupDescription(row.description);
-        const legacyComment =
-          (row.description?.trim() || '') === 'Пополнение баланса'
-            ? null
-            : (row.description ?? null);
-        const normalizedDescription =
-          adminId && adminId > 0
-            ? UsersService.buildAdminTopupDescription(
-                adminId,
-                parsed.comment ?? legacyComment,
-              )
-            : row.description?.trim() || 'Пополнение баланса';
-        await manager.query(
-          `UPDATE "transaction"
-           SET category = 'topup',
-               description = $1,
-               "tournamentId" = NULL
-           WHERE id = $2`,
-          [normalizedDescription, row.id],
-        );
-        affectedUserIds.add(Number(row.userId));
-      }
-    });
-
-    for (const userId of affectedUserIds) {
-      await this.reconcileBalanceRubles(userId);
-    }
-
-    return {
-      updatedCount: legacyRows.length,
-      affectedUserIds: Array.from(affectedUserIds),
-    };
+    return this.userRubleTopupService.normalizeLegacyAdminCreditTransactions();
   }
 
   async repairPaymentTopupTransactions(): Promise<{
@@ -780,121 +717,7 @@ export class UsersService implements OnModuleInit {
     normalizedCount: number;
     affectedUserIds: number[];
   }> {
-    const payments = (await this.dataSource.query(
-      `SELECT id, "userId", amount, provider, "externalId", status, "createdAt"
-       FROM payment
-       WHERE status = 'succeeded'
-       ORDER BY id ASC`,
-    )) as {
-      id: number;
-      userId: number;
-      amount: number;
-      provider: 'yookassa' | 'robokassa';
-      externalId: string | null;
-      status: string;
-      createdAt: string | Date;
-    }[];
-
-    if (payments.length === 0) {
-      return { insertedCount: 0, normalizedCount: 0, affectedUserIds: [] };
-    }
-
-    const rows = (await this.dataSource.query(
-      `SELECT id, "userId", amount, category, description, "createdAt"
-       FROM "transaction"
-       WHERE category = 'topup'
-       ORDER BY id ASC`,
-    )) as {
-      id: number;
-      userId: number;
-      amount: number;
-      category: string;
-      description: string | null;
-      createdAt: string | Date;
-    }[];
-
-    const affectedUserIds = new Set<number>();
-    let insertedCount = 0;
-    let normalizedCount = 0;
-
-    const matchedTransactionIds = new Set<number>();
-    await this.dataSource.transaction(async (manager) => {
-      for (const payment of payments) {
-        const structuredDescription = UsersService.buildPaymentTopupDescription(
-          payment.provider,
-          Number(payment.id),
-          payment.externalId,
-        );
-
-        const exactMatch = rows.find((row) => {
-          if (matchedTransactionIds.has(row.id)) return false;
-          const parsed = UsersService.parsePaymentTopupDescription(
-            row.description,
-          );
-          return (
-            parsed.paymentId === Number(payment.id) &&
-            parsed.provider === payment.provider
-          );
-        });
-
-        if (exactMatch) {
-          matchedTransactionIds.add(exactMatch.id);
-          continue;
-        }
-
-        const fuzzyMatch = rows.find((row) => {
-          if (matchedTransactionIds.has(row.id)) return false;
-          if (Number(row.userId) !== Number(payment.userId)) return false;
-          if (Math.abs(Number(row.amount) - Number(payment.amount)) >= 0.01)
-            return false;
-          const desc = String(row.description ?? '').trim();
-          if (!desc) return false;
-          if (UsersService.parseAdminTopupDescription(desc).adminId)
-            return false;
-          const lower = desc.toLowerCase();
-          if (!lower.includes('пополнение')) return false;
-          const txTime = new Date(row.createdAt).getTime();
-          const paymentTime = new Date(payment.createdAt).getTime();
-          return Math.abs(txTime - paymentTime) <= 24 * 60 * 60 * 1000;
-        });
-
-        if (fuzzyMatch) {
-          matchedTransactionIds.add(fuzzyMatch.id);
-          if (
-            String(fuzzyMatch.description ?? '').trim() !==
-            structuredDescription
-          ) {
-            await manager.query(
-              `UPDATE "transaction" SET description = $1 WHERE id = $2`,
-              [structuredDescription, fuzzyMatch.id],
-            );
-            normalizedCount += 1;
-            affectedUserIds.add(Number(payment.userId));
-          }
-          continue;
-        }
-
-        await this.addTransactionWithManager(
-          manager,
-          Number(payment.userId),
-          Number(payment.amount),
-          structuredDescription,
-          'topup',
-        );
-        insertedCount += 1;
-        affectedUserIds.add(Number(payment.userId));
-      }
-    });
-
-    for (const userId of affectedUserIds) {
-      await this.reconcileBalanceRubles(userId);
-    }
-
-    return {
-      insertedCount,
-      normalizedCount,
-      affectedUserIds: Array.from(affectedUserIds),
-    };
+    return this.userRubleTopupService.repairPaymentTopupTransactions();
   }
 
   /** Добавляет сумму на баланс L (для игр) и создаёт транзакцию. Атомарно через DB-транзакцию. */
@@ -929,11 +752,7 @@ export class UsersService implements OnModuleInit {
     amount: number,
     description: string = 'Пополнение баланса',
   ): Promise<User> {
-    if (amount <= 0)
-      throw new BadRequestException('Сумма должна быть положительной');
-    return this.dataSource.transaction((manager) =>
-      this.creditRublesWithManager(manager, userId, amount, description),
-    );
+    return this.userRubleTopupService.addToBalance(userId, amount, description);
   }
 
   /** Конвертирует рубли в L или L в рубли. Атомарно через DB-транзакцию. */
