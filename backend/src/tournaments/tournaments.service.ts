@@ -7702,29 +7702,11 @@ export class TournamentsService implements OnModuleInit {
       const prog0 = progressByUser.get(p0.id);
       const prog1 = progressByUser.get(p1.id);
       const loserIndex = getSemiLoserIndex(slot0 < 2 ? 0 : 1, prog0, prog1);
-      const semiResolved = this.resolveStageTotals(
-        prog0?.questionsAnsweredCount ?? 0,
-        prog0?.semiFinalCorrectCount ?? 0,
-        prog0?.tiebreakerRoundsCorrect,
-        prog1?.questionsAnsweredCount ?? 0,
-        prog1?.semiFinalCorrectCount ?? 0,
-        prog1?.tiebreakerRoundsCorrect,
-        isCompleted,
-      );
-      const sharedAnswered =
-        this.QUESTIONS_PER_ROUND +
-        semiResolved.roundsUsed * this.TIEBREAKER_QUESTIONS;
       const player0 = {
         ...toPlayer(p0, loserIndex === 0),
-        questionsAnswered: sharedAnswered,
-        semiScore: semiResolved.myTotal,
-        correctAnswersCount: semiResolved.myTotal,
       };
       const player1 = {
         ...toPlayer(p1, loserIndex === 1),
-        questionsAnswered: sharedAnswered,
-        semiScore: semiResolved.oppTotal,
-        correctAnswersCount: semiResolved.oppTotal,
       };
       return [player0, player1];
     };
@@ -7855,45 +7837,9 @@ export class TournamentsService implements OnModuleInit {
     if (finalPlayers.length >= 2) {
       const p0 = finalPlayers[0];
       const p1 = finalPlayers[1];
-      const prog0 = p0 ? progressByUser.get(p0.id) : undefined;
-      const prog1 = p1 ? progressByUser.get(p1.id) : undefined;
-      if (p0 && p1 && prog0 && prog1) {
-        const finalResolved = this.resolveStageTotals(
-          Math.max(
-            0,
-            (prog0.questionsAnsweredCount ?? 0) -
-              (this.QUESTIONS_PER_ROUND +
-                (prog0.tiebreakerRoundsCorrect?.length ?? 0) *
-                  this.TIEBREAKER_QUESTIONS),
-          ),
-          this.getFinalStageBaseCorrect(prog0),
-          prog0.finalTiebreakerRoundsCorrect ?? [],
-          Math.max(
-            0,
-            (prog1.questionsAnsweredCount ?? 0) -
-              (this.QUESTIONS_PER_ROUND +
-                (prog1.tiebreakerRoundsCorrect?.length ?? 0) *
-                  this.TIEBREAKER_QUESTIONS),
-          ),
-          this.getFinalStageBaseCorrect(prog1),
-          prog1.finalTiebreakerRoundsCorrect ?? [],
-          isCompleted,
-        );
-        const sharedFinalAnswered =
-          this.QUESTIONS_PER_ROUND +
-          finalResolved.roundsUsed * this.TIEBREAKER_QUESTIONS;
-        finalPlayers[0] = {
-          ...p0,
-          finalAnswered: sharedFinalAnswered,
-          finalScore: finalResolved.myTotal,
-          finalCorrect: finalResolved.myTotal,
-        };
-        finalPlayers[1] = {
-          ...p1,
-          finalAnswered: sharedFinalAnswered,
-          finalScore: finalResolved.oppTotal,
-          finalCorrect: finalResolved.oppTotal,
-        };
+      if (p0 && p1) {
+        finalPlayers[0] = { ...p0 };
+        finalPlayers[1] = { ...p1 };
       }
     }
 
