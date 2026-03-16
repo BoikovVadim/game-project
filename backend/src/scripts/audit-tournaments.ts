@@ -293,6 +293,12 @@ async function main() {
         const recomputed = computeCorrectCountsFromQuestions({
           answersChosen,
           semiRoundIndex,
+          questionsAnsweredCount:
+            progress.questionsAnsweredCount ?? answersChosen.length,
+          semiTiebreakerRoundCount:
+            progress.tiebreakerRoundsCorrect?.length ?? 0,
+          finalTiebreakerRoundCount:
+            progress.finalTiebreakerRoundsCorrect?.length ?? 0,
           questions: tournamentQuestions.map((question) => ({
             roundIndex: question.roundIndex,
             correctAnswer: question.correctAnswer,

@@ -1,3 +1,5 @@
+import { QUESTIONS_PER_ROUND, TIEBREAKER_QUESTIONS } from './constants';
+
 export type ProgressQuestion = {
   roundIndex: number;
   correctAnswer: number;
@@ -33,30 +35,106 @@ export function computeCorrectCountsFromQuestions(args: {
   answersChosen: number[];
   questions: ProgressQuestion[];
   semiRoundIndex: number;
+  questionsAnsweredCount?: number;
+  semiTiebreakerRoundCount?: number;
+  finalTiebreakerRoundCount?: number;
 }): { total: number; semi: number } {
-  const { answersChosen, questions, semiRoundIndex } = args;
+  const {
+    answersChosen,
+    questions,
+    semiRoundIndex,
+    questionsAnsweredCount,
+    semiTiebreakerRoundCount = 0,
+    finalTiebreakerRoundCount = 0,
+  } = args;
   if (answersChosen.length === 0 || questions.length === 0) {
     return { total: 0, semi: 0 };
   }
+  const answeredCount = Math.max(
+    answersChosen.length,
+    questionsAnsweredCount ?? 0,
+  );
 
   const semiQuestions = questions.filter(
     (question) => question.roundIndex === semiRoundIndex,
   );
-  const semiTiebreakerQuestions = questions
+  const semiTiebreakerQuestionsByRound = questions
     .filter((question) => question.roundIndex >= 3 && question.roundIndex < 100)
-    .sort((left, right) => left.roundIndex - right.roundIndex);
+    .reduce<Map<number, ProgressQuestion[]>>((map, question) => {
+      const bucket = map.get(question.roundIndex) ?? [];
+      bucket.push(question);
+      map.set(question.roundIndex, bucket);
+      return map;
+    }, new Map());
   const finalQuestions = questions
     .filter((question) => question.roundIndex === 2)
     .sort((left, right) => left.roundIndex - right.roundIndex);
-  const finalTiebreakerQuestions = questions
+  const finalTiebreakerQuestionsByRound = questions
     .filter((question) => question.roundIndex >= 100)
-    .sort((left, right) => left.roundIndex - right.roundIndex);
+    .reduce<Map<number, ProgressQuestion[]>>((map, question) => {
+      const bucket = map.get(question.roundIndex) ?? [];
+      bucket.push(question);
+      map.set(question.roundIndex, bucket);
+      return map;
+    }, new Map());
+
+  const orderedSemiTiebreakerRounds = [...semiTiebreakerQuestionsByRound.entries()]
+    .sort(([left], [right]) => left - right)
+    .map(([, roundQuestions]) => roundQuestions);
+  const orderedFinalTiebreakerRounds = [...finalTiebreakerQuestionsByRound.entries()]
+    .sort(([left], [right]) => left - right)
+    .map(([, roundQuestions]) => roundQuestions);
+
+  const hasFinalStarted =
+    finalQuestions.length > 0 &&
+    answeredCount >
+      QUESTIONS_PER_ROUND +
+        semiTiebreakerRoundCount * TIEBREAKER_QUESTIONS;
+  const visibleSemiTiebreakerRoundCount = hasFinalStarted
+    ? Math.min(orderedSemiTiebreakerRounds.length, semiTiebreakerRoundCount)
+    : Math.min(
+        orderedSemiTiebreakerRounds.length,
+        Math.max(
+          semiTiebreakerRoundCount,
+          Math.ceil(
+            Math.max(0, answeredCount - QUESTIONS_PER_ROUND) /
+              TIEBREAKER_QUESTIONS,
+          ),
+        ),
+      );
+
+  const visibleSemiTiebreakerQuestions = orderedSemiTiebreakerRounds
+    .slice(0, visibleSemiTiebreakerRoundCount)
+    .flat();
+  const answeredAfterSemi =
+    answeredCount -
+    QUESTIONS_PER_ROUND -
+    visibleSemiTiebreakerRoundCount * TIEBREAKER_QUESTIONS;
+  const visibleFinalTiebreakerRoundCount =
+    answeredAfterSemi > QUESTIONS_PER_ROUND
+      ? Math.min(
+          orderedFinalTiebreakerRounds.length,
+          Math.max(
+            finalTiebreakerRoundCount,
+            Math.ceil(
+              Math.max(0, answeredAfterSemi - QUESTIONS_PER_ROUND) /
+                TIEBREAKER_QUESTIONS,
+            ),
+          ),
+        )
+      : Math.min(
+          orderedFinalTiebreakerRounds.length,
+          finalTiebreakerRoundCount,
+        );
+  const visibleFinalTiebreakerQuestions = orderedFinalTiebreakerRounds
+    .slice(0, visibleFinalTiebreakerRoundCount)
+    .flat();
 
   const orderedQuestions = [
     ...semiQuestions,
-    ...semiTiebreakerQuestions,
+    ...visibleSemiTiebreakerQuestions,
     ...finalQuestions,
-    ...finalTiebreakerQuestions,
+    ...visibleFinalTiebreakerQuestions,
   ];
 
   let total = 0;

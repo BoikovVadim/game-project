@@ -19,6 +19,7 @@ test('computes semi and final correct counts in player order', () => {
   const result = computeCorrectCountsFromQuestions({
     answersChosen: [1, 0, 0, 2],
     semiRoundIndex: 1,
+    questionsAnsweredCount: 4,
     questions: [
       { roundIndex: 0, correctAnswer: 9 },
       { roundIndex: 1, correctAnswer: 1 },
@@ -30,4 +31,51 @@ test('computes semi and final correct counts in player order', () => {
   });
 
   assert.deepEqual(result, { total: 3, semi: 2 });
+});
+
+test('skips hidden semifinal tiebreakers once final already started', () => {
+  const result = computeCorrectCountsFromQuestions({
+    answersChosen: [
+      2, 1, 0, 1, 0, 1, 0, 1, 1, 1,
+      1, 3, 0, 2, 2, 2, 2, 0, 1, -1,
+    ],
+    semiRoundIndex: 1,
+    questionsAnsweredCount: 20,
+    semiTiebreakerRoundCount: 0,
+    finalTiebreakerRoundCount: 0,
+    questions: [
+      { roundIndex: 1, correctAnswer: 2 },
+      { roundIndex: 1, correctAnswer: 1 },
+      { roundIndex: 1, correctAnswer: 0 },
+      { roundIndex: 1, correctAnswer: 1 },
+      { roundIndex: 1, correctAnswer: 0 },
+      { roundIndex: 1, correctAnswer: 1 },
+      { roundIndex: 1, correctAnswer: 1 },
+      { roundIndex: 1, correctAnswer: 1 },
+      { roundIndex: 1, correctAnswer: 2 },
+      { roundIndex: 1, correctAnswer: 1 },
+      { roundIndex: 2, correctAnswer: 1 },
+      { roundIndex: 2, correctAnswer: 3 },
+      { roundIndex: 2, correctAnswer: 0 },
+      { roundIndex: 2, correctAnswer: 2 },
+      { roundIndex: 2, correctAnswer: 3 },
+      { roundIndex: 2, correctAnswer: 2 },
+      { roundIndex: 2, correctAnswer: 0 },
+      { roundIndex: 2, correctAnswer: 2 },
+      { roundIndex: 2, correctAnswer: 2 },
+      { roundIndex: 2, correctAnswer: 3 },
+      { roundIndex: 3, correctAnswer: 3 },
+      { roundIndex: 3, correctAnswer: 0 },
+      { roundIndex: 3, correctAnswer: 0 },
+      { roundIndex: 3, correctAnswer: 0 },
+      { roundIndex: 3, correctAnswer: 1 },
+      { roundIndex: 3, correctAnswer: 0 },
+      { roundIndex: 3, correctAnswer: 3 },
+      { roundIndex: 3, correctAnswer: 1 },
+      { roundIndex: 3, correctAnswer: 1 },
+      { roundIndex: 3, correctAnswer: 0 },
+    ],
+  });
+
+  assert.deepEqual(result, { total: 13, semi: 8 });
 });

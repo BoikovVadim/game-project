@@ -1410,6 +1410,11 @@ export class TournamentsService implements OnModuleInit {
       const recomputed = computeCorrectCountsFromQuestions({
         answersChosen,
         semiRoundIndex,
+        questionsAnsweredCount: progress.questionsAnsweredCount ?? answersChosen.length,
+        semiTiebreakerRoundCount:
+          progress.tiebreakerRoundsCorrect?.length ?? 0,
+        finalTiebreakerRoundCount:
+          progress.finalTiebreakerRoundsCorrect?.length ?? 0,
         questions: tournamentQuestions.map((question) => ({
           roundIndex: question.roundIndex,
           correctAnswer: question.correctAnswer,
@@ -6955,6 +6960,9 @@ export class TournamentsService implements OnModuleInit {
     tournamentId: number,
     answersChosen: number[],
     semiRoundIndex: number = 0,
+    questionsAnsweredCount?: number,
+    semiTiebreakerRoundCount: number = 0,
+    finalTiebreakerRoundCount: number = 0,
   ): Promise<{ total: number; semi: number }> {
     if (!answersChosen || answersChosen.length === 0)
       return { total: 0, semi: 0 };
@@ -6965,6 +6973,9 @@ export class TournamentsService implements OnModuleInit {
     return computeCorrectCountsFromQuestions({
       answersChosen,
       semiRoundIndex,
+      questionsAnsweredCount,
+      semiTiebreakerRoundCount,
+      finalTiebreakerRoundCount,
       questions: questions.map((question) => ({
         roundIndex: question.roundIndex,
         correctAnswer: question.correctAnswer,
@@ -7050,11 +7061,18 @@ export class TournamentsService implements OnModuleInit {
     }
 
     const semiRoundIndex = playerSlot < 2 ? 0 : 1;
+    const existingSemiTiebreakerRoundCount =
+      progress?.tiebreakerRoundsCorrect?.length ?? 0;
+    const existingFinalTiebreakerRoundCount =
+      progress?.finalTiebreakerRoundsCorrect?.length ?? 0;
     const { total: computedCorrect, semi: computedSemi } =
       await this.computeCorrectFromAnswers(
         tournamentId,
         chosenToSave,
         semiRoundIndex,
+        safeCount,
+        existingSemiTiebreakerRoundCount,
+        existingFinalTiebreakerRoundCount,
       );
 
     if (progress) {
@@ -7242,6 +7260,9 @@ export class TournamentsService implements OnModuleInit {
               tournamentId,
               freshChosen,
               semiRoundIndex,
+              freshChosen.length,
+              progress.tiebreakerRoundsCorrect?.length ?? 0,
+              progress.finalTiebreakerRoundsCorrect?.length ?? 0,
             );
           progress.correctAnswersCount = Math.max(
             recomputedTotal,
