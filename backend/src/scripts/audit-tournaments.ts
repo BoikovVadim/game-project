@@ -285,10 +285,16 @@ async function main() {
           questionsByTournamentId.get(progress.tournamentId) ?? [];
         if (!tournament || tournamentQuestions.length === 0) continue;
 
+        const orderedPlayerIds = (tournament.playerOrder ?? []).filter(
+          (userId): userId is number => Number.isInteger(userId) && userId > 0,
+        );
+        const fallbackPlayerIds = (tournament.players ?? [])
+          .map((player) => player.id)
+          .filter((userId): userId is number => Number.isInteger(userId) && userId > 0);
         const effectivePlayerOrder =
-          Array.isArray(tournament.playerOrder) && tournament.playerOrder.length > 0
-            ? tournament.playerOrder
-            : (tournament.players?.map((player) => player.id) ?? []);
+          orderedPlayerIds.length > 0
+            ? [...orderedPlayerIds, ...fallbackPlayerIds.filter((id) => !orderedPlayerIds.includes(id))]
+            : fallbackPlayerIds;
         const playerSlot = effectivePlayerOrder.indexOf(progress.userId);
         const semiRoundIndex = playerSlot >= 0 && playerSlot < 2 ? 0 : 1;
         const recomputed = computeCorrectCountsFromQuestions({
